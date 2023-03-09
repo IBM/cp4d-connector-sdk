@@ -1,0 +1,6 @@
+{
+  "modelPackage": "com.ibm.wdp.connect.common.sdk.api.models",
+  "sourceFolder": "src/main/java",
+  "serializableModel": false,
+  "hideGenerationTimestamp": true
+}

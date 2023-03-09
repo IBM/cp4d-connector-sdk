@@ -1,0 +1,11 @@
+---
+# defaults file for FlightService
+replicas: 1
+docker_image: TBD
+resources:
+  cpu:
+    limits: 1
+    requests: 500m
+  memory:
+    limits: 4Gi
+    requests: 2Gi

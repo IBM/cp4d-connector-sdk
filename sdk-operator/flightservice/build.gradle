@@ -1,0 +1,176 @@
+plugins {
+    id 'nu.studer.credentials' version '3.0'
+}
+
+def imageRegistryName = ''
+def dockerSudo = ''
+def containerCli = 'docker'
+
+def osLogin = {
+  println('Logging into OpenShift.')
+
+  def osConsoleUrl = project.findProperty('openshift.console.url')
+  if (osConsoleUrl == null || osConsoleUrl.isEmpty()) {
+    println('**********************************************************')
+    println('*                                                        *')
+    println('* The OpenShift console url was not found.               *')
+    println('*                                                        *')
+    println('* Login to OpenShift will not be attempted and must have *')
+    println('* already been accomplished.                             *')
+    println('*                                                        *')
+    println('**********************************************************')
+    return
+  }
+  def osUsername = credentials.forKey('openshift.username')
+  def osPassword = credentials.forKey('openshift.password')
+  if (osUsername == null || osUsername.isEmpty() || osPassword == null || osPassword.isEmpty()) {
+    println('**********************************************************')
+    println('*                                                        *')
+    println('* The OpenShift credentials were not found.              *')
+    println('*                                                        *')
+    println('* Login to OpenShift will not be attempted and must have *')
+    println('* already been accomplished.                             *')
+    println('*                                                        *')
+    println('**********************************************************')
+    return
+  }
+  def stdout = new ByteArrayOutputStream()
+  def stderr = new ByteArrayOutputStream()
+  try {
+    def osInsecureLogin = "--insecure-skip-tls-verify=false"
+    def insecureLogin = project.findProperty('openshift.insecure.login')
+    if (insecureLogin == null || insecureLogin.isEmpty() || 'false'.equalsIgnoreCase(insecureLogin)) {
+      println('Server is using secure login')
+    } else {
+      println('Server is using insecure login')
+      osInsecureLogin = "--insecure-skip-tls-verify=true"
+    }
+    exec {
+      commandLine 'oc', 'login', osConsoleUrl, '-u', osUsername, '-p', osPassword, osInsecureLogin
+      standardOutput = stdout
+      errorOutput = stderr
+    }
+    if (!"Login successful.".equals(stdout.toString().split('\r|\n')[0])) {
+      println(stdout)
+      println(stderr)
+      throw new RuntimeException('Unable to log into the Openshift cluster. Check the openshift.console.url, openshift.username, and openshift.password properties.')
+    }
+  } catch (Exception e) {
+    println(stdout)
+    println(stderr)
+    throw new RuntimeException('Unable to log into the Openshift cluster. Check the openshift.console.url, openshift.username, and openshift.password properties.')
+  }
+  return true
+}
+
+def dockerLogin = {
+  println('Logging into the Openshift registry')
+
+  def stdout = new ByteArrayOutputStream()
+  def stderr = new ByteArrayOutputStream()
+
+  try {
+    exec {
+      commandLine 'oc', 'whoami', '-t'
+      standardOutput = stdout
+    }
+    def ocPassword = stdout.toString().replaceAll('\r|\n', '')
+    stdout = new ByteArrayOutputStream()
+    exec {
+      if (dockerSudo == null || dockerSudo.isEmpty()) {
+        commandLine containerCli, 'login', '-u', 'kubeadmin', '--password-stdin', imageRegistryName + '/flightservice-operator-system'
+      } else {
+        commandLine dockerSudo, containerCli, 'login', '-u', 'kubeadmin', '--password-stdin', imageRegistryName + '/flightservice-operator-system'
+      }
+      standardInput = new ByteArrayInputStream(ocPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+    }
+  } catch (Exception e) {
+    println(e.getMessage())
+    throw new RuntimeException('Unable to log into the Openshift image registry.')
+  }
+}
+
+def addFlightServiceNamespace = {
+  def stderr = new ByteArrayOutputStream()
+  try {
+    exec {
+      commandLine 'oc', 'create', 'namespace', 'flightservice-operator-system'
+      errorOutput = stderr
+    }
+  } catch (Exception e) {
+    if (stderr.toString().replaceAll('\r|\n', '').endsWith("already exists")) {
+      println('The flightservice-operation-system namespace is present')
+      return
+    }
+    throw e
+  }
+}
+
+def copyTemplates = {
+  def stdOut = new ByteArrayOutputStream()
+  try {
+    exec {
+      commandLine 'oc', 'get', 'routes', '--namespace=openshift-image-registry', '--no-headers=true', '--output=custom-columns=HOST:.spec.host'
+      standardOutput = stdOut
+    }
+  } catch (Exception e) {
+    println(stdOut.toString())
+  }
+
+  imageRegistryName = stdOut.toString().replaceAll('\r|\n', '')
+  if (imageRegistryName.isEmpty()) {
+    throw new RuntimeException('Unable to determine the Host to use for the Openshift image registry')
+  }
+  println("Found the Openshift Image Registry Host at: $imageRegistryName")
+
+  def useSudoWithDocker = project.findProperty('docker.use.sudo')
+  if (useSudoWithDocker == null || useSudoWithDocker.isEmpty() || 'false'.equalsIgnoreCase(useSudoWithDocker)) {
+    dockerSudo = ''
+  } else {
+    dockerSudo = 'sudo'
+  }
+
+  containerCli = project.findProperty('container.cli')
+  if (containerCli == null || containerCli.isEmpty()) {
+    containerCli = 'docker'
+  }
+  copy {
+    from('../templates') {
+      filter(org.apache.tools.ant.filters.ReplaceTokens, beginToken:'$(', endToken: ')', tokens: [OPENSHIFT_IMAGE_REGISTRY: imageRegistryName, DOCKERSUDO: dockerSudo, CONTAINER_CLI: containerCli])
+    }
+    into '.'
+  }
+}
+
+def initialize = {
+  osLogin()
+  addFlightServiceNamespace()
+  copyTemplates()
+  dockerLogin()
+}
+
+tasks.register('deploy-operator') {
+  doLast {
+    initialize()
+    println("Starting deployment of the flightservice operator")
+    exec {
+      commandLine 'make', 'docker-build', 'docker-push'
+    }
+    exec {
+      commandLine 'make', 'deploy'
+    }
+    println("Deployment finished with no errors.")
+  }
+}
+
+
+tasks.register('undeploy-operator') {
+  doLast {
+    initialize()
+    println("Starting undeployment of the flightservice operator")
+    exec {
+      commandLine 'make', 'undeploy'
+    }
+    println("Undeployment finished with no errors.")
+  }
+}

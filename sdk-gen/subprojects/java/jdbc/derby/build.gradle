@@ -1,0 +1,32 @@
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+//
+// Declare project dependencies
+//
+dependencies {
+  // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
+  api(group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']) {
+    exclude group: "io.grpc"
+    exclude group: "io.netty"
+  }
+  api project(':wdp-connect-sdk-gen-java-api-models')
+  api project(':wdp-connect-sdk-gen-java-api')
+  implementation project(':wdp-connect-sdk-gen-java-jdbc')
+  implementation project(':wdp-connect-sdk-gen-java-util')
+  implementation group: 'org.apache.arrow', name: 'arrow-jdbc', version: project['arrow.version']
+  implementation group: 'org.apache.derby', name: 'derbyclient', version: project['derby.version']
+
+  testImplementation project(':wdp-connect-sdk-gen-java-test')
+  testImplementation group: 'org.apache.derby', name: 'derbynet', version: project['derby.version']
+
+  testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
+  testRuntimeOnly group: 'org.slf4j', name: 'jcl-over-slf4j', version: project['slf4j.version']
+  testRuntimeOnly group: 'org.slf4j', name: 'slf4j-jdk14', version: project['slf4j.version']
+}

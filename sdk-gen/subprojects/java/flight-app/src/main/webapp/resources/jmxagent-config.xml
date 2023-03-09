@@ -1,0 +1,32 @@
+<jmxtrans-agent>
+	<queries>
+		<!-- OS -->
+		<query objectName="java.lang:type=OperatingSystem" attribute="SystemLoadAverage"
+			resultAlias="os.cpu.gauge.systemLoadAverage" />
+
+		<query objectName="java.lang:type=OperatingSystem" attribute="ProcessCpuLoad"
+			resultAlias="os.cpu.gauge.processCpuLoad" />
+		<query objectName="java.lang:type=OperatingSystem" attribute="SystemCpuLoad"
+			resultAlias="os.cpu.gauge.systemCpuLoad" />
+
+		<!-- JVM -->
+		<query objectName="java.lang:type=Memory" attribute="HeapMemoryUsage"
+			key="used" resultAlias="os.heap_memory.gauge.used" />
+		<query objectName="java.lang:type=Memory" attribute="HeapMemoryUsage"
+			key="committed" resultAlias="os.heap_memory.gauge.committed" />
+		<query objectName="java.lang:type=Memory" attribute="NonHeapMemoryUsage"
+			key="used" resultAlias="os.nonheap_memory.gauge.used" />
+		<query objectName="java.lang:type=Memory" attribute="NonHeapMemoryUsage"
+			key="committed" resultAlias="os.nonheap_memory.gauge.committed" />
+
+		<!-- Application -->
+		<query objectName="org.jmxtrans.mbean:type=HealthMonitorMBean"
+			attributes="Status,ResponseTime,ChartStatus" resultAlias="healthMonitor.status.gauge.#attribute#"
+			collectIntervalInSeconds="180"></query>
+	</queries>
+
+	<outputWriter class="org.jmxtrans.agent.CollectdUdpOutputWriterEnv">
+	</outputWriter>
+
+	<collectIntervalInSeconds>30</collectIntervalInSeconds>
+</jmxtrans-agent>

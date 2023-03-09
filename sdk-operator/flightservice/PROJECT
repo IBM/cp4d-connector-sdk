@@ -1,0 +1,16 @@
+domain: wdp.ibm.com
+layout:
+- ansible.sdk.operatorframework.io/v1
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: flightservice-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: wdp.ibm.com
+  group: flight
+  kind: FlightService
+  version: v1alpha1
+version: "3"

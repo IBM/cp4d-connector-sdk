@@ -1,0 +1,59 @@
+swagger: '2.0'
+
+#--------------------------------------------------------------------
+# DEFINITIONS
+#--------------------------------------------------------------------
+
+definitions:
+  ConnectionActionConfiguration:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/ConnectionActionConfiguration'
+  ConnectionActionResponse:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/ConnectionActionResponse'
+  ConnectionProperties:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/ConnectionProperties'
+  CustomDatasourceTypeAction:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeAction'
+  CustomDatasourceTypeActionProperties:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeActionProperties'
+  CustomDatasourceTypeProperty:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeProperty'
+  CustomFlightActionRequest:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightActionRequest'
+  CustomFlightActionResponse:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightActionResponse'
+  CustomFlightAssetsCriteria:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightAssetsCriteria'
+  CustomFlightAssetDescriptor:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightAssetDescriptor'
+  CustomFlightAssetField:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightAssetField'
+  CustomFlightAssetFieldMetadata:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightAssetFieldMetadata'
+  CustomFlightDatasourceType:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightDatasourceType'
+  CustomFlightDatasourceTypes:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightDatasourceTypes'
+  CustomFlightDatasourceTypeProperties:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomFlightDatasourceTypeProperties'
+  DatasourceTypeDiscovery:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DatasourceTypeDiscovery'
+  DatasourceTypePropertyValues:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DatasourceTypePropertyValues'
+  DiscoveredAssetType:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveredAssetType'
+  DiscoveredAssetDetails:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveredAssetDetails'
+  DiscoveredAssetExtendedMetadataProperty:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveredAssetExtendedMetadataProperty'
+  DiscoveredAssetInteractionProperties:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveredAssetInteractionProperties'
+  DiscoveryAssetType:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveryAssetType'
+  DiscoveryConfiguration:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveryConfiguration'
+  DiscoveryFilters:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveryFilters'
+  DiscoveryPathProperty:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveryPathProperty'
+  DiscoveryPathSegment:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/DiscoveryPathSegment'

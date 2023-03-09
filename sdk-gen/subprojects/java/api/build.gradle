@@ -1,0 +1,24 @@
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+//
+// Declare project dependencies
+//
+dependencies {
+  // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
+  api(group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']) {
+    exclude group: "io.grpc"
+    exclude group: "io.netty"
+  }
+  api project(':wdp-connect-sdk-gen-java-api-models')
+  api group: 'org.apache.commons', name: 'commons-pool2', version: project['commons.pool2.version']
+  api group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
+  implementation project(':wdp-connect-sdk-gen-java-util')
+  implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
+}

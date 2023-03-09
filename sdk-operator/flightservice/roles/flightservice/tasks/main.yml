@@ -1,0 +1,8 @@
+---
+# tasks file for FlightService
+- name: "Create deployment {{ ansible_operator_meta.name }}-flightservice"
+  kubernetes.core.k8s:
+    definition: "{{ lookup('template','deployment.yaml.j2') | from_yaml }}"
+- name: "Create service {{ ansible_operator_meta.name }}-flightservice"
+  kubernetes.core.k8s:
+    definition: "{{ lookup('template','service.yaml.j2') | from_yaml }}"

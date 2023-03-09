@@ -1,0 +1,7 @@
+apiVersion: flight.wdp.ibm.com/v1alpha1
+kind: FlightService
+metadata:
+  name: noop
+spec:
+  replicas: 1
+  dockerImage: $(OPENSHIFT_IMAGE_REGISTRY)/myproject/noop-flightservice:0.0.2

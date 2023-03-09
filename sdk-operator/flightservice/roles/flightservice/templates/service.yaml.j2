@@ -1,0 +1,17 @@
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: '{{ ansible_operator_meta.name }}-flightservice'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app: '{{ ansible_operator_meta.name }}-flightservice'
+spec:
+  type: "ClusterIP"
+  ports:
+  - name: "grpcs"
+    protocol: "TCP"
+    port: 443
+    targetPort: 9443
+  selector:
+    app: '{{ ansible_operator_meta.name }}-flightservice'

@@ -1,0 +1,197 @@
+buildscript {
+  apply from: 'repos.gradle'
+  repositories {
+    mavenLocal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenCentral()
+      maven {
+        url "https://repo.maven.apache.org/maven2/"
+      }
+    }
+    // For gradle-node-plugin
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath group: 'commons-io', name: 'commons-io', version: project['commons-io.version']
+    classpath group: 'org.apache.commons', name: 'commons-lang3', version: project['commons-lang3.version']
+    classpath group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
+    classpath group: 'org.codehaus.gpars', name: 'gpars', version: project['gpars.version']
+    classpath group: 'org.yaml', name: 'snakeyaml', version: project['snakeyaml.version']
+    classpath group: 'com.diffplug.spotless', name: 'spotless-plugin-gradle', version: project['gradle.spotless.plugin.version']
+    classpath group: 'com.github.node-gradle', name: 'gradle-node-plugin', version: project['gradle.node.plugin.version']
+  }
+}
+ext {
+  buildinfo = [:]
+  scripts = [:]
+  //
+  // LogMsg - Log all messages based on VERBOSITY_LEVEL
+  //
+  def VERBOSITY_EXCEPTION = 0
+  def VERBOSITY_ERROR = 1
+  def VERBOSITY_WARNING = 2
+  def VERBOSITY_INFO = 3
+  def VERBOSITY_DEBUG = 4
+  def VERBOSITY_LABELS = [
+    'EXCEPTION',
+    'ERROR',
+    'WARNING',
+    'INFO',
+    'DEBUG'
+  ]
+
+  LogMsg = { int log_level, String args ->
+    def VERBOSITY_LEVEL = System.getenv('VERBOSITY_LEVEL') ?: '4'
+    if (VERBOSITY_LEVEL >= log_level) {
+      println "[${buildinfo.loggerDate.format(new Date())}] [${VERBOSITY_LABELS[log_level]}] ${args}"
+    }
+  }
+
+  //
+  // LogDebug - Log all Debug messages
+  //
+  LogDebug = { String args ->
+    LogMsg(VERBOSITY_DEBUG, args)
+  }
+
+  //
+  // LogError - Log all Error messages
+  //
+  LogError = { String args ->
+    LogMsg(VERBOSITY_ERROR, args)
+  }
+
+  //
+  // LogInfo - Log all Info messages
+  //
+  LogInfo = { String args ->
+    LogMsg(VERBOSITY_INFO, args)
+  }
+
+  //
+  // LogWarn - Log all Warning messages
+  //
+  LogWarn = { String args ->
+    LogMsg(VERBOSITY_WARNING, args)
+  }
+
+  //
+  // LogException - Log all Stack trace messages
+  //
+  LogException = { Exception e ->
+    def sb = new StringBuffer()
+    sb.append(e.getMessage() + '\n')
+    sb.append(e.getStackTrace().toString().replaceAll(',', '\n\t'))
+    if(e.getCause()!= null){
+      sb.append('\nCaused by: '+e.getCause().getMessage() + '\n')
+      sb.append(e.getCause().getStackTrace().toString().replaceAll(',', '\n\t'))
+    }
+    LogMsg(VERBOSITY_EXCEPTION, sb.toString())
+    throw new Exception("Pipeline Deployment Failed")
+  }
+  baseName = { Object file ->
+    def fileName = (file instanceof File) ? file.name : file.toString()
+    org.apache.commons.io.FilenameUtils.getBaseName(fileName)
+  }
+
+  fileExtension = { Object file ->
+    def fileName = (file instanceof File) ? file.name : file.toString()
+
+    project.buildscript.classLoader.loadClass('org.apache.commons.io.FilenameUtils')
+    def extension = org.apache.commons.io.FilenameUtils.getExtension(fileName)
+    if (extension == 'gz') {
+      if (org.apache.commons.io.FilenameUtils.getExtension(org.apache.commons.io.FilenameUtils.removeExtension(fileName)) == 'tar') {
+        extension = 'tar.gz'
+      }
+    }
+    extension
+  }
+
+  fileMD5 = { File file ->
+    file.withInputStream { is ->
+      new java.security.DigestInputStream(is, java.security.MessageDigest.getInstance('MD5')).withStream { dis ->
+        dis.eachByte(4096) { buffer, bytes -> }
+        dis.messageDigest.digest().encodeHex() as String
+      }
+    }
+  }
+
+  exeName = { Object file ->
+    def fileName = (file instanceof File) ? file.name : file.toString()
+    fileExtension(fileName)
+    if (org.gradle.internal.os.OperatingSystem.current().isWindows() && fileExtension(fileName) != 'exe') {
+      "${fileName}.exe"
+    } else {
+      fileName
+    }
+  }
+
+  systemPath = {
+    System.env.containsKey('PATH') ? System.env.PATH : System.env.Path
+  }
+
+  executableInPath = { String executable ->
+    systemPath().split(File.pathSeparator).any{java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(exeName(executable)))}
+  }
+
+  requireExecutablesInPath = { String... executables ->
+    def pathEntries = systemPath().split(File.pathSeparator)
+    executables.collect { executable ->
+      exeName(executable)
+    }.each { executable ->
+      if (!pathEntries.any{java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(executable))}) {
+        throw new GradleException("Unable to locate the '${executable}' executable in your system path\n")
+      }
+    }
+  }
+}
+
+//
+// Build Info Extensions
+//
+buildinfo += [
+  date:new Date(),
+  loggerDate:new java.text.SimpleDateFormat('yyyy/MM/dd hh:mm:ss a z'),
+  host:[:]
+]
+if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+  buildinfo.host += [
+    full: System.getenv('COMPUTERNAME') + (System.getenv('USERDNSDOMAIN') ? '.' + System.getenv('USERDNSDOMAIN') : ''),
+    short: System.getenv('COMPUTERNAME')
+  ]
+} else {
+  buildinfo.host += [
+    full: 'hostname'.execute().text.trim(),
+    short: 'hostname -s'.execute().text.trim()
+  ]
+}
+
+allprojects {
+  repositories {
+    mavenLocal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenCentral()
+      maven {
+        url "https://repo.maven.apache.org/maven2/"
+      }
+    }
+  }
+}

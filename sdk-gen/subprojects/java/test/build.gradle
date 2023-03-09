@@ -1,0 +1,161 @@
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+
+apply plugin: 'maven-publish'
+repositories {
+  mavenLocal()
+  if (repos.maven.url && repos.maven.username && repos.maven.password) {
+    maven {
+      url repos.maven.url
+      credentials {
+        username = repos.maven.username
+        password = repos.maven.password
+      }
+    }
+  } else {
+    mavenCentral()
+    maven {
+      url "https://repo.maven.apache.org/maven2/"
+    }
+  }
+}
+configurations {
+  projectZip
+}
+//
+// Mark as template
+//
+ext {
+  isTemplate = true
+}
+//
+// Declare project dependencies
+//
+dependencies {
+  implementation project(':wdp-connect-sdk-gen-java-util')
+  implementation project(':wdp-connect-sdk-gen-java-api-models')
+  implementation group: 'junit', name: 'junit', version: project['junit.version']
+  implementation group: 'com.google.code.gson', name: 'gson', version: project['gson.version']
+  implementation(group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']) {
+    exclude group: "io.grpc"
+    exclude group: "io.netty"
+  }
+  implementation group: 'org.apache.httpcomponents', name: 'httpclient', version: project['httpclient.version'], transitive: false
+  implementation group: 'org.apache.httpcomponents', name: 'httpcore', version: project['httpcore.version'], transitive: false
+  implementation group: 'org.apache.httpcomponents', name: 'httpmime', version: project['httpmime.version'], transitive: false
+  implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
+  runtimeOnly(group: 'com.google.guava', name: 'guava', version: project['guava.version']) {
+    exclude group: 'com.google.code.findbugs'
+    exclude group: 'com.google.errorprone'
+    exclude group: 'com.google.j2objc'
+    exclude group: 'org.checkerframework'
+  }
+  runtimeOnly group: 'commons-logging', name: 'commons-logging', version: project['commons.logging.version']
+  if (!JavaVersion.current().isJava9Compatible()) {
+    implementation group: 'org.apache.derby', name: 'derbynet', version: project['derby.java8.version']
+  } else {
+    implementation group: 'org.apache.derby', name: 'derbynet', version: project['derby.version']
+  }
+  projectZip project(path: ':', configuration: 'templateZip')
+  testImplementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: project['bouncycastle.version']
+  testImplementation project(':wdp-connect-sdk-gen-java-basic')
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
+}
+import org.apache.tools.ant.taskdefs.condition.Os
+ext{
+  gradleCommand = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew.bat" : "./gradlew"
+}
+//
+// No integration tests here
+//
+test {
+  maxParallelForks = 1
+  maxHeapSize = "2g"
+  exclude '**/integ/**/*'
+}
+//
+// Setup of the Integration Tests
+//
+task deletePreviousWorkspace(type: Delete) {
+  delete "${buildDir}/integrationTestsWorkspace"
+}
+task unpackProject {
+  dependsOn configurations.projectZip
+  outputs.upToDateWhen { false }
+  dependsOn(deletePreviousWorkspace)
+  doLast{
+    FileTree connTree = zipTree(configurations.projectZip.singleFile)
+    copy{
+      from connTree
+      into "${buildDir}/integrationTestsWorkspace"
+    }}
+}
+task generateSubprojects(type:Exec) {
+  dependsOn(unpackProject)
+  workingDir "${buildDir}/integrationTestsWorkspace"
+  commandLine gradleCommand, 'quickstart', '--no-daemon'
+  standardInput = new ByteArrayInputStream("integTest".getBytes())
+}
+task setupCerts {
+  outputs.upToDateWhen { false }
+  dependsOn(generateSubprojects)
+  doLast{
+    copy{
+      from 'src/test/resources'
+      include 'public.pem'
+      into "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/etc/wdp_public_keys"
+    }
+    copy{
+      from "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/"
+      include 'Dockerfile'
+      into "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/"
+      filter{line -> line.replace'#COPY', 'COPY' }
+      rename ('Dockerfile','Dockerfile_temp')
+    }
+    copy{
+      from "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/"
+      include 'Dockerfile_temp'
+      into "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/"
+      rename ('Dockerfile_temp','Dockerfile')
+    }
+    delete("${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/Dockerfile_temp")
+  }
+}
+task startLocalDocker(type:Exec) {
+  dependsOn(setupCerts)
+  workingDir "${buildDir}/integrationTestsWorkspace"
+  commandLine gradleCommand,':wdp-connect-sdk-gen-integtestflight:dockerStart', '--no-daemon'
+}
+task grabCert {
+  dependsOn(startLocalDocker)
+  doLast{
+    sleep(20 * 1000)//just to let the server start
+    def stdout = new ByteArrayOutputStream()
+    exec {
+      commandLine 'keytool', '-printcert', '-sslserver', 'localhost:443', '-rfc'
+      standardOutput = stdout
+    }
+    final FileTreeBuilder treeBuilder = new FileTreeBuilder(new File("${buildDir}"))
+    treeBuilder.dir('resources') {
+      dir('test') {
+        file('localhost.crt') {
+          withWriter('UTF-8') { writer ->
+            writer.write stdout.toString()
+          }
+        }
+      }
+    }
+  }
+}
+//
+// Integration Tests
+//
+task integTest(type: Test) {
+  dependsOn(grabCert)
+  outputs.upToDateWhen { false }
+  include '**/integ/**/Test*'
+}

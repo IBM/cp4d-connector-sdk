@@ -1,0 +1,30 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: '{{ ansible_operator_meta.name }}-flightservice'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app: '{{ ansible_operator_meta.name }}-flightservice'
+spec:
+  replicas: {{ replicas }}
+  selector:
+    matchLabels:
+      app: '{{ ansible_operator_meta.name }}-flightservice'
+  template:
+    metadata:
+      labels:
+        app: '{{ ansible_operator_meta.name }}-flightservice'
+    spec:
+      containers:
+      - name: '{{ ansible_operator_meta.name }}-flightservice'
+        image: "{{ docker_image }}"
+        ports:
+        - containerPort: 9443
+          protocol: TCP
+        resources:
+          limits:
+            cpu: {{ resources.cpu.limits }}
+            memory: {{ resources.memory.limits }}
+          requests:
+            cpu: {{ resources.cpu.requests }}
+            memory: {{ resources.memory.requests }}

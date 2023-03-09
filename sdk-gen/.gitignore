@@ -1,0 +1,10 @@
+.classpath
+.gradle
+.project
+.settings
+bin/
+build/
+subprojects/*
+!subprojects/java/
+testdb/
+*.log

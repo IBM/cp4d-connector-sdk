@@ -1,0 +1,431 @@
+openapi: 3.0.1
+components:
+  schemas:
+    ConnectionActionConfiguration:
+      type: object
+      additionalProperties:
+        type: object
+        properties: {}
+      description: Connection perform action configuration.
+    ConnectionActionResponse:
+      type: object
+      additionalProperties:
+        type: object
+        properties: {}
+      description: Results of a connection perform action request.
+    ConnectionProperties:
+      type: object
+      additionalProperties:
+        type: object
+        properties: {}
+      description: Connection properties.
+      x-cli-option-name: properties
+    CustomDatasourceTypeAction:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The action name.
+        description:
+          type: string
+          description: A description of the action.
+        properties:
+          $ref: '#/components/schemas/CustomDatasourceTypeActionProperties'
+      description: The definition of a custom data source type action.
+    CustomDatasourceTypeActionProperties:
+      type: object
+      properties:
+        input:
+          type: array
+          description: The input properties.
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeProperty'
+        output:
+          type: array
+          description: The properties of the action result.
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeProperty'
+      description: Definitions of the properties that are supported for a custom data
+        source type action.
+    CustomDatasourceTypeProperty:
+      description: Definition of a data source property for a custom datasource type.
+      type: object
+      properties:
+        name:
+          description: The property name.
+          type: string
+        type:
+          description: The type of the property.
+          type: string
+          enum:
+            - boolean
+            - enum
+            - integer
+            - string
+        label:
+          description: The label for the property.
+          type: string
+        description:
+          description: The description for the property.
+          type: string
+        placeholder:
+          description: An example value for the property.
+          type: string
+        required:
+          description: Whether the property is required.
+          type: boolean
+        masked:
+          description: Whether the property should be masked. For example, when the property is a password.
+          type: boolean
+        multiline:
+          type: boolean
+          description: Whether the property should be displayed in a multi-line field.
+        default_value:
+          description: The default value for the property if the value is not otherwise specified.
+          type: string
+        values:
+          description: If the property type is enum, the list of enumerated values that the property can take.
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasourceTypePropertyValues'
+        group:
+          description: A classification group for the property.
+          type: string
+    CustomFlightActionRequest:
+      description: The body of a request to the DoAction RPC method of a custom Arrow Flight service.
+      type: object
+      properties:
+        datasource_type_name:
+          description: The unique name of the custom Arrow Flight data source type.
+          type: string
+        connection_properties:
+          $ref: '#/components/schemas/ConnectionProperties'
+        request_properties:
+          $ref: '#/components/schemas/ConnectionActionConfiguration'
+        asset:
+          $ref: '#/components/schemas/CustomFlightAssetDescriptor'
+    CustomFlightActionResponse:
+      description: Results of the DoAction RPC method from a custom Arrow Flight service.
+      type: object
+      properties:
+        datasource_types:
+          $ref: '#/components/schemas/CustomFlightDatasourceTypes'
+        response_properties:
+          $ref: '#/components/schemas/ConnectionActionResponse'
+        asset:
+          $ref: '#/components/schemas/CustomFlightAssetDescriptor'
+    CustomFlightAssetsCriteria:
+      description: The body of a request to the ListFlights RPC method of a custom Arrow Flight service.
+      type: object
+      properties:
+        datasource_type_name:
+          description: The unique name of the custom Arrow Flight data source type.
+          type: string
+        connection_properties:
+          $ref: '#/components/schemas/ConnectionProperties'
+        path:
+          type: string
+          description: The path of the asset.
+        discovery_properties:
+          $ref: '#/components/schemas/DiscoveryConfiguration'
+        filters:
+          $ref: '#/components/schemas/DiscoveryFilters'
+        offset:
+          description: The number of assets to skip before returning results.
+          type: integer
+        limit:
+          description: The limit of the number of assets to return.
+          type: integer
+        extended_metadata:
+          description: Whether to return extended metadata details.
+          type: boolean
+        detail:
+          description: Whether to return additional asset-specific details.
+          type: boolean
+        context:
+          type: string
+          description: Whether assets are discovered for the purpose of reading (source) or writing (target).
+    CustomFlightAssetDescriptor:
+      description: Result of the ListFlights RPC method from a custom Arrow Flight service.
+      type: object
+      properties:
+        id:
+          type: string
+          description: An ID for the asset.
+        asset_type:
+          $ref: '#/components/schemas/DiscoveredAssetType'
+        name:
+          type: string
+          description: A name for the asset.
+        description:
+          type: string
+          description: A description of the asset.
+        tags:
+          type: array
+          description: Tags associated with the asset.
+          items:
+            type: string
+        path:
+          type: string
+          description: The path for the object which can be used to
+            discover child assets.
+        has_children:
+          type: boolean
+          description: True if it is known that the asset has children. False if it is
+            known that the asset does not have children. If it is not known,
+            or it is too expensive to determine this, then this property will
+            not be returned.
+        details:
+          $ref: '#/components/schemas/DiscoveredAssetDetails'
+        interaction_properties:
+          $ref: '#/components/schemas/DiscoveredAssetInteractionProperties'
+        extended_metadata:
+          type: array
+          description: Extended metadata properties
+          items:
+            $ref: '#/components/schemas/DiscoveredAssetExtendedMetadataProperty'
+        datasource_type_name:
+          description: The unique name of the custom Arrow Flight data source type.
+          type: string
+        connection_properties:
+          $ref: '#/components/schemas/ConnectionProperties'
+        batch_size:
+          description: The batch size.
+          type: integer
+        partition_count:
+          description: The partition count.
+          type: integer
+        partition_index:
+          description: The partition index.
+          type: integer
+        fields:
+          type: array
+          description: Asset fields
+          items:
+            $ref: '#/components/schemas/CustomFlightAssetField'
+    CustomFlightAssetField:
+      description: The metadata for a field of a discovered asset.
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the field.
+        type:
+          type: string
+          description: The type of the field.
+        length:
+          type: integer
+          description: The precision (or length) of the field.
+        scale:
+          type: integer
+          description: The scale of the field if the type is decimal.
+        nullable:
+          type: boolean
+          description: Whether the field accepts null values.
+        signed:
+          type: boolean
+          description: Whether an integer field holds signed or unsigned values.
+        description:
+          type: string
+          description: A description of this field.
+    CustomFlightAssetFieldMetadata:
+      description: The metadata for a field of a discovered asset.
+      type: object
+      additionalProperties:
+        type: string
+    CustomFlightDatasourceType:
+      description: The definition of a custom Arrow Flight data source type.
+      type: object
+      properties:
+        name:
+          type: string
+          description: A unique name, such as "my_data_source_type", that should follow IBM Cloud API Handbook naming standards.
+        label:
+          type: string
+          description: A localized, displayable label such as, "My Data Source Type".
+        description:
+          type: string
+          description: A localized, displayable description of the data source.
+        allowed_as_source:
+          type: boolean
+          description: Whether the data source can be accessed as a source of data. That is, data can be read from the data source.
+        allowed_as_target:
+          type: boolean
+          description: Whether the data source can be accessed as a target. That is, data can be written to the data source.
+        discovery:
+          $ref: '#/components/schemas/DatasourceTypeDiscovery'
+        properties:
+          $ref: '#/components/schemas/CustomFlightDatasourceTypeProperties'
+        status:
+          type: string
+          description: The status of the data source.
+          enum:
+            - active
+            - deprecated
+            - inactive
+            - pending
+        tags:
+          description: Tags associated with a data source type.
+          type: array
+          items:
+            type: string
+        actions:
+          description: The actions supported for the data source.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeAction'
+    CustomFlightDatasourceTypes:
+      description: A collection of custom data source types supported by an Arrow Flight service.
+      type: object
+      properties:
+        datasource_types:
+          description: List of data source types
+          items:
+            $ref: '#/components/schemas/CustomFlightDatasourceType'
+          type: array
+    CustomFlightDatasourceTypeProperties:
+      description: Definitions of the properties that are supported for a custom Arrow Flight data source.
+      type: object
+      properties:
+        connection:
+          description: The connection properties.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeProperty'
+        source:
+          description: The properties that can be set for a source interaction.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeProperty'
+        target:
+          description: The properties that can be set for a target interaction.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeProperty'
+        filter:
+          description: The filter properties that can be set for a discovery interaction.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeProperty'
+    DatasourceTypeDiscovery:
+      type: object
+      properties:
+        top_level_filters:
+          type: array
+          description: Top level filters
+          items:
+            type: string
+        asset_types:
+          type: array
+          description: Asset types
+          items:
+            $ref: '#/components/schemas/DiscoveryAssetType'
+        path_properties:
+          type: array
+          description: Path properties
+          items:
+            $ref: '#/components/schemas/DiscoveryPathProperty'
+      description: The definition of the discovery features of the data source type.
+    DatasourceTypePropertyValues:
+      type: object
+      properties:
+        value:
+          type: string
+          description: The value of the property that should be set if this enumeration
+            is chosen.
+        label:
+          type: string
+          description: A localized string that is the displayable value for the enumeration.
+            A user interface should display this string rather than the value.
+      description: Valid value for an enumerated data source property.
+    DiscoveredAssetType:
+      type: object
+      properties:
+        type:
+          type: string
+          description: The name of the asset type.
+        dataset:
+          type: boolean
+          description: "Whether the asset can be a source of data or whether it can\
+            \ be written to. To illustrate by example, a database table is a data\
+            \ set, but a schema is not. Likewise, a file is a data set, but a folder/directory\
+            \ is not."
+        dataset_container:
+          type: boolean
+          description: "Whether an asset can be created in this asset. To illustrate\
+            \ by example, a schema is a data set container, as is a folder/directory."
+      description: An asset type definition.
+    DiscoveredAssetDetails:
+      type: object
+      additionalProperties:
+        type: object
+        properties: {}
+      description: Details about a discovered asset.
+    DiscoveredAssetExtendedMetadataProperty:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of additional metadata
+        value:
+          type: object
+          properties: {}
+          description: Additional metadata content
+      description: Additional metadata found for an asset.
+    DiscoveredAssetInteractionProperties:
+      type: object
+      additionalProperties:
+        type: object
+        properties: {}
+      description: The interaction properties needed to find the asset.
+    DiscoveryAssetType:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the asset type.
+        label:
+          type: string
+          description: The label of the asset type.
+        next_level_filters:
+          type: array
+          description: The filters which can be used to discover the next level of
+            assets.
+          items:
+            type: string
+      description: The definition of a Discovery asset type.
+    DiscoveryConfiguration:
+      description: Configuration of a discovery interaction.
+      type: object
+      additionalProperties:
+        type: object
+        properties: {}
+    DiscoveryFilters:
+      type: object
+      additionalProperties:
+        type: object
+        properties: {}
+      description: Filters applied to a discovery interaction.
+    DiscoveryPathProperty:
+      type: object
+      properties:
+        property_name:
+          type: string
+          description: The name of the path property.
+        segments:
+          type: array
+          description: The segments of the path property.
+          items:
+            $ref: '#/components/schemas/DiscoveryPathSegment'
+      description: The definition of a Discovery path property.
+    DiscoveryPathSegment:
+      type: object
+      properties:
+        asset_types:
+          type: string
+          description: The asset type associated with the path segment.
+        repeatable:
+          type: boolean
+          description: Whether the path segment is repeatable.
+      description: The definition of a Discovery path segment.
+x-original-swagger-version: "2.0"

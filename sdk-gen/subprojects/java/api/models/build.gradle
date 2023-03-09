@@ -1,0 +1,143 @@
+//
+// Apply the nodejs, java-library, and maven publishing plugins
+//
+apply plugin: 'com.github.node-gradle.node'
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+//
+// Declare custom configurations
+//
+configurations {
+  codegen
+  swaggerCommon
+  common
+}
+//
+// Node.js configuration
+//
+node {
+  version = project['nodejs.version']
+  download = true
+  workDir = file("${project.buildDir}/nodejs")
+  npmWorkDir = file("${project.buildDir}/npm")
+  yarnWorkDir = file("${project.buildDir}/yarn")
+  nodeModulesDir = file("${project.projectDir}")
+}
+
+//
+// Declare custom sourceSets
+//
+def codegenDirBase = file("$buildDir/codegen")
+def codegenDirClient = file("$codegenDirBase/client")
+def codegenDirs = [codegenDirClient]
+sourceSets {
+  main {
+    java {
+      srcDirs = codegenDirs.collect { "${it.absolutePath}/src/main/java" }
+    }
+  }
+  test {
+    java {
+      srcDirs = codegenDirs.collect { "${it.absolutePath}/src/test/java" }
+    }
+  }
+}
+
+//
+// Declare project dependencies
+//
+dependencies {
+  api group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: project['jackson.version']
+  api group: 'io.swagger.core.v3', name: 'swagger-annotations', version: project['swagger.annotations.version']
+  implementation group: 'com.google.code.gson', name: 'gson', version: project['gson.version']
+
+  codegen group: 'io.swagger.codegen.v3', name: 'swagger-codegen-cli', version: project['swagger.codegen.version']
+
+  testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+}
+
+//
+// Assemble Swagger file fragments here
+//
+task assembleSwagger(type: NodeTask) {
+  def inputFiles = fileTree('src/main/resources').include('*.yaml')
+  def outputFile = file("$buildDir/json-refs/sdk-openapi.yaml")
+  def workingDir = file("$buildDir/tmp/json-refs")
+  dependsOn configurations.swaggerCommon
+  dependsOn npmInstall
+  script = file('node_modules/json-refs/bin/json-refs')
+  args = [
+    'resolve',
+    'sdk-openapi.yaml',
+    '-w',
+    '-y',
+    '--filter',
+    'remote'
+  ]
+  inputs.files inputFiles
+  outputs.file outputFile
+  execOverrides {
+    it.workingDir = workingDir
+    it.standardOutput = new FileOutputStream(outputFile)
+  }
+  doFirst {
+    outputFile.parentFile.mkdirs()
+    workingDir.deleteDir()
+    workingDir.mkdirs()
+    copy {
+      into workingDir
+      from(configurations.swaggerCommon) {
+        rename '[\\-a-zA-Z0-9]+-[\\.0-9]+(-SNAPSHOT)?-(.*)\\.yaml', '$2.yaml'
+      }
+      from inputFiles
+    }
+  }
+}
+
+artifacts.common assembleSwagger.outputs.files.singleFile
+
+//
+// Generate Java Client source code from Swagger configuration
+//
+task codegenClient(type: JavaExec) {
+  def codegenConfigFile = file('src/main/resources/codegen-client.json')
+  dependsOn assembleSwagger
+  inputs.file codegenConfigFile
+  outputs.dir codegenDirClient
+  mainClass = '-Dmodels'
+  args = [
+    '-jar',
+    configurations.codegen.singleFile.absolutePath,
+    'generate',
+    '-i',
+    assembleSwagger.outputs.files.singleFile.absolutePath,
+    '-l',
+    'java',
+    '-o',
+    codegenDirClient.absolutePath,
+    '-c',
+    codegenConfigFile.absolutePath,
+    '--additional-properties',
+    'jackson=true,gson=true,dateLibrary=legacy,java8=true'
+  ]
+  classpath configurations.codegen
+}
+compileJava.dependsOn codegenClient
+
+//
+// Exclude the Swagger implementation classes from the jar
+//
+jar {
+  includeEmptyDirs false
+  exclude '**/impl/*.class'
+  exclude '**/server/JacksonJsonProvider.class'
+}
+
+//
+// Skip static code analysis for generated classes
+//
+pmdMain.enabled = false
+spotless {
+  enforceCheck false
+}

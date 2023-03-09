@@ -1,0 +1,528 @@
+import org.apache.tools.ant.filters.*
+buildscript {
+  apply from: 'repos.gradle'
+  repositories {
+    mavenLocal()
+    gradlePluginPortal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenCentral()
+      maven {
+        url "https://repo.maven.apache.org/maven2/"
+      }
+    }
+    // For gradle-node-plugin
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath group: 'commons-io', name: 'commons-io', version: project['commons-io.version']
+    classpath group: 'org.apache.commons', name: 'commons-lang3', version: project['commons-lang3.version']
+    classpath group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
+    classpath group: 'org.codehaus.gpars', name: 'gpars', version: project['gpars.version']
+    classpath group: 'org.yaml', name: 'snakeyaml', version: project['snakeyaml.version']
+    classpath group: 'com.diffplug.spotless', name: 'spotless-plugin-gradle', version: project['gradle.spotless.plugin.version']
+    classpath group: 'com.github.node-gradle', name: 'gradle-node-plugin', version: project['gradle.node.plugin.version']
+  }
+}
+plugins {
+  id "com.github.ben-manes.versions" version "0.44.0"
+}
+apply plugin: 'maven-publish'
+
+apply from: 'ext.gradle'
+
+apply from: 'docker.gradle'
+
+apply from: 'registration.gradle'
+
+apply from: 'internal.gradle' // remove-129921
+
+gradle.rootProject {
+  apply plugin: 'com.diffplug.spotless'
+}
+
+//
+// All project configuration
+//
+allprojects {
+
+  tasks.withType(JavaCompile) {
+    options.release = 11
+  }
+  //
+  // Set the default group for all projects
+  //
+  group = project['default.group']
+
+  plugins.withType(JavaPlugin) {
+    project.apply plugin: 'pmd'
+
+    project.pmd {
+      toolVersion = project.hasProperty('pmd.version') ? project['pmd.version'] : '6.30.0'
+      ruleSets = [
+        "$rootProject.projectDir/config/pmd/pmd.xml"
+      ]
+    }
+  }
+}
+
+configurations{
+  basicConnector
+  basicFlight
+}
+
+dependencies {
+  basicConnector project(path: ':wdp-connect-sdk-gen-java-basic', configuration: 'templateZip')
+  basicFlight project(path: ':wdp-connect-sdk-gen-java-flight-app', configuration: 'templateZip')
+}
+
+spotless {
+  groovyGradle {
+    target fileTree(dir: "${project.projectDir}", include: '**/*.gradle', excludes: [
+      '.gradle/**/*',
+      '**/bin/**/*',
+      '**/build/**/*'
+    ]).files
+    endWithNewline()
+    trimTrailingWhitespace()
+    def groovyEclipseConfigFile = file("$rootDir/config/spotless/groovy.xml")
+    def groovyEclipsePropertiesFile = file("$rootDir/config/spotless/groovy.properties")
+    if (groovyEclipseConfigFile.exists() && groovyEclipsePropertiesFile.exists()) {
+      greclipse().configFile(groovyEclipseConfigFile.absolutePath, groovyEclipsePropertiesFile.absolutePath)
+    }
+  }
+}
+
+//
+// Sub project configuration
+//
+subprojects {
+  afterEvaluate {
+    def isMyMicroServiceApp = project.hasProperty('isServer') && project['isServer'] == true
+    if (isMyMicroServiceApp) {
+      if (project.hasProperty("custom.version")) {
+        project."version"= project.property("custom.version")+"."+System.env["BUILD_ID"]
+        LogInfo("Setting the custom project version: "+project.version.toString())
+      }
+      ext {
+        microServiceAppName = project.name - ~/-app/
+        microServiceAppVersion = project.version.toString()
+      }
+
+      if (project.tasks.find { it.name == 'war' } || project.configurations.find { it.name == 'wars' }) {
+        project.sourceSets {
+          dist
+          server
+        }
+        if (!project.configurations.find { it.name == 'wars' }) {
+          project.configurations {
+            wars
+          }
+        }
+        project.processServerResources {
+          filesMatching('**/server.*') {
+            filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: ['NAME': microServiceAppName, 'GROUP': project.group, 'VERSION': project.version.toString()])
+          }
+        }
+        project.processDistResources {
+          from "src/dist/resources"
+          include 'payload/initscripts/**/*'
+          include 'payload/etc/**/*'
+          include 'payload/Dockerfile'
+          duplicatesStrategy = 'include'
+        }
+        plugins.withType(WarPlugin) {
+          project.war {
+            def keyStoreFile = file("${rootProject.buildDir}/scripts/keystore.properties")
+            if (keyStoreFile.exists()) {
+              from (keyStoreFile) {
+                into 'resources'
+              }
+            }
+          }
+          project.dependencies {
+            wars project.war.outputs.files
+          }
+        }
+        task server(type: Zip) {
+          dependsOn configurations.wars
+          archiveAppendix = 'server'
+          from(processServerResources)
+          from(configurations.wars) {
+            into 'wlp/usr/servers/defaultServer/apps'
+            rename '(.*)-app-(.*).war', '$1.war'
+          }
+        }
+        task dist(type: Tar) {
+          dependsOn server
+          includeEmptyDirs false
+          from(server) {
+            into 'payload'
+            rename {
+              "${microServiceAppName}.zip"
+            }
+          }
+          // Service contract - packaging the installable shared library of service manifest
+          from (file("${rootProject.buildDir}/scripts/startupScript.sh")) {
+            into 'payload/.profile.d'
+          }
+        }
+
+        ext {
+          microServiceAppFile = dist.outputs.files.singleFile
+        }
+        def imageRegistry = project.properties['image.registry'] ?: 'index.docker.io/v1'
+        def imageTargetRegistry = project.properties['target.image.registry'] ?: imageRegistry
+        def imageTargetProject = project.properties['target.image.project']
+        def dockerUrl = project.properties['image.registry'] ? "https://${imageRegistry}" : repos.docker.url ?: "https://${imageRegistry}"
+        def dockerTargetUrl = project.properties['target.image.registry'] ? "https://${imageTargetRegistry}" : repos.dockerTarget.url ?: "https://${imageTargetRegistry}"
+        def ubiimageName = project.properties['image.name'] ?: "ibmcom/websphere-liberty"
+        def ubibaseimageTag = project.properties['image.tag'] ?: 'kernel-java11-openj9-ubi'
+
+        def microServiceUBIImageName = microServiceAppName
+        def microServiceImageTag = project.properties['target.image.tag'] ?: project.version.toString()
+
+        task dockerLogin {
+          description = 'Login to the source docker repository.'
+          onlyIf {
+            docker.dockerCheck()
+            !gradle.startParameter.offline
+          }
+          doLast {
+            docker.login(repos.docker.username, repos.docker.password, dockerUrl)
+          }
+        }
+        task dockerTargetLogin {
+          description = 'Login to the target docker repository.'
+          onlyIf {
+            docker.dockerCheck()
+            !gradle.startParameter.offline
+          }
+          doLast {
+            docker.login(repos.dockerTarget.username, repos.dockerTarget.password, dockerTargetUrl)
+          }
+        }
+        task getLatestBaseImageVersion(dependsOn: dockerLogin){
+          onlyIf {
+            docker.dockerCheck()
+            !gradle.startParameter.offline
+          }
+          doLast {
+            ubibaseimageTag = project.properties['image.tag'] ?: ubibaseimageTag
+            LogInfo("Image tag of base image is: ${ubiimageName}:${ubibaseimageTag}")
+          }
+        }
+        // docker pull task for ubi
+        task ubidockerPull(dependsOn: [
+          dockerLogin,
+          getLatestBaseImageVersion
+        ]) {
+          description = 'Pull the latest ubi Liberty docker image.'
+          onlyIf {
+            docker.dockerCheck()
+            !gradle.startParameter.offline
+          }
+          outputs.upToDateWhen {
+            docker.imageUpToDate(ubiimageName, ubibaseimageTag)
+          }
+          doLast {
+            docker.imagePull(ubiimageName, ubibaseimageTag)
+          }
+        }
+        task dockerStop {
+          description = 'Stop the personal MicroService Liberty docker container.'
+          onlyIf {
+            docker.dockerCheck()
+            !project.hasProperty('isTemplate')
+          }
+          doLast {
+            def containerId = docker.containerId(microServiceAppName)
+            if (containerId) {
+              docker.containerStop(containerId)
+              docker.containerRemove(containerId)
+            }
+          }
+        }
+        //docker build for ubi
+        task dockerBuild (dependsOn: ubidockerPull) {
+          dependsOn configurations.wars
+          dependsOn processServerResources
+          dependsOn processDistResources
+          description = 'Build the MicroService Liberty docker image for ubi.'
+          onlyIf {
+            docker.dockerCheck()
+            !project.hasProperty('isTemplate')
+          }
+          outputs.upToDateWhen {
+            docker.imageUpToDate(microServiceUBIImageName, microServiceImageTag) && project.version != null && project.version != "unspecified" && !project.version.endsWith("-SNAPSHOT")
+          }
+          doLast {
+            LogInfo("Building docker image for: ${microServiceUBIImageName}:${microServiceImageTag}")
+            def dockerDir = file("${buildDir}/tmp/docker")
+            dockerDir.deleteDir()
+            try {
+              copy {
+                into "${dockerDir}/root"
+                from(processServerResources)
+                from(configurations.wars) {
+                  into 'wlp/usr/servers/defaultServer/apps'
+                  rename '(.*)-app-(.*).war', '$1.war'
+                }
+                from(processDistResources) {
+                  include 'payload/initscripts/**/*'
+                  eachFile {
+                    path = "initscripts/${name}"
+                  }
+                  includeEmptyDirs = false
+                }
+              }
+              copy {
+                into "${dockerDir}/root"
+                from(processDistResources) {
+                  include 'payload/etc/**/*'
+                  eachFile {
+                    path = path.replace("payload/etc","etc")
+                  }
+                  includeEmptyDirs = false
+                }
+              }
+
+              // Create a dockerfile
+              def timeStamp = new Date()
+              def dockerFile = file("${dockerDir}/Dockerfile")
+              def imageDescription=project.properties['target.image.description'] ?: "This image runs ${microServiceUBIImageName} service"
+              def imageRelease=project.properties['target.image.release'] ?: "1.0"
+              def imageMaintainer=project.properties['maintainer.name'] ?: "IBM"
+              def imageVendor=project.properties['vendor.name'] ?: "IBM"
+              def serviceUser=project.properties['service.user'] ?: "1000321001"
+              def imageSummary=project.properties['target.image.summary'] ?: " "
+              dockerFile.delete()
+              copy {
+                into "${dockerDir}"
+                from(processDistResources) {
+                  include '**/Dockerfile'
+                  filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: ['image.name': ubiimageName.toString(), 'image.tag': ubibaseimageTag.toString(), 'target.image.name': microServiceUBIImageName.toString(), 'target.image.tag': microServiceImageTag.toString(), 'target.image.description': imageDescription.toString(), 'target.image.summary': imageSummary.toString(), 'maintainer.name': imageMaintainer.toString(), 'vendor.name': imageVendor.toString(), 'service.user': serviceUser.toString(),'target.image.release': imageRelease.toString(), 'timestamp.value' : timeStamp.toString()])
+                  eachFile {
+                    path = "${name}"
+                  }
+                }
+              }
+              if(!dockerFile.exists()){
+                dockerFile << "FROM ${ubiimageName}:${ubibaseimageTag}\n"
+                dockerFile << "MAINTAINER IBM\n"
+                dockerFile << """LABEL name="${microServiceUBIImageName}" "Vendor"="IBM" "Version"="${microServiceImageTag}"  "release"="${imageRelease}" "summary"="" "description"="${imageDescription}" \n"""
+                dockerFile << "USER 1000321001\n"
+                dockerFile << "COPY --chown=1000321001:1000321001 root/wlp/usr/servers/defaultServer /config/\n"
+                dockerFile << "COPY --chown=1000321001:1000321001 root/initscripts /opt/ibm/initScripts/\n"
+                dockerFile << "RUN echo app - ${microServiceUBIImageName}: ${microServiceImageTag} built on ${timeStamp} >> /opt/ibm/initScripts/version.txt\n"
+                dockerFile << "USER root\n"
+                dockerFile << "RUN chmod a+rxw /config /config/apps /logs\n"
+                dockerFile << "RUN chmod a+rwx /opt/ibm/initScripts/*.*"
+                dockerFile << "USER 1000321001\n"
+                dockerFile << "RUN for i in `cat /config/server.env`; do export $i; done; \\\n"
+                dockerFile << """    echo "KEYSTORE_PASSWORD=$keystore_password" > /config/bootstrap.properties; \\\n"""
+                dockerFile << """    echo "TRUSTSTORE_PASSWORD=changeit" >> /config/bootstrap.properties; \\\n"""
+                dockerFile << "    installUtility install --acceptLicense defaultServer; \\\n"
+                dockerFile << "    securityUtility createSSLCertificate --password=$keystore_password --server=defaultServer\n"
+                dockerFile << "USER root\n"
+                dockerFile << "RUN chmod -R a+rwx /opt/ibm/wlp/output\n"
+                dockerFile << "USER 1000321001\n"
+              }
+
+              LogInfo("Running the Docker Build ${microServiceUBIImageName}:${microServiceImageTag} ...on")
+              docker.dockerCommand('--version')
+              docker.buildLatest(microServiceUBIImageName, microServiceImageTag, dockerFile, imageRegistry, null)
+            } catch (Exception e) {
+              LogError("Docker Image build failed ...")
+              LogException(e)
+            }
+          }
+        }
+
+        task dockerPush(dependsOn: [
+          dockerBuild,
+          dockerTargetLogin
+        ]) {
+          description = 'Push the Micro-Service Liberty docker image.'
+          onlyIf {
+            docker.dockerCheck()
+            !project.hasProperty('isTemplate')
+          }
+          doLast {
+            LogInfo("Displaying the docker images ....")
+            docker.dockerCommand('images')
+            LogInfo("Pushing to Docker Registry ....")
+            def microServiceName = ""
+            microServiceName = microServiceUBIImageName
+            docker.imagePush(microServiceName, microServiceImageTag, imageTargetRegistry, imageTargetProject)
+            LogInfo("Tag it as latest ....")
+            docker.imagePush(microServiceName, 'latest', imageTargetRegistry, imageTargetProject)
+          }
+        }
+        task dockerStart(dependsOn: [
+          server,
+          dockerStop,
+          dockerBuild
+        ]) {
+          description = 'Start the personal Micro-Service Liberty docker container.'
+          onlyIf {
+            docker.dockerCheck()
+            !project.hasProperty('isTemplate')
+          }
+          doLast() {
+            def unzipDir = file("${buildDir}/tmp/docker")
+            copy {
+              into unzipDir
+              from zipTree(server.outputs.files.singleFile)
+            }
+            def serverEnvFile = file("${unzipDir}/wlp/usr/servers/defaultServer/server.env")
+            serverEnvFile.text = "FLIGHT_URL=grpc://0.0.0.0:9090"
+            // Update server.xml file with port number and host
+            def publishGRPCStr = systemProperty(project, 'docker.publish.grpc', '9090:9090')
+            def publishHttpStr = systemProperty(project, 'docker.publish.http', '9080:9080')
+            def publishHttpsStr = systemProperty(project, 'docker.publish.https', '443:9443')
+
+            // Deploy docker container
+            docker.dockerCommandStdout('run', '-idt', '--env-file', "${serverEnvFile.absolutePath}",'-p', "${publishGRPCStr}", '-p', "${publishHttpStr}", '-p', "${publishHttpsStr}", '--name', microServiceAppName, "${microServiceUBIImageName}:latest")
+          }
+        }
+      }
+
+    }
+    project.tasks.matching { task ->
+      task.name.startsWith('deploy') || task.name.startsWith('docker')
+    }.each { task ->
+      task.group = 'microservice'
+    }
+  }
+}
+tasks.register('generateJavaBasic'){
+  dependsOn configurations.basicConnector
+  description = 'Generate a basic Java connector project'
+  doLast{
+    println "Generating a basic Java connector project"
+    ant.input(message: "Connector's label:", addproperty: 'connectorLabel', defaultValue: 'Custom DataSource')
+    String defaultConnectorName = ant.connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
+    ant.input(message: "Connector's name:", addproperty: 'connectorName',defaultvalue: defaultConnectorName)
+    String defaultClassName = camelCase(ant.connectorName) - ~/Connector$/
+    ant.input(message: "Connector's classes names' prefix:", addproperty: 'connectorClassPrefix',defaultvalue: defaultClassName)
+    String defaultJavaPackage = "com.yourorganizationname.connect."+ant.connectorName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
+    ant.input(message: "Java package for the connector:", addproperty: 'connectorJavaPackage',defaultvalue: defaultJavaPackage)
+    String defaultDesc = "${ant.connectorLabel} (SDK)"
+    ant.input(message: "Connector's description:", addproperty: 'connectorDescription', defaultValue: defaultDesc)
+    FileTree connTree = zipTree(configurations.basicConnector.singleFile)
+    copy{
+      from connTree
+      into "${project.rootDir}/subprojects/${ant.connectorName}"
+      eachFile{ path = path.replace("com/ibm/connect/sdk/basic/impl",ant.connectorJavaPackage.replace('.','/')) }
+      rename{filename -> filename.replace '$_CONNNAME_$', ant.connectorName }
+      rename{filename -> filename.replace '$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
+      filter{line -> line.replace '$_CONNNAME_$', ant.connectorName}
+      filter{line -> line.replace '$_CONNLABEL_$', ant.connectorLabel}
+      filter{line -> line.replace '$_CONNDESCRIPTION_$', ant.connectorDescription}
+      filter{line -> line.replace'$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
+      filter{line -> line.replace'com.ibm.connect.sdk.basic.impl', ant.connectorJavaPackage }
+      filter{line -> line.replace'  isTemplate = true', '' }
+    }
+  }
+}
+
+def chooseConnectorProjects = { question ->
+  def projectsList = rootProject.subprojects.findAll {!(it.hasProperty('isServer') && it['isServer'] == true) && !it.hasProperty('isTemplate') && file("${it.projectDir}/src/main/resources/META-INF/services/org.apache.arrow.flight.FlightProducer").exists()}.collect{[it, false]}
+  if (projectsList.isEmpty()){
+    return []
+  }
+  for(int i = 0;;i++){
+    projectsList.eachWithIndex{ proj, index ->
+      println "[${proj[1]?'x':' '}] ${index+1}. ${proj[0].name} "
+    }
+    String ok = projectsList.find{it[1]}?",ok":""
+    // ant.input can be execute once with the same property
+    ant.input(message: question, addproperty: "chosenProject$i",validargs:(1..projectsList.size()).join(',')+ok)
+    if ('ok'.equals(ant.properties["chosenProject$i"])){
+      break
+    }
+    int selection = (ant.properties["chosenProject$i"] as Integer) - 1
+    projectsList[selection][1]=!projectsList[selection][1]
+  }
+  projectsList.findAll{it[1]}.collect{it[0].name}
+}
+
+tasks.register('generateFlightApp'){
+  dependsOn configurations.basicConnector
+  description = "Generate a Flight app project"
+  doLast{
+    println "Generating a Flight app project"
+    ant.input(message: "Flight App project's name:", addproperty: 'flightProjectName',defaultvalue: 'flight')
+    def projectToInclude = chooseConnectorProjects("Choose connector to be added to the service.")
+    String newLine
+    if (projectToInclude.isEmpty()){
+      println "There are not connectors projects to be added to this flight service. They can be added later on as runtimeOnly dependency in ${project.rootDir}/subprojects/${ant.flightProjectName}/build.gradle"
+      newLine = "//  runtimeOnly project(\':<name-of-connector-project>\')"
+    }else{
+      newLine = projectToInclude.collect {"  runtimeOnly project(path: \':"+it+"\')"}.join("\n")
+    }
+
+    println configurations.basicFlight.allDependencies
+    FileTree connTree = zipTree(configurations.basicFlight.singleFile)
+    copy{
+      from connTree
+      into "${project.rootDir}/subprojects/${ant.flightProjectName}"
+      filter { line -> line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line }
+      filter{line -> line.replace'  isTemplate = true', '' }
+    }
+  }
+}
+tasks.register('quickstart'){
+  dependsOn configurations.basicConnector
+  dependsOn configurations.basicFlight
+  description = "Generate a basic Java connector project and a Flight app project"
+  doLast{
+    println "Generating a basic Java connector project and a Flight app project"
+    ant.input(message: "Connector's label:", addproperty: 'connectorLabel', defaultValue: 'Custom DataSource')
+    String defaultConnectorName = ant.connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
+    String defaultClassName = camelCase(defaultConnectorName) - ~/Connector$/
+    String defaultJavaPackage = "com.yourorganizationname.connect."+defaultConnectorName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
+    String defaultDesc = "${ant.connectorLabel} (SDK)"
+    FileTree connTree = zipTree(configurations.basicConnector.singleFile)
+    copy{
+      from connTree
+      into "${project.rootDir}/subprojects/${defaultConnectorName}"
+      eachFile{ path = path.replace("com/ibm/connect/sdk/basic/impl",defaultJavaPackage.replace('.','/')) }
+      rename{filename -> filename.replace '$_CONNNAME_$', defaultConnectorName }
+      rename{filename -> filename.replace '$_CONNNAMEPREFIX_$', defaultClassName }
+      filter{line -> line.replace '$_CONNNAME_$', defaultConnectorName}
+      filter{line -> line.replace '$_CONNLABEL_$', ant.connectorLabel}
+      filter{line -> line.replace '$_CONNDESCRIPTION_$', defaultDesc}
+      filter{line -> line.replace'$_CONNNAMEPREFIX_$', defaultClassName }
+      filter{line -> line.replace'com.ibm.connect.sdk.basic.impl', defaultJavaPackage }
+      filter{line -> line.replace'  isTemplate = true', '' }
+    }
+    String flightProjectName = defaultConnectorName+"flight"
+    String flightClassPrefix = flightProjectName.replaceAll("(-)([A-Za-z0-9])",{Object[] fit -> fit[2].toUpperCase() } ).capitalize()
+    String flightJavaPackage = "com.yourorganizationname.connect."+flightProjectName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
+    def projectsToIncludeDefault = rootProject.subprojects.findAll {!(it.hasProperty('isMicroServiceApp') && it['isMicroServiceApp'] == true)}.collect { it.name }
+    String newLine = "  runtimeOnly project(\':"+rootProject.name+"-"+defaultConnectorName+"\')"
+    FileTree flightTree = zipTree(configurations.basicFlight.singleFile)
+    copy{
+      from flightTree
+      into "${project.rootDir}/subprojects/${flightProjectName}"
+      filter { line -> line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line }
+      filter{line -> line.replace'  isTemplate = true', '' }
+    }
+  }
+}
+project.tasks.matching { task ->
+  task.name.startsWith('generate') || task.name.startsWith('quickstart')
+}.each { task ->
+  task.group = 'sub-project generation'
+}
