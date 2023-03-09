@@ -1,0 +1,14 @@
+-Xtune:virtualized
+-Dcom.ibm.jsse2.overrideDefaultTLS=true
+-Djdk.tls.ephemeralDHKeySize=matched
+-Xdump:none
+-Xdump:heap:defaults:file=/output/dumps/heapdump.%Y%m%d.%H%M%S.%pid.%seq.phd
+-Xdump:java:defaults:file=/output/dumps/javacore.%Y%m%d.%H%M%S.%pid.%seq.txt
+-Xdump:snap:defaults:file=/output/dumps/Snap.%Y%m%d.%H%M%S.%pid.%seq.trc
+-Xdump:heap+java+snap:events=user
+-Xshareclasses:name=docker
+-Xshareclasses:none
+-Xdump:system:events=systhrow,filter=java/lang/OutOfMem*,range=1..1
+-Dcom.ibm.tx.jta.disable2PC=true
+-Dlog4j2.formatMsgNoLookups=true
+-Xmx1536M

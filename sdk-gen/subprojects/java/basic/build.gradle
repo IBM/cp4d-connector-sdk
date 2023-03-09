@@ -1,0 +1,72 @@
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+allprojects {
+  repositories {
+    mavenLocal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenCentral()
+      maven {
+        url "https://repo.maven.apache.org/maven2/"
+      }
+    }
+  }
+}
+
+//
+// Mark as template
+//
+ext {
+  isTemplate = true
+}
+configurations{
+  templateZip {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+}
+
+task assembleArtifact(type: Zip) {
+  outputs.upToDateWhen { false }
+  archiveFileName.set(file(project.projectDir).getName() + '.zip')
+  destinationDirectory.set(file("$buildDir/distributions/"))
+  from(project.projectDir) {
+    include 'src/**', 'build.gradle'
+  }
+  from(project.rootProject.projectDir){
+    include 'gradle.properties', 'gradlew', 'gradlew.bat', 'gradle/**', 'settings.gradle'
+  }
+  from(project.rootProject.projectDir){
+    include 'subprojects/java/api/build.gradle', 'subprojects/java/api/src/**'
+  }
+  from(project.rootProject.projectDir){
+    include 'subprojects/java/util/build.gradle', 'subprojects/java/util/src/**'
+  }
+  description "Assemble archive $archiveFileName into ${relativePath(destinationDirectory)}"
+}
+
+artifacts {
+  templateZip(assembleArtifact.archiveFile) {
+    builtBy(assembleArtifact)
+  }
+}
+//
+// Declare project dependencies
+//
+dependencies {
+  api project(':' + rootProject.name + '-java-api-models')
+  api project(':' + rootProject.name + '-java-api')
+
+  testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+}

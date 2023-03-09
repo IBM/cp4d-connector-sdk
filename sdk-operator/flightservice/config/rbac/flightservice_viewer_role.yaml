@@ -1,0 +1,20 @@
+# permissions for end users to view flightservices.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flightservice-viewer-role
+rules:
+- apiGroups:
+  - flight.wdp.ibm.com
+  resources:
+  - flightservices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - flight.wdp.ibm.com
+  resources:
+  - flightservices/status
+  verbs:
+  - get

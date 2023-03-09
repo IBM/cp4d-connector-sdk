@@ -1,0 +1,51 @@
+# Configuration properties for bundle
+bundle.derby.port=<port number>
+bundle.derby.database_name=<database name>
+bundle.derby.user_name=<user name>
+bundle.derby.user_pass=<user pass>
+bundle.flight.port=<port number>
+bundle.flight.ssl=true
+bundle.flight.createLocal=true
+bundle.flight.uri=<external uri reachable from cloud>
+bundle.flight.ssl_certificate=<ssl certificate>
+bundle.flight.ssl_certificate_validation=true
+
+# Configuration properties for jdbc-derby
+jdbc_derby.derby.port=<port number>
+jdbc_derby.derby.database_name=<database name>
+jdbc_derby.derby.user_name=<user name>
+jdbc_derby.derby.user_pass=<user pass>
+jdbc_derby.flight.port=<port number>
+
+# Configuration properties for jdbc-generic
+jdbc_generic.derby.port=<port number>
+jdbc_generic.derby.database_name=<database name>
+jdbc_generic.derby.user_name=<user name>
+jdbc_generic.derby.user_pass=<user pass>
+jdbc_generic.flight.port=<port number>
+
+# Configuration properties for noop
+noop.flight.port=<port number>
+
+# Configuration properties for test
+test.flight.port=<port number>
+
+# Configuration properties for cloud
+cloud.type=private
+
+# Configuration properties for cloud private
+cloud.private.host=<host>
+cloud.private.flight.host=<Flight host>
+cloud.private.ssl_certificate=<ssl certificate>
+cloud.private.ssl_certificate_validation=true
+cloud.private.user_name=<user name>
+cloud.private.user_pass=<user pass>
+cloud.private.container_type=project
+cloud.private.container_id=<container id>
+
+# Configuration properties for cloud public
+cloud.public.host=api.dataplatform.cloud.ibm.com
+cloud.public.iam_url=https://iam.cloud.ibm.com
+cloud.public.api_key=<api key>
+cloud.public.container_type=project
+cloud.public.container_id=<container id>

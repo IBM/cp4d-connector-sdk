@@ -1,0 +1,7 @@
+apiVersion: flight.wdp.ibm.com/v1alpha1
+kind: FlightService
+metadata:
+  name: flightservice-sample
+spec:
+  replicas: 1
+  dockerImage: image-registry.openshift-image-registry.svc:5000/myproject/flightservice-sample:0.0.2

@@ -1,0 +1,24 @@
+# permissions for end users to edit flightservices.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flightservice-editor-role
+rules:
+- apiGroups:
+  - flight.wdp.ibm.com
+  resources:
+  - flightservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - flight.wdp.ibm.com
+  resources:
+  - flightservices/status
+  verbs:
+  - get

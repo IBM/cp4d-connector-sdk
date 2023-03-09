@@ -1,0 +1,107 @@
+//
+// Apply the war and maven publishing plugins
+//
+apply plugin: 'war'
+apply plugin: 'maven-publish'
+
+//
+// Declare custom configurations
+//
+configurations {
+  javaNioCharset
+  warball
+  templateZip {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+}
+
+
+task assembleArtifact(type: Zip) {
+  outputs.upToDateWhen { false }
+  archiveFileName.set(file(project.projectDir).getName() + '.zip')
+  destinationDirectory.set(file("$buildDir/distributions/"))
+  from(project.projectDir) {
+    include 'src/**', 'build.gradle'
+  }
+  description "Assemble archive $archiveFileName into ${relativePath(destinationDirectory)}"
+}
+
+artifacts {
+  templateZip(assembleArtifact.archiveFile) {
+    builtBy(assembleArtifact)
+  }
+}
+//
+// Declare project dependencies
+//
+dependencies {
+  // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
+  implementation(group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']) {
+    exclude group: "io.grpc"
+    exclude group: 'io.netty'
+  }
+  compileOnly group: 'io.grpc', name: 'grpc-api', version: project['grpc.version']
+  compileOnly(group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version']) {
+    exclude group: 'io.netty'
+  }
+  implementation group: 'io.netty', name: 'netty-all', version: project['netty.version']
+  implementation group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
+  implementation project(':' + rootProject.name + '-java-util')
+  implementation project(':' + rootProject.name + '-java-api-models')
+
+  implementation group: 'javax.servlet', name: 'javax.servlet-api', version: project['javax.servlet.version']
+  //$_INSERT_SUBPROJECTS_$
+  runtimeOnly group: 'org.slf4j', name: 'slf4j-jdk14', version: project['slf4j.version']
+  runtimeOnly group: 'org.slf4j', name: 'log4j-over-slf4j', version: project['slf4j.version']
+
+  javaNioCharset group: 'com.ibm.java', name: 'charsets', version: project['ibmjava.version']
+  testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+  testRuntimeOnly group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']
+}
+
+//
+// Assemble and deploy as a micro service app, mark as template
+//
+ext {
+  isServer = true
+  isTemplate = true
+}
+afterEvaluate{
+  tasks.named("assembleRegistrationConfig") {
+    onlyIf {
+      !project.hasProperty('isTemplate')
+    }
+    doLast {
+      //Use this section to grab template properties from src/dist/resources/payload/template.properties,
+      //fill it with your secrets and place it under ${builddir}/payload/yourname.properties
+      copy{
+        from 'src/dist/resources/payload/envs'
+        include '*.properties'
+        into "${buildDir}/resources/dist/payload/envs"
+      }
+    }
+  }
+}
+//
+// Expose the war as an artifact
+//
+artifacts.warball war
+
+//
+// No functional tests here
+//
+test {
+  exclude '**/func/**/*'
+}
+
+//
+// Functional Verification Tests
+//
+task funcTest(type: Test) {
+  outputs.upToDateWhen { false }
+  include '**/func/**'
+  environment WEB_XML: "$webAppDirName/WEB-INF/web.xml"
+  systemProperty 'com.ibm.jsse2.overrideDefaultTLS', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+}

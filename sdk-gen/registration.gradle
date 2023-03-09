@@ -1,0 +1,206 @@
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.security.cert.X509Certificate;
+class TrustAllManager extends X509ExtendedTrustManager {
+  public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+    return null;
+  }
+  public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
+  public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
+  public void checkClientTrusted (X509Certificate [] chain, String authType, Socket socket) {
+  }
+  public void checkServerTrusted (X509Certificate [] chain, String authType, Socket socket) {
+  }
+  public void checkClientTrusted (X509Certificate [] chain, String authType, SSLEngine engine) {
+  }
+  public void checkServerTrusted (X509Certificate [] chain, String authType, SSLEngine engine) {
+  }
+}
+subprojects {
+  afterEvaluate {
+    def isMyMicroServiceApp = project.hasProperty('isServer') && project['isServer'] == true
+    if (isMyMicroServiceApp) {
+      def skipCertValidation = {
+        if (project.hasProperty('ignoreCerts') && (ignoreCerts == 'true')){
+          logger.warn "Disabling certificate validation!!!"
+          TrustAllManager[] trustAllCerts = new TrustAllManager[1]
+          trustAllCerts[0] = new TrustAllManager()
+          SSLContext sc = SSLContext.getInstance("TLS");
+          sc.init(null, trustAllCerts, new java.security.SecureRandom());
+          HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+        }
+      }
+      def reinitSSL = {
+        SSLContext sc = SSLContext.getInstance("TLS");
+        //passing nulls here makes it grab the defaults again
+        sc.init(null, null, new java.security.SecureRandom());
+        HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+      }
+      def registrationProperties = new Properties()
+      def assertPropertyDefined = { propName, conf ->
+        if(!conf.containsKey(propName)){
+          throw new GradleException("Missing required property: "+propName)
+        }
+      }
+      tasks.register("assembleRegistrationConfig")//Stub task to be configured by the customer
+      tasks.register("resolveProperties") {
+        dependsOn assembleRegistrationConfig
+        onlyIf {
+          !project.hasProperty('isTemplate')
+        }
+        doLast{
+          if (project.hasProperty('env')){
+            file("${buildDir}/resources/dist/payload/envs/${env}.properties").withInputStream { registrationProperties.load(it) }
+          } else {
+            ant.input(message: "Provide path of registration properties file:", addproperty: 'envInteractive')
+            file(ant.envInteractive).withInputStream { registrationProperties.load(it) }
+          }
+        }
+      }
+      tasks.register("getBearerToken") {
+        dependsOn resolveProperties
+        onlyIf {
+          !project.hasProperty('isTemplate')
+        }
+        doLast{
+          try{
+            skipCertValidation()
+            if(registrationProperties.containsKey("authToken")){
+              logger.info "Token provided, skipping authentication."
+            } else {
+              assertPropertyDefined('auth_uri', registrationProperties)
+
+              def authUri = registrationProperties.getProperty("auth_uri")
+              def req = new URL(authUri).openConnection()
+              req.setRequestMethod("POST")
+              req.setRequestProperty("User-Agent","ConnectivitySDK")
+              req.setRequestProperty("Accept", "application/json")
+              req.setDoOutput(true)
+              req.setUseCaches(false);
+              if(authUri.contains("/icp4d-api/v1/authorize")){
+                //That's a CPD endpoint
+                assertPropertyDefined('username', registrationProperties)
+                assertPropertyDefined('password', registrationProperties)
+                def username = registrationProperties.getProperty("username")
+                def password = registrationProperties.getProperty("password")
+                req.setRequestProperty("Content-Type", "application/json")
+                def body = new JsonSlurper().parseText('{ "username":"","password":""}')
+                body.username = username
+                body.password = password
+                def byteBody = JsonOutput.toJson(body).getBytes("UTF-8")
+                req.setRequestProperty("Content-Length", Integer.toString(byteBody.length));
+                req.getOutputStream().write(byteBody)
+              }else{
+                //Assume cloud
+                assertPropertyDefined('apikey', registrationProperties)
+                def apikey = registrationProperties.getProperty("apikey")
+                req.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                def urlParams = ("grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey="+apikey).getBytes("UTF-8")
+                req.setRequestProperty("Content-Length", Integer.toString(urlParams.length));
+                req.getOutputStream().write(urlParams)
+              }
+              logger.debug "Status code: ${req.getResponseCode()}" // HTTP request done on first read
+              if(100 <= req.getResponseCode() && req.getResponseCode() <= 399) {
+                def resp = new JsonSlurper().parseText(req.getInputStream().getText())
+                logger.debug "Response: ${resp}"
+                if(resp.access_token != null){
+                  registrationProperties.setProperty("authToken", resp.access_token)
+                } else {
+                  //CPD returns bearer token under token rather than access_token
+                  registrationProperties.setProperty("authToken", resp.token)
+                }
+              }else {
+                throw new GradleException(new JsonSlurper().parseText(req.getErrorStream().getText()).toString())
+              }
+            }
+          } finally {
+            reinitSSL()
+          }
+        }
+      }
+      tasks.register("register") {
+        dependsOn getBearerToken
+        group 'Registration'
+        onlyIf {
+          !project.hasProperty('isTemplate')
+        }
+        doLast {
+          try {
+            skipCertValidation()
+            assertPropertyDefined("flight_uri", registrationProperties)
+            assertPropertyDefined("datasource_types_uri", registrationProperties)
+            def reqUrl = new URL(registrationProperties.getProperty("datasource_types_uri"))
+            def req = reqUrl.openConnection()
+            req.setRequestMethod("POST")
+            req.setRequestProperty("User-Agent","ConnectivitySDK")
+            req.setRequestProperty("Authorization", "Bearer "+ registrationProperties.getProperty("authToken"))
+            req.setRequestProperty("Accept-Language", "en")
+            req.setRequestProperty("Accept-Encoding", "gzip, deflate, br")
+            req.setRequestProperty("Accept", "application/json")
+            req.setRequestProperty("Content-Type", "application/json")
+            def body = new JsonSlurper().parseText('{ "origin_country":"us", "flight_info": { "flight_uri": "", "ssl_certificate": "","ssl_certificate_validation": false } }')
+            body.flight_info.flight_uri = registrationProperties.getProperty("flight_uri")
+            if(registrationProperties.containsKey("ssl_certificate")){
+              body.flight_info.ssl_certificate = file(registrationProperties.getProperty("ssl_certificate")).text
+            }
+            if(registrationProperties.containsKey("ssl_certificate_validation")){
+              body.flight_info.ssl_certificate_validation = registrationProperties.getProperty("ssl_certificate_validation")
+            }
+            req.setDoOutput(true)
+            req.setUseCaches(false);
+            def byteBody = JsonOutput.toJson(body).getBytes("UTF-8")
+            req.setRequestProperty("Content-Length", Integer.toString(byteBody.length));
+            println "Executing HTTP request: POST ${reqUrl}"
+            req.getOutputStream().write(byteBody)
+            logger.debug "Status code: ${req.getResponseCode()}" // HTTP request done on first read
+            if(100 <= req.getResponseCode() && req.getResponseCode() <= 399) {
+              logger.debug "Response: "+ new JsonSlurper().parseText(req.getInputStream().getText().toString())
+            }else {
+              throw new GradleException(new JsonSlurper().parseText(req.getErrorStream().getText()).toString())
+            }
+          } finally {
+            reinitSSL()
+          }
+        }
+      }
+      tasks.register("unregister") {
+        dependsOn getBearerToken
+        group 'Registration'
+        doLast {
+          try{
+            skipCertValidation()
+            def datasourceType = ""
+            if (project.hasProperty('datasourceType')){
+              datasourceType = project.getProperty('datasourceType')
+            } else {
+              ant.input(message: "Provide id of datasource type you want to remove:", addproperty: 'datasourceTypeInteractive')
+              datasourceType = ant.datasourceTypeInteractive
+            }
+            assertPropertyDefined("datasource_types_uri", registrationProperties)
+            def req = new URL(registrationProperties.getProperty("datasource_types_uri")+"/"+datasourceType).openConnection()
+            req.setRequestMethod("DELETE")
+            req.setRequestProperty("User-Agent","ConnectivitySDK")
+            req.setRequestProperty("Authorization", "Bearer "+ registrationProperties.getProperty("authToken"))
+            req.setRequestProperty("Accept-Language", "en")
+            req.setRequestProperty("Accept-Encoding", "gzip, deflate, br")
+            req.setUseCaches(false);
+            logger.debug "Status code: ${req.getResponseCode()}" // HTTP request done on first read
+            if(req.getResponseCode() == 204) {
+              logger.debug "Asset "+datasourceType+" was deleted."
+            }else {
+              throw new GradleException(new JsonSlurper().parseText(req.getErrorStream().getText()).toString())
+            }
+          } finally {
+            reinitSSL()
+          }
+        }
+      }
+    }
+  }
+}

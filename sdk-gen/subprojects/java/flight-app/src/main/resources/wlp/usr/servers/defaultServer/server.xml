@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<server description="@NAME@-server">
+    <!-- Enable features -->
+    <featureManager>
+        <feature>grpc-1.0</feature>
+        <feature>appsecurity-3.0</feature>
+        <feature>transportSecurity-1.0</feature>
+    </featureManager>
+    <variable name="flight_grpc_maxInboundMessageSize" defaultValue="16777216" />
+
+    <!-- To access this server from a remote client add a host attribute to the following element, e.g. host="*" -->
+    <httpEndpoint id="defaultHttpEndpoint"
+                  httpPort="-1"
+                  httpsPort="9443">
+        <httpOptions persistTimeout="2m" readTimeout="8h" writeTimeout="8h"/>
+    </httpEndpoint>
+
+    <application name="@NAME@" context-root="/" location="@NAME@.war" type="war"/>
+
+    <grpc maxInboundMessageSize="${flight_grpc_maxInboundMessageSize}" target="arrow.flight.protocol.FlightService" />
+
+    <!-- For now, trace everything at finest level -->
+    <logging traceSpecification="*=audit:com.ibm.wdp.connect.*=finest:com.ibm.connect.*=finest" maxFiles="10"/>
+</server>

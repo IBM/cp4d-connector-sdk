@@ -1,0 +1,58 @@
+tasks.register('assembleArtifact', Zip){
+  outputs.upToDateWhen { false }
+  archiveFileName = 'connectivitySDK.zip'
+  destinationDirectory = file("$buildDir")
+  from(project.rootProject.projectDir){
+    include 'build.gradle'
+    //filter{line -> line.contains("remove-129921")?'':line}
+  }
+  from(project.rootProject.projectDir){
+    include 'internal.gradle', 'repos.gradle', 'registration.gradle', 'docker.gradle', 'ext.gradle', 'settings.gradle', 'gradle.properties', 'gradlew', 'gradlew.bat', 'gradle/**', 'config/**'
+  }
+  from(fileTree(project.rootProject.projectDir)){
+    include 'subprojects/java/jdbc/generic/build.gradle', 'subprojects/java/jdbc/generic/src/**', 'subprojects/java/jdbc/derby/build.gradle', 'subprojects/java/jdbc/derby/src/**', 'subprojects/java/api/models/src/**', 'subprojects/java/api/models/package.json', 'subprojects/java/api/models/build.gradle', 'subprojects/java/*/build.gradle', 'subprojects/java/*/build.gradle', 'subprojects/java/*/gradle.properties', 'subprojects/java/*/src/**'
+  }
+}
+gradle.rootProject {
+  configurations {
+    templateZip {
+      canBeConsumed = true
+      canBeResolved = false
+    }
+  }
+  artifacts {
+    //templateZip(assembleArtifact)
+    templateZip(assembleArtifact.archiveFile) {
+      builtBy(assembleArtifact)
+    }
+  }
+}
+def templateProjects() {
+  subprojects.findAll { subproject -> subproject.hasProperty('isTemplate') }
+}
+
+gradle.projectsEvaluated {
+
+  configure(templateProjects()) {
+    tasks.withType(ProcessResources) { task ->
+      task.from(task.getSource()) {
+        filteringCharset = 'UTF-8'
+        include '**/*.properties'
+        filter(org.apache.tools.ant.filters.EscapeUnicode)
+      }
+      duplicatesStrategy = 'include'
+    }
+
+    //assembleArtifact.dependsOn build
+    publishing {
+      publications {
+        "$project.name"(MavenPublication) {
+          groupId project.group
+          artifactId project.name+"-zip"
+          version project.version
+          artifact source: assembleArtifact, extension: 'zip'
+        }
+      }
+    }
+  }
+}

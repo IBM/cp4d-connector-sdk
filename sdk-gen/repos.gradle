@@ -1,0 +1,58 @@
+ext {
+  docker = [:]
+  repos = [:]
+
+  camelCase = { String prop, String separator = '_' ->
+    def result = ''
+    def words = prop.split(separator)
+    for (word in words) {
+      result = result + word.substring(0, 1).toUpperCase()
+      if (word.length() > 1) {
+        result = result + word.substring(1)
+      }
+    }
+    result
+  }
+  snakeCase = { String prop, String separator = '_', boolean capitalized = true ->
+    def snake = prop.replaceAll('([a-z]|[0-9])([A-Z])') {
+      "${it[1]}${separator}${capitalized ? it[2].toUpperCase() : it[2].toLowerCase()}"
+    }
+    capitalized ? snake.capitalize() : snake
+  }
+  systemProperty = { Project project, String propName, String defaultValue = null ->
+    def envName = snakeCase(propName.replace('.', '_')).toUpperCase()
+    if (project.hasProperty(propName)) {
+      project.property(propName)
+    } else if (System.properties.containsKey(propName)) {
+      System.properties[propName]
+    } else if (System.env.containsKey(envName)) {
+      System.env[envName]
+    } else {
+      defaultValue
+    }
+  }
+}
+//
+// Repository Extensions
+//
+def mavenInfo = [
+  url: System.getProperty('repos.maven.url'),
+  username: System.getProperty('repos.maven.username'),
+  password: System.getProperty('repos.maven.password')
+]
+def dockerInfo = [
+  url: System.getProperty('repos.docker.url'),
+  username: System.getProperty('repos.docker.username'),
+  password: System.getProperty('repos.docker.password')
+]
+def dockerTargetInfo = [
+  url: System.getProperty('repos.dockerTarget.url'),
+  username: System.getProperty('repos.dockerTarget.username'),
+  password: System.getProperty('repos.dockerTarget.password')
+]
+
+repos += [
+  maven: mavenInfo,
+  docker: dockerInfo,
+  dockerTarget: dockerTargetInfo
+]

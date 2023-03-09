@@ -1,0 +1,223 @@
+//
+// Docker Extensions
+//
+buildscript {
+  apply from: 'repos.gradle'
+  repositories {
+    mavenLocal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenCentral()
+      maven {
+        url "https://repo.maven.apache.org/maven2/"
+      }
+    }
+    // For gradle-node-plugin
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath group: 'commons-io', name: 'commons-io', version: project['commons-io.version']
+    classpath group: 'org.apache.commons', name: 'commons-lang3', version: project['commons-lang3.version']
+    classpath group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
+    classpath group: 'org.codehaus.gpars', name: 'gpars', version: project['gpars.version']
+    classpath group: 'org.yaml', name: 'snakeyaml', version: project['snakeyaml.version']
+    classpath group: 'com.diffplug.spotless', name: 'spotless-plugin-gradle', version: project['gradle.spotless.plugin.version']
+    classpath group: 'com.github.node-gradle', name: 'gradle-node-plugin', version: project['gradle.node.plugin.version']
+  }
+}
+def latestTag = 'latest'
+def latestPullTag = 'latest-pull'
+def personalTagPrefix = 'personal-'
+
+docker.dockerCheck = {
+  requireExecutablesInPath('bash', 'docker', 'id')
+}
+
+def dockerExec(execSpec) {
+  def stdout = new ByteArrayOutputStream()
+  def stderr = new ByteArrayOutputStream()
+  def exitValue = 0
+  try {
+    exitValue = exec({
+      executable = exeName('docker')
+      standardOutput = new org.apache.commons.io.output.TeeOutputStream(standardOutput, stdout)
+      errorOutput = new org.apache.commons.io.output.TeeOutputStream(errorOutput, stderr)
+    } << execSpec).exitValue
+  } catch (GradleException e) {
+    def cause = org.codehaus.groovy.runtime.StackTraceUtils.extractRootCause(e)
+    if (cause instanceof IOException && cause.message.contains('No such file or directory')) {
+      e = new GradleException("Cannot run program \"docker\". This is likely due to a bad Gradle Daemon process. Try stopping the current Gradle Daemon using the 'gradlew --stop' command to remedy the issue")
+    } else if (stderr.toString().contains('pipe/docker_engine')) {
+      e = new GradleException("Cannot run program \"docker\". Ensure Docker is running and make sure your environment is set up. You can run 'docker-machine env default' for instructions")
+    }
+    throw e
+  }
+  [standardOutput: stdout.toString().trim(), errorOutput: stderr.toString().trim(), exitValue: exitValue]
+}
+
+docker.dockerCommand = { String... cmdArgs ->
+  dockerExec {
+    args = cmdArgs.toList()
+  }
+}
+
+docker.dockerCommandStdin = { InputStream is, String... cmdArgs ->
+  dockerExec {
+    args = cmdArgs.toList()
+    standardInput = is
+  }
+}
+
+docker.dockerCommandStdout = { String... cmdArgs ->
+  dockerExec {
+    args = cmdArgs.toList()
+    LogInfo("Executing docker command: "+cmdArgs)
+    //errorOutput = org.apache.commons.io.output.NullOutputStream.NULL_OUTPUT_STREAM
+    standardOutput = org.apache.commons.io.output.NullOutputStream.NULL_OUTPUT_STREAM
+  }.standardOutput
+}
+
+docker.dockerCommandIgnoreFailure = { String... cmdArgs ->
+  dockerExec {
+    args = cmdArgs.toList()
+    errorOutput = org.apache.commons.io.output.NullOutputStream.NULL_OUTPUT_STREAM
+    ignoreExitValue true
+  }
+}
+
+docker.dockerCommandQuiet = { String... cmdArgs ->
+  dockerExec {
+    args = cmdArgs.toList()
+    errorOutput = org.apache.commons.io.output.NullOutputStream.NULL_OUTPUT_STREAM
+    standardOutput = org.apache.commons.io.output.NullOutputStream.NULL_OUTPUT_STREAM
+    ignoreExitValue true
+  }
+}
+
+docker.defaultlogin = { String username, String password ->
+  docker.dockerCommand('login', '-u', "${username}", '-p', "${password}")
+}
+
+docker.login = { String username, String password, String server ->
+  if (username && password) {
+    docker.dockerCommand('login', '-u', "${username}", '-p', "${password}", "${server}")
+  }
+}
+
+docker.hostname = {
+  docker.dockerCommandStdout('run', '--net=host', '--rm', 'busybox:latest', 'hostname', '-s')
+}
+
+docker.ipaddress = {
+  docker.dockerCommandStdout('run', '--net=host', '--rm', 'busybox:latest', 'ip', 'route', 'get', '1').tokenize(' ').last()
+}
+
+docker.imageUpToDate = { String imageName, String imageTag ->
+  docker.dockerCommandStdout('images', '--format', '{{.Tag}}', "${imageName}:${imageTag}").contains(imageTag)
+}
+
+docker.imagePush = { String imageName, String imageTag, String imageRegistry, String imageProject ->
+  if (imageProject != null) {
+    docker.dockerCommand('tag', "${imageName}:${imageTag}", "${imageRegistry}/${imageProject}/${imageName}:${imageTag}")
+    docker.dockerCommand('push', "${imageRegistry}/${imageProject}/${imageName}:${imageTag}")
+  } else {
+    docker.dockerCommand('tag', "${imageName}:${imageTag}", "${imageRegistry}/${imageName}:${imageTag}")
+    docker.dockerCommand('push', "${imageRegistry}/${imageName}:${imageTag}")
+  }
+}
+
+docker.imagePull = { String imageName, String imageTag ->
+  docker.dockerCommand('pull', "${imageName}:${imageTag}")
+}
+
+docker.imagePullQuiet = { String imageName, String imageTag ->
+  docker.dockerCommandQuiet('pull', "${imageName}:${imageTag}")
+}
+
+docker.imageClean = { String imageName, String imageTag->
+  docker.dockerCommandIgnoreFailure('rmi', "${imageName}:${imageTag}")
+}
+
+docker.imagesClean = { String imageName, Closure imageTagFilter ->
+  docker.dockerCommandStdout('images', '--format', '{{.Tag}}', "${imageName}").eachLine { imageTag ->
+    if (imageTagFilter(imageTag)) {
+      docker.imageClean(imageName, imageTag)
+    }
+  }
+}
+
+docker.containerId = { String containerName ->
+  docker.dockerCommandStdout('ps', '-a', '-f', "name=${containerName}", '--format', '{{.ID}}')
+}
+
+docker.containerStatus = { String containerName ->
+  docker.dockerCommandStdout('inspect', '-f', '{{.State.Running}}', "${containerName}")
+}
+
+docker.containerStop = { String containerNameOrId ->
+  docker.dockerCommandStdout('stop', "${containerNameOrId}")
+}
+
+docker.containerRemove = { String containerNameOrId ->
+  docker.dockerCommandStdout('rm', '-f', "${containerNameOrId}")
+}
+
+docker.containerStart = { String containerNameOrId ->
+  docker.dockerCommandStdout('start', "${containerNameOrId}")
+}
+
+docker.containerReStart = { String containerNameOrId ->
+  docker.dockerCommandStdout('restart', "${containerNameOrId}")
+}
+
+docker.containerFileCopy = { String containerNameOrId, String src, String target ->
+  docker.dockerCommandStdout('cp', "${src}", "${containerNameOrId}:${target}")
+}
+
+docker.buildLatest = { String imageName, String imageVersion, File dockerFile, String imageRegistry = null, String contRegistry = null, String arg1 = null   ->
+  if (arg1 != null ) {
+    imageVersion = arg1
+  }
+  docker.dockerCommandIgnoreFailure('rmi', "${imageName}:${latestTag}")
+  docker.dockerCommand('build', '--no-cache', '-t', "${imageName}:${imageVersion}", dockerFile.parentFile.absolutePath)
+  docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageName}:${latestTag}")
+  if (imageRegistry != null) {
+    docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageRegistry}/${imageName}:${imageVersion}")
+    docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageRegistry}/${imageName}:${latestTag}")
+  }
+  if (contRegistry != null) {
+    docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${contRegistry}/${imageName}:${imageVersion}")
+  }
+}
+
+docker.buildLatestWithParams = { String imageName, String imageVersion, File dockerFile, Map buildArgs, String imageRegistry = null, String contRegistry = null ->
+  def cmdArgs = [
+    'build',
+    '--no-cache',
+    '-t',
+    "${imageName}:${imageVersion}"
+  ]
+  buildArgs.each { entry ->
+    cmdArgs << '--build-arg'
+    cmdArgs << "$entry.key" + '=' + "$entry.value"
+  }
+  docker.dockerCommand(*cmdArgs, dockerFile.parentFile.absolutePath)
+  docker.dockerCommandIgnoreFailure('rmi', "${imageName}:${latestTag}")
+  docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageName}:${latestTag}")
+  if (imageRegistry != null) {
+    docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageRegistry}/${imageName}:${imageVersion}")
+    docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageRegistry}/${imageName}:${latestTag}")
+  }
+  if (contRegistry != null) {
+    docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${contRegistry}/${imageName}:${imageVersion}")
+  }
+}

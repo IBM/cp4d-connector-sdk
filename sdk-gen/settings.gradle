@@ -1,0 +1,14 @@
+rootProject.name = 'wdp-connect-sdk-gen'
+def subProjectsDir = new File(rootDir, 'subprojects')
+fileTree(subProjectsDir) {
+  include '**/build.gradle'
+  exclude '**/bin/**/build.gradle'
+  exclude '**/build/**/build.gradle'
+  exclude '**/src/**/build.gradle'
+}.collect {
+  subProjectsDir.toPath().relativize(it.parentFile.toPath()).toString()
+}.each {
+  def projectName = ':' + rootProject.name + '-' + it.replace(File.separator, '-')
+  include(projectName)
+  project(projectName).projectDir = new File(subProjectsDir, it)
+}
