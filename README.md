@@ -9,4 +9,4 @@ This project allows developers to implement their own connectors to data sources
 
 ## License
 
-This SDK is distributed under the <TBD> license.
+This SDK is distributed under the Apache 2.0 license.
