@@ -113,8 +113,8 @@ public class BundleTestEnvironment
             testFlight = TestFlight.createLocal(TestConfig.getPort("bundle.flight.port"), useSSL, new BundleFlightProducer());
         } else {
             final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("bundle.flight.ssl_certificate_validation", "true"));
-            testFlight = TestFlight.createRemote(TestConfig.get("bundle.flight.uri"), TestConfig.get("bundle.flight.ssl_certificate"),
-                    verifyCert);
+            testFlight = TestFlight.createRemote(TestConfig.get("bundle.flight.uri.internal",TestConfig.get("bundle.flight.uri")),
+                    TestConfig.get("bundle.flight.ssl_certificate"), verifyCert);
         }
         client = testFlight.getClient();
         derbyServer = DerbyUtils.startServer(DERBY_HOST, DERBY_PORT, DERBY_USER, DERBY_PASSWORD);
