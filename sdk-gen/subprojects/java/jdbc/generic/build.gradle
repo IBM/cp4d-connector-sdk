@@ -18,11 +18,7 @@ dependencies {
   implementation project(':wdp-connect-sdk-gen-java-jdbc')
   implementation project(':wdp-connect-sdk-gen-java-util')
   implementation group: 'org.apache.arrow', name: 'arrow-jdbc', version: project['arrow.version']
-  if (!JavaVersion.current().isJava9Compatible()) {
-    implementation group: 'org.apache.derby', name: 'derbyclient', version: project['derby.java8.version']
-  } else {
-    implementation group: 'org.apache.derby', name: 'derbyclient', version: project['derby.version']
-  }
+  implementation group: 'org.apache.derby', name: 'derbyclient', version: project['derby.version']
   implementation group: 'com.ibm.db2', name: 'jcc', version: project['db2jcc.version']
   implementation group: 'com.ibm.informix', name: 'jdbc', version: project['informix.version']
   implementation group: 'com.microsoft.sqlserver', name: 'mssql-jdbc', version: project['sqlserver.version']
@@ -33,11 +29,7 @@ dependencies {
   implementation group: 'org.postgresql', name: 'postgresql', version: project['postgresql.version']
 
   testImplementation project(':wdp-connect-sdk-gen-java-test')
-  if (!JavaVersion.current().isJava9Compatible()) {
-    testImplementation group: 'org.apache.derby', name: 'derbynet', version: project['derby.java8.version']
-  } else {
-    testImplementation group: 'org.apache.derby', name: 'derbynet', version: project['derby.version']
-  }
+  testImplementation group: 'org.apache.derby', name: 'derbynet', version: project['derby.version']
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
   testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
