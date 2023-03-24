@@ -652,7 +652,7 @@ You can specify an alternate location of the file by setting the following envir
 
 `WDP_PUBLIC_KEY_URLS`
 
-In case of a template project you can place the keys in `/src/dist/resources/payload/etc/wdp_public_keys` and they will moved to `/config/etc/wdp_public_keys` during build.
+In case of a template project you can place the keys in `/src/dist/resources/payload/etc/wdp_public_keys` and they will moved to `/config/etc/wdp_public_keys` during build. You can read more on templates in [Connector Development](#Connector Development) section.
 
 The keys will be retrieved when the container is started.
 
@@ -743,7 +743,9 @@ To build without running tests:
 
 `./gradlew build -x test`
 
-## 2. Generate a basic connector skeleton.
+## 2. Generate connector and flight server
+### Generate connector and server separately
+#### 1. Generate a basic connector skeleton.
 
 Generate a basic skeleton for a row-based connector.
 
@@ -761,7 +763,7 @@ Verify that the connector builds successfully:
 
 `./gradlew build -x test`
 
-## 3. Generate a Flight server.
+#### 2. Generate a Flight server.
 
 Generate a Flight server for your connector:
 
@@ -773,7 +775,17 @@ Verify that the Flight server builds successfully:
 
 `./gradlew build -x test`
 
-## 4. Build a Docker image.
+### Generate connector and server using quickstart task
+
+This task only prompts for Connector's label and infers the rest from it. It creates a single Connector project and a single Flight Server project that includes the former.
+
+`./gradlew quickstart`
+
+Verify that the project builds successfully:
+
+`./gradlew build -x test`
+
+## 3. Build a Docker image.
 
 Before you can build a Docker image, the Docker service must be running. Consider starting it in a separate terminal so that its log messages do not clutter your development terminal:
 
@@ -787,7 +799,7 @@ Once the Docker service is running, you can build a Docker image:
 
 `./gradlew dockerBuild`
 
-## 5. Start your Docker container.
+## 4. Start your Docker container.
 
 By default your Docker container will expose your Flight service on port 443. To use a custom port, add an entry to your `gradle.properties` and change the first port number to your custom port:
 
@@ -805,15 +817,17 @@ If you have created more than one Flight server project, specify the project of 
 
 `./gradlew :wdp-connect-sdk-gen-flight:dockerStart -Pdocker.publish.https=443:9443`
 
-## 6. Register your Flight service in Cloud Pak for Data.
+## 5. Register your Flight service in Cloud Pak for Data.
 
 Get the SSL certificate of the deployed Flight service, for example:
 
 `keytool -printcert -sslserver localhost:443 -rfc > subprojects/flight/flight.pem`
 
+Create a configuration file that points sdk to a specific environment by duplicating `src/dist/resources/payload/envs/template.properties` filling it with desired properties and giving it a name of your choosing e.g. `myEnv.properties`
+
 Register the Flight service in an environment for which you have created a configuration, for example:
 
-`./gradlew register -Penv=<env-name>`
+`./gradlew register -Penv=<myEnv>`
 
 For more details on registration, refer to the following sections:
 
@@ -821,15 +835,16 @@ For more details on registration, refer to the following sections:
 
 [Registration](#registration)
 
-## 7. Test your connector's integration with cloud services.
+## 6. Test your connector's integration with cloud services.
+Now, your connector should be visible on connection type selection screen and returned by `/v2/datasource_types` API.
 
-In the main resources of the `java-test` project, copy the `tests.properties.template` file to `test.properties`. Configure the file to enable access to a cloud environment. For example, let's say you configured a `cloud.type` named `private`.
+If you included bundle connector in your flight service then you can execute its tests to validate it. You are encouraged to create similar tests for your own connector. In the main resources of the `java-test` project, copy the `tests.properties.template` file to `test.properties`. Configure the file to enable access to a cloud environment. For example, let's say you configured a `cloud.type` named `private`.
 
-Run a test to validate the connector in that environment. For example to validate the bundle connector, you could run its `testConnection` test:
+Run `testConnection` test:
 
 `./gradlew :wdp-connect-sdk-gen-java-bundle:test --tests com.ibm.connect.sdk.bundle.TestBundleFlightProducerDerbyCloud.testConnection -Dsdk.test.cloud.type=private --no-daemon`
 
-By default the test will start a local Flight server. If you have deployed the bundle connector in a container and have configured `bundle.flight.uri` to contain the location where the Flight server can be reached, then you can specify not to use a local Flight server:
+By default the test will start a local Flight server. If you have deployed the bundle connector in a container and have configured `bundle.flight.uri` to contain the location where the Flight server can be reached. This URI will be used by both connection service and flight client used in tests. If you need to use separate URIs, e.g. when executing tests behind a firewall against public cloud accessing your environment with Satellite Link, then you can also specify `bundle.flight.uri.internal` for your flight client. Then you can specify not to use a local Flight server:
 
 `./gradlew :wdp-connect-sdk-gen-java-bundle:test --tests com.ibm.connect.sdk.bundle.TestBundleFlightProducerDerbyCloud.testConnection -Dsdk.test.cloud.type=private -Dsdk.test.bundle.flight.createLocal=false --no-daemon`
 
@@ -837,7 +852,7 @@ Or to run all of the tests in that class:
 
 `./gradlew :wdp-connect-sdk-gen-java-bundle:test --tests com.ibm.connect.sdk.bundle.TestBundleFlightProducerDerbyCloud -Dsdk.test.cloud.type=private -Dsdk.test.bundle.flight.createLocal=false --no-daemon`
 
-## 8. Push your Docker image to a container registry.
+## 7. Push your Docker image to a container registry.
 
 Push your image to a container registry. For an on-premise installation of Cloud Pak for Data, you can use the OpenShift Container Registry. Before pushing to the OpenShift Container Registry, you should build the `flightservice` operator to create the `flightservice-operator-system` namespace. For example:
 
@@ -882,7 +897,7 @@ Then push your image to the registry, for example:
 
 `docker push icr.io/<my_namespace>/wdp-connect-sdk-gen-flight:1.0.0`
 
-## 9. Deploy your container in Cloud Pak for Data.
+## 8. Deploy your container in Cloud Pak for Data.
 
 For an on-premise installation of Cloud Pak for Data, deploy your container. For example:
 
@@ -907,7 +922,7 @@ IBM Connector SDK is a set of Gradle script plugins and a skeleton root project 
 ## Download SDK
 Use this link to download SDK zip. You can also clone the GitHub repository directly. Note that the SDK is provided as a convenience to assist with connector development, but there is no dependency on the SDK to develop connectors. You can develop and deploy your own service as long as it conforms to the [specification](#flight-based-connector-service).
 ## Setup
-The Connector SDK relies on Gradle. It is bundled, so you do not need to install it.  However a Java Development Kit (JDK) needs to be present on your environment. SDK was developed and tested with JDK 8. Please refer to [Compatibility Matrix](https://docs.gradle.org/current/userguide/compatibility.html) to verify supported platforms. Docker must also be present if you wish to build a container image.
+The Connector SDK relies on Gradle. It is bundled, so you do not need to install it.  However a Java Development Kit (JDK) needs to be present on your environment. SDK was developed and tested with JDK 11. Please refer to [Compatibility Matrix](https://docs.gradle.org/current/userguide/compatibility.html) to verify supported platforms. Docker must also be present if you wish to build a container image.
 All you need to do to get started is to unpack the previously downloaded zip in a chosen directory.
 ## Choose a connector type
 Decide on what type of connector that you want to implement. Your choice will determine which interfaces or abstract classes you should implement or extend:
@@ -922,8 +937,17 @@ Connector skeletons are provided as a convenience to help develop a connector ra
 These connector types are not templatized at the time. You need to create a new subproject that, in case of JDBC-based, will implement abstract classes from `sdk-gen/subprojects/java/jdbc`(you can follow `sdk-gen/subprojects/java/jdbc/derby` sample connector structure and contents) and in case of Arrow-based connector you can copy `sdk-gen/subprojects/java/noop` and modify it to your needs. All connector projects need to place a provider-configuration file in the resource directory `META-INF/services` in accordance to [ServiceLoader specification](https://docs.oracle.com/javase/8/docs/api/java/util/ServiceLoader.html) where service provider is the implementation of FlightProducer.
 ## Generate a connector(s) service
 ### Flight service template
-Once you have at least a single connector generated you can proceed with creating a flight service project. The task that creates it is called `generateFlightApp`. This task is also interactive and will ask you to select which of the available connectors to include. It will display a **numbered list of detected connector subprojects**. To select a given connector, input a number that is displayed to its left. The given project is treated as a connector project if it contains a resources file, `META-INF/services/org.apache.arrow.flight.FlightProducer`, which identifies the connector's `FlightProducer` class as well as if it doesn't specify `ext.isTemplate` or `ext.isServer` properties. To include a connector manually after a service project is generated, you simply need to define a dependency on a given subproject within the service's `build.gradle` file. Service subproject is generated from template located in `/sdk-gen/subprojects/java/flight-app`.
+Once you have at least a single connector generated you can proceed with creating a flight service project. The task that creates it is called `generateFlightApp`. This task is also interactive and will ask you to select which of the available connectors to include. It will display a **numbered list of detected connector subprojects**. To select a given connector, input a number that is displayed to its left. The given project is treated as a connector project if it contains a resources file, `META-INF/services/org.apache.arrow.flight.FlightProducer`, which identifies the connector's `FlightProducer` class as well as if it doesn't specify `ext.isTemplate` or `ext.isServer` properties. To include a connector manually after a service project is generated, you simply need to define a dependency on a given subproject within the service's `build.gradle` file. Service subproject is generated from template located in `sdk-gen/subprojects/java/flight-app`.
 ## Implementation
+### Flight Service
+A basic flight service project generated from our template is capable of producing a docker image with Open Libery application server hosting flight. A FlightProducer implementation in this project is `DelegatingFlightProducer` that loads all other implementations of `FlightProducer` from its classpath via `ServiceLoader`. It can then delegate to a specific producer based on the `datasourceTypeName`. It is important to note here that the `datasourceTypeName` is not a part of the a `Ticket` by default. The present implementation utilizes caching to keep track of relationship between a ticket and its FlightProducer and the  Source Interaction properties. This caching is executed by a DelegatingFlightProducer and respective connector's FlightProducer. If you want to use multiple replicas it is important to switch to external cache.
+
+Generated subproject will contain several important resources:
+* `src/dist/resources/payload/Dockerfile` - Dockerfile template that can be customized
+* `src/dist/resources/payload/envs` - properties files that point `register` and `unregister` tasks to specific environments
+* `src/dist/resources/payload/initscripts` - scripts that will run on startup, executed in alphanumerical order
+* `src/dist/resources/payload/etc/wdp_public_keys` - public keys placed here will be moved to docker image's `/etc/wdp_public_keys` during build.
+* `src/main/resources/wlp/usr/servers/defaultServer/server.xml` - Open Liberty server configuration, can be modified to change things like ssl configuration or trace specification.
 ### Row-based connectors
 The basic java template defines a number of classes that can be used to build a row-based connector. At a minimum every connector needs to implement at least the `ConnectorFactory` interface and extend the `RowBasedConnector` and `CustomFlightDatasourceType` classes. Connectors must also extend `RowBasedSourceInteraction` for reading data and `RowBasedTargetInteraction` for writing data. They don't need to have actual implementations but they still need to be defined. The template project defines stubs for all of these in the `basic.impl` package.
 #### ConnectorFactory
