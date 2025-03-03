@@ -106,6 +106,17 @@ spotless {
 // Sub project configuration
 //
 subprojects {
+  tasks.withType(JavaCompile) { task ->
+    task.sourceCompatibility = 11
+    task.targetCompatibility = 11
+  }
+  tasks.withType(Test) {
+    if (!JavaVersion.current().isJava11()) {
+      jvmArgs += [
+        "--add-opens=java.base/java.nio=ALL-UNNAMED"
+      ]
+    }
+  }
   afterEvaluate {
     def isMyMicroServiceApp = project.hasProperty('isServer') && project['isServer'] == true
     if (isMyMicroServiceApp) {
