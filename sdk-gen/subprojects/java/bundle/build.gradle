@@ -32,6 +32,7 @@ dependencies {
 
 test {
   systemProperties = System.properties
+  systemProperties.remove("java.endorsed.dirs")
   testLogging {
     events "PASSED", "SKIPPED", "FAILED"
   }

@@ -34,7 +34,7 @@ buildscript {
   }
 }
 plugins {
-  id "com.github.ben-manes.versions" version "0.44.0"
+  id "com.github.ben-manes.versions" version "0.52.0"
 }
 apply plugin: 'maven-publish'
 
@@ -106,6 +106,7 @@ spotless {
 // Sub project configuration
 //
 subprojects {
+  task allDeps(type: DependencyReportTask) {}
   tasks.withType(JavaCompile) { task ->
     task.sourceCompatibility = 11
     task.targetCompatibility = 11
@@ -407,7 +408,6 @@ subprojects {
           }
         }
       }
-
     }
     project.tasks.matching { task ->
       task.name.startsWith('deploy') || task.name.startsWith('docker')
