@@ -20,7 +20,7 @@ dependencies {
   api group: 'org.apache.httpcomponents', name: 'httpmime', version: project['httpmime.version'], transitive: false
   implementation group: 'com.auth0', name: 'java-jwt', version: project['jwt.version']
   implementation group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
-  implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: project['bouncycastle.version']
+  implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15to18', version: project['bouncycastle.version']
   implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
   testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']

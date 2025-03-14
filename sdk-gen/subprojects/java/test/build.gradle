@@ -59,7 +59,7 @@ dependencies {
     implementation group: 'org.apache.derby', name: 'derbynet', version: project['derby.version']
   }
   projectZip project(path: ':', configuration: 'templateZip')
-  testImplementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: project['bouncycastle.version']
+  testImplementation group: 'org.bouncycastle', name: 'bcpkix-jdk15to18', version: project['bouncycastle.version']
   testImplementation project(':wdp-connect-sdk-gen-java-basic')
   testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
