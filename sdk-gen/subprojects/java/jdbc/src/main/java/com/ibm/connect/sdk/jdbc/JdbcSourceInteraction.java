@@ -280,7 +280,7 @@ public abstract class JdbcSourceInteraction implements SourceInteraction<Connect
             final String partitioningQuery = statementText + " WHERE " + partitioningPredicate;
             LOGGER.info(partitioningQuery);
             partitioningStatement
-                    = connector.getConnection().prepareStatement(partitioningQuery, getResultSetType(), ResultSet.CONCUR_READ_ONLY);
+                    = connector.getConnection().prepareStatement(partitioningQuery, getResultSetType(), ResultSet.CONCUR_READ_ONLY); // NOSONAR
         } else {
             LOGGER.info(statementText);
         }

@@ -92,7 +92,8 @@ task unpackProject {
     copy{
       from connTree
       into "${buildDir}/integrationTestsWorkspace"
-    }}
+    }
+  }
 }
 task generateSubprojects(type:Exec) {
   dependsOn(unpackProject)
