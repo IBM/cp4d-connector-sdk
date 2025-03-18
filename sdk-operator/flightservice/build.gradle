@@ -50,7 +50,7 @@ def osLogin = {
       standardOutput = stdout
       errorOutput = stderr
     }
-    if (!"Login successful.".equals(stdout.toString().split('\r|\n')[0])) {
+    if (!Arrays.asList(stdout.toString().split('\r|\n')).contains("Login successful.")) {
       println(stdout)
       println(stderr)
       throw new RuntimeException('Unable to log into the Openshift cluster. Check the openshift.console.url, openshift.username, and openshift.password properties.')
