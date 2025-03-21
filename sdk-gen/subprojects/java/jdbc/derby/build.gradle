@@ -9,14 +9,26 @@ apply plugin: 'maven-publish'
 //
 dependencies {
   // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
-  api(group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']) {
-    exclude group: "io.grpc"
-    exclude group: "io.netty"
-  }
+  api group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']
+  runtimeOnly group: 'com.google.protobuf', name: 'protobuf-java', version: project['protobuf.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-format', version: project['arrow.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-memory-core', version: project['arrow.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version'], transitive: false
+  runtimeOnly group: 'io.netty', name: 'netty-buffer', version: project['netty.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
+  // End of flight-core
   api project(':wdp-connect-sdk-gen-java-api-models')
   api project(':wdp-connect-sdk-gen-java-api')
   implementation project(':wdp-connect-sdk-gen-java-jdbc')
   implementation project(':wdp-connect-sdk-gen-java-util')
+  implementation(group: 'com.google.guava', name: 'guava', version: project['guava.version']) {
+    exclude group: 'com.google.code.findbugs'
+    exclude group: 'com.google.errorprone'
+    exclude group: 'com.google.j2objc'
+    exclude group: 'org.checkerframework'
+  }
   implementation group: 'org.apache.arrow', name: 'arrow-jdbc', version: project['arrow.version']
   implementation group: 'org.apache.derby', name: 'derbyclient', version: project['derby.version']
 

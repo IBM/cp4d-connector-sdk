@@ -37,13 +37,28 @@ artifacts {
 //
 dependencies {
   // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
-  implementation(group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']) {
-    exclude group: "io.grpc"
-    exclude group: 'io.netty'
-  }
+  implementation group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']
+  runtimeOnly group: 'com.google.protobuf', name: 'protobuf-java', version: project['protobuf.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-format', version: project['arrow.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-memory-core', version: project['arrow.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version'], transitive: false
+  runtimeOnly group: 'io.netty', name: 'netty-buffer', version: project['netty.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
+  // End of flight-core
   compileOnly group: 'io.grpc', name: 'grpc-api', version: project['grpc.version']
   compileOnly(group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version']) {
     exclude group: 'io.netty'
+  }
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: project['jackson.version']
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: project['jackson.version']
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: project['jackson.version']
+  implementation(group: 'com.google.guava', name: 'guava', version: project['guava.version']) {
+    exclude group: 'com.google.code.findbugs'
+    exclude group: 'com.google.errorprone'
+    exclude group: 'com.google.j2objc'
+    exclude group: 'org.checkerframework'
   }
   implementation group: 'io.netty', name: 'netty-all', version: project['netty.version']
   implementation group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
@@ -57,7 +72,12 @@ dependencies {
 
   javaNioCharset group: 'com.ibm.java', name: 'charsets', version: project['ibmjava.version']
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
-  testRuntimeOnly group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']
+  // Include io.grpc for test runtime only.
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-api', version: project['grpc.version']
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version']
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-protobuf', version: project['grpc.version']
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-stub', version: project['grpc.version']
+  // End of grpc.io
 }
 
 //
