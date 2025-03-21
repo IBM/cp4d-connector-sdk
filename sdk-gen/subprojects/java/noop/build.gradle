@@ -8,10 +8,17 @@ apply plugin: 'java-library'
 //
 dependencies {
   // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
-  api(group: 'org.apache.arrow', name: 'flight-grpc', version: project['arrow.version']) {
-    exclude group: "io.grpc"
-    exclude group: "io.netty"
-  }
+  api group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
+  api group: 'org.apache.arrow', name: 'arrow-vector', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']
+  runtimeOnly group: 'com.google.protobuf', name: 'protobuf-java', version: project['protobuf.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-format', version: project['arrow.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-memory-core', version: project['arrow.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version'], transitive: false
+  runtimeOnly group: 'io.netty', name: 'netty-buffer', version: project['netty.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
+  // End of flight-core
 
   testImplementation project(':wdp-connect-sdk-gen-java-test')
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
