@@ -76,12 +76,16 @@ allprojects {
 }
 
 configurations{
+  arrowConnector
   basicConnector
+  jdbcImplConnector
   basicFlight
 }
 
 dependencies {
+  arrowConnector project(path: ':wdp-connect-sdk-gen-java-arrow-impl', configuration: 'templateZip')
   basicConnector project(path: ':wdp-connect-sdk-gen-java-basic', configuration: 'templateZip')
+  jdbcImplConnector project(path: ':wdp-connect-sdk-gen-java-jdbc-impl', configuration: 'templateZip')
   basicFlight project(path: ':wdp-connect-sdk-gen-java-flight-app', configuration: 'templateZip')
 }
 
@@ -416,34 +420,55 @@ subprojects {
     }
   }
 }
+
+def generateConnectorProject = { connectorType, configurationName, projectPath, srcJavaPackage ->
+  println "Generating " + connectorType + " Java connector project"
+  ant.input(message: "Connector's label:", addproperty: 'connectorLabel', defaultValue: 'Custom DataSource')
+  String defaultConnectorName = ant.connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
+  ant.input(message: "Connector's name:", addproperty: 'connectorName',defaultvalue: defaultConnectorName)
+  String defaultClassName = camelCase(ant.connectorName) - ~/Connector$/
+  ant.input(message: "Connector's classes names' prefix:", addproperty: 'connectorClassPrefix',defaultvalue: defaultClassName)
+  String defaultJavaPackage = "com.yourorganizationname.connect."+ant.connectorName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
+  ant.input(message: "Java package for the connector:", addproperty: 'connectorJavaPackage',defaultvalue: defaultJavaPackage)
+  String defaultDesc = "${ant.connectorLabel} (SDK)"
+  ant.input(message: "Connector's description:", addproperty: 'connectorDescription', defaultValue: defaultDesc)
+  FileTree connTree = zipTree(configurations.getByName(configurationName).singleFile)
+  copy{
+    from connTree
+    into "${project.rootDir}/subprojects/${ant.connectorName}"
+    eachFile{ path = path.replace(srcJavaPackage.replace('.','/'), ant.connectorJavaPackage.replace('.','/')) }
+    rename{filename -> filename.replace '$_CONNNAME_$', ant.connectorName }
+    rename{filename -> filename.replace '$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
+    filter{line -> line.replace '$_CONNNAME_$', ant.connectorName}
+    filter{line -> line.replace '$_CONNLABEL_$', ant.connectorLabel}
+    filter{line -> line.replace '$_CONNDESCRIPTION_$', ant.connectorDescription}
+    filter{line -> line.replace'$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
+    filter{line -> line.replace srcJavaPackage, ant.connectorJavaPackage }
+    filter{line -> line.replace'  isTemplate = true', '' }
+  }
+}
+
+tasks.register('generateJavaArrow'){
+  dependsOn configurations.arrowConnector
+  description = 'Generate an Arrow Java connector project'
+  doLast{
+    generateConnectorProject('Arrow', 'arrowConnector', ':wdp-connect-sdk-gen-java-arrow-impl', 'com.ibm.connect.sdk.arrow.impl')
+  }
+}
+
 tasks.register('generateJavaBasic'){
   dependsOn configurations.basicConnector
   description = 'Generate a basic Java connector project'
   doLast{
-    println "Generating a basic Java connector project"
-    ant.input(message: "Connector's label:", addproperty: 'connectorLabel', defaultValue: 'Custom DataSource')
-    String defaultConnectorName = ant.connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
-    ant.input(message: "Connector's name:", addproperty: 'connectorName',defaultvalue: defaultConnectorName)
-    String defaultClassName = camelCase(ant.connectorName) - ~/Connector$/
-    ant.input(message: "Connector's classes names' prefix:", addproperty: 'connectorClassPrefix',defaultvalue: defaultClassName)
-    String defaultJavaPackage = "com.yourorganizationname.connect."+ant.connectorName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
-    ant.input(message: "Java package for the connector:", addproperty: 'connectorJavaPackage',defaultvalue: defaultJavaPackage)
-    String defaultDesc = "${ant.connectorLabel} (SDK)"
-    ant.input(message: "Connector's description:", addproperty: 'connectorDescription', defaultValue: defaultDesc)
-    FileTree connTree = zipTree(configurations.basicConnector.singleFile)
-    copy{
-      from connTree
-      into "${project.rootDir}/subprojects/${ant.connectorName}"
-      eachFile{ path = path.replace("com/ibm/connect/sdk/basic/impl",ant.connectorJavaPackage.replace('.','/')) }
-      rename{filename -> filename.replace '$_CONNNAME_$', ant.connectorName }
-      rename{filename -> filename.replace '$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
-      filter{line -> line.replace '$_CONNNAME_$', ant.connectorName}
-      filter{line -> line.replace '$_CONNLABEL_$', ant.connectorLabel}
-      filter{line -> line.replace '$_CONNDESCRIPTION_$', ant.connectorDescription}
-      filter{line -> line.replace'$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
-      filter{line -> line.replace'com.ibm.connect.sdk.basic.impl', ant.connectorJavaPackage }
-      filter{line -> line.replace'  isTemplate = true', '' }
-    }
+    generateConnectorProject('basic', 'basicConnector', ':wdp-connect-sdk-gen-java-basic', 'com.ibm.connect.sdk.basic.impl')
+  }
+}
+
+tasks.register('generateJavaJdbc'){
+  dependsOn configurations.jdbcImplConnector
+  description = 'Generate a JDBC Java connector project'
+  doLast{
+    generateConnectorProject('JDBC', 'jdbcImplConnector', ':wdp-connect-sdk-gen-java-jdbc-impl', 'com.ibm.connect.sdk.jdbc.impl')
   }
 }
 
