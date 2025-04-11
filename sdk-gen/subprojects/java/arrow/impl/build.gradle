@@ -1,0 +1,85 @@
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+allprojects {
+  repositories {
+    mavenLocal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenCentral()
+      maven {
+        url "https://repo.maven.apache.org/maven2/"
+      }
+    }
+  }
+}
+
+//
+// Mark as template
+//
+ext {
+  isTemplate = true
+}
+configurations{
+  templateZip {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+}
+
+task assembleArtifact(type: Zip) {
+  outputs.upToDateWhen { false }
+  archiveFileName.set(file(project.projectDir).getName() + '.zip')
+  destinationDirectory.set(file("$buildDir/distributions/"))
+  from(project.projectDir) {
+    include 'src/**', 'build.gradle'
+  }
+  from(project.rootProject.projectDir){
+    include 'gradle.properties', 'gradlew', 'gradlew.bat', 'gradle/**', 'settings.gradle'
+  }
+  from(project.rootProject.projectDir){
+    include 'subprojects/java/api/build.gradle', 'subprojects/java/api/src/**'
+  }
+  from(project.rootProject.projectDir){
+    include 'subprojects/java/util/build.gradle', 'subprojects/java/util/src/**'
+  }
+  description "Assemble archive $archiveFileName into ${relativePath(destinationDirectory)}"
+}
+
+artifacts {
+  templateZip(assembleArtifact.archiveFile) {
+    builtBy(assembleArtifact)
+  }
+}
+//
+// Declare project dependencies
+//
+dependencies {
+  // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
+  api group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']
+  runtimeOnly group: 'com.google.protobuf', name: 'protobuf-java', version: project['protobuf.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-format', version: project['arrow.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-memory-core', version: project['arrow.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-vector', version: project['arrow.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version'], transitive: false
+  runtimeOnly group: 'io.netty', name: 'netty-buffer', version: project['netty.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
+  // End of flight-core
+  api project(':' + rootProject.name + '-java-api-models')
+  api project(':' + rootProject.name + '-java-api')
+  implementation project(':' + rootProject.name + '-java-util')
+
+  testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+}
