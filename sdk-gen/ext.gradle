@@ -126,6 +126,10 @@ ext {
     }
   }
 
+  containerCli = {
+    project.properties['container.cli'] ?: System.getProperty('container.cli') ?: 'docker'
+  }
+
   exeName = { Object file ->
     def fileName = (file instanceof File) ? file.name : file.toString()
     fileExtension(fileName)
