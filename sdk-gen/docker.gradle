@@ -39,7 +39,7 @@ def latestPullTag = 'latest-pull'
 def personalTagPrefix = 'personal-'
 
 docker.dockerCheck = {
-  requireExecutablesInPath('bash', 'docker', 'id')
+  requireExecutablesInPath(containerCli())
 }
 
 def dockerExec(execSpec) {
@@ -48,14 +48,14 @@ def dockerExec(execSpec) {
   def exitValue = 0
   try {
     exitValue = exec({
-      executable = exeName('docker')
+      executable = exeName(containerCli())
       standardOutput = new org.apache.commons.io.output.TeeOutputStream(standardOutput, stdout)
       errorOutput = new org.apache.commons.io.output.TeeOutputStream(errorOutput, stderr)
     } << execSpec).exitValue
   } catch (GradleException e) {
     def cause = org.codehaus.groovy.runtime.StackTraceUtils.extractRootCause(e)
     if (cause instanceof IOException && cause.message.contains('No such file or directory')) {
-      e = new GradleException("Cannot run program \"docker\". This is likely due to a bad Gradle Daemon process. Try stopping the current Gradle Daemon using the 'gradlew --stop' command to remedy the issue")
+      e = new GradleException("Cannot run program \"" + containerCli() + "\". This is likely due to a bad Gradle Daemon process. Try stopping the current Gradle Daemon using the 'gradlew --stop' command to remedy the issue")
     } else if (stderr.toString().contains('pipe/docker_engine')) {
       e = new GradleException("Cannot run program \"docker\". Ensure Docker is running and make sure your environment is set up. You can run 'docker-machine env default' for instructions")
     }

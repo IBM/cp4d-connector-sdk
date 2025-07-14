@@ -809,6 +809,16 @@ Once the Docker service is running, you can build a Docker image:
 
 `./gradlew dockerBuild`
 
+To use Podman instead of Docker:
+
+`./gradlew dockerBuild -Pcontainer.cli=podman`
+
+Or to avoid having to specify the option every time, add the following property in the `.gradle/gradle.properties` file of your home directory:
+
+```
+systemProp.container.cli=podman
+```
+
 ## 4. Start your Docker container.
 
 By default your Docker container will expose your Flight service on port 443. To use a custom port, add an entry to your `gradle.properties` and change the first port number to your custom port:
