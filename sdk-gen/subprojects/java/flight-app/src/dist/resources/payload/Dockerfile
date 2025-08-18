@@ -6,8 +6,8 @@ COPY --chown=@service.user@:@service.user@ --chmod=755 root/wlp/usr/servers/defa
 #Use line below to inject public keys for client authentication
 #COPY --chown=@service.user@:@service.user@ --chmod=444 root/etc /config/etc/
 COPY --chown=@service.user@:@service.user@ --chmod=555 root/initscripts /opt/ibm/initScripts/
-RUN echo app - @target.image.name@: @target.image.tag@ built on @timestamp.value@ >> /opt/ibm/initScripts/version.txt
 USER root
+RUN echo app - @target.image.name@: @target.image.tag@ built on @timestamp.value@ >> /opt/ibm/initScripts/version.txt
 RUN chmod a+rx /config /config/apps /logs
 RUN chmod a+rx-w /opt/ibm/initScripts/*.*
 USER @service.user@

@@ -1,5 +1,5 @@
 # Introduction
-With IBM® Cloud Pak for Data, you can connect to the different data sources in your enterprise so that everyone can find the data that they need quickly and easily. Cloud Pak for Data Services share the common layer of connections and connectors. There are several [data source types supported out of the box](https://www.ibm.com/docs/en/cloud-paks/cp-data/4.5.x?topic=data-supported-sources). In addition for data source types not supported out-of-the-box there is a [Generic JDBC connection](https://www.ibm.com/docs/en/cloud-paks/cp-data/4.5.x?topic=2-importing-jdbc-drivers) which can be used with an arbitrary JDBC driver.
+With IBM® Cloud Pak for Data, you can connect to the different data sources in your enterprise so that everyone can find the data that they need quickly and easily. Cloud Pak for Data Services share the common layer of connections and connectors. There are several [data source types supported out of the box](https://www.ibm.com/docs/en/cloud-paks/cp-data/5.2.x?topic=data-supported-sources). In addition for data source types not supported out-of-the-box, you can create a [custom JDBC connector](https://www.ibm.com/docs/en/software-hub/5.2.x?topic=connectors-creating-custom-jdbc-connector) which can be used with an arbitrary JDBC driver.
 Yet another option to extend supported data source types is to develop custom connectors with this SDK. The benefits of such a custom connector are:
 - no JDBC driver is required,
 - custom performance optimization can be implemented,
@@ -652,7 +652,7 @@ You can specify an alternate location of the file by setting the following envir
 
 `WDP_PUBLIC_KEY_URLS`
 
-In case of a template project you can place the keys in `/src/dist/resources/payload/etc/wdp_public_keys` and they will moved to `/config/etc/wdp_public_keys` during build. You can read more on templates in [Connector Development](#Connector Development) section.
+In case of a template project you can place the keys in `/src/dist/resources/payload/etc/wdp_public_keys` and they will moved to `/config/etc/wdp_public_keys` during build. You can read more on templates in the [Connector Development](#connector-development) section.
 
 The keys will be retrieved when the container is started.
 
@@ -722,8 +722,11 @@ If the certificate cannot be verified such as when routing through a proxy, you 
 }
 ```
 
-# <a name="quickstart"></a> Build your first connector
+# Build your first connector
 Building your first connector will involve the following steps. More details on each step can be found in later sections.
+
+The initial development of your connector using this SDK only requires that you have Java installed. You can do the bulk of your development and unit testing with just Java and your favorite IDE. The building and deployment of a container image comes much later after you have verified that your connector unit tests are functioning correctly. Although the developers of this SDK have successfully validated the SDK on a number of platforms such as Windows, Mac, and Linux, it is not feasible to test every possible chipset and machine configuration. If you run into issues with running containers on your development machine, consider creating a build VM for the building of your container images. For more details, refer to [Creating a build VM](#creating-a-build-vm).
+
 
 ## 1. Build the SDK.
 
@@ -937,10 +940,137 @@ With your service now registered in its new location, you can stop your local co
 
 `./gradlew dockerStop`
 
+# Creating a build VM
+
+This section describes the steps for creating a Linux VM for building your container images. This is only necessary if you have compatibility issues with running Linux containers on your development machine. The `dockerBuild` step uses a multi-architecture base image based on Ubuntu:
+
+https://hub.docker.com/r/ibmcom/websphere-liberty
+
+If you run into compatibility issues with the image, the `dockerBuild` step offers options to choose a base image for a different architecture. For more details, refer to [Building a Docker Image](#building-a-docker-image).
+
+If using an alternate base image does not solve your issues, your only choice may be to create a build VM on a compatible machine. Some things to consider before creating a VM are:
+
+- You need a fair amount of free memory on your host operating system, as memory allocated to the VM will not be available to the host. 6 GB of RAM should suffice.
+- VM images require a lot of disk space from your host operating system, at least 16 GB.
+- Sharing hardware resources between your host operating system and the VM can be tricky. Be sure to consult your hypervisor documentation for sharing resources such as keyboard, mouse, and network.
+
+## 1. Install Ubuntu.
+
+If your host machine is running Windows, you can install Ubuntu easily in Windows Subsystem for Linux 2 (WSL2):
+
+https://documentation.ubuntu.com/wsl/latest/howto/install-ubuntu-wsl2/
+
+Otherwise, you can install a hypervisor such as Oracle VirtualBox:
+
+https://www.virtualbox.org/wiki/Downloads
+
+Then you would need to download Ubuntu and create a VM image in your hypervisor:
+
+https://ubuntu.com/download
+
+## 2. Update apt libraries.
+
+Update the Advanced Package Tool (apt) libraries in Linux before installing any software packages:
+
+```
+sudo apt update
+sudo apt upgrade -y
+```
+
+## 3. Install Java.
+
+The SDK requires at least Java version 11, although it has also been verified with Java 17.
+
+```
+sudo apt install openjdk-11-jdk
+```
+
+or
+
+```
+sudo apt install openjdk-17-jdk
+```
+
+## 4. Install Docker.
+
+The installation of Docker is slightly more involved, so it is best to follow the instructions from their page:
+
+https://docs.docker.com/engine/install/ubuntu/
+
+After installation, you will need to add your VM userid to the `docker` group in order to run `docker` without having to use `sudo`:
+
+```
+sudo groupadd docker
+sudo usermod -aG docker $USER
+```
+
+Then you should reboot your VM, as the Docker service needs to restart to recognize the changes:
+
+```
+reboot
+```
+
+## 5. Install packages for deployment to on-prem CP4D (optional).
+
+The following steps are only necessary if you intend on deploying your container images to an on-premise installation of Cloud Pak for Data.
+
+### 5a. Install make.
+
+```
+sudo apt install make
+```
+
+### 5b. Install kubectl.
+
+```
+sudo snap install --classic kubectl
+```
+
+### 5c. Install oc command line.
+
+Download the OpenShift Container Platform command line:
+
+https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/cli_tools/openshift-cli-oc#cli-getting-started
+
+Untar the archive:
+
+```
+tar xvf oc.tar
+```
+
+Move the `oc` command into the `bin` directory of your home directory:
+
+```
+mkdir ~/bin
+mv oc ~/bin
+```
+
+Source your `.profile` to add your local `bin` directory to your `PATH`:
+
+```
+source ~/.profile
+```
+
+Or logout and login again.
+
+### 5d. Install the registry certificate in Docker.
+
+Install the SSL certificate of the Cloud Pak for Data container registry in Docker. For more details, refer to [Save TLS Certificate - Docker](#docker).
+
+### 5e. Build and deploy the flightservice operator.
+
+If you have not yet downloaded the SDK, then do so now. Refer to [Download SDK](#download-sdk).
+
+Build and deploy the flightservice operator to create the project namespace where connectors will be deployed. For more details, refer to [Flight Operator - Configure Openshift login](#configure-openshift-login).
+
+## 6. Begin development.
+
+You should now be able to begin development and proceed to [Connector development](#connector-development) and [Build your first connector](#build-your-first-connector).
+
 # Connector development
 IBM Connector SDK is a set of Gradle script plugins and a skeleton root project that allows you to generate connectors and microservices based on Apache Arrow Flight framework from provided templates as its subprojects. You can then fill in the templates with your logic and deploy one or many microservices to IBM Cloud or IBM Cloud Pak for Data (CPD).
 ## Download SDK
-Use this link to download SDK zip. You can also clone the GitHub repository directly. Note that the SDK is provided as a convenience to assist with connector development, but there is no dependency on the SDK to develop connectors. You can develop and deploy your own service as long as it conforms to the [specification](#flight-based-connector-service).
+Download SDK from GitHub. You can also clone the GitHub repository directly. Note that the SDK is provided as a convenience to assist with connector development, but there is no dependency on the SDK to develop connectors. You can develop and deploy your own service as long as it conforms to the [specification](#flight-based-connector-service).
 ## Setup
 The Connector SDK relies on Gradle. It is bundled, so you do not need to install it.  However a Java Development Kit (JDK) needs to be present on your environment. SDK was developed and tested with JDK 11. Please refer to [Compatibility Matrix](https://docs.gradle.org/current/userguide/compatibility.html) to verify supported platforms. Docker must also be present if you wish to build a container image.
 All you need to do to get started is to unpack the previously downloaded zip in a chosen directory.
