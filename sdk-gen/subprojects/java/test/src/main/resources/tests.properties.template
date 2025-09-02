@@ -16,6 +16,11 @@ jdbc_derby.derby.database_name=<database name>
 jdbc_derby.derby.user_name=<user name>
 jdbc_derby.derby.user_pass=<user pass>
 jdbc_derby.flight.port=<port number>
+jdbc_derby.flight.ssl=true
+jdbc_derby.flight.createLocal=true
+jdbc_derby.flight.uri=grpc+tls://localhost:443
+jdbc_derby.flight.ssl_certificate=<ssl certificate>
+jdbc_derby.flight.ssl_certificate_validation=true
 
 # Configuration properties for jdbc-generic
 jdbc_generic.derby.port=<port number>
@@ -23,6 +28,11 @@ jdbc_generic.derby.database_name=<database name>
 jdbc_generic.derby.user_name=<user name>
 jdbc_generic.derby.user_pass=<user pass>
 jdbc_generic.flight.port=<port number>
+jdbc_generic.flight.ssl=true
+jdbc_generic.flight.createLocal=true
+jdbc_generic.flight.uri=grpc+tls://localhost:443
+jdbc_generic.flight.ssl_certificate=<ssl certificate>
+jdbc_generic.flight.ssl_certificate_validation=true
 
 # Configuration properties for noop
 noop.flight.port=<port number>

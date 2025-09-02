@@ -1,15 +1,18 @@
 //
-// Apply the war and maven publishing plugins
+// Apply the application and maven publishing plugins
 //
-apply plugin: 'war'
+apply plugin: 'application'
 apply plugin: 'maven-publish'
+
+application {
+  mainClass = 'com.ibm.wdp.connect.sdk.flight.FlightService'
+}
 
 //
 // Declare custom configurations
 //
 configurations {
   javaNioCharset
-  warball
   templateZip {
     canBeConsumed = true
     canBeResolved = false
@@ -66,18 +69,17 @@ dependencies {
   implementation project(':' + rootProject.name + '-java-api-models')
   implementation project(':' + rootProject.name + '-java-flight-common')
 
-  implementation group: 'javax.servlet', name: 'javax.servlet-api', version: project['javax.servlet.version']
   //$_INSERT_SUBPROJECTS_$
   runtimeOnly group: 'org.slf4j', name: 'slf4j-jdk14', version: project['slf4j.version']
   runtimeOnly group: 'org.slf4j', name: 'log4j-over-slf4j', version: project['slf4j.version']
 
   javaNioCharset group: 'com.ibm.java', name: 'charsets', version: project['ibmjava.version']
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
-  // Include io.grpc for test runtime only.
-  testRuntimeOnly group: 'io.grpc', name: 'grpc-api', version: project['grpc.version']
-  testRuntimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version']
-  testRuntimeOnly group: 'io.grpc', name: 'grpc-protobuf', version: project['grpc.version']
-  testRuntimeOnly group: 'io.grpc', name: 'grpc-stub', version: project['grpc.version']
+  // Include io.grpc for runtime only.
+  runtimeOnly group: 'io.grpc', name: 'grpc-api', version: project['grpc.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-protobuf', version: project['grpc.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-stub', version: project['grpc.version']
   // End of grpc.io
 }
 
@@ -104,10 +106,6 @@ afterEvaluate{
     }
   }
 }
-//
-// Expose the war as an artifact
-//
-artifacts.warball war
 
 //
 // No functional tests here
@@ -122,7 +120,6 @@ test {
 task funcTest(type: Test) {
   outputs.upToDateWhen { false }
   include '**/func/**'
-  environment WEB_XML: "$webAppDirName/WEB-INF/web.xml"
   systemProperty 'com.ibm.jsse2.overrideDefaultTLS', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
 }

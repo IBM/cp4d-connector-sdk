@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc.generic;
@@ -35,7 +35,7 @@ public class TestGenericJdbcFlightProducer extends GenericJdbcTestSuite
 
     private static final String DATASOURCE_TYPE_NAME = GenericJdbcDatasourceType.DATASOURCE_TYPE_NAME;
 
-    private static final InetAddress DERBY_HOST = InetAddress.getLoopbackAddress();
+    private static final InetAddress DERBY_HOST = TestFlight.getLocalHost();
     private static final int DERBY_PORT = TestConfig.getPort("jdbc_generic.derby.port");
     private static final String DERBY_DATABASE = TestConfig.get("jdbc_generic.derby.database_name", "testdb");
     private static final String DERBY_USER = TestConfig.get("jdbc_generic.derby.user_name", "testuser");
@@ -55,7 +55,14 @@ public class TestGenericJdbcFlightProducer extends GenericJdbcTestSuite
     @BeforeClass
     public static void setUpOnce() throws Exception
     {
-        testFlight = TestFlight.createLocal(TestConfig.getPort("jdbc_generic.flight.port"), false, new GenericJdbcFlightProducer());
+        if (Boolean.parseBoolean(TestConfig.get("jdbc_generic.flight.createLocal", "true"))) {
+            final boolean useSSL = Boolean.parseBoolean(TestConfig.get("jdbc_generic.flight.ssl", "true"));
+            testFlight = TestFlight.createLocal(TestConfig.getPort("jdbc_generic.flight.port"), useSSL, new GenericJdbcFlightProducer());
+        } else {
+            final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("jdbc_generic.flight.ssl_certificate_validation", "true"));
+            testFlight = TestFlight.createRemote(TestConfig.get("jdbc_generic.flight.uri.internal", TestConfig.get("jdbc_generic.flight.uri")),
+                    TestConfig.get("jdbc_generic.flight.ssl_certificate"), verifyCert);
+        }
         client = testFlight.getClient();
         derbyServer = DerbyUtils.startServer(DERBY_HOST, DERBY_PORT, DERBY_USER, DERBY_PASSWORD);
         connection = DerbyUtils.createConnection(createDerbyConnectionPropertiesForJDBC());
