@@ -86,7 +86,7 @@ dependencies {
   arrowConnector project(path: ':wdp-connect-sdk-gen-java-arrow-impl', configuration: 'templateZip')
   basicConnector project(path: ':wdp-connect-sdk-gen-java-basic', configuration: 'templateZip')
   jdbcImplConnector project(path: ':wdp-connect-sdk-gen-java-jdbc-impl', configuration: 'templateZip')
-  basicFlight project(path: ':wdp-connect-sdk-gen-java-flight-app', configuration: 'templateZip')
+  basicFlight project(path: isStandaloneFlight() ? ':wdp-connect-sdk-gen-java-flight-svc' : ':wdp-connect-sdk-gen-java-flight-app', configuration: 'templateZip')
 }
 
 spotless {
@@ -134,7 +134,8 @@ subprojects {
         microServiceAppVersion = project.version.toString()
       }
 
-      if (project.tasks.find { it.name == 'war' } || project.configurations.find { it.name == 'wars' }) {
+      def isWarProject = project.tasks.find { it.name == 'war' } || project.configurations.find { it.name == 'wars' }
+      if (isWarProject) {
         project.sourceSets {
           dist
           server
@@ -149,13 +150,20 @@ subprojects {
             filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: ['NAME': microServiceAppName, 'GROUP': project.group, 'VERSION': project.version.toString()])
           }
         }
-        project.processDistResources {
-          from "src/dist/resources"
-          include 'payload/initscripts/**/*'
-          include 'payload/etc/**/*'
-          include 'payload/Dockerfile'
-          duplicatesStrategy = 'include'
+      } else {
+        // Standalone Flight service
+        project.sourceSets {
+          dist
         }
+      }
+      project.processDistResources {
+        from "src/dist/resources"
+        include 'payload/initscripts/**/*'
+        include 'payload/etc/**/*'
+        include 'payload/Dockerfile'
+        duplicatesStrategy = 'include'
+      }
+      if (isWarProject) {
         plugins.withType(WarPlugin) {
           project.war {
             def keyStoreFile = file("${rootProject.buildDir}/scripts/keystore.properties")
@@ -192,100 +200,114 @@ subprojects {
             into 'payload/.profile.d'
           }
         }
-
         ext {
           microServiceAppFile = dist.outputs.files.singleFile
         }
-        def imageRegistry = project.properties['image.registry'] ?: 'index.docker.io/v1'
-        def imageTargetRegistry = project.properties['target.image.registry'] ?: imageRegistry
-        def imageTargetProject = project.properties['target.image.project']
-        def dockerUrl = project.properties['image.registry'] ? "https://${imageRegistry}" : repos.docker.url ?: "https://${imageRegistry}"
-        def dockerTargetUrl = project.properties['target.image.registry'] ? "https://${imageTargetRegistry}" : repos.dockerTarget.url ?: "https://${imageTargetRegistry}"
-        def ubiimageName = project.properties['image.name'] ?: "ibmcom/websphere-liberty"
-        def ubibaseimageTag = project.properties['image.tag'] ?: 'kernel-java11-openj9-ubi'
+      }
 
-        def microServiceUBIImageName = microServiceAppName
-        def microServiceImageTag = project.properties['target.image.tag'] ?: project.version.toString()
+      def imageRegistry = project.properties['image.registry'] ?: 'index.docker.io/v1'
+      def imageTargetRegistry = project.properties['target.image.registry'] ?: imageRegistry
+      def imageTargetProject = project.properties['target.image.project']
+      def dockerUrl = project.properties['image.registry'] ? "https://${imageRegistry}" : repos.docker.url ?: "https://${imageRegistry}"
+      def dockerTargetUrl = project.properties['target.image.registry'] ? "https://${imageTargetRegistry}" : repos.dockerTarget.url ?: "https://${imageTargetRegistry}"
+      def ubiimageName = project.properties['image.name'] ?: isWarProject ? "ibmcom/websphere-liberty" : "ibm-semeru-runtimes"
+      def ubibaseimageTag = project.properties['image.tag'] ?: isWarProject ? 'kernel-java11-openj9-ubi' : 'open-11-jre'
 
-        task dockerLogin {
-          description = 'Login to the source docker repository.'
-          onlyIf {
-            docker.dockerCheck()
-            !gradle.startParameter.offline
-          }
-          doLast {
-            docker.login(repos.docker.username, repos.docker.password, dockerUrl)
+      def microServiceUBIImageName = microServiceAppName
+      def microServiceImageTag = project.properties['target.image.tag'] ?: project.version.toString()
+
+      task dockerLogin {
+        description = 'Login to the source docker repository.'
+        onlyIf {
+          docker.dockerCheck()
+          !gradle.startParameter.offline
+        }
+        doLast {
+          docker.login(repos.docker.username, repos.docker.password, dockerUrl)
+        }
+      }
+      task dockerTargetLogin {
+        description = 'Login to the target docker repository.'
+        onlyIf {
+          docker.dockerCheck()
+          !gradle.startParameter.offline
+        }
+        doLast {
+          docker.login(repos.dockerTarget.username, repos.dockerTarget.password, dockerTargetUrl)
+        }
+      }
+      task getLatestBaseImageVersion(dependsOn: dockerLogin){
+        onlyIf {
+          docker.dockerCheck()
+          !gradle.startParameter.offline
+        }
+        doLast {
+          ubibaseimageTag = project.properties['image.tag'] ?: ubibaseimageTag
+          LogInfo("Image tag of base image is: ${ubiimageName}:${ubibaseimageTag}")
+        }
+      }
+      // docker pull task for ubi
+      task ubidockerPull(dependsOn: [
+        dockerLogin,
+        getLatestBaseImageVersion
+      ]) {
+        description = 'Pull the latest ubi Liberty docker image.'
+        onlyIf {
+          docker.dockerCheck()
+          !gradle.startParameter.offline
+        }
+        outputs.upToDateWhen {
+          docker.imageUpToDate(ubiimageName, ubibaseimageTag)
+        }
+        doLast {
+          docker.imagePull(ubiimageName, ubibaseimageTag)
+        }
+      }
+      task dockerStop {
+        description = 'Stop the personal MicroService Liberty docker container.'
+        onlyIf {
+          docker.dockerCheck()
+          !project.hasProperty('isTemplate')
+        }
+        doLast {
+          def containerId = docker.containerId(microServiceAppName)
+          if (containerId) {
+            docker.containerStop(containerId)
+            docker.containerRemove(containerId)
           }
         }
-        task dockerTargetLogin {
-          description = 'Login to the target docker repository.'
-          onlyIf {
-            docker.dockerCheck()
-            !gradle.startParameter.offline
-          }
-          doLast {
-            docker.login(repos.dockerTarget.username, repos.dockerTarget.password, dockerTargetUrl)
-          }
-        }
-        task getLatestBaseImageVersion(dependsOn: dockerLogin){
-          onlyIf {
-            docker.dockerCheck()
-            !gradle.startParameter.offline
-          }
-          doLast {
-            ubibaseimageTag = project.properties['image.tag'] ?: ubibaseimageTag
-            LogInfo("Image tag of base image is: ${ubiimageName}:${ubibaseimageTag}")
-          }
-        }
-        // docker pull task for ubi
-        task ubidockerPull(dependsOn: [
-          dockerLogin,
-          getLatestBaseImageVersion
-        ]) {
-          description = 'Pull the latest ubi Liberty docker image.'
-          onlyIf {
-            docker.dockerCheck()
-            !gradle.startParameter.offline
-          }
-          outputs.upToDateWhen {
-            docker.imageUpToDate(ubiimageName, ubibaseimageTag)
-          }
-          doLast {
-            docker.imagePull(ubiimageName, ubibaseimageTag)
-          }
-        }
-        task dockerStop {
-          description = 'Stop the personal MicroService Liberty docker container.'
-          onlyIf {
-            docker.dockerCheck()
-            !project.hasProperty('isTemplate')
-          }
-          doLast {
-            def containerId = docker.containerId(microServiceAppName)
-            if (containerId) {
-              docker.containerStop(containerId)
-              docker.containerRemove(containerId)
-            }
-          }
-        }
-        //docker build for ubi
-        task dockerBuild (dependsOn: ubidockerPull) {
+      }
+      //docker build for ubi
+      task dockerBuild (dependsOn: ubidockerPull) {
+        if (isWarProject) {
           dependsOn configurations.wars
           dependsOn processServerResources
-          dependsOn processDistResources
-          description = 'Build the MicroService Liberty docker image for ubi.'
-          onlyIf {
-            docker.dockerCheck()
-            !project.hasProperty('isTemplate')
-          }
-          outputs.upToDateWhen {
-            docker.imageUpToDate(microServiceUBIImageName, microServiceImageTag) && project.version != null && project.version != "unspecified" && !project.version.endsWith("-SNAPSHOT")
-          }
-          doLast {
-            LogInfo("Building docker image for: ${microServiceUBIImageName}:${microServiceImageTag}")
-            def dockerDir = file("${buildDir}/tmp/docker")
-            dockerDir.deleteDir()
-            try {
+        }
+        dependsOn processDistResources
+        description = 'Build the MicroService Liberty docker image for ubi.'
+        onlyIf {
+          docker.dockerCheck()
+          !project.hasProperty('isTemplate')
+        }
+        outputs.upToDateWhen {
+          docker.imageUpToDate(microServiceUBIImageName, microServiceImageTag) && project.version != null && project.version != "unspecified" && !project.version.endsWith("-SNAPSHOT")
+        }
+        doLast {
+          LogInfo("Building docker image for: ${microServiceUBIImageName}:${microServiceImageTag}")
+          def dockerDir = file("${buildDir}/tmp/docker")
+          dockerDir.deleteDir()
+          dockerDir.mkdirs()
+          try {
+            // Create a dockerfile
+            def timeStamp = new Date()
+            def imageDescription=project.properties['target.image.description'] ?: "This image runs ${microServiceUBIImageName} service"
+            def imageRelease=project.properties['target.image.release'] ?: "1.0"
+            def imageMaintainer=project.properties['maintainer.name'] ?: "IBM"
+            def imageVendor=project.properties['vendor.name'] ?: "IBM"
+            def serviceUser=project.properties['service.user'] ?: "1000321001"
+            def imageSummary=project.properties['target.image.summary'] ?: " "
+
+            if (isWarProject) {
               copy {
                 into "${dockerDir}/root"
                 from(processServerResources)
@@ -311,17 +333,6 @@ subprojects {
                   includeEmptyDirs = false
                 }
               }
-
-              // Create a dockerfile
-              def timeStamp = new Date()
-              def dockerFile = file("${dockerDir}/Dockerfile")
-              def imageDescription=project.properties['target.image.description'] ?: "This image runs ${microServiceUBIImageName} service"
-              def imageRelease=project.properties['target.image.release'] ?: "1.0"
-              def imageMaintainer=project.properties['maintainer.name'] ?: "IBM"
-              def imageVendor=project.properties['vendor.name'] ?: "IBM"
-              def serviceUser=project.properties['service.user'] ?: "1000321001"
-              def imageSummary=project.properties['target.image.summary'] ?: " "
-              dockerFile.delete()
               copy {
                 into "${dockerDir}"
                 from(processDistResources) {
@@ -332,84 +343,115 @@ subprojects {
                   }
                 }
               }
-              if(!dockerFile.exists()){
-                dockerFile << "FROM ${ubiimageName}:${ubibaseimageTag}\n"
-                dockerFile << "MAINTAINER IBM\n"
-                dockerFile << """LABEL name="${microServiceUBIImageName}" "Vendor"="IBM" "Version"="${microServiceImageTag}"  "release"="${imageRelease}" "summary"="" "description"="${imageDescription}" \n"""
-                dockerFile << "USER 1000321001\n"
-                dockerFile << "COPY --chown=1000321001:1000321001 root/wlp/usr/servers/defaultServer /config/\n"
-                dockerFile << "COPY --chown=1000321001:1000321001 root/initscripts /opt/ibm/initScripts/\n"
-                dockerFile << "RUN echo app - ${microServiceUBIImageName}: ${microServiceImageTag} built on ${timeStamp} >> /opt/ibm/initScripts/version.txt\n"
-                dockerFile << "USER root\n"
-                dockerFile << "RUN chmod a+rxw /config /config/apps /logs\n"
-                dockerFile << "RUN chmod a+rwx /opt/ibm/initScripts/*.*"
-                dockerFile << "USER 1000321001\n"
-                dockerFile << "RUN for i in `cat /config/server.env`; do export $i; done; \\\n"
-                dockerFile << """    echo "KEYSTORE_PASSWORD=$keystore_password" > /config/bootstrap.properties; \\\n"""
-                dockerFile << """    echo "TRUSTSTORE_PASSWORD=changeit" >> /config/bootstrap.properties; \\\n"""
-                dockerFile << "    installUtility install --acceptLicense defaultServer; \\\n"
-                dockerFile << "    securityUtility createSSLCertificate --password=$keystore_password --server=defaultServer\n"
-                dockerFile << "USER root\n"
-                dockerFile << "RUN chmod -R a+rwx /opt/ibm/wlp/output\n"
-                dockerFile << "USER 1000321001\n"
+            } else {
+              // Standalone Flight
+              def flightServiceArchive = microServiceAppName + '.tar'
+              copy {
+                into "${dockerDir}/root"
+                from "${buildDir}/distributions"
+                include "${flightServiceArchive}"
               }
-
-              LogInfo("Running the Docker Build ${microServiceUBIImageName}:${microServiceImageTag} ...on")
-              docker.dockerCommand('--version')
-              docker.buildLatest(microServiceUBIImageName, microServiceImageTag, dockerFile, imageRegistry, null)
-            } catch (Exception e) {
-              LogError("Docker Image build failed ...")
-              LogException(e)
+              copy {
+                into "${dockerDir}/root"
+                from "${buildDir}/resources/dist/payload"
+                include 'initscripts/**/*'
+                filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: ['flight.service.app.name': microServiceAppName])
+              }
+              copy {
+                into "${dockerDir}/root"
+                from "${buildDir}/resources/dist/payload"
+                include 'etc/**/*'
+                duplicatesStrategy = 'include'
+                includeEmptyDirs = false
+              }
+              copy {
+                into "${dockerDir}"
+                from "${buildDir}/resources/dist/payload"
+                include 'Dockerfile'
+                filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: ['image.name': ubiimageName.toString(), 'image.tag': ubibaseimageTag.toString(), 'target.image.name': microServiceUBIImageName.toString(), 'target.image.tag': microServiceImageTag.toString(), 'target.image.description': imageDescription.toString(), 'target.image.summary': imageSummary.toString(), 'maintainer.name': imageMaintainer.toString(), 'vendor.name': imageVendor.toString(), 'service.user': serviceUser.toString(),'target.image.release': imageRelease.toString(), 'timestamp.value' : timeStamp.toString(), 'flight.service.app.name': microServiceAppName, 'flight.service.archive': flightServiceArchive])
+              }
             }
-          }
-        }
 
-        task dockerPush(dependsOn: [
-          dockerBuild,
-          dockerTargetLogin
-        ]) {
-          description = 'Push the Micro-Service Liberty docker image.'
-          onlyIf {
-            docker.dockerCheck()
-            !project.hasProperty('isTemplate')
-          }
-          doLast {
-            LogInfo("Displaying the docker images ....")
-            docker.dockerCommand('images')
-            LogInfo("Pushing to Docker Registry ....")
-            def microServiceName = ""
-            microServiceName = microServiceUBIImageName
-            docker.imagePush(microServiceName, microServiceImageTag, imageTargetRegistry, imageTargetProject)
-            LogInfo("Tag it as latest ....")
-            docker.imagePush(microServiceName, 'latest', imageTargetRegistry, imageTargetProject)
+            def dockerFile = file("${dockerDir}/Dockerfile")
+            if(!dockerFile.exists()){
+              dockerFile << "FROM ${ubiimageName}:${ubibaseimageTag}\n"
+              dockerFile << "MAINTAINER IBM\n"
+              dockerFile << """LABEL name="${microServiceUBIImageName}" "Vendor"="IBM" "Version"="${microServiceImageTag}"  "release"="${imageRelease}" "summary"="" "description"="${imageDescription}" \n"""
+              dockerFile << "USER 1000321001\n"
+              dockerFile << "COPY --chown=1000321001:1000321001 root/wlp/usr/servers/defaultServer /config/\n"
+              dockerFile << "COPY --chown=1000321001:1000321001 root/initscripts /opt/ibm/initScripts/\n"
+              dockerFile << "RUN echo app - ${microServiceUBIImageName}: ${microServiceImageTag} built on ${timeStamp} >> /opt/ibm/initScripts/version.txt\n"
+              dockerFile << "USER root\n"
+              dockerFile << "RUN chmod a+rxw /config /config/apps /logs\n"
+              dockerFile << "RUN chmod a+rwx /opt/ibm/initScripts/*.*"
+              dockerFile << "USER 1000321001\n"
+              dockerFile << "RUN for i in `cat /config/server.env`; do export $i; done; \\\n"
+              dockerFile << """    echo "KEYSTORE_PASSWORD=$keystore_password" > /config/bootstrap.properties; \\\n"""
+              dockerFile << """    echo "TRUSTSTORE_PASSWORD=changeit" >> /config/bootstrap.properties; \\\n"""
+              dockerFile << "    installUtility install --acceptLicense defaultServer; \\\n"
+              dockerFile << "    securityUtility createSSLCertificate --password=$keystore_password --server=defaultServer\n"
+              dockerFile << "USER root\n"
+              dockerFile << "RUN chmod -R a+rwx /opt/ibm/wlp/output\n"
+              dockerFile << "USER 1000321001\n"
+            }
+
+            LogInfo("Running the Docker Build ${microServiceUBIImageName}:${microServiceImageTag} ...on")
+            docker.dockerCommand('--version')
+            docker.buildLatest(microServiceUBIImageName, microServiceImageTag, dockerFile, imageRegistry, null)
+          } catch (Exception e) {
+            LogError("Docker Image build failed ...")
+            LogException(e)
           }
         }
-        task dockerStart(dependsOn: [
-          server,
-          dockerStop,
-          dockerBuild
-        ]) {
-          description = 'Start the personal Micro-Service Liberty docker container.'
-          onlyIf {
-            docker.dockerCheck()
-            !project.hasProperty('isTemplate')
-          }
-          doLast() {
-            def unzipDir = file("${buildDir}/tmp/docker")
+      }
+
+      task dockerPush(dependsOn: [
+        dockerBuild,
+        dockerTargetLogin
+      ]) {
+        description = 'Push the Micro-Service Liberty docker image.'
+        onlyIf {
+          docker.dockerCheck()
+          !project.hasProperty('isTemplate')
+        }
+        doLast {
+          LogInfo("Displaying the docker images ....")
+          docker.dockerCommand('images')
+          LogInfo("Pushing to Docker Registry ....")
+          def microServiceName = ""
+          microServiceName = microServiceUBIImageName
+          docker.imagePush(microServiceName, microServiceImageTag, imageTargetRegistry, imageTargetProject)
+          LogInfo("Tag it as latest ....")
+          docker.imagePush(microServiceName, 'latest', imageTargetRegistry, imageTargetProject)
+        }
+      }
+      task dockerStart {
+        if (isWarProject) {
+          dependsOn server
+        }
+        description = 'Start the personal Micro-Service Liberty docker container.'
+        onlyIf {
+          docker.dockerCheck()
+          !project.hasProperty('isTemplate')
+        }
+        doLast() {
+          def unzipDir = file("${buildDir}/tmp/docker")
+          if (isWarProject) {
             copy {
               into unzipDir
               from zipTree(server.outputs.files.singleFile)
             }
-            def serverEnvFile = file("${unzipDir}/wlp/usr/servers/defaultServer/server.env")
-            serverEnvFile.text = "FLIGHT_URL=grpc://0.0.0.0:9090"
-            // Update server.xml file with port number and host
-            def publishGRPCStr = systemProperty(project, 'docker.publish.grpc', '9090:9090')
-            def publishHttpStr = systemProperty(project, 'docker.publish.http', '9080:9080')
-            def publishHttpsStr = systemProperty(project, 'docker.publish.https', '443:9443')
-
-            // Deploy docker container
-            docker.dockerCommandStdout('run', '-idt', '--env-file', "${serverEnvFile.absolutePath}",'-p', "${publishGRPCStr}", '-p', "${publishHttpStr}", '-p', "${publishHttpsStr}", '--name', microServiceAppName, "${microServiceUBIImageName}:latest")
           }
+          // Update server.xml file with port number and host
+          def publishGRPCStr = systemProperty(project, 'docker.publish.grpc', '9090:9090')
+          def publishHttpStr = systemProperty(project, 'docker.publish.http', '9080:9080')
+          def publishHttpsStr = systemProperty(project, 'docker.publish.https', '443:9443')
+          def serverEnvFile = isWarProject ? file("${unzipDir}/wlp/usr/servers/defaultServer/server.env") : file("${buildDir}/resources/dist/payload/etc/server.env")
+          if (isWarProject) {
+            serverEnvFile.text = "FLIGHT_URL=grpc://0.0.0.0:9090"
+          }
+          // Deploy docker container
+          docker.dockerCommandStdout('run', '-idt', '--env-file', "${serverEnvFile.absolutePath}",'-p', "${publishGRPCStr}", '-p', "${publishHttpStr}", '-p', "${publishHttpsStr}", '--name', microServiceAppName, "${microServiceUBIImageName}:latest")
         }
       }
     }

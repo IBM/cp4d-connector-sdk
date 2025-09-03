@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.test;
@@ -10,11 +10,15 @@ import static org.slf4j.LoggerFactory.getLogger;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
+import java.util.Enumeration;
 import java.util.List;
 
 import org.apache.arrow.flight.FlightClient;
@@ -47,6 +51,37 @@ public class TestFlight implements Closeable
     private final String sslCert;
     private final FlightServer server;
     private final FlightClient client;
+
+    private static boolean isConfiguredForCloud()
+    {
+        return CloudClient.getAPIHost() != null;
+    }
+
+    public static InetAddress getLocalHost()
+    {
+        try {
+            if (!System.getProperty("os.name").contains("Windows")) {
+                // Need public IP if using Flight with docker on Linux, getLocalHost doesn't
+                // work
+                final Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
+                while (en.hasMoreElements()) {
+                    final NetworkInterface i = en.nextElement();
+                    for (final Enumeration<InetAddress> en2 = i.getInetAddresses(); en2.hasMoreElements();) {
+                        final InetAddress addr = en2.nextElement();
+                        if (!addr.isLinkLocalAddress() && !addr.isLoopbackAddress() && addr instanceof Inet4Address) {
+                            return addr;
+                        }
+                    }
+                }
+            }
+
+            // No suitable addr found from searching network interfaces, try localhost
+            return InetAddress.getLocalHost();
+        }
+        catch (Exception e) {
+            return InetAddress.getLoopbackAddress();
+        }
+    }
 
     /**
      * Creates a local Flight server and client for testing.
@@ -158,8 +193,12 @@ public class TestFlight implements Closeable
             }
         }
         client = clientBuilder.build();
-        try (CloudClient cloudClient = new CloudClient()) {
-            client.authenticate(new ClientTokenAuthHandler(cloudClient.getAuthHeader()));
+        if (isConfiguredForCloud()) {
+            try (CloudClient cloudClient = new CloudClient()) {
+                client.authenticate(new ClientTokenAuthHandler(cloudClient.getAuthHeader()));
+            }
+        } else {
+            client.authenticate(new ClientTokenAuthHandler(AuthUtils.getAuthToken(AuthUtils.generateKeyPair())));        	
         }
     }
 

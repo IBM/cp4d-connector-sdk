@@ -130,6 +130,10 @@ ext {
     project.properties['container.cli'] ?: System.getProperty('container.cli') ?: 'docker'
   }
 
+  isStandaloneFlight = {
+    systemProperty(project, 'standaloneFlightSvc', 'false') == 'true'
+  }
+
   exeName = { Object file ->
     def fileName = (file instanceof File) ? file.name : file.toString()
     fileExtension(fileName)

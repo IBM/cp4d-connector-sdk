@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.bundle;
@@ -8,12 +8,9 @@ package com.ibm.connect.sdk.bundle;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
-import java.net.Inet4Address;
 import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.net.URI;
 import java.sql.Connection;
-import java.util.Enumeration;
 import java.util.TimeZone;
 import java.util.UUID;
 
@@ -33,7 +30,7 @@ public class BundleTestEnvironment
 {
     private static final Logger LOGGER = getLogger(BundleTestEnvironment.class);
 
-    private static final InetAddress DERBY_HOST = getLocalHost();
+    private static final InetAddress DERBY_HOST = TestFlight.getLocalHost();
     private static final int DERBY_PORT = TestConfig.getPort("bundle.derby.port");
     private static final String DERBY_DATABASE = TestConfig.get("bundle.derby.database_name", "testdb");
     private static final String DERBY_USER = TestConfig.get("bundle.derby.user_name", "testuser");
@@ -47,32 +44,6 @@ public class BundleTestEnvironment
     private NetworkServerControl derbyServer;
     private Connection connection;
     private TimeZone defaultTimeZone;
-
-    private static InetAddress getLocalHost()
-    {
-        try {
-            if (!System.getProperty("os.name").contains("Windows")) {
-                // Need public IP if using Flight with docker on Linux, getLocalHost doesn't
-                // work
-                final Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
-                while (en.hasMoreElements()) {
-                    final NetworkInterface i = en.nextElement();
-                    for (final Enumeration<InetAddress> en2 = i.getInetAddresses(); en2.hasMoreElements();) {
-                        final InetAddress addr = en2.nextElement();
-                        if (!addr.isLinkLocalAddress() && !addr.isLoopbackAddress() && addr instanceof Inet4Address) {
-                            return addr;
-                        }
-                    }
-                }
-            }
-
-            // No suitable addr found from searching network interfaces, try localhost
-            return InetAddress.getLocalHost();
-        }
-        catch (Exception e) {
-            return InetAddress.getLoopbackAddress();
-        }
-    }
 
     /**
      * Returns a shared test environment for bundle tests.
