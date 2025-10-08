@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc;
@@ -391,7 +391,7 @@ public abstract class JdbcConnector implements Connector<JdbcSourceInteraction, 
                 assets.add(asset);
             }
         } else {
-            throw new IllegalArgumentException("Invalid path");
+            throw new IllegalArgumentException(JdbcMsgs.INVALID_PATH.format());
         }
         return assets;
     }
@@ -715,7 +715,7 @@ public abstract class JdbcConnector implements Connector<JdbcSourceInteraction, 
     public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties) throws Exception
     {
         if (!"get_record_count".equals(action)) {
-            throw new UnsupportedOperationException("doAction " + action + " is not supported");
+            throw new UnsupportedOperationException(JdbcMsgs.UNSUPPORTED_ACTION.format(action));
         }
         final Properties inputProperties = ModelMapper.toProperties(properties);
         final String schemaName = inputProperties.getProperty("schema_name");

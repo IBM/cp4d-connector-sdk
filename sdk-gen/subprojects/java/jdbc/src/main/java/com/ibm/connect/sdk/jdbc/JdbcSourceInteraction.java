@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc;
@@ -65,6 +65,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
 
+import com.google.common.collect.ImmutableSet;
 import com.ibm.connect.sdk.api.Connector;
 import com.ibm.connect.sdk.api.SourceInteraction;
 import com.ibm.connect.sdk.api.TicketInfo;
@@ -116,7 +117,7 @@ public abstract class JdbcSourceInteraction implements SourceInteraction<Connect
         final String tableName = interactionProperties.getProperty("table_name");
         final String selectStatement = interactionProperties.getProperty("select_statement");
         if (tableName == null && selectStatement == null) {
-            throw new IllegalArgumentException("Missing table name or SELECT statement");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_ONE_OF_PROPERTIES.format(ImmutableSet.of("table_name", "select_statement")));
         }
         final String byteLimit = interactionProperties.getProperty("byte_limit");
         if (byteLimit != null) {
@@ -498,7 +499,7 @@ public abstract class JdbcSourceInteraction implements SourceInteraction<Connect
                     }
                 } else {
                     throw new UnsupportedOperationException(
-                            "Unsupported data type for column " + vectorSchemaRoot.getSchema().getFields().get(colIdx).getName());
+                            JdbcMsgs.UNSUPPORTED_DATA_TYPE_FOR_COLUMN.format(vectorSchemaRoot.getSchema().getFields().get(colIdx).getName()));
                 }
             }
             fetchedNextRow = false;

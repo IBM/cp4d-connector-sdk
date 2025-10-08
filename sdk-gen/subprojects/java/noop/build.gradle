@@ -1,7 +1,8 @@
 //
-// Apply the java-library plugin
+// Apply the java-library, and maven-publish plugins
 //
 apply plugin: 'java-library'
+apply plugin: 'maven-publish'
 
 //
 // Declare project dependencies
@@ -19,6 +20,7 @@ dependencies {
   runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
   runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
   // End of flight-core
+  implementation project(':wdp-connect-sdk-gen-java-util')
 
   testImplementation project(':wdp-connect-sdk-gen-java-test')
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']

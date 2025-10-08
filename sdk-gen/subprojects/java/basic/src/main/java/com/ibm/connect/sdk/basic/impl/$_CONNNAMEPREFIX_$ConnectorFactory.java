@@ -1,6 +1,6 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 
 /* *************************************************** */
 package com.ibm.connect.sdk.basic.impl;
@@ -41,7 +41,7 @@ public class $_CONNNAMEPREFIX_$ConnectorFactory implements ConnectorFactory
         if ("$_CONNNAME_$".equals(datasourceTypeName)) {
             return new $_CONNNAMEPREFIX_$Connector(properties);
         }
-        throw new UnsupportedOperationException(datasourceTypeName + " is not supported!");
+        throw new UnsupportedOperationException($_CONNNAMEPREFIX_$Msgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }
 
     @Override

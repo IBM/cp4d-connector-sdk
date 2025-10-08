@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.noop;
@@ -17,6 +17,8 @@ import org.apache.arrow.flight.PutResult;
 import org.apache.arrow.flight.Result;
 import org.apache.arrow.flight.Ticket;
 
+import com.ibm.connect.sdk.util.ThreadLocale;
+
 /**
  * A no-op Flight producer with no real implementation.
  */
@@ -30,7 +32,8 @@ public class NoOpFlightProducer implements FlightProducer
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener)
     {
         // TODO Implement this
-        listener.error(CallStatus.UNIMPLEMENTED.withDescription("getStream not implemented").toRuntimeException());
+        ThreadLocale.setLocale(context);
+        listener.error(CallStatus.UNIMPLEMENTED.withDescription(NoOpMsgs.METHOD_NOT_IMPLEMENTED.format("getStream")).toRuntimeException());
     }
 
     /**
@@ -40,7 +43,8 @@ public class NoOpFlightProducer implements FlightProducer
     public void listFlights(CallContext context, Criteria criteria, StreamListener<FlightInfo> listener)
     {
         // TODO Implement this
-        listener.onError(CallStatus.UNIMPLEMENTED.withDescription("listFlights not implemented").toRuntimeException());
+        ThreadLocale.setLocale(context);
+        listener.onError(CallStatus.UNIMPLEMENTED.withDescription(NoOpMsgs.METHOD_NOT_IMPLEMENTED.format("listFlights")).toRuntimeException());
     }
 
     /**
@@ -50,7 +54,8 @@ public class NoOpFlightProducer implements FlightProducer
     public FlightInfo getFlightInfo(CallContext context, FlightDescriptor descriptor)
     {
         // TODO Implement this
-        throw CallStatus.UNIMPLEMENTED.withDescription("getFlightInfo not implemented").toRuntimeException();
+        ThreadLocale.setLocale(context);
+        throw CallStatus.UNIMPLEMENTED.withDescription(NoOpMsgs.METHOD_NOT_IMPLEMENTED.format("getFlightInfo")).toRuntimeException();
     }
 
     /**
@@ -61,7 +66,8 @@ public class NoOpFlightProducer implements FlightProducer
     {
         // TODO Implement this
         return () -> {
-            ackStream.onError(CallStatus.UNIMPLEMENTED.withDescription("acceptPut not implemented").toRuntimeException());
+            ThreadLocale.setLocale(context);
+            ackStream.onError(CallStatus.UNIMPLEMENTED.withDescription(NoOpMsgs.METHOD_NOT_IMPLEMENTED.format("acceptPut")).toRuntimeException());
         };
     }
 
@@ -72,7 +78,8 @@ public class NoOpFlightProducer implements FlightProducer
     public void doAction(CallContext context, Action action, StreamListener<Result> listener)
     {
         // TODO Implement this
-        listener.onError(CallStatus.UNIMPLEMENTED.withDescription("doAction not implemented").toRuntimeException());
+        ThreadLocale.setLocale(context);
+        listener.onError(CallStatus.UNIMPLEMENTED.withDescription(NoOpMsgs.METHOD_NOT_IMPLEMENTED.format("doAction")).toRuntimeException());
     }
 
     /**
@@ -82,7 +89,8 @@ public class NoOpFlightProducer implements FlightProducer
     public void listActions(CallContext context, StreamListener<ActionType> listener)
     {
         // TODO Implement this
-        listener.onError(CallStatus.UNIMPLEMENTED.withDescription("listActions not implemented").toRuntimeException());
+        ThreadLocale.setLocale(context);
+        listener.onError(CallStatus.UNIMPLEMENTED.withDescription(NoOpMsgs.METHOD_NOT_IMPLEMENTED.format("listActions")).toRuntimeException());
     }
 
 }

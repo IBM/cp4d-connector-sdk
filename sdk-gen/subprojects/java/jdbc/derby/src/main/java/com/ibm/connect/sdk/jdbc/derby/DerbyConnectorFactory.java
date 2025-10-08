@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc.derby;
@@ -21,18 +21,13 @@ public class DerbyConnectorFactory extends PooledConnectorFactory
     public static final DerbyConnectorFactory INSTANCE = new DerbyConnectorFactory();
 
     /**
-     * The data source types supported by this factory.
-     */
-    private static final CustomFlightDatasourceTypes DATASOURCE_TYPES
-            = new CustomFlightDatasourceTypes().addDatasourceTypesItem(DerbyDatasourceType.INSTANCE);
-
-    /**
      * {@inheritDoc}
      */
     @Override
     public CustomFlightDatasourceTypes getDatasourceTypes()
     {
-        return DATASOURCE_TYPES;
+        // Return localized datasource types.
+        return new CustomFlightDatasourceTypes().addDatasourceTypesItem(new DerbyDatasourceType());
     }
 
     /**
@@ -44,6 +39,6 @@ public class DerbyConnectorFactory extends PooledConnectorFactory
         if (DerbyDatasourceType.INSTANCE.getName().equals(datasourceTypeName)) {
             return new DerbyConnector(properties);
         }
-        throw new UnsupportedOperationException("Data source type " + datasourceTypeName + " is not supported");
+        throw new UnsupportedOperationException(DerbyMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }
 }

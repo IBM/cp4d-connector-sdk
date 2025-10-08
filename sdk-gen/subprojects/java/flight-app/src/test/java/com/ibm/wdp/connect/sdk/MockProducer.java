@@ -24,6 +24,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.ibm.connect.sdk.util.ThreadLocale;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
@@ -34,18 +35,19 @@ public class MockProducer implements FlightProducer
 {
     public static final String ACTION_LIST_DATASOURCE_TYPES = "list_datasource_types";
     public static final String DATASOURCE_NAME = "mock";
-    private final CustomFlightDatasourceTypes datasourceTypes = new CustomFlightDatasourceTypes();
     private final ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.WRITE_ENUMS_USING_TO_STRING, true)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    public MockProducer()
+    private CustomFlightDatasourceTypes getDatasourceTypes()
     {
+        final CustomFlightDatasourceTypes datasourceTypes = new CustomFlightDatasourceTypes();
+
         // Define the data source types supported by this flight producer.
         final CustomFlightDatasourceType datasourceType = new CustomFlightDatasourceType();
         datasourceTypes.addDatasourceTypesItem(datasourceType);
         datasourceType.setName(DATASOURCE_NAME);
-        datasourceType.setLabel(DATASOURCE_NAME + " label");
-        datasourceType.setDescription(DATASOURCE_NAME + " description");
+        datasourceType.setLabel(MockLabels.DATASOURCE_TYPE_LABEL.format());
+        datasourceType.setDescription(MockLabels.DATASOURCE_TYPE_DESCRIPTION.format());
         datasourceType.setAllowedAsSource(true);
         datasourceType.setAllowedAsTarget(true);
         datasourceType.setStatus(CustomFlightDatasourceType.StatusEnum.ACTIVE);
@@ -56,10 +58,12 @@ public class MockProducer implements FlightProducer
         // Connection properties - NA
 
         // Source interaction properties
-        properties.addSourceItem(buildCustomPropertyDef("file_name", "File name", "The name and path of the Feather file to read"));
+        properties.addSourceItem(buildCustomPropertyDef("file_name", MockLabels.SOURCE_FILE_NAME_LABEL.format(), MockLabels.SOURCE_FILE_NAME_DESCRIPTION.format()));
 
         // Target interaction properties
-        properties.addTargetItem(buildCustomPropertyDef("file_name", "File name", "The name and path of the Feather file to write"));
+        properties.addTargetItem(buildCustomPropertyDef("file_name", MockLabels.TARGET_FILE_NAME_LABEL.format(), MockLabels.TARGET_FILE_NAME_DESCRIPTION.format()));
+        
+        return datasourceTypes;
     }
 
     private CustomDatasourceTypeProperty buildCustomPropertyDef(String name, String label, String description)
@@ -85,6 +89,7 @@ public class MockProducer implements FlightProducer
     @Override
     public FlightInfo getFlightInfo(CallContext context, FlightDescriptor descriptor)
     {
+        ThreadLocale.setLocale(context);
         final Ticket ticket = new Ticket("whatever".getBytes(StandardCharsets.UTF_8));
         final Schema schema = createDefault();
         return new FlightInfo(schema, descriptor, Collections.singletonList(new FlightEndpoint(ticket)), -1, -1);
@@ -108,11 +113,12 @@ public class MockProducer implements FlightProducer
     public void doAction(CallContext context, Action action, StreamListener<Result> listener)
     {
         try {
+            ThreadLocale.setLocale(context);
             final CustomFlightActionResponse response = new CustomFlightActionResponse();
             if (ACTION_LIST_DATASOURCE_TYPES.equals(action.getType())) {
-                response.setDatasourceTypes(datasourceTypes);
+                response.setDatasourceTypes(getDatasourceTypes());
             } else {
-                throw new UnsupportedOperationException("doAction " + action.getType() + "is not supported");
+                throw new UnsupportedOperationException(MockMsgs.UNSUPPORTED_ACTION.format(action.getType()));
             }
             final String responseJson = mapper.writeValueAsString(response);
             final Result result = new Result(responseJson.getBytes(StandardCharsets.UTF_8));
@@ -120,13 +126,14 @@ public class MockProducer implements FlightProducer
             listener.onCompleted();
         }
         catch (Exception e) {
-            listener.onError(CallStatus.INVALID_ARGUMENT.withDescription("Error running action").withCause(e).toRuntimeException());
+            listener.onError(CallStatus.INVALID_ARGUMENT.withDescription(e.getMessage()).withCause(e).toRuntimeException());
         }
     }
 
     @Override
     public void listActions(CallContext context, StreamListener<ActionType> listener)
     {
+        ThreadLocale.setLocale(context);
         listener.onNext(new ActionType(ACTION_LIST_DATASOURCE_TYPES, ACTION_LIST_DATASOURCE_TYPES));
         listener.onCompleted();
 

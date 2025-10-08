@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc.generic;
@@ -88,20 +88,20 @@ public class GenericJdbcConnector extends JdbcConnector
         // Validate the JDBC URL.
         final String jdbcUrl = connectionProperties.getProperty("jdbc_url");
         if (jdbcUrl == null) {
-            throw new IllegalArgumentException("Missing jdbc_url");
+            throw new IllegalArgumentException(GenericJdbcMsgs.MISSING_PROPERTY.format("jdbc_url"));
         }
         final String driverName = getDriverName(jdbcUrl);
         if (!LIMIT_CLAUSE_TABLE.rowKeySet().contains(driverName)) {
-            throw new IllegalArgumentException("Driver [" + driverName + "] is not one of " + LIMIT_CLAUSE_TABLE.rowKeySet());
+            throw new IllegalArgumentException(GenericJdbcMsgs.INVALID_DRIVER.format(driverName, LIMIT_CLAUSE_TABLE.rowKeySet()));
         }
         final String rowLimitSupport = connectionProperties.getProperty("row_limit_support", "none");
         if ("prefix".equals(rowLimitSupport)) {
             if (connectionProperties.getProperty("row_limit_prefix") == null) {
-                throw new IllegalArgumentException("Missing row_limit_prefix");
+                throw new IllegalArgumentException(GenericJdbcMsgs.MISSING_PROPERTY.format("row_limit_prefix"));
             }
         } else if ("suffix".equals(rowLimitSupport)) {
             if (connectionProperties.getProperty("row_limit_suffix") == null) {
-                throw new IllegalArgumentException("Missing row_limit_suffix");
+                throw new IllegalArgumentException(GenericJdbcMsgs.MISSING_PROPERTY.format("row_limit_suffix"));
             }
         }
     }
@@ -111,7 +111,7 @@ public class GenericJdbcConnector extends JdbcConnector
         final Pattern pattern = Pattern.compile("jdbc:([^:]+):.*");
         final Matcher matcher = pattern.matcher(jdbcUrl);
         if (!matcher.matches()) {
-            throw new IllegalArgumentException("Invalid JDBC URL " + jdbcUrl);
+            throw new IllegalArgumentException(GenericJdbcMsgs.INVALID_JDBC_URL.format(jdbcUrl));
         }
         return matcher.group(1);
     }
@@ -163,7 +163,7 @@ public class GenericJdbcConnector extends JdbcConnector
                 jdbcProperties.load(reader);
             }
             catch (Exception e) {
-                throw new IllegalArgumentException("Invalid jdbc_properties", e);
+                throw new IllegalArgumentException(GenericJdbcMsgs.INVALID_PROPERTY.format("jdbc_properties"), e);
             }
         }
         return jdbcProperties;

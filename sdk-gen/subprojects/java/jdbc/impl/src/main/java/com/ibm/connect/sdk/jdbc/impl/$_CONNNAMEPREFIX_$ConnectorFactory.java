@@ -37,7 +37,7 @@ public class $_CONNNAMEPREFIX_$ConnectorFactory extends PooledConnectorFactory
         if ($_CONNNAMEPREFIX_$DatasourceType.INSTANCE.getName().equals(datasourceTypeName)) {
             return new $_CONNNAMEPREFIX_$Connector(properties);
         }
-        throw new UnsupportedOperationException("Data source type " + datasourceTypeName + " is not supported!");
+        throw new UnsupportedOperationException($_CONNNAMEPREFIX_$Msgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }
 
     /**
@@ -46,6 +46,7 @@ public class $_CONNNAMEPREFIX_$ConnectorFactory extends PooledConnectorFactory
     @Override
     public CustomFlightDatasourceTypes getDatasourceTypes()
     {
-        return new CustomFlightDatasourceTypes().addDatasourceTypesItem($_CONNNAMEPREFIX_$DatasourceType.INSTANCE);
+        // Return localized datasource types.
+        return new CustomFlightDatasourceTypes().addDatasourceTypesItem(new $_CONNNAMEPREFIX_$DatasourceType());
     }
 }

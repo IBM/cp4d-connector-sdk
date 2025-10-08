@@ -1,6 +1,6 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 
 /* *************************************************** */
 package com.ibm.wdp.connect.sdk.flight;
@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.TreeMap;
@@ -36,6 +37,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.ibm.connect.sdk.util.ThreadLocale;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeAction;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
@@ -192,7 +194,7 @@ public class DelegatingFlightProducer implements FlightProducer
         LOGGER.trace("listFlights entry");
         try {
             if (Criteria.ALL.equals(criteria) || criteria.getExpression().length == 0) {
-                throw new IllegalArgumentException("Invalid criteria");
+                throw new IllegalArgumentException(FlightMsgs.INVALID_CRITERIA.format());
             }
             final FlightProducer producer = getProducerFromCriteria(criteria.getExpression());
             producer.listFlights(context, criteria, listener);
@@ -240,14 +242,14 @@ public class DelegatingFlightProducer implements FlightProducer
     FlightProducer getProducerFromAction(byte[] command) throws Exception
     {
         if (command == null || command.length == 0) {
-            throw new IllegalArgumentException("Missing action body");
+            throw new IllegalArgumentException(FlightMsgs.MISSING_ACTION_BODY.format());
         }
         final CustomFlightActionRequest action
                 = mapper.readValue(new String(command, StandardCharsets.UTF_8), CustomFlightActionRequest.class);
         final String datasourceTypeName = action.getAsset() != null && action.getAsset().getDatasourceTypeName() != null
                 ? action.getAsset().getDatasourceTypeName() : action.getDatasourceTypeName();
         if (datasourceTypeName == null) {
-            throw new IllegalArgumentException("Missing datasource type name");
+            throw new IllegalArgumentException(FlightMsgs.MISSING_DATASOURCE_TYPE_NAME.format());
         }
         return datasourceTypeIdToProducer.get(datasourceTypeName);
     }
@@ -312,9 +314,21 @@ public class DelegatingFlightProducer implements FlightProducer
                 listener.onNext(result);
                 listener.onCompleted();
             } else if (ACTION_LIST_DATASOURCE_TYPES.equals(action.getType())) {
-                response.setDatasourceTypes(datasourceTypes);
-                final Result result = new Result(mapper.writeValueAsString(response).getBytes(StandardCharsets.UTF_8));
-                listener.onNext(result);
+                ThreadLocale.setLocale(context);
+                if (ThreadLocale.getLocale().equals(Locale.getDefault())) {
+                    response.setDatasourceTypes(datasourceTypes);
+                    final Result result = new Result(mapper.writeValueAsString(response).getBytes(StandardCharsets.UTF_8));
+                    listener.onNext(result);
+                } else {
+                    // Get the locale-specific data source types for each producer.
+                    for (final FlightProducer producer : datasourceTypeIdToProducer.values()) {
+                        final ResultListener<Result> resultListener = new ResultListener<>();
+                        producer.doAction(context, action, resultListener);
+                        for (final Result result : resultListener.getResults()) {
+                            listener.onNext(result);
+                        }
+                    }
+                }
                 listener.onCompleted();
             } else {
                 final FlightProducer producer = getProducerFromAction(action.getBody());

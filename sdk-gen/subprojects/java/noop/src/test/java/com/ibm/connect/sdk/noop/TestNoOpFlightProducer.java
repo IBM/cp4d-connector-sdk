@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.noop;
@@ -41,7 +41,7 @@ public class TestNoOpFlightProducer
     @BeforeClass
     public static void setUpOnce() throws Exception
     {
-        testFlight = TestFlight.createLocal(TestConfig.getPort("noop.flight.port"), false, new NoOpFlightProducer());
+        testFlight = TestFlight.createLocal(TestConfig.getPort("noop.flight.port"), false, new NoOpFlightProducer(), null);
         client = testFlight.getClient();
     }
 

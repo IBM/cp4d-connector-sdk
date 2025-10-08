@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc;
@@ -91,13 +91,13 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
         staticStatementText = interactionProperties.getProperty("static_statement");
         final String updateStmt = interactionProperties.getProperty("update_statement");
         if (tableName == null && ((updateStmt == null && staticStatementText == null) || !"append".equals(tableAction))) {
-            throw new IllegalArgumentException("Missing table name");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("table_name"));
         }
         if ("update_statement".equals(writeMode) && updateStmt == null) {
-            throw new IllegalArgumentException("Missing update statement");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("update_statement"));
         }
         if ("static_statement".equals(writeMode) && staticStatementText == null) {
-            throw new IllegalArgumentException("Missing static statement");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("static_statement"));
         }
         if (updateStmt != null) {
             statementText = updateStmt;
@@ -123,7 +123,7 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
     private String generateInsertStatementText()
     {
         if (asset.getFields() == null || asset.getFields().size() == 0) {
-            throw new IllegalArgumentException("Missing fields");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("fields"));
         }
         final StringBuilder stmt = new StringBuilder(50);
         stmt.append("INSERT INTO ");
@@ -164,7 +164,7 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
     private String generateUpdateStatementText() throws Exception
     {
         if (asset.getFields() == null || asset.getFields().size() == 0) {
-            throw new IllegalArgumentException("Missing fields");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("fields"));
         }
         final List<String> fieldNames = asset.getFields().stream().map(CustomFlightAssetField::getName).collect(Collectors.toList());
         final List<String> pkFieldNames = getPrimaryKeyColumnNames();
@@ -191,10 +191,10 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
             return Arrays.asList(keyColumnNamesArray);
         }
         if (schemaName == null) {
-            throw new IllegalArgumentException("Missing schema name");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("schema_name"));
         }
         if (tableName == null) {
-            throw new IllegalArgumentException("Missing table name");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("table_name"));
         }
         final List<String> keyColumns = new ArrayList<>();
         try (ResultSet result
@@ -210,7 +210,7 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
     private int[] createInsertParamIndexes()
     {
         if (asset.getFields() == null || asset.getFields().size() == 0) {
-            throw new IllegalArgumentException("Missing fields");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("fields"));
         }
         final int fieldCount = asset.getFields().size();
         final int[] paramIndices = new int[fieldCount];
@@ -223,7 +223,7 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
     private int[] createUpdateParamIndexes() throws Exception
     {
         if (asset.getFields() == null || asset.getFields().size() == 0) {
-            throw new IllegalArgumentException("Missing fields");
+            throw new IllegalArgumentException(JdbcMsgs.MISSING_PROPERTY.format("fields"));
         }
         final List<String> fieldNames = asset.getFields().stream().map(CustomFlightAssetField::getName).collect(Collectors.toList());
         final List<String> pkFieldNames = getPrimaryKeyColumnNames();
@@ -346,7 +346,7 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
                         }
                     } else {
                         if (field.getLength() == null) {
-                            throw new IllegalArgumentException("Missing length for field " + field.getName());
+                            throw new IllegalArgumentException(JdbcMsgs.MISSING_LENGTH_FOR_FIELD.format(field.getName()));
                         }
                         stmt.append(nativeType.substring(0, parenIndex + 1));
                         stmt.append(field.getLength());
@@ -354,7 +354,7 @@ public abstract class JdbcTargetInteraction implements TargetInteraction<Connect
                     }
                 } else if ("precision,scale".equals(createParams)) {
                     if (field.getLength() == null) {
-                        throw new IllegalArgumentException("Missing length for field " + field.getName());
+                        throw new IllegalArgumentException(JdbcMsgs.MISSING_LENGTH_FOR_FIELD.format(field.getName()));
                     }
                     stmt.append(nativeType);
                     stmt.append('(');

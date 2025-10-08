@@ -20,6 +20,7 @@ import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightProducer;
@@ -30,6 +31,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.slf4j.Logger;
 
+import com.ibm.connect.sdk.util.AcceptLanguageClientMiddleware;
 import com.ibm.connect.sdk.util.AuthUtils;
 import com.ibm.connect.sdk.util.ClientTokenAuthHandler;
 import com.ibm.connect.sdk.util.SSLUtils;
@@ -92,12 +94,14 @@ public class TestFlight implements Closeable
      *            true if the server should use SSL
      * @param producer
      *            the Arrow Flight producer
+     * @param locale
+     *            the locale to use for messages and property descriptors, or null
      * @return the test flight
      * @throws Exception
      */
-    public static TestFlight createLocal(int port, boolean useSSL, FlightProducer producer) throws Exception
+    public static TestFlight createLocal(int port, boolean useSSL, FlightProducer producer, Locale locale) throws Exception
     {
-        return new TestFlight("localhost", port, useSSL, producer);
+        return new TestFlight("localhost", port, useSSL, producer, locale);
     }
 
     /**
@@ -109,12 +113,14 @@ public class TestFlight implements Closeable
      *            Flight server SSL certificate
      * @param verifyCert
      *            true if SSL certificate should be validated
+     * @param locale
+     *            the locale to use for messages and property descriptors, or null
      * @return the test flight
      * @throws Exception
      */
-    public static TestFlight createRemote(String uri, String sslCert, boolean verifyCert) throws Exception
+    public static TestFlight createRemote(String uri, String sslCert, boolean verifyCert, Locale locale) throws Exception
     {
-        return new TestFlight(uri, sslCert, verifyCert);
+        return new TestFlight(uri, sslCert, verifyCert, locale);
     }
 
     /**
@@ -126,9 +132,11 @@ public class TestFlight implements Closeable
      *            true if the server should use SSL
      * @param producer
      *            the Arrow Flight producer
+     * @param locale
+     *            the locale to use for messages and property descriptors, or null
      * @throws Exception
      */
-    public TestFlight(String host, int port, boolean useSSL, FlightProducer producer) throws Exception
+    public TestFlight(String host, int port, boolean useSSL, FlightProducer producer, Locale locale) throws Exception
     {
         allocator = new RootAllocator(Long.MAX_VALUE);
         serverAllocator = allocator.newChildAllocator("server", 0, Long.MAX_VALUE);
@@ -156,6 +164,10 @@ public class TestFlight implements Closeable
         if (useSSL) {
             clientBuilder.useTls().trustedCertificates(new ByteArrayInputStream(sslCert.getBytes(StandardCharsets.UTF_8)));
         }
+        if (locale != null) {
+            LOGGER.info("Using locale " + locale.toLanguageTag());
+            clientBuilder.intercept(new AcceptLanguageClientMiddleware.Factory(locale));
+        }
         client = clientBuilder.build();
         client.authenticate(new ClientTokenAuthHandler(AuthUtils.getAuthToken(authKeyPair)));
         LOGGER.info("Flight server started at " + uri);
@@ -171,9 +183,11 @@ public class TestFlight implements Closeable
      *            Flight server SSL certificate
      * @param verifyCert
      *            true if SSL certificate should be validated
+     * @param locale
+     *            the locale to use for messages and property descriptors, or null
      * @throws Exception
      */
-    public TestFlight(String flightUri, String sslCertificate, boolean verifyCert) throws Exception
+    public TestFlight(String flightUri, String sslCertificate, boolean verifyCert, Locale locale) throws Exception
     {
         allocator = new RootAllocator(Long.MAX_VALUE);
         serverAllocator = null;
@@ -191,6 +205,10 @@ public class TestFlight implements Closeable
             } else if (sslCert != null) {
                 clientBuilder.trustedCertificates(new ByteArrayInputStream(sslCert.getBytes(StandardCharsets.UTF_8)));
             }
+        }
+        if (locale != null) {
+            LOGGER.info("Using locale " + locale.toLanguageTag());
+            clientBuilder.intercept(new AcceptLanguageClientMiddleware.Factory(locale));
         }
         client = clientBuilder.build();
         if (isConfiguredForCloud()) {

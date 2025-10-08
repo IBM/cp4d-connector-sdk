@@ -73,7 +73,7 @@ public class TestConnectorFlightProducer
     public static void setUpOnce() throws Exception
     {
         TimeZone.setDefault(TimeZone.getTimeZone("GMT"));
-        testFlight = TestFlight.createLocal(TestConfig.getPort("test.flight.port"), false, new TestRowBasedFlightProducer());
+        testFlight = TestFlight.createLocal(TestConfig.getPort("test.flight.port"), false, new TestRowBasedFlightProducer(), null);
         client = testFlight.getClient();
     }
 

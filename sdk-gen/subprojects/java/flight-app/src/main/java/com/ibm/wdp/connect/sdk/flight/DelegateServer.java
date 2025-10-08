@@ -1,12 +1,13 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 
 /* *************************************************** */
 
 package com.ibm.wdp.connect.sdk.flight;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,8 +15,10 @@ import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLContext;
 
+import org.apache.arrow.flight.FlightConstants;
 import org.apache.arrow.flight.FlightGrpcUtils;
 import org.apache.arrow.flight.FlightProducer;
+import org.apache.arrow.flight.ServerHeaderMiddleware;
 import org.apache.arrow.flight.auth.ServerAuthHandler;
 import org.apache.arrow.flight.auth.ServerAuthInterceptor;
 import org.apache.arrow.flight.grpc.ServerInterceptorAdapter;
@@ -45,7 +48,8 @@ public class DelegateServer implements AutoCloseable
         final NettyServerBuilder builder = NettyUtils.toServerBuilder(port, executor, sslContext);
         // Add Flight service to builder
         final BindableService flightService = FlightGrpcUtils.createFlightService(allocator, producer, authHandler, executor);
-        builder.addService(ServerInterceptors.intercept(flightService, new ServerAuthInterceptor(authHandler)));
+        builder.addService(ServerInterceptors.intercept(flightService, new ServerAuthInterceptor(authHandler),
+                new ServerHeaderInterceptor(Collections.singletonList(buildServerHeaderMiddleware()))));
 
         if (middleware != null) {
             // Add Flight middleware to builder
@@ -62,13 +66,25 @@ public class DelegateServer implements AutoCloseable
         final NettyServerBuilder builder = NettyUtils.toServerBuilder(port, executor, sslContext);
         // Add Flight service to builder
         final BindableService flightService = FlightGrpcUtils.createFlightService(allocator, producer, authHandler, executor);
-        builder.addService(ServerInterceptors.intercept(flightService, new ServerAuthInterceptor(authHandler)));
+        builder.addService(ServerInterceptors.intercept(flightService, new ServerAuthInterceptor(authHandler),
+                new ServerHeaderInterceptor(Collections.singletonList(buildServerHeaderMiddleware()))));
 
         if (middleware != null) {
             // Add Flight middleware to builder
             builder.intercept(new ServerInterceptorAdapter(middleware));
         }
         this.delegate = builder.build();
+    }
+
+    /**
+     * Builds server header middleware to extract and pass headers to the server
+     * during requests.
+     *
+     * @return server header middleware
+     */
+    private static ServerInterceptorAdapter.KeyFactory<?> buildServerHeaderMiddleware()
+    {
+        return new ServerInterceptorAdapter.KeyFactory<>(FlightConstants.HEADER_KEY, new ServerHeaderMiddleware.Factory());
     }
 
     /**

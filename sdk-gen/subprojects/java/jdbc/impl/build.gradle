@@ -71,6 +71,7 @@ dependencies {
   api project(':' + rootProject.name + '-java-api-models')
   api project(':' + rootProject.name + '-java-api')
   implementation project(':wdp-connect-sdk-gen-java-jdbc')
+  implementation project(':wdp-connect-sdk-gen-java-util')
 
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
 }
