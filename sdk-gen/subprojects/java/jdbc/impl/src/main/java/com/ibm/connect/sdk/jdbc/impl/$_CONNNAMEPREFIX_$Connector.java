@@ -34,19 +34,19 @@ public class $_CONNNAMEPREFIX_$Connector extends JdbcConnector
     {
         super(properties);
         if (connectionProperties.getProperty("host") == null) {
-            throw new IllegalArgumentException("Missing host");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("host"));
         }
         if (connectionProperties.getProperty("port") == null) {
-            throw new IllegalArgumentException("Missing port");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("port"));
         }
         if (connectionProperties.getProperty("database") == null) {
-            throw new IllegalArgumentException("Missing database");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("database"));
         }
         if (connectionProperties.getProperty("username") == null) {
-            throw new IllegalArgumentException("Missing username");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("username"));
         }
         if (connectionProperties.getProperty("password") == null) {
-            throw new IllegalArgumentException("Missing password");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("password"));
         }
     }
 

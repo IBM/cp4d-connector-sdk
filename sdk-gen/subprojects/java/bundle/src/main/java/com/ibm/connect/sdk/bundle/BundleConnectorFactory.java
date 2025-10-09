@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.bundle;
@@ -25,18 +25,14 @@ public class BundleConnectorFactory extends PooledConnectorFactory
     public static final BundleConnectorFactory INSTANCE = new BundleConnectorFactory();
 
     /**
-     * The data source types supported by this factory.
-     */
-    private static final CustomFlightDatasourceTypes DATASOURCE_TYPES = new CustomFlightDatasourceTypes()
-            .addDatasourceTypesItem(DerbyDatasourceType.INSTANCE).addDatasourceTypesItem(GenericJdbcDatasourceType.INSTANCE);
-
-    /**
      * {@inheritDoc}
      */
     @Override
     public CustomFlightDatasourceTypes getDatasourceTypes()
     {
-        return DATASOURCE_TYPES;
+        // Return localized datasource types.
+        return new CustomFlightDatasourceTypes().addDatasourceTypesItem(new DerbyDatasourceType())
+                .addDatasourceTypesItem(new GenericJdbcDatasourceType());
     }
 
     /**
@@ -51,6 +47,6 @@ public class BundleConnectorFactory extends PooledConnectorFactory
         if (GenericJdbcDatasourceType.INSTANCE.getName().equals(datasourceTypeName)) {
             return new GenericJdbcConnector(properties);
         }
-        throw new UnsupportedOperationException("Data source type " + datasourceTypeName + " is not supported");
+        throw new UnsupportedOperationException(BundleMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }
 }

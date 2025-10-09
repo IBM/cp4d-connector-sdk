@@ -1,6 +1,6 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 
 /* *************************************************** */
 package com.ibm.connect.sdk.api;
@@ -541,11 +541,11 @@ public class ArrowConversions
             if (vector.getField().getType() instanceof ArrowLargeDecimalType) {
                 return new ArrowLargeDecimalSetter((ArrowLargeDecimalVector) vector);
             }
-            throw new UnsupportedOperationException("Unsupported arrow extension type: " + vector.getField().getType());
+            throw new UnsupportedOperationException(ApiMsgs.UNSUPPORTED_ARROW_EXTENSION_TYPE.format(vector.getField().getType()));
         case NULL:
             return new ArrowNullSetter((NullVector) vector);
         default:
-            throw new UnsupportedOperationException("Unsupported arrow type: " + vector.getMinorType().name());
+            throw new UnsupportedOperationException(ApiMsgs.UNSUPPORTED_ARROW_TYPE.format(vector.getMinorType().name()));
         }
     }
 
@@ -591,7 +591,7 @@ public class ArrowConversions
         @Override
         public void setBytes(int index, byte[] buffer, int start, int length)
         {
-            throw new UnsupportedOperationException("Can not set bytes for this arrow type");
+            throw new UnsupportedOperationException(ApiMsgs.CANNOT_SET_BYTES.format());
         }
 
         /**
@@ -1114,7 +1114,7 @@ public class ArrowConversions
             } else if (value instanceof Number) {
                 durationValue = DurationVector.toDuration(((Number) value).longValue(), durationUnit);
             } else {
-                throw new IllegalArgumentException("Unrecognized Duration value: " + value);
+                throw new IllegalArgumentException(ApiMsgs.UNRECOGNIZED_DURATION_VALUE.format(value));
             }
             final long durationNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(durationValue.getSeconds()) + durationValue.getNano();
             switch (durationUnit) {
@@ -2005,7 +2005,7 @@ public class ArrowConversions
             case VARCHAR:
                 return reader.readText().toString();
             default:
-                throw new UnsupportedOperationException("Unsupported arrow type: " + reader.getMinorType().name());
+                throw new UnsupportedOperationException(ApiMsgs.UNSUPPORTED_ARROW_TYPE.format(reader.getMinorType().name()));
             }
         }
     }

@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc.derby;
@@ -57,10 +57,10 @@ public class DerbyTargetInteraction extends JdbcTargetInteraction
         final String updateStatistics = interactionProperties.getProperty("update_statistics", "false");
         if (Boolean.valueOf(updateStatistics)) {
             if (schemaName == null) {
-                throw new IllegalArgumentException("Missing schema name");
+                throw new IllegalArgumentException(DerbyMsgs.MISSING_PROPERTY.format("schema_name"));
             }
             if (tableName == null) {
-                throw new IllegalArgumentException("Missing table name");
+                throw new IllegalArgumentException(DerbyMsgs.MISSING_PROPERTY.format("table_name"));
             }
             final StringBuilder stmt = new StringBuilder(200);
             stmt.append("CALL SYSCS_UTIL.SYSCS_UPDATE_STATISTICS('");

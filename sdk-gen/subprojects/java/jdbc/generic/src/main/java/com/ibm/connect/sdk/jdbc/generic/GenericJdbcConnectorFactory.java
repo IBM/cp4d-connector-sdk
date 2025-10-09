@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc.generic;
@@ -21,18 +21,13 @@ public class GenericJdbcConnectorFactory extends PooledConnectorFactory
     public static final GenericJdbcConnectorFactory INSTANCE = new GenericJdbcConnectorFactory();
 
     /**
-     * The data source types supported by this factory.
-     */
-    private static final CustomFlightDatasourceTypes DATASOURCE_TYPES
-            = new CustomFlightDatasourceTypes().addDatasourceTypesItem(GenericJdbcDatasourceType.INSTANCE);
-
-    /**
      * {@inheritDoc}
      */
     @Override
     public CustomFlightDatasourceTypes getDatasourceTypes()
     {
-        return DATASOURCE_TYPES;
+        // Return localized datasource types.
+        return new CustomFlightDatasourceTypes().addDatasourceTypesItem(new GenericJdbcDatasourceType());
     }
 
     /**
@@ -44,6 +39,6 @@ public class GenericJdbcConnectorFactory extends PooledConnectorFactory
         if (GenericJdbcDatasourceType.INSTANCE.getName().equals(datasourceTypeName)) {
             return new GenericJdbcConnector(properties);
         }
-        throw new UnsupportedOperationException("Data source type " + datasourceTypeName + " is not supported");
+        throw new UnsupportedOperationException(GenericJdbcMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }
 }

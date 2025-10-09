@@ -34,14 +34,14 @@ public class $_CONNNAMEPREFIX_$TargetInteraction implements TargetInteraction<Co
     public $_CONNNAMEPREFIX_$TargetInteraction($_CONNNAMEPREFIX_$Connector connector, CustomFlightAssetDescriptor asset) throws Exception
     {
         if (connector == null) {
-            throw new IllegalArgumentException("Missing connector");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_CONNECTOR.format());
         }
         interactionProperties = ModelMapper.toProperties(asset.getInteractionProperties());
         if (interactionProperties.getProperty("schema_name") == null) {
-            throw new IllegalArgumentException("Missing schema_name");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("schema_name"));
         }
         if (interactionProperties.getProperty("table_name") == null) {
-            throw new IllegalArgumentException("Missing table_name");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("table_name"));
         }
     }
 

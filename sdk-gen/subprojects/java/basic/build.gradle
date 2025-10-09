@@ -67,6 +67,7 @@ artifacts {
 dependencies {
   api project(':' + rootProject.name + '-java-api-models')
   api project(':' + rootProject.name + '-java-api')
+  implementation project(':' + rootProject.name + '-java-util')
 
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
 }

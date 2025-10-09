@@ -1,6 +1,6 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 
 /* *************************************************** */
 package com.ibm.connect.sdk.api;
@@ -81,7 +81,7 @@ public class ArrowLargeDecimalType extends ExtensionType
     public ArrowType deserialize(ArrowType storageType, String serializedData)
     {
         if (!storageType.equals(storageType())) {
-            throw new UnsupportedOperationException("Cannot construct ArrowLargeDecimalType from underlying type " + storageType);
+            throw new UnsupportedOperationException(ApiMsgs.CANNOT_CONSTRUCT_ARROW_DECIMAL_TYPE.format(storageType));
         }
         final Properties props = GSON.fromJson(serializedData, Properties.class);
         final int precisionDeser = Integer.parseInt(props.getProperty("precision"));

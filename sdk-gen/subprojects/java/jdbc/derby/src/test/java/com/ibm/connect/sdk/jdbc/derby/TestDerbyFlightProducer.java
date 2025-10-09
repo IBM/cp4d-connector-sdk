@@ -57,11 +57,11 @@ public class TestDerbyFlightProducer extends DerbyTestSuite
     {
         if (Boolean.parseBoolean(TestConfig.get("jdbc_derby.flight.createLocal", "true"))) {
             final boolean useSSL = Boolean.parseBoolean(TestConfig.get("jdbc_derby.flight.ssl", "true"));
-            testFlight = TestFlight.createLocal(TestConfig.getPort("jdbc_derby.flight.port"), useSSL, new DerbyFlightProducer());
+            testFlight = TestFlight.createLocal(TestConfig.getPort("jdbc_derby.flight.port"), useSSL, new DerbyFlightProducer(), null);
         } else {
             final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("jdbc_derby.flight.ssl_certificate_validation", "true"));
             testFlight = TestFlight.createRemote(TestConfig.get("jdbc_derby.flight.uri.internal", TestConfig.get("jdbc_derby.flight.uri")),
-                    TestConfig.get("jdbc_derby.flight.ssl_certificate"), verifyCert);
+                    TestConfig.get("jdbc_derby.flight.ssl_certificate"), verifyCert, null);
         }
         client = testFlight.getClient();
         derbyServer = DerbyUtils.startServer(DERBY_HOST, DERBY_PORT, DERBY_USER, DERBY_PASSWORD);

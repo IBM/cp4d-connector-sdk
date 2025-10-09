@@ -1,6 +1,6 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 
 /* *************************************************** */
 package com.ibm.connect.sdk.basic.impl;
@@ -46,62 +46,62 @@ public class $_CONNNAMEPREFIX_$DatasourceType extends CustomFlightDatasourceType
         setProperties(properties);
         // Define the connection properties.
         // TODO adjust these properties for your scenario
-        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("host").label("Host").description("Name of server")
+        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("host").label($_CONNNAMEPREFIX_$Labels.CONNECTION_HOST_LABEL.format()).description($_CONNNAMEPREFIX_$Labels.CONNECTION_HOST_DESCRIPTION.format())
                 .type(TypeEnum.STRING).required(true).group("domain"));
-        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("port").label("Port").description("Port number")
+        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("port").label($_CONNNAMEPREFIX_$Labels.CONNECTION_PORT_LABEL.format()).description($_CONNNAMEPREFIX_$Labels.CONNECTION_PORT_DESCRIPTION.format())
                 .type(TypeEnum.INTEGER).required(true).group("domain"));
-        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("username").label("User name").description("User name")
+        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("username").label($_CONNNAMEPREFIX_$Labels.CONNECTION_USERNAME_LABEL.format()).description($_CONNNAMEPREFIX_$Labels.CONNECTION_USERNAME_DESCRIPTION.format())
                 .type(TypeEnum.STRING).required(true).group("credentials"));
-        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("password").label("Password").description("Password")
+        properties.addConnectionItem(new CustomDatasourceTypeProperty().name("password").label($_CONNNAMEPREFIX_$Labels.CONNECTION_PASSWORD_LABEL.format()).description($_CONNNAMEPREFIX_$Labels.CONNECTION_PASSWORD_DESCRIPTION.format())
                 .type(TypeEnum.STRING).required(true).masked(true).group("credentials"));
         // Define the source interaction properties.
-        properties.addSourceItem(new CustomDatasourceTypeProperty().name("schema_name").label("Schema name")
-                .description("The name of the schema that contains the table to read from").type(TypeEnum.STRING).required(false));
-        properties.addSourceItem(new CustomDatasourceTypeProperty().name("table_name").label("Table name")
-                .description("The name of the table to read from").type(TypeEnum.STRING).required(false));
-        properties.addSourceItem(new CustomDatasourceTypeProperty().name("row_limit").label("Row limit")
-                .description("The maximum number of rows to return").type(TypeEnum.INTEGER).required(false));
-        properties.addSourceItem(new CustomDatasourceTypeProperty().name("byte_limit").label("Byte limit")
-                .description("The maximum number of bytes to return. Use any of these suffixes; KB, MB, GB, or TB").type(TypeEnum.STRING)
+        properties.addSourceItem(new CustomDatasourceTypeProperty().name("schema_name").label($_CONNNAMEPREFIX_$Labels.SOURCE_SCHEMA_NAME_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.SOURCE_SCHEMA_NAME_DESCRIPTION.format()).type(TypeEnum.STRING).required(false));
+        properties.addSourceItem(new CustomDatasourceTypeProperty().name("table_name").label($_CONNNAMEPREFIX_$Labels.SOURCE_TABLE_NAME_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.SOURCE_TABLE_NAME_DESCRIPTION.format()).type(TypeEnum.STRING).required(false));
+        properties.addSourceItem(new CustomDatasourceTypeProperty().name("row_limit").label($_CONNNAMEPREFIX_$Labels.SOURCE_ROW_LIMIT_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.SOURCE_ROW_LIMIT_DESCRIPTION.format()).type(TypeEnum.INTEGER).required(false));
+        properties.addSourceItem(new CustomDatasourceTypeProperty().name("byte_limit").label($_CONNNAMEPREFIX_$Labels.SOURCE_BYTE_LIMIT_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.SOURCE_BYTE_LIMIT_DESCRIPTION.format()).type(TypeEnum.STRING)
                 .required(false));
 
         // Define the target interaction properties.
-        properties.addTargetItem(new CustomDatasourceTypeProperty().name("schema_name").label("Schema name")
-                .description("The name of the schema that contains the table to write to").type(TypeEnum.STRING).required(false));
-        properties.addTargetItem(new CustomDatasourceTypeProperty().name("table_name").label("Table name")
-                .description("The name of the table to write to").type(TypeEnum.STRING).required(true));
-        properties.addTargetItem(new CustomDatasourceTypeProperty().name("table_action").label("Table action")
-                .description("The action to take on the target table to handle the new data set").type(TypeEnum.ENUM).required(false)
-                .defaultValue("append").addValuesItem(new DatasourceTypePropertyValues().value("append").label("Append"))
-                .addValuesItem(new DatasourceTypePropertyValues().value("replace").label("Replace"))
-                .addValuesItem(new DatasourceTypePropertyValues().value("truncate").label("Truncate")));
-        properties.addTargetItem(new CustomDatasourceTypeProperty().name("create_statement").label("Create statement")
-                .description("The Create DDL statement for creating the target table").type(TypeEnum.STRING).required(false));
+        properties.addTargetItem(new CustomDatasourceTypeProperty().name("schema_name").label($_CONNNAMEPREFIX_$Labels.TARGET_SCHEMA_NAME_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.TARGET_SCHEMA_NAME_DESCRIPTION.format()).type(TypeEnum.STRING).required(false));
+        properties.addTargetItem(new CustomDatasourceTypeProperty().name("table_name").label($_CONNNAMEPREFIX_$Labels.TARGET_TABLE_NAME_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.TARGET_TABLE_NAME_DESCRIPTION.format()).type(TypeEnum.STRING).required(true));
+        properties.addTargetItem(new CustomDatasourceTypeProperty().name("table_action").label($_CONNNAMEPREFIX_$Labels.TARGET_TABLE_ACTION_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.TARGET_TABLE_ACTION_DESCRIPTION.format()).type(TypeEnum.ENUM).required(false)
+                .defaultValue("append").addValuesItem(new DatasourceTypePropertyValues().value("append").label($_CONNNAMEPREFIX_$Labels.TARGET_TABLE_ACTION_VALUE_APPEND_LABEL.format()))
+                .addValuesItem(new DatasourceTypePropertyValues().value("replace").label($_CONNNAMEPREFIX_$Labels.TARGET_TABLE_ACTION_VALUE_REPLACE_LABEL.format()))
+                .addValuesItem(new DatasourceTypePropertyValues().value("truncate").label($_CONNNAMEPREFIX_$Labels.TARGET_TABLE_ACTION_VALUE_TRUNCATE_LABEL.format())));
+        properties.addTargetItem(new CustomDatasourceTypeProperty().name("create_statement").label($_CONNNAMEPREFIX_$Labels.TARGET_CREATE_STATEMENT_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.TARGET_CREATE_STATEMENT_DESCRIPTION.format()).type(TypeEnum.STRING).required(false));
 
         // Define the filter properties.
-        properties.addFilterItem(new CustomDatasourceTypeProperty().name("include_system").label("Include system")
-                .description("Whether to include system objects").type(TypeEnum.BOOLEAN).required(false));
-        properties.addFilterItem(new CustomDatasourceTypeProperty().name("include_table").label("Include tables")
-                .description("Whether to include tables").type(TypeEnum.BOOLEAN).required(false));
-        properties.addFilterItem(new CustomDatasourceTypeProperty().name("include_view").label("Include views")
-                .description("Whether to include views").type(TypeEnum.BOOLEAN).required(false));
-        properties.addFilterItem(new CustomDatasourceTypeProperty().name("name_pattern").label("Name pattern")
-                .description("A name pattern to filter on").type(TypeEnum.STRING).required(false));
-        properties.addFilterItem(new CustomDatasourceTypeProperty().name("primary_key").label("Include primary key list")
-                .description("Whether to include a list of primary keys").type(TypeEnum.BOOLEAN).required(false));
-        properties.addFilterItem(new CustomDatasourceTypeProperty().name("schema_name_pattern").label("Schema name pattern")
-                .description("A name pattern for schema filtering").type(TypeEnum.STRING).required(false));
+        properties.addFilterItem(new CustomDatasourceTypeProperty().name("include_system").label($_CONNNAMEPREFIX_$Labels.FILTER_INCLUDE_SYSTEM_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.FILTER_INCLUDE_SYSTEM_DESCRIPTION.format()).type(TypeEnum.BOOLEAN).required(false));
+        properties.addFilterItem(new CustomDatasourceTypeProperty().name("include_table").label($_CONNNAMEPREFIX_$Labels.FILTER_INCLUDE_TABLE_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.FILTER_INCLUDE_TABLE_DESCRIPTION.format()).type(TypeEnum.BOOLEAN).required(false));
+        properties.addFilterItem(new CustomDatasourceTypeProperty().name("include_view").label($_CONNNAMEPREFIX_$Labels.FILTER_INCLUDE_VIEW_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.FILTER_INCLUDE_VIEW_DESCRIPTION.format()).type(TypeEnum.BOOLEAN).required(false));
+        properties.addFilterItem(new CustomDatasourceTypeProperty().name("name_pattern").label($_CONNNAMEPREFIX_$Labels.FILTER_NAME_PATTERN_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.FILTER_NAME_PATTERN_DESCRIPTION.format()).type(TypeEnum.STRING).required(false));
+        properties.addFilterItem(new CustomDatasourceTypeProperty().name("primary_key").label($_CONNNAMEPREFIX_$Labels.FILTER_PRIMARY_KEY_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.FILTER_PRIMARY_KEY_DESCRIPTION.format()).type(TypeEnum.BOOLEAN).required(false));
+        properties.addFilterItem(new CustomDatasourceTypeProperty().name("schema_name_pattern").label($_CONNNAMEPREFIX_$Labels.FILTER_SCHEMA_NAME_PATTERN_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.FILTER_SCHEMA_NAME_PATTERN_DESCRIPTION.format()).type(TypeEnum.STRING).required(false));
 
         // Define custom actions.
         final CustomDatasourceTypeActionProperties actionProperties = new CustomDatasourceTypeActionProperties();
         final CustomDatasourceTypeAction action = new CustomDatasourceTypeAction().name("get_record_count")
-                .description("Get the number of rows in the specified table").properties(actionProperties);
-        actionProperties.addInputItem(new CustomDatasourceTypeProperty().name("schema_name").label("Schema name")
-                .description("The name of the schema that contains the table").type(TypeEnum.STRING).required(false));
-        actionProperties.addInputItem(new CustomDatasourceTypeProperty().name("table_name").label("Table name")
-                .description("Name of the table for which to obtain the number of rows").type(TypeEnum.STRING).required(true));
-        actionProperties.addOutputItem(new CustomDatasourceTypeProperty().name("record_count").label("Record count")
-                .description("Number of available rows").type(TypeEnum.INTEGER).required(true));
+                .description($_CONNNAMEPREFIX_$Labels.ACTION_GET_RECORD_COUNT_DESCRIPTION.format()).properties(actionProperties);
+        actionProperties.addInputItem(new CustomDatasourceTypeProperty().name("schema_name").label($_CONNNAMEPREFIX_$Labels.ACTION_GET_RECORD_COUNT_INPUT_SCHEMA_NAME_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.ACTION_GET_RECORD_COUNT_INPUT_SCHEMA_NAME_DESCRIPTION.format()).type(TypeEnum.STRING).required(false));
+        actionProperties.addInputItem(new CustomDatasourceTypeProperty().name("table_name").label($_CONNNAMEPREFIX_$Labels.ACTION_GET_RECORD_COUNT_INPUT_TABLE_NAME_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.ACTION_GET_RECORD_COUNT_INPUT_TABLE_NAME_DESCRIPTION.format()).type(TypeEnum.STRING).required(true));
+        actionProperties.addOutputItem(new CustomDatasourceTypeProperty().name("record_count").label($_CONNNAMEPREFIX_$Labels.ACTION_GET_RECORD_COUNT_OUTPUT_RECORD_COUNT_LABEL.format())
+                .description($_CONNNAMEPREFIX_$Labels.ACTION_GET_RECORD_COUNT_OUTPUT_RECORD_COUNT_DESCRIPTION.format()).type(TypeEnum.INTEGER).required(true));
         addActionsItem(action);
     }
 }

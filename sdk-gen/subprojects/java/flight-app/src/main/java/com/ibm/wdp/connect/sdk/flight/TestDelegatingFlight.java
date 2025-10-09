@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.wdp.connect.sdk.flight;
@@ -16,6 +16,7 @@ import java.security.KeyPair;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightProducer;
@@ -24,6 +25,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.slf4j.Logger;
 
+import com.ibm.connect.sdk.util.AcceptLanguageClientMiddleware;
 import com.ibm.connect.sdk.util.AuthUtils;
 import com.ibm.connect.sdk.util.ClientTokenAuthHandler;
 import com.ibm.connect.sdk.util.SSLUtils;
@@ -58,12 +60,14 @@ public class TestDelegatingFlight implements Closeable
      *            true if the server should use SSL
      * @param producer
      *            the Arrow Flight producer
+     * @param locale
+     *            the locale to use for messages and property descriptors, or null
      * @return the test flight
      * @throws Exception
      */
-    public static TestDelegatingFlight createLocal(int port, boolean useSSL, FlightProducer producer) throws Exception
+    public static TestDelegatingFlight createLocal(int port, boolean useSSL, FlightProducer producer, Locale locale) throws Exception
     {
-        return new TestDelegatingFlight("localhost", port, useSSL, producer);
+        return new TestDelegatingFlight("localhost", port, useSSL, producer, locale);
     }
 
     /**
@@ -75,9 +79,11 @@ public class TestDelegatingFlight implements Closeable
      *            true if the server should use SSL
      * @param producer
      *            the Arrow Flight producer
+     * @param locale
+     *            the locale to use for messages and property descriptors, or null
      * @throws Exception
      */
-    public TestDelegatingFlight(String host, int port, boolean useSSL, FlightProducer producer) throws Exception
+    public TestDelegatingFlight(String host, int port, boolean useSSL, FlightProducer producer, Locale locale) throws Exception
     {
         allocator = new RootAllocator(Long.MAX_VALUE);
         serverAllocator = allocator.newChildAllocator("server", 0, Long.MAX_VALUE);
@@ -105,6 +111,10 @@ public class TestDelegatingFlight implements Closeable
         final FlightClient.Builder clientBuilder = FlightClient.builder(clientAllocator, location);
         if (useSSL) {
             clientBuilder.useTls().trustedCertificates(new ByteArrayInputStream(sslCert.getBytes(StandardCharsets.UTF_8)));
+        }
+        if (locale != null) {
+            LOGGER.info("Using locale " + locale.toLanguageTag());
+            clientBuilder.intercept(new AcceptLanguageClientMiddleware.Factory(locale));
         }
         client = clientBuilder.build();
         client.authenticate(new ClientTokenAuthHandler(AuthUtils.getAuthToken(authKeyPair)));

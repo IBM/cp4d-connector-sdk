@@ -1,6 +1,6 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 
 /* *************************************************** */
 package com.ibm.connect.sdk.api;
@@ -40,7 +40,7 @@ public class TemporalUtils
         } else if (value instanceof java.util.Date) {
             return new java.sql.Date(((java.util.Date) value).getTime());
         }
-        throw new IllegalArgumentException("Unexpected date object type (" + value.getClass().getName() + ")");
+        throw new IllegalArgumentException(ApiMsgs.UNEXPECTED_DATE_OBJECT_TYPE.format(value.getClass().getName()));
     }
 
     public static java.sql.Time javaDateToTime(Serializable value)
@@ -54,7 +54,7 @@ public class TemporalUtils
             // Convert to LocalTime to drop date portion stored with java.util.Date
             return MicrosecondTime.valueOf(new MicrosecondTime(((java.util.Date) value).getTime()).toLocalTime());
         }
-        throw new IllegalArgumentException("Unexpected time object type (" + value.getClass().getName() + ")");
+        throw new IllegalArgumentException(ApiMsgs.UNEXPECTED_TIME_OBJECT_TYPE.format(value.getClass().getName()));
     }
 
     public static java.sql.Timestamp javaDateToTimestamp(Serializable value)
@@ -66,7 +66,7 @@ public class TemporalUtils
         } else if (value instanceof java.util.Date) {
             return new java.sql.Timestamp(((java.util.Date) value).getTime());
         }
-        throw new IllegalArgumentException("Unexpected timestamp object type (" + value.getClass().getName() + ")");
+        throw new IllegalArgumentException(ApiMsgs.UNEXPECTED_TIMESTAMP_OBJECT_TYPE.format(value.getClass().getName()));
     }
 
     public static java.sql.Date millisToDate(long millis)

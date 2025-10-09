@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.util;
@@ -92,7 +92,7 @@ public class Utils
     {
         final Matcher m = BYTE_LIMIT.matcher(byteLimit);
         if (!m.matches()) {
-            throw new IllegalArgumentException("Invalid byte limit");
+            throw new IllegalArgumentException(UtilMsgs.INVALID_BYTE_LIMIT.format(byteLimit));
         }
         double value = Double.parseDouble(m.group(1));
         if (m.group(2) != null) {

@@ -42,16 +42,16 @@ public class $_CONNNAMEPREFIX_$Connector implements Connector<$_CONNNAMEPREFIX_$
     {
         connectionProperties = ModelMapper.toProperties(properties);
         if (connectionProperties.getProperty("host") == null) {
-            throw new IllegalArgumentException("Missing host");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("host"));
         }
         if (connectionProperties.getProperty("port") == null) {
-            throw new IllegalArgumentException("Missing port");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("port"));
         }
         if (connectionProperties.getProperty("username") == null) {
-            throw new IllegalArgumentException("Missing username");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("username"));
         }
         if (connectionProperties.getProperty("password") == null) {
-            throw new IllegalArgumentException("Missing password");
+            throw new IllegalArgumentException($_CONNNAMEPREFIX_$Msgs.MISSING_PROPERTY.format("password"));
         }
     }
 
@@ -107,7 +107,7 @@ public class $_CONNNAMEPREFIX_$Connector implements Connector<$_CONNNAMEPREFIX_$
     public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties) throws Exception
     {
         if (!"get_record_count".equals(action)) {
-            throw new UnsupportedOperationException("doAction " + action + " is not supported");
+            throw new UnsupportedOperationException($_CONNNAMEPREFIX_$Msgs.UNSUPPORTED_ACTION.format(action));
         }
         // TODO Implement any custom actions
         return null;

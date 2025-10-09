@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.util;
@@ -239,7 +239,7 @@ public class SSLUtils
         final KeyStore truststore = getTrustStore(userCertificates);
         if (password == null) {
             // Should not happen
-            throw new IllegalArgumentException("Missing trust store password");
+            throw new IllegalArgumentException(UtilMsgs.MISSING_TRUSTSTORE_PASSWORD.format());
         }
         final Path f = Files.createTempFile("truststore", ".jks").toAbsolutePath(); // NOSONAR
         try (OutputStream fos = Files.newOutputStream(f)) {

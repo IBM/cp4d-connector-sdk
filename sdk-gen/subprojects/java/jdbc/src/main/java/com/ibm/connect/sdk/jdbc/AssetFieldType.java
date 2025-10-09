@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.jdbc;
@@ -125,7 +125,7 @@ public class AssetFieldType
     {
         final Integer fieldType = FIELD_TYPE_MAP.get(typeName);
         if (fieldType == null) {
-            throw new IllegalArgumentException("Unknown type " + typeName);
+            throw new IllegalArgumentException(JdbcMsgs.UNKNOWN_TYPE.format(typeName));
         }
         return fieldType;
     }

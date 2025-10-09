@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.api;
@@ -10,6 +10,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -38,6 +39,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
 
 import com.ibm.connect.sdk.util.ModelMapper;
+import com.ibm.connect.sdk.util.ThreadLocale;
 import com.ibm.connect.sdk.util.Utils;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeAction;
@@ -134,12 +136,13 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     @Override
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener)
     {
+        ThreadLocale.setLocale(context);
         final BackpressureStrategy bpStrategy = new CallbackBackpressureStrategy();
         bpStrategy.register(listener);
         try {
             final FlightDescriptor descriptor = descriptorCache.get(ticket);
             if (descriptor == null) {
-                throw new IllegalArgumentException("No flight descriptor available for the given ticket");
+                throw new IllegalArgumentException(ApiMsgs.NO_FLIGHT_DESCRIPTOR_FOR_TICKET.format());
             }
             final CustomFlightAssetDescriptor asset = modelMapper.fromBytes(descriptor.getCommand(), CustomFlightAssetDescriptor.class);
             try (Connector<?, ?> connector
@@ -192,8 +195,9 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     public void listFlights(CallContext context, Criteria criteria, StreamListener<FlightInfo> listener)
     {
         try {
+            ThreadLocale.setLocale(context);
             if (Criteria.ALL.equals(criteria) || criteria.getExpression().length == 0) {
-                throw new IllegalArgumentException("Invalid criteria");
+                throw new IllegalArgumentException(ApiMsgs.INVALID_CRITERIA.format());
             }
             final CustomFlightAssetsCriteria assetsCriteria
                     = modelMapper.fromBytes(criteria.getExpression(), CustomFlightAssetsCriteria.class);
@@ -222,7 +226,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
         // An asset must have an id or a name. An id takes precedence for the path.
         final String id = asset.getId() != null ? asset.getId() : asset.getName();
         if (id == null) {
-            throw new IllegalArgumentException("Missing asset id");
+            throw new IllegalArgumentException(ApiMsgs.MISSING_ASSET_ID.format());
         }
         if (asset.getId() == null) {
             asset.setId(id);
@@ -239,6 +243,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     public FlightInfo getFlightInfo(CallContext context, FlightDescriptor descriptor)
     {
         try {
+            ThreadLocale.setLocale(context);
             final CustomFlightAssetDescriptor asset = modelMapper.fromBytes(descriptor.getCommand(), CustomFlightAssetDescriptor.class);
             try (Connector<?, ?> connector
                     = connectorFactory.createConnector(asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
@@ -277,10 +282,11 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     {
         return () -> {
             try {
+                ThreadLocale.setLocale(context);
                 final CustomFlightAssetDescriptor asset
                         = modelMapper.fromBytes(flightStream.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
                 if (asset.getPartitionCount() != null && asset.getPartitionCount() > 1 && asset.getPartitionIndex() == null) {
-                    throw new IllegalArgumentException("Missing partition index");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_PARTITION_INDEX.format());
                 }
                 asset.setFields(Utils.getAssetFields(flightStream.getSchema()));
                 try (Connector<?, ?> connector
@@ -312,6 +318,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     public void doAction(CallContext context, Action action, StreamListener<Result> listener)
     {
         try {
+            ThreadLocale.setLocale(context);
             final CustomFlightActionResponse response = new CustomFlightActionResponse();
             if (ACTION_HEALTH_CHECK.equals(action.getType())) {
                 final ConnectionActionResponse responseProperties = new ConnectionActionResponse();
@@ -329,15 +336,20 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 responseProperties.put("version", version);
                 responseProperties.put("status", "OK");
             } else if (ACTION_LIST_DATASOURCE_TYPES.equals(action.getType())) {
-                response.setDatasourceTypes(datasourceTypes);
+                if (ThreadLocale.getLocale().equals(Locale.getDefault())) {
+                    response.setDatasourceTypes(datasourceTypes);
+                } else {
+                    // Return localized datasource types.
+                    response.setDatasourceTypes(connectorFactory.getDatasourceTypes());
+                }
             } else if (ACTION_PUT_SETUP.equals(action.getType())) {
                 if (action.getBody() == null || action.getBody().length == 0) {
-                    throw new IllegalArgumentException("Missing action body");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_ACTION_BODY.format());
                 }
                 final CustomFlightActionRequest request = modelMapper.fromBytes(action.getBody(), CustomFlightActionRequest.class);
                 final CustomFlightAssetDescriptor asset = request.getAsset();
                 if (asset == null) {
-                    throw new IllegalArgumentException("Missing asset");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_ASSET.format());
                 }
                 try (Connector<?, ?> connector
                         = connectorFactory.createConnector(asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
@@ -348,12 +360,12 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 }
             } else if (ACTION_PUT_WRAPUP.equals(action.getType())) {
                 if (action.getBody() == null || action.getBody().length == 0) {
-                    throw new IllegalArgumentException("Missing action body");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_ACTION_BODY.format());
                 }
                 final CustomFlightActionRequest request = modelMapper.fromBytes(action.getBody(), CustomFlightActionRequest.class);
                 final CustomFlightAssetDescriptor asset = request.getAsset();
                 if (asset == null) {
-                    throw new IllegalArgumentException("Missing asset");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_ASSET.format());
                 }
                 try (Connector<?, ?> connector
                         = connectorFactory.createConnector(asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
@@ -364,7 +376,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 }
             } else if (ACTION_TEST.equals(action.getType())) {
                 if (action.getBody() == null || action.getBody().length == 0) {
-                    throw new IllegalArgumentException("Missing action body");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_ACTION_BODY.format());
                 }
                 final CustomFlightActionRequest request = modelMapper.fromBytes(action.getBody(), CustomFlightActionRequest.class);
                 try (Connector<?, ?> connector
@@ -373,7 +385,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 }
             } else if (ACTION_VALIDATE.equals(action.getType())) {
                 if (action.getBody() == null || action.getBody().length == 0) {
-                    throw new IllegalArgumentException("Missing action body");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_ACTION_BODY.format());
                 }
                 final CustomFlightActionRequest request = modelMapper.fromBytes(action.getBody(), CustomFlightActionRequest.class);
                 try (Connector<?, ?> connector
@@ -382,7 +394,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 }
             } else {
                 if (action.getBody() == null || action.getBody().length == 0) {
-                    throw new IllegalArgumentException("Missing action body");
+                    throw new IllegalArgumentException(ApiMsgs.MISSING_ACTION_BODY.format());
                 }
                 final CustomFlightActionRequest request = modelMapper.fromBytes(action.getBody(), CustomFlightActionRequest.class);
                 try (Connector<?, ?> connector
@@ -408,6 +420,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     public void listActions(CallContext context, StreamListener<ActionType> listener)
     {
         try {
+            ThreadLocale.setLocale(context);
             final Map<String, String> actions = new TreeMap<>();
             actions.put(ACTION_HEALTH_CHECK, ACTION_HEALTH_CHECK_DESCRIPTION);
             actions.put(ACTION_LIST_DATASOURCE_TYPES, ACTION_LIST_DATASOURCE_TYPES_DESCRIPTION);

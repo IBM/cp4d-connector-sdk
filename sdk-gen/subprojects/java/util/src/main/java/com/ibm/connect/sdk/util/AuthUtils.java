@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2022                        */
+/* (C) Copyright IBM Corp. 2022, 2025                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.util;
@@ -245,15 +245,15 @@ public class AuthUtils
     public static String validateAuthToken(String authToken, PublicKey[] publicKeys) throws Exception
     {
         if (authToken == null || authToken.isEmpty()) {
-            throw new IllegalArgumentException("Missing token");
+            throw new IllegalArgumentException(UtilMsgs.MISSING_AUTH_TOKEN.format());
         }
         final Matcher matcher = BEARER_HEADER_PATTERN.matcher(authToken.trim());
         if (!matcher.matches()) {
-            throw new IllegalArgumentException("Invalid token");
+            throw new IllegalArgumentException(UtilMsgs.INVALID_AUTH_TOKEN.format());
         }
         final String jwtToken = matcher.group(1);
         if (jwtToken == null) {
-            throw new IllegalArgumentException("Invalid token");
+            throw new IllegalArgumentException(UtilMsgs.INVALID_AUTH_TOKEN.format());
         }
         final DecodedJWT jwt = JWT.decode(jwtToken);
         if (publicKeys != null) {
