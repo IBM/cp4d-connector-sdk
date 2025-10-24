@@ -118,7 +118,8 @@ subprojects {
   tasks.withType(Test) {
     if (!JavaVersion.current().isJava11()) {
       jvmArgs += [
-        "--add-opens=java.base/java.nio=ALL-UNNAMED"
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
       ]
     }
   }
@@ -211,7 +212,7 @@ subprojects {
       def dockerUrl = project.properties['image.registry'] ? "https://${imageRegistry}" : repos.docker.url ?: "https://${imageRegistry}"
       def dockerTargetUrl = project.properties['target.image.registry'] ? "https://${imageTargetRegistry}" : repos.dockerTarget.url ?: "https://${imageTargetRegistry}"
       def ubiimageName = project.properties['image.name'] ?: isWarProject ? "ibmcom/websphere-liberty" : "ibm-semeru-runtimes"
-      def ubibaseimageTag = project.properties['image.tag'] ?: isWarProject ? 'kernel-java11-openj9-ubi' : 'open-11-jre'
+      def ubibaseimageTag = project.properties['image.tag'] ?: isWarProject ? 'kernel-java17-openj9-ubi' : 'open-17-jre'
 
       def microServiceUBIImageName = microServiceAppName
       def microServiceImageTag = project.properties['target.image.tag'] ?: project.version.toString()

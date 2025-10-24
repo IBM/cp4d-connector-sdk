@@ -10,6 +10,18 @@ bundle.flight.uri=<external uri reachable from cloud>
 bundle.flight.ssl_certificate=<ssl certificate>
 bundle.flight.ssl_certificate_validation=true
 
+# Configuration properties for file-github
+file_github.github.host=<GitHub host>
+file_github.github.repository_owner=<repository owner>
+file_github.github.repository_name=<repository name>
+file_github.github.access_token=<access token>
+file_github.flight.port=<port number>
+file_github.flight.ssl=true
+file_github.flight.createLocal=true
+file_github.flight.uri=grpc+tls://localhost:443
+file_github.flight.ssl_certificate=<ssl certificate>
+file_github.flight.ssl_certificate_validation=true
+
 # Configuration properties for jdbc-derby
 jdbc_derby.derby.port=<port number>
 jdbc_derby.derby.database_name=<database name>
