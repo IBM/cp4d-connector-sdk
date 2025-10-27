@@ -12,3 +12,4 @@
 -Dcom.ibm.tx.jta.disable2PC=true
 -Dlog4j2.formatMsgNoLookups=true
 -Xmx1536M
+--add-opens=java.base/sun.util.calendar=ALL-UNNAMED

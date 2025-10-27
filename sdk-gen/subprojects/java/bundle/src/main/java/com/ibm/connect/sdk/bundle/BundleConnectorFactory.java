@@ -7,6 +7,8 @@ package com.ibm.connect.sdk.bundle;
 
 import com.ibm.connect.sdk.api.Connector;
 import com.ibm.connect.sdk.api.PooledConnectorFactory;
+import com.ibm.connect.sdk.file.github.GitHubConnector;
+import com.ibm.connect.sdk.file.github.GitHubDatasourceType;
 import com.ibm.connect.sdk.jdbc.derby.DerbyConnector;
 import com.ibm.connect.sdk.jdbc.derby.DerbyDatasourceType;
 import com.ibm.connect.sdk.jdbc.generic.GenericJdbcConnector;
@@ -32,7 +34,7 @@ public class BundleConnectorFactory extends PooledConnectorFactory
     {
         // Return localized datasource types.
         return new CustomFlightDatasourceTypes().addDatasourceTypesItem(new DerbyDatasourceType())
-                .addDatasourceTypesItem(new GenericJdbcDatasourceType());
+                .addDatasourceTypesItem(new GenericJdbcDatasourceType()).addDatasourceTypesItem(new GitHubDatasourceType());
     }
 
     /**
@@ -46,6 +48,9 @@ public class BundleConnectorFactory extends PooledConnectorFactory
         }
         if (GenericJdbcDatasourceType.INSTANCE.getName().equals(datasourceTypeName)) {
             return new GenericJdbcConnector(properties);
+        }
+        if (GitHubDatasourceType.INSTANCE.getName().equals(datasourceTypeName)) {
+            return new GitHubConnector(properties);
         }
         throw new UnsupportedOperationException(BundleMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }

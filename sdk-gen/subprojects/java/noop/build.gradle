@@ -27,6 +27,6 @@ dependencies {
   testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
-  testRuntimeOnly group: 'org.slf4j', name: 'jcl-over-slf4j', version: project['slf4j.version']
+  testRuntimeOnly group: 'org.slf4j', name: 'log4j-over-slf4j', version: project['slf4j.version']
   testRuntimeOnly group: 'org.slf4j', name: 'slf4j-jdk14', version: project['slf4j.version']
 }

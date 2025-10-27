@@ -786,7 +786,7 @@ By default the Flight server is generated as a web app that will be deployed in 
 
 `./gradlew generateFlightApp -PstandaloneFlightSvc=true`
 
-In response to the prompts, provide a project name for the Flight server and choose which connectors to include in your Flight server. Since you have not yet provided an implementation for your connector, consider adding the sample bundle connector to your Flight server in addition to your custom connector. The bundle automatically includes both the sample Derby and generic JDBC connectors.
+In response to the prompts, provide a project name for the Flight server and choose which connectors to include in your Flight server. Since you have not yet provided an implementation for your connector, consider adding the sample bundle connector to your Flight server in addition to your custom connector. The bundle automatically includes the sample Derby, generic JDBC, and GitHub connectors.
 
 Verify that the Flight server builds successfully:
 
@@ -983,13 +983,7 @@ sudo apt upgrade -y
 
 ## 3. Install Java.
 
-The SDK requires at least Java version 11, although it has also been verified with Java 17.
-
-```
-sudo apt install openjdk-11-jdk
-```
-
-or
+The SDK requires at least Java version 17.
 
 ```
 sudo apt install openjdk-17-jdk
@@ -1076,7 +1070,7 @@ IBM Connector SDK is a set of Gradle script plugins and a skeleton root project 
 ## Download SDK
 Download SDK from GitHub. You can also clone the GitHub repository directly. Note that the SDK is provided as a convenience to assist with connector development, but there is no dependency on the SDK to develop connectors. You can develop and deploy your own service as long as it conforms to the [specification](#flight-based-connector-service).
 ## Setup
-The Connector SDK relies on Gradle. It is bundled, so you do not need to install it.  However a Java Development Kit (JDK) needs to be present on your environment. SDK was developed and tested with JDK 11. Please refer to [Compatibility Matrix](https://docs.gradle.org/current/userguide/compatibility.html) to verify supported platforms. Docker must also be present if you wish to build a container image.
+The Connector SDK relies on Gradle. It is bundled, so you do not need to install it.  However a Java Development Kit (JDK) needs to be present on your environment. SDK was developed and tested with JDK 17. Please refer to [Compatibility Matrix](https://docs.gradle.org/current/userguide/compatibility.html) to verify supported platforms. Docker must also be present if you wish to build a container image.
 All you need to do to get started is to unpack the previously downloaded zip in a chosen directory.
 ## Choose a connector type
 Decide on what type of connector that you want to implement. Your choice will determine which interfaces or abstract classes you should implement or extend:
@@ -1754,7 +1748,11 @@ subprojects/java/api             Interfaces and abstract classes for implementin
 subprojects/java/arrow           Templates for generating an Arrow-based Java connector
 subprojects/java/basic           Templates for generating a basic row-based Java connector
 subprojects/java/bundle          Subproject that bundles multiple connectors
+subprojects/java/file            Abstract classes for implementing any file-based connector
+subprojects/java/file/github     Subproject that builds the GitHub sample connector
 subprojects/java/flight-app      Subproject that builds a Flight app server
+subprojects/java/flight-common   Subproject that builds classes common to Flight app servers and stand-alone services
+subprojects/java/flight-svc      Subproject that builds a stand-alone Flight service
 subprojects/java/jdbc            Abstract classes for implementing any JDBC-based connector
 subprojects/java/jdbc/derby      Subproject that builds the Apache Derby sample connector
 subprojects/java/jdbc/generic    Subproject that builds a generic JDBC sample connector
@@ -1805,6 +1803,41 @@ TestBundleFlightProducerGenericJdbc.java  Tests the generic JDBC connector in a 
 ```
 
 Note however that the build will skip any cloud tests unless a test configuration has been defined for connecting to a cloud cluster. Refer to the later section on the [test subproject](#subprojectsjavatest).
+
+## subprojects/java/file
+
+This directory contains abstract classes for implementing any file-based connector.
+
+The contents of the main source directory are:
+
+```
+FileConnector.java               An abstract file connector.
+FileSourceInteraction.java       An interaction with a file asset as a source.
+FileTargetInteraction.java       An interaction with a file asset as a target.
+FileUtils.java                   File utilities.
+```
+
+## subprojects/java/file/github
+
+This directory contains a subproject that builds the GitHub sample connector.
+
+The contents of the main source directory are:
+
+```
+GitHubConnector.java             A connector for connecting to GitHub.
+GitHubConnectorFactory.java      A factory for creating GitHub connectors.
+GitHubDatasourceType.java        The definition of a custom GitHub data source type.
+GitHubFlightProducer.java        A Flight producer for GitHub.
+GitHubLabels.java                Localized labels for GitHub.
+GitHubMsgs.java                  Localized messages for GitHub.
+GitHubSourceInteraction.java     An interaction with a GitHub asset as a source.
+```
+
+The contents of the test source directory are:
+
+```
+TestGitHubFlightProducer.java    JUnit tests that exercise the sample GitHub connector
+```
 
 ## subprojects/java/jdbc
 
