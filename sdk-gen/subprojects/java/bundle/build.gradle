@@ -23,6 +23,7 @@ dependencies {
   api project(':wdp-connect-sdk-gen-java-api')
   api project(':wdp-connect-sdk-gen-java-file')
   api project(':wdp-connect-sdk-gen-java-file-github')
+  api project(':wdp-connect-sdk-gen-java-file-localfs')
   api project(':wdp-connect-sdk-gen-java-jdbc')
   api project(':wdp-connect-sdk-gen-java-jdbc-derby')
   api project(':wdp-connect-sdk-gen-java-jdbc-generic')
