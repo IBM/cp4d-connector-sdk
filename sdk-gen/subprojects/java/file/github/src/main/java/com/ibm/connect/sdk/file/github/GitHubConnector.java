@@ -30,6 +30,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.ibm.connect.sdk.file.FileConnector;
+import com.ibm.connect.sdk.file.FileMsgs;
 import com.ibm.connect.sdk.file.FileSourceInteraction;
 import com.ibm.connect.sdk.file.FileTargetInteraction;
 import com.ibm.connect.sdk.file.FileUtils;
@@ -76,13 +77,13 @@ public class GitHubConnector extends FileConnector
         super(properties);
         final Properties connectionProperties = getConnectionProperties();
         if (connectionProperties.getProperty("host") == null) {
-            throw new IllegalArgumentException(GitHubMsgs.MISSING_PROPERTY.format("host"));
+            throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format("host"));
         }
         if (connectionProperties.getProperty("repository_owner") == null) {
-            throw new IllegalArgumentException(GitHubMsgs.MISSING_PROPERTY.format("repository_owner"));
+            throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format("repository_owner"));
         }
         if (connectionProperties.getProperty("repository_name") == null) {
-            throw new IllegalArgumentException(GitHubMsgs.MISSING_PROPERTY.format("repository_name"));
+            throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format("repository_name"));
         }
 
         // Build the base URL.
@@ -190,7 +191,7 @@ public class GitHubConnector extends FileConnector
                 assets = listFiles(criteria, pathElements[0], pathElements[1]);
             }
         } else {
-            throw new IllegalArgumentException(GitHubMsgs.INVALID_PATH.format(path));
+            throw new IllegalArgumentException(FileMsgs.INVALID_PATH.format(path));
         }
         return assets;
     }
@@ -387,7 +388,7 @@ public class GitHubConnector extends FileConnector
     @Override
     public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties) throws Exception
     {
-        throw new UnsupportedOperationException(GitHubMsgs.UNSUPPORTED_ACTION.format(action));
+        throw new UnsupportedOperationException(FileMsgs.UNSUPPORTED_ACTION.format(action));
     }
 
     /**

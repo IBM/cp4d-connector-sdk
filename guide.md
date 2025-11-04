@@ -786,7 +786,7 @@ By default the Flight server is generated as a web app that will be deployed in 
 
 `./gradlew generateFlightApp -PstandaloneFlightSvc=true`
 
-In response to the prompts, provide a project name for the Flight server and choose which connectors to include in your Flight server. Since you have not yet provided an implementation for your connector, consider adding the sample bundle connector to your Flight server in addition to your custom connector. The bundle automatically includes the sample Derby, generic JDBC, and GitHub connectors.
+In response to the prompts, provide a project name for the Flight server and choose which connectors to include in your Flight server. Since you have not yet provided an implementation for your connector, consider adding the sample bundle connector to your Flight server in addition to your custom connector. The bundle automatically includes the sample Derby, generic JDBC, GitHub, and local file system connectors.
 
 Verify that the Flight server builds successfully:
 
@@ -1750,6 +1750,7 @@ subprojects/java/basic           Templates for generating a basic row-based Java
 subprojects/java/bundle          Subproject that bundles multiple connectors
 subprojects/java/file            Abstract classes for implementing any file-based connector
 subprojects/java/file/github     Subproject that builds the GitHub sample connector
+subprojects/java/file/localfs    Subproject that builds the local file system sample connector
 subprojects/java/flight-app      Subproject that builds a Flight app server
 subprojects/java/flight-common   Subproject that builds classes common to Flight app servers and stand-alone services
 subprojects/java/flight-svc      Subproject that builds a stand-alone Flight service
@@ -1812,6 +1813,9 @@ The contents of the main source directory are:
 
 ```
 FileConnector.java               An abstract file connector.
+FileLabels.java                  Localized labels for files.
+FileMsgs.java                    Localized messages for files.
+FileRowList.java                 A list of rows from a Flight stream.
 FileSourceInteraction.java       An interaction with a file asset as a source.
 FileTargetInteraction.java       An interaction with a file asset as a target.
 FileUtils.java                   File utilities.
@@ -1837,6 +1841,29 @@ The contents of the test source directory are:
 
 ```
 TestGitHubFlightProducer.java    JUnit tests that exercise the sample GitHub connector
+```
+
+## subprojects/java/file/localfs
+
+This directory contains a subproject that builds the local file system sample connector.
+
+The contents of the main source directory are:
+
+```
+LocalFSConnector.java            A connector for connecting to the local file system.
+LocalFSConnectorFactory.java     A factory for creating local file system connectors.
+LocalFSDatasourceType.java       The definition of a custom local file system data source type.
+LocalFSFlightProducer.java       A Flight producer for the local file system.
+LocalFSLabels.java               Localized labels for the local file system.
+LocalFSMsgs.java                 Localized messages for the local file system.
+LocalFSSourceInteraction.java    An interaction with a local file system asset as a source.
+LocalFSTargetInteraction.java    An interaction with a local file system asset as a target.
+```
+
+The contents of the test source directory are:
+
+```
+TestLocalFSFlightProducer.java   JUnit tests that exercise the sample local file system connector
 ```
 
 ## subprojects/java/jdbc

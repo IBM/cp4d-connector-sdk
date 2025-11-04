@@ -13,6 +13,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.ibm.connect.sdk.file.FileMsgs;
 import com.ibm.connect.sdk.file.FileSourceInteraction;
 import com.ibm.connect.sdk.file.FileUtils;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
@@ -51,14 +52,14 @@ public class GitHubSourceInteraction extends FileSourceInteraction
         final String connectionBranch = connectionProperties.getProperty("branch_name");
         branch = interactionProperties.getProperty("branch_name", connectionBranch);
         if (branch == null) {
-            throw new IllegalArgumentException(GitHubMsgs.MISSING_PROPERTY.format("branch_name"));
+            throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format("branch_name"));
         }
         if (connectionBranch != null && !connectionBranch.equals(branch)) {
             throw new IllegalArgumentException(GitHubMsgs.REQUIRED_PROPERTY_VALUE.format("branch_name", connectionBranch, branch));
         }
         filePath = interactionProperties.getProperty("file_name");
         if (filePath == null) {
-            throw new IllegalArgumentException(GitHubMsgs.MISSING_PROPERTY.format("file_name"));
+            throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format("file_name"));
         }
 
         // If the file format or fields are missing, we need to download the file to get
@@ -66,11 +67,11 @@ public class GitHubSourceInteraction extends FileSourceInteraction
         if (interactionProperties.getProperty("file_format") == null || asset.getFields() == null) {
             final JsonElement contentElement = connector.getRepositoryContent(branch, filePath);
             if (!contentElement.isJsonObject()) {
-                throw new IllegalArgumentException(GitHubMsgs.NOT_A_FILE.format(filePath));
+                throw new IllegalArgumentException(FileMsgs.NOT_A_FILE.format(filePath));
             }
             final JsonObject fileObject = contentElement.getAsJsonObject();
             if (!"file".equals(fileObject.get("type").getAsString())) {
-                throw new IllegalArgumentException(GitHubMsgs.NOT_A_FILE.format(filePath));
+                throw new IllegalArgumentException(FileMsgs.NOT_A_FILE.format(filePath));
             }
 
             // Add details like file_size that can be acquired directly from the JSON

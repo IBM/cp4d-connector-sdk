@@ -7,6 +7,7 @@ package com.ibm.connect.sdk.file.github;
 
 import com.ibm.connect.sdk.api.Connector;
 import com.ibm.connect.sdk.api.PooledConnectorFactory;
+import com.ibm.connect.sdk.file.FileMsgs;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
 
@@ -39,6 +40,6 @@ public class GitHubConnectorFactory extends PooledConnectorFactory
         if (GitHubDatasourceType.INSTANCE.getName().equals(datasourceTypeName)) {
             return new GitHubConnector(properties);
         }
-        throw new UnsupportedOperationException(GitHubMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
+        throw new UnsupportedOperationException(FileMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }
 }

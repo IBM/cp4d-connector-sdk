@@ -8,13 +8,13 @@ package com.ibm.connect.sdk.file;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.BufferedInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -273,12 +273,38 @@ public class FileUtils
      */
     public static void deleteTempFile(String tempFilename)
     {
+        final Path tempFilePath = Paths.get(tempFilename);
         try {
-            Files.deleteIfExists(Paths.get(tempFilename));
+            Files.deleteIfExists(tempFilePath);
         }
         catch (final Exception e) {
             LOGGER.warn(e.getMessage(), e);
-            new File(tempFilename).deleteOnExit();
+            tempFilePath.toFile().deleteOnExit();
+        }
+    }
+
+    /**
+     * Deletes the given temporary directory and all its contents.
+     *
+     * @param tempDirectory
+     */
+    public static void deleteTempDirectory(String tempDirectory)
+    {
+        final Path tempDirectoryPath = Paths.get(tempDirectory);
+        try {
+            final Iterator<Path> iterator = Files.newDirectoryStream(tempDirectoryPath).iterator();
+            while (iterator.hasNext()) {
+                final Path tempFile = iterator.next();
+                if (tempFile.toFile().isDirectory()) {
+                    deleteTempDirectory(tempFile.toString());
+                } else {
+                    deleteTempFile(tempFile.toString());
+                }
+            }
+            deleteTempFile(tempDirectory);
+        }
+        catch (final IOException e) {
+            LOGGER.warn(e.getMessage(), e);
         }
     }
 

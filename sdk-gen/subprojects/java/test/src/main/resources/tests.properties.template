@@ -22,6 +22,14 @@ file_github.flight.uri=grpc+tls://localhost:443
 file_github.flight.ssl_certificate=<ssl certificate>
 file_github.flight.ssl_certificate_validation=true
 
+# Configuration properties for file-localfs
+file_localfs.flight.port=<port number>
+file_localfs.flight.ssl=true
+file_localfs.flight.createLocal=true
+file_localfs.flight.uri=grpc+tls://localhost:443
+file_localfs.flight.ssl_certificate=<ssl certificate>
+file_localfs.flight.ssl_certificate_validation=true
+
 # Configuration properties for jdbc-derby
 jdbc_derby.derby.port=<port number>
 jdbc_derby.derby.database_name=<database name>
