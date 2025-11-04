@@ -13,26 +13,6 @@ import com.ibm.connect.sdk.util.ResourceBundleHelper;
 public enum GitHubMsgs implements ResourceBundleHelper.MessageFormatter<GitHubMsgs>
 {
     /**
-     * Data source type not supported.
-     */
-    DATASOURCE_TYPE_NOT_SUPPORTED,
-
-    /**
-     * Invalid path.
-     */
-    INVALID_PATH,
-
-    /**
-     * Missing property.
-     */
-    MISSING_PROPERTY,
-
-    /**
-     * The object is not a file.
-     */
-    NOT_A_FILE,
-
-    /**
      * Property is required to have a particular value.
      */
     REQUIRED_PROPERTY_VALUE,
@@ -40,12 +20,7 @@ public enum GitHubMsgs implements ResourceBundleHelper.MessageFormatter<GitHubMs
     /**
      * Data source type not supported as a target.
      */
-    TARGET_INTERACTION_NOT_SUPPORTED,
-
-    /**
-     * Unsupported action.
-     */
-    UNSUPPORTED_ACTION;
+    TARGET_INTERACTION_NOT_SUPPORTED;
 
     private static final ResourceBundleHelper<GitHubMsgs> BUNDLE = new ResourceBundleHelper<>(GitHubMsgs.class);
 
