@@ -15,6 +15,12 @@ definitions:
     $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeAction'
   CustomDatasourceTypeActionProperties:
     $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeActionProperties'
+  CustomDatasourceTypeComplexCondition:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeComplexCondition'
+  CustomDatasourceTypeComplexPropertyCondition:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeComplexPropertyCondition'
+  CustomDatasourceTypeComplexPropertyConditions:
+    $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeComplexPropertyConditions'
   CustomDatasourceTypeProperty:
     $ref: 'file://./sdk-openapi.yaml#/components/schemas/CustomDatasourceTypeProperty'
   CustomFlightActionRequest:

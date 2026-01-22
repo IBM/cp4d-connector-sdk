@@ -1,0 +1,43 @@
+{
+  "users": [
+    {
+      "id": 101,
+      "name": "Tom",
+      "age": 30,
+      "address": {
+        "street": "123 Main St",
+        "city": "New York",
+        "geo": {
+          "lat": 40.7128,
+          "lng": -74.006
+        }
+      },
+      "roles": ["admin", "editor"],
+      "isActive": true,
+      "projects": [
+        { "id": "P100", "name": "Project A", "budget": 5000.75 },
+        { "id": "P101", "name": "Project B", "budget": 12000.0 }
+      ]
+    },
+    {
+      "id": 102,
+      "name": "John",
+      "age": 25,
+      "address": {
+        "street": "456 Market St",
+        "city": "San Francisco",
+        "geo": {
+          "lat": 37.7749,
+          "lng": -122.4194
+        }
+      },
+      "roles": ["viewer"],
+      "isActive": false,
+      "projects": []
+    }
+  ],
+  "metadata": {
+    "count": 2,
+    "timestamp": "2025-11-10T10:00:00Z"
+  }
+}

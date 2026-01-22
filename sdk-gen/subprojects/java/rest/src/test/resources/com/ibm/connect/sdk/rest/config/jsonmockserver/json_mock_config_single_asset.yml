@@ -1,0 +1,10 @@
+entityTypes:
+  - name: posts
+    parentEntity: null
+    endpoint: "/posts"
+    method: GET
+    uniqueIdField: "id"
+    labelField: "title"
+    fields:
+      - name: posts
+        jsonPath: "$"

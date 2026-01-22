@@ -1,0 +1,20 @@
+entityTypes:
+  - name: Users
+    parentEntity: null
+    endpoint: "/users"
+    method: GET
+    requestQueryParams:
+      sortBy: "name"
+    headers:
+      X-Test-Id: "ibm-connector-124"
+    pagination:
+      type: offset
+      offsetParam: offset
+      limitParam: limit
+    uniqueIdField: id
+    labelField: name
+    fields:
+      - name: id
+        jsonPath: "$.results[*].id"
+      - name: name
+        jsonPath: "$.results[*].name"

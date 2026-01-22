@@ -1,0 +1,19 @@
+entityTypes:
+  - name: posts
+    parentEntity: null
+    endpoint: "/posts"
+    method: GET
+    uniqueIdField: "posts[].id"
+    labelField: "posts[].title"
+    fields:
+      - name: posts
+        jsonPath: "$"
+  - name: comments
+    parentEntity: posts
+    endpoint: "/posts/${posts}/comments"
+    method: GET
+    uniqueIdField: "id"
+    labelField: "name"
+    fields:
+      - name: comments
+        jsonPath: "$"
