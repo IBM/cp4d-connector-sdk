@@ -6,6 +6,7 @@
 package com.ibm.connect.sdk.rest.httpclient;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
@@ -168,7 +169,8 @@ public class OAuth2TokenManager {
         }
 
         String body = params.entrySet().stream()
-            .map(e -> e.getKey() + "=" + e.getValue())
+            .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "=" +
+                      URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
             .reduce((a, b) -> a + "&" + b)
             .orElse("");
 
