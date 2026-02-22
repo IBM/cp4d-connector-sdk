@@ -32,13 +32,12 @@ import com.ibm.connect.sdk.rest.RestMsgs;
 import com.ibm.connect.sdk.rest.utils.RestApiConstants.SupportedAuthType;
 import com.ibm.connect.sdk.util.SSLUtils;
 
-@SuppressWarnings("PMD")
 public class HttpClientFactory {
     private final Timeout timeout;
     private final String sslCertificate;
     private final SupportedAuthType authType;
     private final String username;
-    private final String password;
+    private final char[] password;
     private final OAuth2TokenManager oauth2TokenManager;
 
     private HttpClientFactory(Builder builder) {
@@ -52,15 +51,15 @@ public class HttpClientFactory {
 
     public CloseableHttpClient build() {
         // Configure per-connection timeouts
-        ConnectionConfig connectionConfig = ConnectionConfig.custom()
+        final ConnectionConfig connectionConfig = ConnectionConfig.custom()
                                                             .setSocketTimeout(Optional.ofNullable(timeout).orElse(HTTP_CLIENT_DEFAULT_CONNECT_TIMEOUT))
                                                             .setConnectTimeout(Optional.ofNullable(timeout).orElse(HTTP_CLIENT_DEFAULT_CONNECT_TIMEOUT))
                                                             .build();
         // Configure SSL
-        SSLContext sslContext = getSslContext();
+        final SSLContext sslContext = getSslContext();
 
         // Connection pool manager
-        PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder = PoolingHttpClientConnectionManagerBuilder.create()
+        final PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                 .setDefaultConnectionConfig(connectionConfig)
                 .setTlsSocketStrategy(ClientTlsStrategyBuilder.create()
                         .setSslContext(sslContext)
@@ -69,7 +68,7 @@ public class HttpClientFactory {
                 .setMaxConnPerRoute(HTTP_POOL_DEFAULT_MAX_CONNECTION_PER_ROUTE);
 
         // Create basic http builder
-        HttpClientBuilder clientBuilder = HttpClients.custom()
+        final HttpClientBuilder clientBuilder = HttpClients.custom()
                 .setConnectionManager(connectionManagerBuilder.build())
                 .evictExpiredConnections()
                 .evictIdleConnections(TimeValue.ofMinutes(1));
@@ -77,15 +76,15 @@ public class HttpClientFactory {
         // Add Basic Auth
         if (SupportedAuthType.BASIC.equals(authType)) {
             if(username != null && password != null) {
-                BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
+                final BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
                 credsProvider.setCredentials(
                         new AuthScope(null, -1), //matched any host/port that using later to hit the API
-                        new UsernamePasswordCredentials(username, password.toCharArray())
+                        new UsernamePasswordCredentials(username, password)
                 );
                 clientBuilder.setDefaultCredentialsProvider(credsProvider);
                 clientBuilder.addRequestInterceptorLast((request, entity, context) -> {
-                    String auth = username + ":" + password;
-                    String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+                    final String auth = username + ":" + new String(password);
+                    final String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
                     request.addHeader("Authorization", "Basic " + encodedAuth);
                 });
             } else {
@@ -96,7 +95,7 @@ public class HttpClientFactory {
             if (oauth2TokenManager != null) {
                 clientBuilder.addRequestInterceptorLast((request, entity, context) -> {
                     try {
-                        String token = oauth2TokenManager.getAccessToken();
+                        final String token = oauth2TokenManager.getAccessToken();
                         request.addHeader("Authorization", "Bearer " + token);
                     } catch (Exception e) {
                         throw new RuntimeException("Failed to obtain OAuth 2.0 access token", e);
@@ -124,7 +123,7 @@ public class HttpClientFactory {
         private String sslCertificate;
         private SupportedAuthType authType = SupportedAuthType.NONE;
         private String username;
-        private String password;
+        private char[] password;
         private OAuth2TokenManager oauth2TokenManager;
 
         public Builder withTimeoutSeconds(Timeout timeout) {
@@ -137,10 +136,10 @@ public class HttpClientFactory {
             return this;
         }
 
-        public Builder withBasicAuth(String username, String password) {
+        public Builder withBasicAuth(String username, char[] password) {
             this.authType = SupportedAuthType.BASIC;
             this.username = username;
-            this.password = password;
+            this.password = password != null ? password.clone() : null;
             return this;
         }
 

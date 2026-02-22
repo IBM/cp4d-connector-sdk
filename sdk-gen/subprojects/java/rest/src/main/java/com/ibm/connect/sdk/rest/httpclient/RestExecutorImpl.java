@@ -26,17 +26,12 @@ import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.HttpClientResponseHandler;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Generic REST API Connector using Apache HttpClient 5.
  * Supports all HTTP methods, headers, query parameters, payloads.
  */
-@SuppressWarnings("PMD")
 public class RestExecutorImpl {
-    private static final Logger logger = LoggerFactory.getLogger(RestExecutorImpl.class);
-
     private final CloseableHttpClient httpClient;
 
     public RestExecutorImpl(CloseableHttpClient httpClient) {
@@ -51,7 +46,7 @@ public class RestExecutorImpl {
      * @throws IOException
      */
     public boolean checkConnection(String url) throws IOException {
-        HttpClientResponseHandler<Boolean> responseHandler = response -> {
+        final HttpClientResponseHandler<Boolean> responseHandler = response -> {
             int status = response.getCode();
             // Consider 2xx and 3xx as reachable
             if (status >= 200 && status < 400) {
@@ -85,8 +80,8 @@ public class RestExecutorImpl {
             String bodyPayload,
             HttpClientResponseHandler<T> responseHandler
     ) throws IOException {
-        String finalUrl = buildUrlWithParams(url, queryParams);
-        ClassicHttpRequest request = createRequest(method, finalUrl, bodyPayload);
+        final String finalUrl = buildUrlWithParams(url, queryParams);
+        final ClassicHttpRequest request = createRequest(method, finalUrl, bodyPayload);
 
         if (headers != null) {
             headers.forEach(request::addHeader);
@@ -96,17 +91,17 @@ public class RestExecutorImpl {
     }
 
     private ClassicHttpRequest createRequest(String method, String url, String body) {
-        switch (method == null ? "" : method.toUpperCase()) {
+        switch (method == null ? "" : method.toUpperCase(java.util.Locale.ENGLISH)) {
             case "GET":
                 return new HttpGet(url);
             case "POST":
-                HttpPost post = new HttpPost(url);
+                final HttpPost post = new HttpPost(url);
                 if (body != null) {
                     post.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
                 }
                 return post;
             case "PUT":
-                HttpPut put = new HttpPut(url);
+                final HttpPut put = new HttpPut(url);
                 if (body != null) {
                     put.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
                 }
@@ -114,7 +109,7 @@ public class RestExecutorImpl {
             case "DELETE":
                 return new HttpDelete(url);
             case "PATCH":
-                HttpPatch patch = new HttpPatch(url);
+                final HttpPatch patch = new HttpPatch(url);
                 if (body != null) {
                     patch.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
                 }
@@ -130,12 +125,14 @@ public class RestExecutorImpl {
         if (queryParams == null || queryParams.isEmpty()) {
             return url;
         }
-        String paramString = queryParams.entrySet()
+        final String paramString = queryParams.entrySet()
                 .stream()
                 .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8)
                         + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
                 .collect(Collectors.joining("&"));
-        return url + "?" + paramString;
+        // Check if URL already contains query parameters
+        final String separator = url.contains("?") ? "&" : "?";
+        return url + separator + paramString;
     }
 
     public void close() throws IOException {

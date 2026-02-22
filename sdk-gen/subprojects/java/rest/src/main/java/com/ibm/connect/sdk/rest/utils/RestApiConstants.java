@@ -81,7 +81,7 @@ public class RestApiConstants {
         POST;
 
         /**
-         * Comma seperated supporting auth types
+         * Comma separated supported HTTP methods
          */
         public static String getSupportedSourceHttpMethods() {
             return Arrays.stream(SupportedSourceHttpMethod.values()).map(Enum::name).collect(Collectors.joining(","));

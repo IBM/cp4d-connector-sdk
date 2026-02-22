@@ -206,11 +206,30 @@ public class EntityTypeRequestHandler {
 
         while (matcher.find()) {
             final String placeholder = matcher.group(1);
-            final String replacement = valuesMap.getOrDefault(placeholder, matcher.group(0));
+            String replacement = valuesMap.getOrDefault(placeholder, matcher.group(0));
+            replacement = sanitizeDynamicValue(replacement);
             matcher.appendReplacement(replacedString, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(replacedString);
 
         return replacedString.toString();
+    }
+
+    /**
+     * Sanitizes a dynamic value to prevent path traversal attacks.
+     * Removes or replaces dangerous characters like "..", "/", "\", etc.
+     *
+     * @param pathSegment the path segment to sanitize
+     * @return sanitized path segment
+     */
+    private String sanitizeDynamicValue(String pathSegment) {
+        if (pathSegment == null || pathSegment.isEmpty()) {
+            return pathSegment;
+        }
+        return pathSegment
+            .replace("..", "")   // Remove parent directory references
+            .replace("/", "")    // Remove forward slashes
+            .replace("\\", "")   // Remove backslashes
+            .replace("\0", "");  // Remove null bytes
     }
 }

@@ -17,6 +17,8 @@ import com.ibm.connect.sdk.rest.utils.models.RestConfiguration;
 import com.ibm.connect.sdk.rest.utils.models.SupportedRestModels;
 
 public class RestConnectionProperties extends PropertiesHelper {
+    private static final ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
+    
     // Connection properties key
     public static final String PROPERTY_BASE_URL = "url";
     public static final String PROPERTY_SSL_CERTIFICATE = "ssl_certificate";
@@ -100,13 +102,13 @@ public class RestConnectionProperties extends PropertiesHelper {
     }
 
     /**
-     * @return the password.
+     * @return the password
      *
      * @throws IllegalArgumentException if the password property is not set or is empty.
      */
-    public String getPassword()
+    public char[] getPassword()
     {
-        return getRequiredProperty(PROPERTY_AUTH_PASSWORD);
+        return getRequiredProperty(PROPERTY_AUTH_PASSWORD).toCharArray();
     }
 
     /**
@@ -130,9 +132,8 @@ public class RestConnectionProperties extends PropertiesHelper {
     {
         final SupportedRestModels selectedRestModel = this.getPredefinedRestConfigIdentifier();
         final String restConfigYaml = isCustomRestModel() ? getCustomRestConfigYaml() : selectedRestModel.getModelResourceFileAsString();
-        final ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         try {
-            return mapper.readValue(restConfigYaml, RestConfiguration.class);
+            return objectMapper.readValue(restConfigYaml, RestConfiguration.class);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException(RestMsgs.INVALID_YAML_CONFIG.format(e.getMessage()), e);
         }

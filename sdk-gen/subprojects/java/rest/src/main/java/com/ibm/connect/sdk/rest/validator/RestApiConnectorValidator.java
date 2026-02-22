@@ -15,7 +15,6 @@ import com.ibm.connect.sdk.rest.utils.RestApiConstants.SupportedOAuth2GrantType;
 import com.ibm.connect.sdk.rest.utils.RestConnectionProperties;
 import com.ibm.connect.sdk.rest.utils.RestUtils;
 
-@SuppressWarnings("PMD")
 public class RestApiConnectorValidator {
 
     private RestApiConnectorValidator() {}
@@ -31,9 +30,9 @@ public class RestApiConnectorValidator {
            properties.getOAuth2ClientSecret();
            
            // Validate refresh_token grant type requirements
-           SupportedOAuth2GrantType grantType = properties.getOAuth2GrantType();
+           final SupportedOAuth2GrantType grantType = properties.getOAuth2GrantType();
            if (SupportedOAuth2GrantType.REFRESH_TOKEN.equals(grantType)) {
-               String refreshToken = properties.getOAuth2RefreshToken();
+               final String refreshToken = properties.getOAuth2RefreshToken();
                if (RestUtils.isNullOrEmpty(refreshToken)) {
                    throw new IllegalArgumentException(
                        INVALID_CONNECTION_PROPERTIES.format(RestConnectionProperties.PROPERTY_OAUTH2_REFRESH_TOKEN +
@@ -58,7 +57,7 @@ public class RestApiConnectorValidator {
         try {
             new URL(baseUrl);
         } catch (MalformedURLException e) {
-            throw new IllegalArgumentException(INVALID_CONNECTION_PROPERTIES.format(RestConnectionProperties.PROPERTY_BASE_URL));
+            throw new IllegalArgumentException(INVALID_CONNECTION_PROPERTIES.format(RestConnectionProperties.PROPERTY_BASE_URL), e);
         }
     }
 }
