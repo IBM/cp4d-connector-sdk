@@ -529,20 +529,28 @@ The connector supports three types of pagination for APIs that return data in pa
 
 #### 1. Page-Based Pagination (`page`)
 
-Uses page number and page size parameters.
+Uses page number and page size parameters. The connector automatically calculates page numbers based on offset and limit values using 0-based indexing.
 
 **Configuration:**
 ```yaml
 pagination:
   type: page
-  pageParam: page
-  sizeParam: size
-  supportedMaxLimit: 100  # optional, default: 1000
+  pageParam: page          # Required: Query parameter name for page number
+  sizeParam: size          # Required: Query parameter name for page size
+  supportedMaxLimit: 100   # Optional, default: 1000
 ```
 
 **Properties:**
-- `pageParam`: Query parameter name for page number (e.g., `page`, `pageNumber`)
-- `sizeParam`: Query parameter name for page size (e.g., `size`, `per_page`, `limit`)
+- `pageParam`: **(Required)** Query parameter name for page number (e.g., `page`, `pageNumber`). Must not be null or empty.
+- `sizeParam`: **(Required)** Query parameter name for page size (e.g., `size`, `per_page`, `limit`). Must not be null or empty.
+- `supportedMaxLimit`: **(Optional)** Maximum page size supported by the API (default: 1000)
+
+**Page Calculation:**
+The connector uses 0-based page indexing by default:
+- `pageNumber = offset / limit`
+- Example: `offset=0, limit=100` → `page=0`
+- Example: `offset=100, limit=100` → `page=1`
+- Example: `offset=200, limit=100` → `page=2`
 
 **Example:**
 ```yaml
@@ -556,11 +564,13 @@ pagination:
 
 **Generated Requests:**
 ```
+GET /api/users?page=0&per_page=100
 GET /api/users?page=1&per_page=100
 GET /api/users?page=2&per_page=100
-GET /api/users?page=3&per_page=100
 ...
 ```
+
+**Note:** The connector continues requesting pages until the API returns an empty response. Ensure your API supports 0-based page indexing, or adjust accordingly if your API uses 1-based indexing.
 
 #### 2. Offset-Based Pagination (`offset`)
 
