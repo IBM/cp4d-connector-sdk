@@ -17,7 +17,7 @@ import com.ibm.connect.sdk.rest.utils.models.RestConfiguration;
 import com.ibm.connect.sdk.rest.utils.models.SupportedRestModels;
 
 public class RestConnectionProperties extends PropertiesHelper {
-    private static final ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
+    private static final ObjectMapper MAPPER = new ObjectMapper(new YAMLFactory());
     
     // Connection properties key
     public static final String PROPERTY_BASE_URL = "url";
@@ -133,7 +133,7 @@ public class RestConnectionProperties extends PropertiesHelper {
         final SupportedRestModels selectedRestModel = this.getPredefinedRestConfigIdentifier();
         final String restConfigYaml = isCustomRestModel() ? getCustomRestConfigYaml() : selectedRestModel.getModelResourceFileAsString();
         try {
-            return objectMapper.readValue(restConfigYaml, RestConfiguration.class);
+            return MAPPER.readValue(restConfigYaml, RestConfiguration.class);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException(RestMsgs.INVALID_YAML_CONFIG.format(e.getMessage()), e);
         }
