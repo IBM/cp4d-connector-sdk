@@ -16,10 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
 
-import org.apache.hc.client5.http.auth.AuthScope;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
-import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -76,12 +73,6 @@ public class HttpClientFactory {
         // Add Basic Auth
         if (SupportedAuthType.BASIC.equals(authType)) {
             if(username != null && password != null) {
-                final BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
-                credsProvider.setCredentials(
-                        new AuthScope(null, -1), //matched any host/port that using later to hit the API
-                        new UsernamePasswordCredentials(username, password)
-                );
-                clientBuilder.setDefaultCredentialsProvider(credsProvider);
                 clientBuilder.addRequestInterceptorLast((request, entity, context) -> {
                     final String auth = username + ":" + new String(password);
                     final String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
