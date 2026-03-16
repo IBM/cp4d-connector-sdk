@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<best_practices_and_pitfalls>
+  <overview>
+    Common mistakes to avoid and best practices to follow when creating
+    REST connector configuration files.
+  </overview>
+
+  <critical_rules>
+    <rule priority="critical">
+      <name>Never Flatten Nested Structures</name>
+      <description>
+        ALL nested objects and arrays MUST be mapped as VARCHAR.
+        Do NOT attempt to extract fields from nested structures.
+      </description>
+      <wrong>
+        <![CDATA[
+"headquarters_address": "VARCHAR",
+"headquarters_city": "VARCHAR",
+"headquarters_state": "VARCHAR"
+        ]]>
+      </wrong>
+      <correct>
+        <![CDATA[
+"headquarters": "VARCHAR"
+        ]]>
+      </correct>
+      <rationale>
+        The connector stores complex structures as JSON strings.
+        Attempting to flatten will cause configuration errors.
+      </rationale>
+    </rule>
+
+    <rule priority="critical">
+      <name>One Path Per Table</name>
+      <description>
+        Each table must have exactly ONE endpoint path in the $path array.
+        Multiple paths per table are NOT supported.
+      </description>
+      <wrong>
+        <![CDATA[
+"$path": ["/api/data/type1", "/api/data/type2", "/api/data/type3"]
+        ]]>
+      </wrong>
+      <correct>
+        <![CDATA[
+"TABLE_TYPE1": {
+  "$path": ["/api/data/type1"],
+  ...
+},
+"TABLE_TYPE2": {
+  "$path": ["/api/data/type2"],
+  ...
+}
+        ]]>
+      </correct>
+    </rule>
+
+    <rule priority="critical">
+      <name>Always Mark Primary Key</name>
+      <description>
+        Every table MUST have at least one field marked with ,$key suffix.
+        If no natural key exists, add ROWID.
+      </description>
+      <wrong>
+        <![CDATA[
+"id": "INTEGER",
+"name": "VARCHAR"
+        ]]>
+      </wrong>
+      <correct_with_natural_key>
+        <![CDATA[
+"id": "INTEGER,$key",
+"name": "VARCHAR"
+        ]]>
+      </correct_with_natural_key>
+      <correct_without_natural_key>
+        <![CDATA[
+"ROWID": "VARCHAR,$key",
+"name": "VARCHAR",
+"value": "INTEGER"
+        ]]>
+      </correct_without_natural_key>
+    </rule>
+
+    <rule priority="critical">
+      <name>Follow Template Structure Exactly</name>
+      <description>
+        Always read and follow template.json structure.
+        Do not invent new structural formats.
+      </description>
+      <template_location>
+        sdk-gen/subprojects/rest_connector/src/test/resources/template.json
+      </template_location>
+    </rule>
+
+    <rule priority="critical">
+      <name>Use Exact JSON Field Names</name>
+      <description>
+        Column names must match JSON field names exactly.
+        Never invent or modify field names.
+      </description>
+      <wrong>
+        <json_field>first_name</json_field>
+        <mapping>firstName: "VARCHAR"</mapping>
+      </wrong>
+      <correct>
+        <json_field>first_name</json_field>
+        <mapping>first_name: "VARCHAR"</mapping>
+      </correct>
+    </rule>
+  </critical_rules>
+
+  <common_pitfalls>
+    <pitfall>
+      <name>Trying to Create Separate Tables for Array Elements</name>
+      <description>
+        When an endpoint returns an array field, do NOT create a separate table for it.
+      </description>
+      <scenario>
+        <json>
+          <![CDATA[
+{
+  "id": 1,
+  "name": "Product",
+  "reviews": [
+    {"user": "john", "rating": 5},
+    {"user": "jane", "rating": 4}
+  ]
+}
+          ]]>
+        </json>
+      </scenario>
+      <wrong_approach>
+        Create separate REVIEWS table to store review array elements
+      </wrong_approach>
+      <correct_approach>
+        <![CDATA[
+"products": {
+  "$path": ["/api/products"],
+  "id": "INTEGER,$key",
+  "name": "VARCHAR",
+  "reviews": "VARCHAR"
+}
+        ]]>
+      </correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <name>Using Wrong Data Type for Unix Timestamps</name>
+      <description>
+        Unix timestamps (seconds since epoch) should be BIGINT, not TIMESTAMP.
+      </description>
+      <wrong>
+        <![CDATA[
+"created_unix": "TIMESTAMP"
+        ]]>
+      </wrong>
+      <correct>
+        <![CDATA[
+"created_unix": "BIGINT"
+        ]]>
+      </correct>
+      <note>
+        TIMESTAMP is for ISO 8601 date-time strings like "2023-01-15T10:30:00Z"
+      </note>
+    </pitfall>
+
+    <pitfall>
+      <name>Mapping Same Endpoint to Multiple Tables</name>
+      <description>
+        Each endpoint should be mapped to exactly one table.
+      </description>
+      <wrong>
+        <![CDATA[
+"USERS_BASIC": {
+  "$path": ["/api/users"],
+  "id": "INTEGER,$key",
+  "name": "VARCHAR"
+},
+"USERS_DETAILED": {
+  "$path": ["/api/users"],
+  "id": "INTEGER,$key",
+  "name": "VARCHAR",
+  "email": "VARCHAR",
+  "profile": "VARCHAR"
+}
+        ]]>
+      </wrong>
+      <correct>
+        <![CDATA[
+"USERS": {
+  "$path": ["/api/users"],
+  "id": "INTEGER,$key",
+  "name": "VARCHAR",
+  "email": "VARCHAR",
+  "profile": "VARCHAR"
+}
+        ]]>
+      </correct>
+    </pitfall>
+
+    <pitfall>
+      <name>Forgetting to Set Authentication</name>
+      <description>
+        Always explicitly set $authentication field, even for public APIs.
+      </description>
+      <wrong>
+        <![CDATA[
+{
+  "$connector_name": "My API",
+  "$hostname": "https://api.example.com",
+  "$tables": { ... }
+}
+        ]]>
+      </wrong>
+      <correct>
+        <![CDATA[
+{
+  "$connector_name": "My API",
+  "$hostname": "https://api.example.com",
+  "$authentication": "none",
+  "$tables": { ... }
+}
+        ]]>
+      </correct>
+    </pitfall>
+
+    <pitfall>
+      <name>Using VARCHAR for Clearly Numeric Fields</name>
+      <description>
+        Don't use VARCHAR for fields that are clearly numeric.
+      </description>
+      <wrong>
+        <![CDATA[
+"count": "VARCHAR",
+"price": "VARCHAR",
+"id": "VARCHAR"
+        ]]>
+      </wrong>
+      <correct>
+        <![CDATA[
+"count": "INTEGER",
+"price": "DECIMAL",
+"id": "INTEGER,$key"
+        ]]>
+      </correct>
+      <exception>
+        Use VARCHAR for IDs that are UUIDs or other string identifiers
+      </exception>
+    </pitfall>
+
+    <pitfall>
+      <name>Not Including Protocol in Hostname</name>
+      <description>
+        $hostname must include the protocol (https:// or http://)
+      </description>
+      <wrong>
+        <![CDATA[
+"$hostname": "api.example.com"
+        ]]>
+      </wrong>
+      <correct>
+        <![CDATA[
+"$hostname": "https://api.example.com"
+        ]]>
+      </correct>
+    </pitfall>
+
+    <pitfall>
+      <name>Inventing API Behavior</name>
+      <description>
+        Never guess or assume API behavior. Always ask for clarification.
+      </description>
+      <examples>
+        <example>Don't assume field types without seeing actual data</example>
+        <example>Don't assume authentication method without confirmation</example>
+        <example>Don't assume endpoint paths without documentation</example>
+      </examples>
+    </pitfall>
+  </common_pitfalls>
+
+  <best_practices>
+    <practice>
+      <name>Always Read Template First</name>
+      <description>
+        Before creating any configuration, read template.json to understand the structure.
+      </description>
+      <command>
+        Use read_file tool to read:
+        sdk-gen/subprojects/rest_connector/src/test/resources/template.json
+      </command>
+    </practice>
+
+    <practice>
+      <name>Gather Complete Information Before Starting</name>
+      <description>
+        Don't start generating configuration until you have all required information.
+      </description>
+      <required_info>
+        <item>Base URL with protocol</item>
+        <item>Authentication method</item>
+        <item>List of endpoints to map</item>
+        <item>Example JSON responses for each endpoint</item>
+      </required_info>
+    </practice>
+
+    <practice>
+      <name>Use Descriptive Table Names</name>
+      <description>
+        Table names should be clear and descriptive, typically in UPPER_CASE.
+      </description>
+      <good_examples>
+        <example>ROCKETS</example>
+        <example>LAUNCH_PADS</example>
+        <example>EXCHANGE_RATES</example>
+        <example>USER_PROFILES</example>
+      </good_examples>
+      <bad_examples>
+        <example>table1</example>
+        <example>data</example>
+        <example>temp</example>
+      </bad_examples>
+    </practice>
+
+    <practice>
+      <name>Choose Appropriate Data Types</name>
+      <description>
+        Select the smallest type that safely represents the data.
+      </description>
+      <guidelines>
+        <guideline>Use INTEGER for most whole numbers</guideline>
+        <guideline>Use BIGINT only for very large numbers</guideline>
+        <guideline>Use DECIMAL for monetary values</guideline>
+        <guideline>Use DOUBLE for scientific/floating point numbers</guideline>
+        <guideline>Use BOOLEAN for true/false values</guideline>
+        <guideline>Use DATE for date-only values</guideline>
+        <guideline>Use TIMESTAMP for date-time values</guideline>
+        <guideline>Use VARCHAR for everything else</guideline>
+      </guidelines>
+    </practice>
+
+    <practice>
+      <name>Provide Clear Explanations</name>
+      <description>
+        After generating configuration, explain your mapping decisions.
+      </description>
+      <include>
+        <item>Why certain data types were chosen</item>
+        <item>How nested structures were handled</item>
+        <item>Why specific field was chosen as primary key</item>
+        <item>Any assumptions made</item>
+      </include>
+    </practice>
+
+    <practice>
+      <name>Validate Before Presenting</name>
+      <description>
+        Before presenting final configuration, verify:
+      </description>
+      <checklist>
+        <check>JSON is valid and properly formatted</check>
+        <check>All required root fields are present</check>
+        <check>Each table has exactly one $path entry</check>
+        <check>At least one field per table is marked with ,$key</check>
+        <check>All nested objects/arrays are VARCHAR</check>
+        <check>Field names match JSON exactly</check>
+        <check>Data types are appropriate</check>
+        <check>$authentication is set correctly</check>
+      </checklist>
+    </practice>
+
+    <practice>
+      <name>Handle User Feedback Precisely</name>
+      <description>
+        When user requests changes, make exactly the changes requested.
+        Do not reinterpret or add unrequested modifications.
+      </description>
+    </practice>
+
+    <practice>
+      <name>Reference Existing Examples</name>
+      <description>
+        Look at existing configuration files for guidance:
+      </description>
+      <examples>
+        <file>sdk-gen/subprojects/rest_connector/src/test/resources/spacex-api.json</file>
+        <file>sdk-gen/subprojects/rest_connector/src/test/resources/nbp-api.json</file>
+        <file>sdk-gen/subprojects/rest_connector/src/test/resources/example-api-key-auth.json</file>
+        <file>sdk-gen/subprojects/rest_connector/src/test/resources/example-oauth2-auth.json</file>
+        <file>sdk-gen/subprojects/rest_connector/src/test/resources/example-basic-auth.json</file>
+      </examples>
+    </practice>
+  </best_practices>
+
+  <scope_limitation>
+    <title>Strict Scope Adherence</title>
+    <rule>
+      If user explicitly requests mapping for only a subset of endpoints,
+      you MUST completely ignore all other endpoints.
+    </rule>
+    <examples>
+      <example>
+        <user_request>Map only the /users and /products endpoints</user_request>
+        <correct_behavior>
+          Create tables only for /users and /products.
+          Do not analyze, suggest, or map any other endpoints.
+        </correct_behavior>
+        <wrong_behavior>
+          Suggesting "I also noticed /orders endpoint, should I map that too?"
+        </wrong_behavior>
+      </example>
+    </examples>
+    <rationale>
+      Users may have specific reasons for limiting scope.
+      Unsolicited suggestions waste time and may be inappropriate.
+    </rationale>
+  </scope_limitation>
+
+  <interaction_guidelines>
+    <guideline>
+      <name>Be Direct and Technical</name>
+      <description>
+        Avoid conversational fluff. Be clear, concise, and technical.
+      </description>
+      <wrong>"Great! I'd be happy to help you create a connector!"</wrong>
+      <correct>"I need the following information to create the configuration:"</correct>
+    </guideline>
+
+    <guideline>
+      <name>Ask Specific Questions</name>
+      <description>
+        When information is missing, ask specific, actionable questions.
+      </description>
+      <wrong>"Can you tell me more about the API?"</wrong>
+      <correct>"What is the base URL of the API (including https://)?</correct>
+    </guideline>
+
+    <guideline>
+      <name>Don't Assume or Guess</name>
+      <description>
+        If something is unclear, explicitly ask. Never guess API behavior.
+      </description>
+    </guideline>
+
+    <guideline>
+      <name>Present Complete Solutions</name>
+      <description>
+        Always present the full, complete JSON configuration file.
+        Never use placeholders or "..." for omitted sections.
+      </description>
+    </guideline>
+  </interaction_guidelines>
+
+  <quality_checklist>
+    <title>Final Quality Check Before Presenting Configuration</title>
+    <categories>
+      <category name="Structure">
+        <check>JSON is valid (no syntax errors)</check>
+        <check>All required root fields present ($connector_name, $connector_label, $connector_description, $hostname, $authentication, $tables)</check>
+        <check>Follows template.json structure exactly</check>
+      </category>
+
+      <category name="Tables">
+        <check>Each table has $path field with array containing single endpoint</check>
+        <check>Table names are descriptive and clear</check>
+        <check>No duplicate endpoint mappings</check>
+      </category>
+
+      <category name="Fields">
+        <check>At least one field per table marked with ,$key</check>
+        <check>Field names match JSON response exactly</check>
+        <check>All nested objects mapped as VARCHAR</check>
+        <check>All arrays mapped as VARCHAR</check>
+        <check>Data types are appropriate for values</check>
+      </category>
+
+      <category name="Authentication">
+        <check>$authentication field is set</check>
+        <check>Value is one of: none, api_key, oauth2, basic</check>
+        <check>Matches actual API authentication method</check>
+      </category>
+
+      <category name="Completeness">
+        <check>All requested endpoints are mapped</check>
+        <check>No unrequested endpoints are included</check>
+        <check>Configuration is production-ready</check>
+      </category>
+    </categories>
+  </quality_checklist>
+</best_practices_and_pitfalls>
+
+<!-- Made with Bob -->

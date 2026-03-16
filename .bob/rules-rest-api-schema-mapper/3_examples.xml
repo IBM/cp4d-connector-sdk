@@ -1,0 +1,525 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration_examples>
+  <overview>
+    Complete examples demonstrating how to create REST connector configuration files
+    for different types of APIs and scenarios.
+  </overview>
+
+  <example name="simple_public_api">
+    <title>Simple Public API (No Authentication)</title>
+    <description>
+      SpaceX API - a public REST API with no authentication required.
+      Demonstrates basic endpoint mapping with various data types.
+    </description>
+    
+    <api_info>
+      <base_url>https://api.spacexdata.com</base_url>
+      <authentication>none</authentication>
+      <endpoints>
+        <endpoint>/v4/rockets</endpoint>
+        <endpoint>/v4/launches</endpoint>
+      </endpoints>
+    </api_info>
+
+    <sample_response endpoint="/v4/rockets">
+      <![CDATA[
+[
+  {
+    "id": "5e9d0d95eda69973a809d1ec",
+    "name": "Falcon 9",
+    "type": "rocket",
+    "active": true,
+    "stages": 2,
+    "boosters": 0,
+    "cost_per_launch": 50000000,
+    "success_rate_pct": 97,
+    "first_flight": "2010-06-04",
+    "country": "United States",
+    "company": "SpaceX",
+    "height": {
+      "meters": 70,
+      "feet": 229.6
+    },
+    "diameter": {
+      "meters": 3.7,
+      "feet": 12
+    },
+    "mass": {
+      "kg": 549054,
+      "lb": 1207920
+    },
+    "engines": {
+      "number": 9,
+      "type": "merlin",
+      "version": "1D+",
+      "layout": "octaweb"
+    },
+    "flickr_images": [
+      "https://imgur.com/DaCfMsj.jpg",
+      "https://imgur.com/azYafd8.jpg"
+    ]
+  }
+]
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "SpaceX API Connector",
+  "$connector_label": "SpaceX API",
+  "$connector_description": "Connector for SpaceX public REST API - provides access to rockets, launches, capsules, and more",
+  "$hostname": "https://api.spacexdata.com",
+  "$authentication": "none",
+  "$tables": {
+    "ROCKETS": {
+      "$path": ["/v4/rockets"],
+      "id": "VARCHAR,$key",
+      "name": "VARCHAR",
+      "type": "VARCHAR",
+      "active": "BOOLEAN",
+      "stages": "INTEGER",
+      "boosters": "INTEGER",
+      "cost_per_launch": "BIGINT",
+      "success_rate_pct": "INTEGER",
+      "first_flight": "DATE",
+      "country": "VARCHAR",
+      "company": "VARCHAR",
+      "height": "VARCHAR",
+      "diameter": "VARCHAR",
+      "mass": "VARCHAR",
+      "engines": "VARCHAR",
+      "flickr_images": "VARCHAR"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>id</field>
+        <type>VARCHAR,$key</type>
+        <reason>String UUID used as primary key</reason>
+      </decision>
+      <decision>
+        <field>active</field>
+        <type>BOOLEAN</type>
+        <reason>True/false value</reason>
+      </decision>
+      <decision>
+        <field>cost_per_launch</field>
+        <type>BIGINT</type>
+        <reason>Large integer value (50 million)</reason>
+      </decision>
+      <decision>
+        <field>first_flight</field>
+        <type>DATE</type>
+        <reason>Date string in YYYY-MM-DD format</reason>
+      </decision>
+      <decision>
+        <field>height, diameter, mass, engines</field>
+        <type>VARCHAR</type>
+        <reason>Nested objects - stored as JSON strings</reason>
+      </decision>
+      <decision>
+        <field>flickr_images</field>
+        <type>VARCHAR</type>
+        <reason>Array - stored as JSON string</reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="api_with_authentication">
+    <title>API with API Key Authentication</title>
+    <description>
+      Example API requiring API Key authentication.
+      Demonstrates authentication configuration.
+    </description>
+
+    <api_info>
+      <base_url>https://api.example.com</base_url>
+      <authentication>api_key</authentication>
+      <auth_header>Authorization: ApiKey YOUR_KEY</auth_header>
+    </api_info>
+
+    <sample_response endpoint="/v1/users">
+      <![CDATA[
+[
+  {
+    "id": 1,
+    "username": "john_doe",
+    "email": "john@example.com",
+    "created_at": "2023-01-15T10:30:00Z",
+    "is_active": true,
+    "profile": {
+      "first_name": "John",
+      "last_name": "Doe",
+      "avatar_url": "https://example.com/avatar.jpg"
+    }
+  }
+]
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "Example API Key Auth Connector",
+  "$connector_label": "Example API Key Authentication",
+  "$connector_description": "Example REST API connector using API Key authentication",
+  "$hostname": "https://api.example.com",
+  "$authentication": "api_key",
+  "$tables": {
+    "users": {
+      "$path": ["/v1/users"],
+      "id": "INTEGER,$key",
+      "username": "VARCHAR",
+      "email": "VARCHAR",
+      "created_at": "TIMESTAMP",
+      "is_active": "BOOLEAN",
+      "profile": "VARCHAR"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$authentication</field>
+        <value>api_key</value>
+        <reason>API requires API Key in Authorization header</reason>
+        <note>User will provide api_key when creating connection</note>
+      </decision>
+      <decision>
+        <field>id</field>
+        <type>INTEGER,$key</type>
+        <reason>Numeric ID used as primary key</reason>
+      </decision>
+      <decision>
+        <field>created_at</field>
+        <type>TIMESTAMP</type>
+        <reason>ISO 8601 date-time string</reason>
+      </decision>
+      <decision>
+        <field>profile</field>
+        <type>VARCHAR</type>
+        <reason>Nested object - stored as JSON string</reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="api_without_natural_key">
+    <title>API Response Without Natural Unique Identifier</title>
+    <description>
+      Polish National Bank API - returns data without natural unique IDs.
+      Demonstrates using synthetic ROWID as primary key.
+    </description>
+
+    <api_info>
+      <base_url>https://api.nbp.pl</base_url>
+      <authentication>none</authentication>
+    </api_info>
+
+    <sample_response endpoint="/api/cenyzlota/last/50">
+      <![CDATA[
+[
+  {
+    "data": "2023-01-15",
+    "cena": 245.67
+  },
+  {
+    "data": "2023-01-16",
+    "cena": 246.12
+  }
+]
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "NBP API Connector",
+  "$connector_label": "NBP API",
+  "$connector_description": "Connector for Polish National Bank (NBP) public REST API providing exchange rates and gold prices",
+  "$hostname": "https://api.nbp.pl",
+  "$authentication": "none",
+  "$tables": {
+    "GOLD_PRICES": {
+      "$path": ["/api/cenyzlota/last/50"],
+      "ROWID": "VARCHAR,$key",
+      "data": "DATE",
+      "cena": "DECIMAL"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>ROWID</field>
+        <type>VARCHAR,$key</type>
+        <reason>No natural unique identifier in response - synthetic key added</reason>
+        <note>Connector automatically generates unique ROWID for each row</note>
+      </decision>
+      <decision>
+        <field>data</field>
+        <type>DATE</type>
+        <reason>Date string in YYYY-MM-DD format</reason>
+      </decision>
+      <decision>
+        <field>cena</field>
+        <type>DECIMAL</type>
+        <reason>Monetary value - use DECIMAL for precision</reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="oauth2_authentication">
+    <title>API with OAuth2 Bearer Token</title>
+    <description>
+      Example API using OAuth2 Bearer Token authentication.
+    </description>
+
+    <api_info>
+      <base_url>https://api.example.com</base_url>
+      <authentication>oauth2</authentication>
+      <auth_header>Authorization: Bearer YOUR_TOKEN</auth_header>
+    </api_info>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "Example OAuth2 Auth Connector",
+  "$connector_label": "Example OAuth2 Authentication",
+  "$connector_description": "Example REST API connector using OAuth2 Bearer Token authentication",
+  "$hostname": "https://api.example.com",
+  "$authentication": "oauth2",
+  "$tables": {
+    "customers": {
+      "$path": ["/v2/customers"],
+      "customer_id": "INTEGER,$key",
+      "first_name": "VARCHAR",
+      "last_name": "VARCHAR",
+      "email": "VARCHAR",
+      "registration_date": "DATE",
+      "total_purchases": "DECIMAL"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <note>
+      User must obtain OAuth2 bearer token through their OAuth2 flow before creating connection.
+      Token refresh is not currently supported by the connector.
+    </note>
+  </example>
+
+  <example name="basic_authentication">
+    <title>API with Basic Authentication</title>
+    <description>
+      Example API using HTTP Basic authentication (username/password).
+    </description>
+
+    <api_info>
+      <base_url>https://api.example.com</base_url>
+      <authentication>basic</authentication>
+      <auth_header>Authorization: Basic base64(username:password)</auth_header>
+    </api_info>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "Example Basic Auth Connector",
+  "$connector_label": "Example Basic Authentication",
+  "$connector_description": "Example REST API connector using Basic (username/password) authentication",
+  "$hostname": "https://api.example.com",
+  "$authentication": "basic",
+  "$tables": {
+    "employees": {
+      "$path": ["/api/employees"],
+      "employee_id": "INTEGER,$key",
+      "first_name": "VARCHAR",
+      "last_name": "VARCHAR",
+      "email": "VARCHAR",
+      "department": "VARCHAR",
+      "hire_date": "DATE",
+      "salary": "DECIMAL",
+      "is_manager": "BOOLEAN"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <note>
+      Connector automatically Base64-encodes username:password combination.
+      User provides username and password separately when creating connection.
+    </note>
+  </example>
+
+  <example name="complex_nested_structures">
+    <title>API with Complex Nested Structures</title>
+    <description>
+      Demonstrates handling of deeply nested objects and arrays.
+      All nested structures are mapped as VARCHAR.
+    </description>
+
+    <sample_response endpoint="/api/products">
+      <![CDATA[
+{
+  "id": "prod_123",
+  "name": "Widget Pro",
+  "price": 99.99,
+  "specifications": {
+    "dimensions": {
+      "width": 10,
+      "height": 5,
+      "depth": 3,
+      "unit": "cm"
+    },
+    "weight": {
+      "value": 250,
+      "unit": "g"
+    },
+    "materials": ["plastic", "metal", "rubber"]
+  },
+  "reviews": [
+    {
+      "user": "john_doe",
+      "rating": 5,
+      "comment": "Great product!",
+      "date": "2023-01-15"
+    },
+    {
+      "user": "jane_smith",
+      "rating": 4,
+      "comment": "Good value",
+      "date": "2023-01-20"
+    }
+  ],
+  "variants": [
+    {"color": "red", "sku": "WP-RED-001"},
+    {"color": "blue", "sku": "WP-BLUE-001"}
+  ]
+}
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "Product Catalog API",
+  "$connector_label": "Product Catalog",
+  "$connector_description": "Product catalog with complex nested structures",
+  "$hostname": "https://api.example.com",
+  "$authentication": "none",
+  "$tables": {
+    "products": {
+      "$path": ["/api/products"],
+      "id": "VARCHAR,$key",
+      "name": "VARCHAR",
+      "price": "DECIMAL",
+      "specifications": "VARCHAR",
+      "reviews": "VARCHAR",
+      "variants": "VARCHAR"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>specifications</field>
+        <type>VARCHAR</type>
+        <reason>Deeply nested object with multiple levels - stored as JSON string</reason>
+        <wrong>Do NOT try to flatten into specifications_dimensions_width, etc.</wrong>
+      </decision>
+      <decision>
+        <field>reviews</field>
+        <type>VARCHAR</type>
+        <reason>Array of objects - stored as JSON string</reason>
+        <wrong>Do NOT create separate reviews table</wrong>
+      </decision>
+      <decision>
+        <field>variants</field>
+        <type>VARCHAR</type>
+        <reason>Array of objects - stored as JSON string</reason>
+      </decision>
+    </mapping_decisions>
+
+    <important>
+      ALL nested objects and arrays MUST be mapped as VARCHAR.
+      The connector will store them as JSON strings that can be queried using JSON functions in SQL.
+    </important>
+  </example>
+
+  <workflow_example>
+    <title>Complete Workflow: Creating Configuration for New API</title>
+    
+    <step number="1">
+      <title>User Request</title>
+      <user_message>
+        I want to create a connector for the GitHub API to access repository information.
+      </user_message>
+    </step>
+
+    <step number="2">
+      <title>Gather Information</title>
+      <assistant_questions>
+        <question>What is the base URL of the GitHub API?</question>
+        <answer>https://api.github.com</answer>
+        
+        <question>What authentication method does the GitHub API use?</question>
+        <answer>Bearer token (OAuth2)</answer>
+        
+        <question>Which specific endpoints do you want to map?</question>
+        <answer>Just /repos/{owner}/{repo} for now</answer>
+        
+        <question>Can you provide an example JSON response from that endpoint?</question>
+        <answer>[User provides sample response]</answer>
+      </assistant_questions>
+    </step>
+
+    <step number="3">
+      <title>Analyze Response</title>
+      <analysis>
+        - Endpoint returns single repository object
+        - Has natural unique identifier: "id" (integer)
+        - Contains nested objects: owner, license, permissions
+        - Contains arrays: topics
+        - Mix of data types: strings, integers, booleans, timestamps
+      </analysis>
+    </step>
+
+    <step number="4">
+      <title>Generate Configuration</title>
+      <output>
+        [Present complete JSON configuration]
+      </output>
+    </step>
+
+    <step number="5">
+      <title>Explain Mapping</title>
+      <explanation>
+        - Mapped endpoint to REPOSITORIES table
+        - Used "id" as primary key (INTEGER,$key)
+        - Mapped nested objects (owner, license) as VARCHAR
+        - Mapped arrays (topics) as VARCHAR
+        - Used appropriate types for simple fields
+      </explanation>
+    </step>
+
+    <step number="6">
+      <title>Confirm and Iterate</title>
+      <question>Does this configuration correctly represent the API structure?</question>
+      <if_changes_needed>Apply exact changes requested by user</if_changes_needed>
+    </step>
+  </workflow_example>
+</configuration_examples>
+
+<!-- Made with Bob -->
