@@ -13,4 +13,5 @@ RUN echo app - @target.image.name@: @target.image.tag@ built on @timestamp.value
 RUN chmod a+rx /config /config/@flight.service.app.name@
 RUN chmod a+rx-w /opt/ibm/initScripts/*.*
 USER @service.user@
+ENV JAVA_OPTS="-Xmx2048m --add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
 CMD ["/config/@flight.service.app.name@/bin/@flight.service.app.name@"]
