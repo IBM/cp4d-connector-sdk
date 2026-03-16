@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rest_connector_workflow>
+  <mode_overview>
+    This mode guides you through creating JSON configuration files (connector descriptors) for REST APIs
+    to be used with the CP4D REST Connector SDK. The configuration maps REST API endpoints to relational
+    table schemas that can be queried using SQL.
+  </mode_overview>
+
+  <phase_1_discovery>
+    <title>API Discovery & Analysis</title>
+    <description>
+      Before generating any JSON configuration file, you MUST gather required information.
+      Never proceed without complete information.
+    </description>
+    
+    <required_information>
+      <item priority="critical">
+        <name>API Base URL</name>
+        <description>The complete base URL including protocol and hostname</description>
+        <example>https://api.spacexdata.com</example>
+        <ask_if_missing>What is the base URL of the REST API?</ask_if_missing>
+      </item>
+      
+      <item priority="critical">
+        <name>Authentication Type</name>
+        <description>How the API authenticates requests</description>
+        <valid_values>
+          <value>none</value>
+          <value>api_key</value>
+          <value>oauth2</value>
+          <value>basic</value>
+        </valid_values>
+        <ask_if_missing>What authentication method does this API use?</ask_if_missing>
+      </item>
+      
+      <item priority="critical">
+        <name>Endpoints to Map</name>
+        <description>List of specific endpoints the user wants to map</description>
+        <important>Only map endpoints explicitly requested by the user</important>
+        <ask_if_missing>Which specific endpoints do you want to map to tables?</ask_if_missing>
+      </item>
+      
+      <item priority="critical">
+        <name>Example JSON Responses</name>
+        <description>Actual JSON response examples for each endpoint</description>
+        <why_needed>Required to determine field names, data types, and structure</why_needed>
+        <ask_if_missing>Can you provide example JSON responses for each endpoint?</ask_if_missing>
+      </item>
+    </required_information>
+
+    <analysis_steps>
+      <step number="1">
+        <action>Analyze endpoint paths and parameters</action>
+        <details>
+          - Identify path parameters (e.g., /api/users/{id})
+          - Note query parameters if relevant
+          - Understand endpoint semantics (collection vs single item)
+        </details>
+      </step>
+      
+      <step number="2">
+        <action>Examine JSON response structure</action>
+        <details>
+          - Identify top-level fields
+          - Note nested objects (will be mapped as VARCHAR)
+          - Note arrays (will be mapped as VARCHAR)
+          - Identify natural unique identifiers
+        </details>
+      </step>
+      
+      <step number="3">
+        <action>Classify endpoints</action>
+        <categories>
+          <category>Entity-returning (single object)</category>
+          <category>Collection-returning (array of objects)</category>
+          <category>Parameterized access paths</category>
+        </categories>
+      </step>
+    </analysis_steps>
+  </phase_1_discovery>
+
+  <phase_2_configuration_generation>
+    <title>JSON Configuration File Generation</title>
+    <description>
+      Generate the connector descriptor JSON file following the template.json structure
+    </description>
+
+    <prerequisite>
+      <action>Read template.json file</action>
+      <path>sdk-gen/subprojects/rest_connector/src/test/resources/template.json</path>
+      <why>This is the ONLY allowed structural reference</why>
+    </prerequisite>
+
+    <structure>
+      <root_fields>
+        <field name="$connector_name" required="true">
+          <description>Internal name for the connector</description>
+          <format>Descriptive name with "Connector" suffix</format>
+          <example>SpaceX API Connector</example>
+        </field>
+        
+        <field name="$connector_label" required="true">
+          <description>Display label shown in UI</description>
+          <format>Short, user-friendly name</format>
+          <example>SpaceX API</example>
+        </field>
+        
+        <field name="$connector_description" required="true">
+          <description>Brief description of what the connector provides</description>
+          <example>Connector for SpaceX public REST API - provides access to rockets, launches, and more</example>
+        </field>
+        
+        <field name="$hostname" required="true">
+          <description>Base URL of the API</description>
+          <format>Full URL including protocol</format>
+          <example>https://api.spacexdata.com</example>
+        </field>
+        
+        <field name="$authentication" required="true">
+          <description>Authentication method</description>
+          <valid_values>none, api_key, oauth2, basic</valid_values>
+          <default>none</default>
+        </field>
+        
+        <field name="$tables" required="true">
+          <description>Object containing table definitions</description>
+          <structure>Each key is a table name, value is table definition</structure>
+        </field>
+      </root_fields>
+
+      <table_definition>
+        <field name="$path" required="true">
+          <description>Array with single endpoint path</description>
+          <format>["endpoint_path"]</format>
+          <important>Only ONE path per table - no multiple paths supported</important>
+          <example>["v4/rockets"]</example>
+        </field>
+        
+        <field name="columns" required="true">
+          <description>Field definitions as key-value pairs</description>
+          <format>field_name: "DATA_TYPE" or "DATA_TYPE,$key"</format>
+          <key_marker>
+            <description>Add ,$key suffix to mark primary key field</description>
+            <example>id: "VARCHAR,$key"</example>
+          </key_marker>
+        </field>
+      </table_definition>
+    </structure>
+
+    <mapping_rules>
+      <rule name="endpoint_to_table">
+        <principle>One JSON structure = one table</principle>
+        <details>
+          - Each unique endpoint with distinct JSON structure gets its own table
+          - Identical JSON structures should use same table
+          - Different JSON structures require separate tables
+        </details>
+      </rule>
+
+      <rule name="column_naming">
+        <principle>Use exact JSON field names</principle>
+        <details>
+          - Never invent column names
+          - Use the exact field name from JSON response
+          - If field name is SQL reserved keyword, keep it as-is (connector handles it)
+        </details>
+      </rule>
+
+      <rule name="primary_keys">
+        <when_natural_key_exists>
+          <action>Mark the natural unique identifier with ,$key suffix</action>
+          <example>id: "VARCHAR,$key"</example>
+        </when_natural_key_exists>
+        
+        <when_no_natural_key>
+          <action>Add ROWID field as synthetic key</action>
+          <example>ROWID: "VARCHAR,$key"</example>
+        </when_no_natural_key>
+      </rule>
+
+      <rule name="nested_objects_and_arrays">
+        <principle>ALL nested objects and arrays MUST be mapped as VARCHAR</principle>
+        <important>Do NOT attempt to flatten or extract fields from nested structures</important>
+        <rationale>The connector stores complex structures as JSON strings</rationale>
+        <examples>
+          <example>
+            <json_field>links: { website: "...", wikipedia: "..." }</json_field>
+            <mapping>links: "VARCHAR"</mapping>
+          </example>
+          <example>
+            <json_field>items: [{ id: 1, name: "..." }, ...]</json_field>
+            <mapping>items: "VARCHAR"</mapping>
+          </example>
+        </examples>
+      </rule>
+
+      <rule name="data_type_mapping">
+        <principle>Infer types strictly from JSON values</principle>
+        <supported_types>
+          <type>INTEGER - for whole numbers</type>
+          <type>BIGINT - for large whole numbers</type>
+          <type>SMALLINT - for small whole numbers</type>
+          <type>TINYINT - for very small whole numbers</type>
+          <type>BOOLEAN - for true/false values</type>
+          <type>DOUBLE - for floating point numbers</type>
+          <type>FLOAT - for floating point numbers</type>
+          <type>DECIMAL - for precise decimal numbers (requires precision/scale)</type>
+          <type>DATE - for date values</type>
+          <type>TIME - for time values</type>
+          <type>TIMESTAMP - for date-time values</type>
+          <type>VARCHAR - for strings (default for unknown types)</type>
+          <type>CHAR - for fixed-length strings</type>
+        </supported_types>
+        
+        <guidelines>
+          <guideline>Choose the smallest correct type that safely represents the data</guideline>
+          <guideline>When in doubt, use VARCHAR</guideline>
+          <guideline>For nested objects/arrays, always use VARCHAR</guideline>
+        </guidelines>
+      </rule>
+
+      <rule name="no_multiple_paths">
+        <principle>Each table has exactly ONE endpoint path</principle>
+        <important>Multiple paths per table are NOT supported</important>
+        <if_similar_endpoints>
+          <action>Create separate tables for each endpoint</action>
+          <rationale>Ensures clear, predictable table semantics</rationale>
+        </if_similar_endpoints>
+      </rule>
+    </mapping_rules>
+  </phase_2_configuration_generation>
+
+  <phase_3_presentation>
+    <title>Presentation & Confirmation</title>
+    
+    <steps>
+      <step number="1">
+        <action>Present the complete JSON configuration file</action>
+        <format>Full, valid JSON with proper formatting</format>
+      </step>
+      
+      <step number="2">
+        <action>Explain the mapping decisions</action>
+        <include>
+          <item>Endpoint to table mapping rationale</item>
+          <item>Data type choices for each field</item>
+          <item>Primary key selection reasoning</item>
+          <item>How nested structures were handled</item>
+        </include>
+      </step>
+      
+      <step number="3">
+        <action>Ask for confirmation</action>
+        <question>Does this configuration correctly represent the API structure you want to map?</question>
+      </step>
+      
+      <step number="4">
+        <action>Apply requested changes precisely</action>
+        <important>Do not reinterpret requirements - make exact changes requested</important>
+      </step>
+    </steps>
+  </phase_3_presentation>
+
+  <validation_checklist>
+    <title>Before Final Output</title>
+    <checks>
+      <check>Each table has exactly one $path entry (array with single element)</check>
+      <check>All nested objects and arrays are mapped as VARCHAR</check>
+      <check>At least one field is marked with ,$key</check>
+      <check>All field names match exact JSON field names</check>
+      <check>Data types are valid and appropriate</check>
+      <check>$authentication field is set to valid value</check>
+      <check>$hostname includes protocol (https:// or http://)</check>
+      <check>JSON is valid and properly formatted</check>
+    </checks>
+  </validation_checklist>
+
+  <behavioral_constraints>
+    <constraint>Do not refactor unless explicitly asked</constraint>
+    <constraint>Do not optimize unless requested</constraint>
+    <constraint>Do not invent additional tables beyond requested endpoints</constraint>
+    <constraint>Do not collapse tables for convenience</constraint>
+    <constraint>Do not assume SQL semantics beyond connector rules</constraint>
+    <constraint>Never map the same endpoint to multiple tables</constraint>
+    <constraint>Always follow template.json structure exactly</constraint>
+  </behavioral_constraints>
+</rest_connector_workflow>
+
+<!-- Made with Bob -->
