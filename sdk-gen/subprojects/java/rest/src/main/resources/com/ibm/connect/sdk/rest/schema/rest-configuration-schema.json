@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema#",
+  "$id": "https://ibm.com/schemas/rest-connector-configuration.json",
+  "title": "REST Connector Configuration Schema",
+  "description": "Defines the structure for configuring REST API entity types, endpoints, and field mappings for the IBM REST Connector",
+  "type": "object",
+  "properties": {
+    "entityTypes": {
+      "type": "array",
+      "description": "Array of entity type definitions representing REST API resources and their hierarchical relationships",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "description": "Entity type definition for a REST API resource",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique identifier for this entity type. Used to reference this entity in parent-child relationships",
+            "minLength": 1,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$",
+            "examples": ["users", "repositories", "orders", "customers"]
+          },
+          "parentEntity": {
+            "type": ["string", "null"],
+            "description": "Name of the parent entity type. Set to null for root-level entities. Enables hierarchical navigation (e.g., users -> repositories)",
+            "examples": [null, "users", "organizations"]
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "REST API endpoint path. Supports dynamic placeholders using ${entityName} syntax for parent entity values",
+            "minLength": 1,
+            "examples": [
+              "/api/v1/users",
+              "/api/v1/users/${users}/repositories",
+              "/api/v1/organizations/${organizations}/members"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+            "description": "HTTP method for the API request",
+            "default": "GET"
+          },
+          "requestQueryParams": {
+            "type": "object",
+            "description": "Query parameters to include in the request. Supports dynamic placeholders using ${entityName} syntax",
+            "additionalProperties": { "type": "string" },
+            "examples": [
+              { "per_page": "100", "sort": "created" },
+              { "user_id": "${users}", "status": "active" }
+            ]
+          },
+          "requestBody": {
+            "type": "object",
+            "description": "Request body for POST/PUT/PATCH requests. Can be any valid JSON structure",
+            "additionalProperties": true,
+            "examples": [
+              { "name": "New Item", "status": "active" }
+            ]
+          },
+          "headers": {
+            "type": "object",
+            "description": "Custom HTTP headers to include in the request (in addition to authentication headers)",
+            "additionalProperties": { "type": "string" },
+            "examples": [
+              { "X-Custom-Header": "value" }
+            ]
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination configuration for handling large result sets.",
+            "properties": {
+              "location": {
+                "type": "string",
+                "enum": ["query"],
+                "description": "Specifies where the pagination parameters are included. Use 'query' to pass pagination values as URL query parameters. Pagination via request body is not supported in this version."
+              },
+              "type": {
+                "type": "string",
+                "enum": ["offset", "page", "link_header"],
+                "description": "Pagination strategy: offset (limit/offset), page (page number/size), Link-Header (RFC 8288)"
+              },
+              "limitParam": {
+                "type": "string",
+                "description": "Query parameter name for result limit (e.g., 'limit', 'per_page')",
+                "examples": ["limit", "per_page", "pageSize"]
+              },
+              "offsetParam": {
+                "type": "string",
+                "description": "Query parameter name for offset (e.g., 'offset', 'skip')",
+                "examples": ["offset", "skip", "start"]
+              },
+              "pageParam": {
+                "type": "string",
+                "description": "Query parameter name for page number (e.g., 'page'). The page index is assumed to start from 0.",
+                "examples": ["page", "pageNumber"]
+              },
+              "sizeParam": {
+                "type": "string",
+                "description": "Query parameter name for page size (e.g., 'size', 'per_page')",
+                "examples": ["size", "per_page", "pageSize"]
+              },
+              "linkHeader": {
+                "type": "string",
+                "description": "Name of the HTTP response header that contains the link to the next page (e.g., 'Link' for GitHub API). It can follow the RFC 8288 format or simply provide the next page URL.",
+                "default": "Link",
+                "examples": ["Link", "X-Next-Page"]
+              },
+              "supportedMaxLimit": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 1000,
+                "description": "Specifies the maximum page size (limit) supported by the underlying API. If the consumer requests a higher limit, the connector will automatically perform internal pagination to fulfill the request."
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "type": { "const": "offset" }
+                  }
+                },
+                "then": {
+                  "required": ["offsetParam", "limitParam"],
+                  "properties": {
+                    "offsetParam": { "type": "string", "minLength": 1 },
+                    "limitParam": { "type": "string", "minLength": 1 }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "type": { "const": "page" }
+                  }
+                },
+                "then": {
+                  "required": ["pageParam", "sizeParam"],
+                  "properties": {
+                    "pageParam": { "type": "string", "minLength": 1 },
+                    "sizeParam": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            ]
+          },
+          "uniqueIdField": {
+            "type": "string",
+            "description": "Field name that uniquely identifies each entity instance. Used for asset identification and parent-child linking",
+            "minLength": 1,
+            "examples": ["users[].id", "repos[].repository_id"]
+          },
+          "labelField": {
+            "type": "string",
+            "description": "Field name to use as the display label in asset browser and UI",
+            "minLength": 1,
+            "examples": ["users[].name", "repos[].title"]
+          },
+          "fields": {
+            "type": "array",
+            "description": "Optional field configurations for custom field discovery using JsonPath expressions. If not specified, all fields are auto-discovered",
+            "items": {
+              "type": "object",
+              "description": "Field configuration specifying how to extract and name a field from the JSON response",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name for the discovered field.",
+                  "minLength": 1,
+                  "examples": ["results", "users"]
+                },
+                "jsonPath": {
+                  "type": "string",
+                  "description": "JsonPath expression to extract field value from response. Filter expressions are not supported. Use '$' for root, '.' for nested access",
+                  "minLength": 1,
+                  "examples": [
+                    "$.[*]",
+                    "$.users[*]",
+                    "$.results[*]"
+                  ]
+                }
+              },
+              "required": ["name", "jsonPath"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["name", "endpoint", "method", "uniqueIdField", "labelField"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["entityTypes"],
+  "additionalProperties": false
+}

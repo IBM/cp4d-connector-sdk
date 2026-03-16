@@ -1,0 +1,27 @@
+{
+  "datasetName": "user_profiles",
+  "version": "1.2.0",
+  "columns": ["id", "name", "age", "city", "isActive", "roles"],
+  "data": [
+    [101, "Tom", 32, "New York", true, ["admin", "editor"]],
+    [102, "John", 15, "San Francisco", false, ["viewer"]],
+    [103, "Alice", 28, "Chicago", true, ["editor"]],
+    [104, "Bob", 40, "Seattle", true, ["admin", "viewer"]]
+  ],
+  "metadata": {
+    "recordCount": 4,
+    "generatedAt": "2025-11-10T10:00:00Z",
+    "sourceSystem": "userService",
+    "notes": "Sample dataset representing user profiles and their roles."
+  },
+  "config": {
+    "display": {
+      "sortable": true,
+      "filterableColumns": ["city", "isActive", "roles"]
+    },
+    "export": {
+      "enabled": true,
+      "formats": ["csv", "json", "xlsx"]
+    }
+  }
+}

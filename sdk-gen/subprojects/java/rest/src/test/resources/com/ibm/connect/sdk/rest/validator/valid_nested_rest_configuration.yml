@@ -1,0 +1,57 @@
+entityTypes:
+  - name: organization
+    parentEntity: null
+    endpoint: "/orgs"
+    method: GET
+    requestQueryParams:
+      sortBy: "name"
+    uniqueIdField: "id"
+    labelField: "name"
+    fields:
+      - name: id
+        jsonPath: "$.results[*].id"
+      - name: name
+        jsonPath: "$.results[*].name"
+      - name: results    #It will flattened the name for nested fields like `results.age`, `results.address.city`, ...
+        jsonPath: "$.results[*].*"
+
+  - name: repository
+    parentEntity: organization
+    endpoint: "/orgs/${organization}/repos"
+    method: GET
+    requestQueryParams:
+      type: "all"
+      sort: "updated"
+    headers:
+      X-Test-Id: "ibm-connector-124"
+    pagination:
+      type: page
+      pageParam: page
+      sizeParam: size
+    uniqueIdField: "id"
+    labelField: "name"
+    fields:
+      - name: id
+        jsonPath: "$.results[*].id"
+      - name: name
+        jsonPath: "$.results[*].name"
+      - name: results    #It will flattened the name for nested fields like `results.age`, `results.address.city`, ...
+        jsonPath: "$.results[*].*"
+
+  - name: issues
+    parentEntity: repository
+    endpoint: "/orgs/${organization}/repos/${repository}/issues"
+    method: GET
+    pagination:
+      type: page
+      pageParam: page
+      sizeParam: size
+    uniqueIdField: "id"
+    labelField: "name"
+    fields:
+      - name: id
+        jsonPath: "$.results[*].id"
+      - name: name
+        jsonPath: "$.results[*].name"
+      - name: results    #It will flattened the name for nested fields like `results.age`, `results.address.city`, ...
+        jsonPath: "$.results[*].*"

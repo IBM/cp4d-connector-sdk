@@ -1,0 +1,242 @@
+[
+  {
+    "name": "ZIEGLJUE_kafka08-producer-timeout",
+    "commit": {
+      "sha": "0f30a8bb50d82f3cf0a8462707e4960ef66859c7",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/0f30a8bb50d82f3cf0a8462707e4960ef66859c7"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE_zk-thread-leaks",
+    "commit": {
+      "sha": "daca5b9a228980df150cd3dc3c119f7c325553b1",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/daca5b9a228980df150cd3dc3c119f7c325553b1"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE_20_queued-stuck-requests",
+    "commit": {
+      "sha": "68fb1831eef11debe82f4de3e85eb119262dcd0d",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/68fb1831eef11debe82f4de3e85eb119262dcd0d"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE_23-multi-tenancy",
+    "commit": {
+      "sha": "f9955326726edbf9874e8cacd5cb5ca5b214e69e",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/f9955326726edbf9874e8cacd5cb5ca5b214e69e"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE_53_multiple-metadatastores",
+    "commit": {
+      "sha": "53613c2c12c02299c6f4ca01b732c7e6c40b0b3e",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/53613c2c12c02299c6f4ca01b732c7e6c40b0b3e"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE_163_term_display",
+    "commit": {
+      "sha": "569fb664913f31049cc93b6a836d5c44c591a879",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/569fb664913f31049cc93b6a836d5c44c591a879"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE_167-app-log-via-REST",
+    "commit": {
+      "sha": "f6ece3b1d948276f561de8481d4356b896092284",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/f6ece3b1d948276f561de8481d4356b896092284"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE_200-201-minor-fixes",
+    "commit": {
+      "sha": "e1992cf6432b6e1be604ccfc893ca278813e1ba0",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/e1992cf6432b6e1be604ccfc893ca278813e1ba0"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE-20-queued-stuck-requests-new",
+    "commit": {
+      "sha": "022244e9a8efe2350a7f4cd1ff7019a21844a30e",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/022244e9a8efe2350a7f4cd1ff7019a21844a30e"
+    },
+    "protected": false
+  },
+  {
+    "name": "ZIEGLJUE-126-eclipse-debug-description",
+    "commit": {
+      "sha": "26277c3f8e77f3846cb09f2da15179230f72eef9",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/26277c3f8e77f3846cb09f2da15179230f72eef9"
+    },
+    "protected": false
+  },
+  {
+    "name": "bmankina_181_adopt_latest_atlas",
+    "commit": {
+      "sha": "13c5f5eb2cbaea33eb7e4d54917154dc0b10b362",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/13c5f5eb2cbaea33eb7e4d54917154dc0b10b362"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_31_doc_enhancements",
+    "commit": {
+      "sha": "4950e56241ad7f35316a6962a5079dd118d8a252",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/4950e56241ad7f35316a6962a5079dd118d8a252"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_56_termclassification_haifatool_private",
+    "commit": {
+      "sha": "32291cc0650fc051b981bb49c93971fadf0df58b",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/32291cc0650fc051b981bb49c93971fadf0df58b"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_62_add_terms_to_repository",
+    "commit": {
+      "sha": "697266fa2a3685efa7177a2afc198fc469420d1a",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/697266fa2a3685efa7177a2afc198fc469420d1a"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_67_column_annotations_based_on_SDP_terms",
+    "commit": {
+      "sha": "411b47563ebaf3985521043ba30b6e7b823e9226",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/411b47563ebaf3985521043ba30b6e7b823e9226"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_79_match_heuristics",
+    "commit": {
+      "sha": "7434372a5c864402ab9e894cf70425573d0c1c13",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/7434372a5c864402ab9e894cf70425573d0c1c13"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_84_termmatching_for_butterfly",
+    "commit": {
+      "sha": "802b31cdaa1b0ebd506d56d35ee93e2c0ad74997",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/802b31cdaa1b0ebd506d56d35ee93e2c0ad74997"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_94_renaming_services_packages",
+    "commit": {
+      "sha": "66258ea06b3ee7daf90616e7bfa51e52c40243a9",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/66258ea06b3ee7daf90616e7bfa51e52c40243a9"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_136_matcher_to_check_object",
+    "commit": {
+      "sha": "ce939cfb6d0355f644b28e2964f4bd63d2e9a3b0",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/ce939cfb6d0355f644b28e2964f4bd63d2e9a3b0"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_138_expose_matcher_tags_to_ui",
+    "commit": {
+      "sha": "c9110a7ccd987d0b6404c65385610beef5e88de8",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/c9110a7ccd987d0b6404c65385610beef5e88de8"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_145_terms_on_data_lake_ui",
+    "commit": {
+      "sha": "3eb1e1543a21ae1e1690c3c16e11654295e41e71",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/3eb1e1543a21ae1e1690c3c16e11654295e41e71"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_161_termmatching_confidence",
+    "commit": {
+      "sha": "f9a53f5feb284dce125d1aeac7ba9628fa72b612",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/f9a53f5feb284dce125d1aeac7ba9628fa72b612"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_203_match_abbreviations",
+    "commit": {
+      "sha": "03d0c22e48ade8250e3a894f5be844cf8e614df2",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/03d0c22e48ade8250e3a894f5be844cf8e614df2"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_215_termmatching_unit_test_with_ootb_content",
+    "commit": {
+      "sha": "2f771e63e5149cb0c24bfe30aa4e42b0337e4664",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/2f771e63e5149cb0c24bfe30aa4e42b0337e4664"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_218_classification_model_extensions",
+    "commit": {
+      "sha": "467cefbfdd520f2e61b32f3d4a99020d4827db6f",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/467cefbfdd520f2e61b32f3d4a99020d4827db6f"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_222_delete_entity",
+    "commit": {
+      "sha": "5b710175ad94fa9523345db752a63d29ea7ff326",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/5b710175ad94fa9523345db752a63d29ea7ff326"
+    },
+    "protected": false
+  },
+  {
+    "name": "gerstl_228_promotion",
+    "commit": {
+      "sha": "942ed2a09ba912a9f190f0d0592cc619d8a84625",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/942ed2a09ba912a9f190f0d0592cc619d8a84625"
+    },
+    "protected": false
+  },
+  {
+    "name": "master",
+    "commit": {
+      "sha": "bc25cf0a6679e70f87e02b8e200c363703c9c963",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/bc25cf0a6679e70f87e02b8e200c363703c9c963"
+    },
+    "protected": true
+  },
+  {
+    "name": "namkabra_44_document_mvn_windows_workaround",
+    "commit": {
+      "sha": "7a8e80b01b9b0432bfdfe9f54e2387f88ada9b51",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/7a8e80b01b9b0432bfdfe9f54e2387f88ada9b51"
+    },
+    "protected": false
+  },
+  {
+    "name": "namkabra_226_fingerPrintMatching",
+    "commit": {
+      "sha": "4840b3fc00a65a01faf957c8eafdbf8195f76aa6",
+      "url": "https://github.ibm.com/api/v3/repos/Analytics/shared-discovery-platform/commits/4840b3fc00a65a01faf957c8eafdbf8195f76aa6"
+    },
+    "protected": false
+  }
+]

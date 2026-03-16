@@ -1,0 +1,27 @@
+entityTypes:
+  - name: organization
+    parentEntity: null
+    endpoint: "/organizations"
+    method: GET
+    pagination:
+      type: link_header
+      linkHeader: Link
+      supportedMaxLimit: 100
+    uniqueIdField: "orgs[].login"
+    labelField: "orgs[].login"
+    fields:
+      - name: "orgs"
+        jsonPath: "$[*]"
+  - name: repository
+    parentEntity: organization
+    endpoint: "/orgs/${organization}/repos"
+    method: GET
+    pagination:
+      type: link_header
+      linkHeader: Link
+      supportedMaxLimit: 100
+    uniqueIdField: "repos[].name"
+    labelField: "repos[].name"
+    fields:
+      - name: "repos"
+        jsonPath: "$[*]"

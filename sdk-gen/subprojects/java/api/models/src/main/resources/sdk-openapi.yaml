@@ -80,6 +80,9 @@ components:
         multiline:
           type: boolean
           description: Whether the property should be displayed in a multi-line field.
+        hidden:
+          type: boolean
+          description: Whether the property should be displayed.
         default_value:
           description: The default value for the property if the value is not otherwise specified.
           type: string
@@ -307,6 +310,90 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CustomDatasourceTypeProperty'
+        complexConditions:
+          description: Conditions to be used to validate properties.
+          $ref: '#/components/schemas/CustomDatasourceTypeComplexPropertyConditions'
+    CustomDatasourceTypeComplexPropertyConditions:
+      description: Complex conditions to be used to validate properties.
+      type: object
+      properties:
+        connection:
+          description: Complex conditions related to connection properties.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeComplexPropertyCondition'
+        source:
+          description: Complex conditions related to source properties.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeComplexPropertyCondition'
+        target:
+          description: Complex conditions related to target properties.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeComplexPropertyCondition'
+        filter:
+          description: Complex conditions related to filter properties.
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeComplexPropertyCondition'
+    CustomDatasourceTypeComplexPropertyCondition:
+      description: Definition of a property enablement condition.
+      type: object
+      properties:
+        property_name:
+          description: The name of the property to be enabled based on these conditions.
+          type: string
+        evaluate:
+          $ref: '#/components/schemas/CustomDatasourceTypeComplexCondition'
+    CustomDatasourceTypeComplexCondition:
+      type: object
+      properties:
+        property_name:
+          type: string
+          description: the name of the property used by this condition.
+        condition:
+          type: string
+          description: the condition to validate between owning property and this
+            property.
+          enum:
+            - contains
+            - endswith
+            - equals
+            - in
+            - matches
+            - not_contains
+            - not_endswith
+            - not_equals
+            - not_in
+            - not_matches
+            - not_set
+            - not_startswith
+            - set
+            - startswith
+        values:
+          type: array
+          description: the values to use in checking the condition.
+          items:
+            type: string
+        uiOnly:
+          type: boolean
+          description: Whether this condition applies only to generated common properties
+            UI.
+        or:
+          type: array
+          description: disjunction of conditions. If populated the rest of the properties
+            are null.
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeComplexCondition'
+        and:
+          type: array
+          description: conjunction of conditions. If populated the rest of the properties
+            are null.
+          items:
+            $ref: '#/components/schemas/CustomDatasourceTypeComplexCondition'
+      description: "A condition to be applied to a property. Can be a specific condition,\
+            \ a conjunction(AND) or a disjunction(OR)."
     DatasourceTypeDiscovery:
       type: object
       properties:

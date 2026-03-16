@@ -1,0 +1,18 @@
+entityTypes:
+  - name1: Users
+    parentEntity: null
+    requestQueryParams:
+      sortBy: "name"
+    headers:
+      X-Test-Id: "ibm-connector-124"
+    pagination:
+      type: page
+      pageParam: page
+      sizeParam: size
+    fieldsIncorrect:
+      - name: id
+        jsonPath: "$.results[*].id"
+      - name: name
+        jsonPath: "$.results[*].name"
+      - name: results    # or use this, It will flattened the name for nested fields like `results.age`, `results.address.city`, ...
+        jsonPath: "$.results[*].*"
