@@ -1,0 +1,28 @@
+{
+  "$connector_name": "API Name Connector",
+  "$connector_label": "Display Label",
+  "$connector_description": "Description of what this connector provides access to",
+  "$hostname": "https://api.example.com",
+  "$authentication": "none",
+  "$tables": {
+    "TABLE_NAME": {
+      "$path": ["/api/endpoint"],
+      "id": "VARCHAR,$key",
+      "name": "VARCHAR",
+      "description": "VARCHAR",
+      "created_at": "TIMESTAMP",
+      "count": "INTEGER",
+      "price": "DECIMAL",
+      "is_active": "BOOLEAN",
+      "nested_object": "VARCHAR",
+      "array_field": "VARCHAR"
+    },
+    "ANOTHER_TABLE": {
+      "$path": ["/api/other-endpoint"],
+      "ROWID": "VARCHAR,$key",
+      "field1": "VARCHAR",
+      "field2": "INTEGER",
+      "field3": "DOUBLE"
+    }
+  }
+}

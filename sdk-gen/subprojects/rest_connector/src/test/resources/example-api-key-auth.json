@@ -1,0 +1,65 @@
+{
+  "$connector_name": "Example API Key Auth Connector",
+  "$connector_label": "Example API Key Authentication",
+  "$connector_description": "Example REST API connector using API Key authentication",
+  "$hostname": "https://api.example.com",
+  "$authentication": "api_key",
+  "$tables": {
+    "users": {
+      "$endpoint": "/v1/users",
+      "$schema": {
+        "id": {
+          "$type": "INTEGER",
+          "$nullable": false
+        },
+        "username": {
+          "$type": "VARCHAR",
+          "$length": 100,
+          "$nullable": false
+        },
+        "email": {
+          "$type": "VARCHAR",
+          "$length": 255,
+          "$nullable": true
+        },
+        "created_at": {
+          "$type": "TIMESTAMP",
+          "$nullable": true
+        },
+        "is_active": {
+          "$type": "BOOLEAN",
+          "$nullable": false
+        }
+      }
+    },
+    "products": {
+      "$endpoint": "/v1/products",
+      "$schema": {
+        "product_id": {
+          "$type": "INTEGER",
+          "$nullable": false
+        },
+        "name": {
+          "$type": "VARCHAR",
+          "$length": 200,
+          "$nullable": false
+        },
+        "price": {
+          "$type": "DECIMAL",
+          "$precision": 10,
+          "$scale": 2,
+          "$nullable": false
+        },
+        "description": {
+          "$type": "VARCHAR",
+          "$length": 1000,
+          "$nullable": true
+        },
+        "in_stock": {
+          "$type": "BOOLEAN",
+          "$nullable": false
+        }
+      }
+    }
+  }
+}

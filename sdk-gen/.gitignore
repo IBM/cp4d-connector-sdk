@@ -6,5 +6,6 @@ bin/
 build/
 subprojects/*
 !subprojects/java/
+!subprojects/rest_connector/
 testdb/
 *.log

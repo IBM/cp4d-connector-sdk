@@ -1,0 +1,81 @@
+{
+  "$connector_name": "Example OAuth2 Auth Connector",
+  "$connector_label": "Example OAuth2 Authentication",
+  "$connector_description": "Example REST API connector using OAuth2 Bearer Token authentication",
+  "$hostname": "https://api.example.com",
+  "$authentication": "oauth2",
+  "$tables": {
+    "customers": {
+      "$endpoint": "/v2/customers",
+      "$schema": {
+        "customer_id": {
+          "$type": "INTEGER",
+          "$nullable": false
+        },
+        "first_name": {
+          "$type": "VARCHAR",
+          "$length": 100,
+          "$nullable": false
+        },
+        "last_name": {
+          "$type": "VARCHAR",
+          "$length": 100,
+          "$nullable": false
+        },
+        "email": {
+          "$type": "VARCHAR",
+          "$length": 255,
+          "$nullable": true
+        },
+        "phone": {
+          "$type": "VARCHAR",
+          "$length": 20,
+          "$nullable": true
+        },
+        "registration_date": {
+          "$type": "DATE",
+          "$nullable": true
+        },
+        "total_purchases": {
+          "$type": "DECIMAL",
+          "$precision": 12,
+          "$scale": 2,
+          "$nullable": false
+        }
+      }
+    },
+    "orders": {
+      "$endpoint": "/v2/orders",
+      "$schema": {
+        "order_id": {
+          "$type": "INTEGER",
+          "$nullable": false
+        },
+        "customer_id": {
+          "$type": "INTEGER",
+          "$nullable": false
+        },
+        "order_date": {
+          "$type": "TIMESTAMP",
+          "$nullable": false
+        },
+        "total_amount": {
+          "$type": "DECIMAL",
+          "$precision": 10,
+          "$scale": 2,
+          "$nullable": false
+        },
+        "status": {
+          "$type": "VARCHAR",
+          "$length": 50,
+          "$nullable": false
+        },
+        "shipping_address": {
+          "$type": "VARCHAR",
+          "$length": 500,
+          "$nullable": true
+        }
+      }
+    }
+  }
+}
