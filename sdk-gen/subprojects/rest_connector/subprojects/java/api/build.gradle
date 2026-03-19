@@ -1,0 +1,36 @@
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+//
+// Declare project dependencies
+//
+dependencies {
+  // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
+  api group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']
+  runtimeOnly group: 'com.google.protobuf', name: 'protobuf-java', version: project['protobuf.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-format', version: project['arrow.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-memory-core', version: project['arrow.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version'], transitive: false
+  runtimeOnly group: 'io.netty', name: 'netty-buffer', version: project['netty.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
+  // End of flight-core
+  api project(':wdp-connect-sdk-gen-java-api-models')
+  api group: 'org.apache.commons', name: 'commons-pool2', version: project['commons.pool2.version']
+  api group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
+  implementation project(':wdp-connect-sdk-gen-java-util')
+  implementation(group: 'com.google.guava', name: 'guava', version: project['guava.version']) {
+    exclude group: 'com.google.code.findbugs'
+    exclude group: 'com.google.errorprone'
+    exclude group: 'com.google.j2objc'
+    exclude group: 'org.checkerframework'
+  }
+  implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
+}
