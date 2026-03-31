@@ -1,0 +1,34 @@
+{
+  "$connector_name": "GitHub API Connector",
+  "$connector_label": "GitHub API",
+  "$connector_description": "Connector for GitHub public REST API - provides access to public events",
+  "$hostname": "https://api.github.com",
+  "$authentication": "none",
+  "$tables": {
+    "EVENTS": {
+      "$path": ["/events"],
+      "$pagination": {
+        "type": "link_header",
+        "page_size": 100
+      },
+      "id": "VARCHAR,$key",
+      "type": "VARCHAR",
+      "actor[]": {
+        "id": "INTEGER",
+        "login": "VARCHAR",
+        "display_login": "VARCHAR",
+        "gravatar_id": "VARCHAR",
+        "url": "VARCHAR",
+        "avatar_url": "VARCHAR"
+      },
+      "repo[]": {
+        "id": "INTEGER",
+        "name": "VARCHAR",
+        "url": "VARCHAR"
+      },
+      "payload": "VARCHAR",
+      "public": "BOOLEAN",
+      "created_at": "TIMESTAMP"
+    }
+  }
+}

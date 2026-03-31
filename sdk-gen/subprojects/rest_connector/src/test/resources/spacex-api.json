@@ -21,7 +21,11 @@
       "cto_propulsion": "VARCHAR",
       "valuation": "BIGINT",
       "summary": "VARCHAR",
-      "headquarters": "VARCHAR",
+      "headquarters[]": {
+        "address": "VARCHAR",
+        "city": "VARCHAR",
+        "state": "VARCHAR"
+      },
       "links": "VARCHAR"
     },
     "ROCKETS": {

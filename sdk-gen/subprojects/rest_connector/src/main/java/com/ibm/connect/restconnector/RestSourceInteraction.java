@@ -132,8 +132,8 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
         // Build authentication headers from connection properties
         final java.util.Map<String, String> authHeaders = buildAuthHeaders();
 
-        // Create the streaming JSON-to-Record iterator with data path and authentication headers
-        jsonStream = new JsonToRecordStream(url, tableDef.getDataPath(), tableDef.getFields(), authHeaders);
+        // Create the streaming JSON-to-Record iterator with data path, authentication headers, and pagination config
+        jsonStream = new JsonToRecordStream(url, tableDef.getDataPath(), tableDef.getFields(), authHeaders, tableDef.getPaginationConfig());
 
         // Determine batch size
         final int batchSize = (asset.getBatchSize() != null && asset.getBatchSize() > 0)

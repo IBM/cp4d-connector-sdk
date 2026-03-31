@@ -58,6 +58,7 @@ public class RestApiMappingLoader
     private static final String TABLES_KEY = "$tables";
     private static final String PATH_KEY = "$path";
     private static final String DATA_PATH_KEY = "$data_path";
+    private static final String PAGINATION_KEY = "$pagination";
     private static final String KEY_MODIFIER = "$key";
     private static final String NOTNULL_MODIFIER = "$notnull";
     private static final String ARRAY_SUFFIX = "[]";
@@ -162,11 +163,22 @@ public class RestApiMappingLoader
             final String dataPath = (dataPathNode != null && !dataPathNode.isNull())
                     ? dataPathNode.asText() : null;
 
+            // Extract optional pagination configuration
+            final PaginationConfig paginationConfig = parsePaginationConfig(tableNode);
+
             // Parse fields (including nested objects)
             final List<RestFieldDefinition> fields = parseFields(tableNode, "");
 
-            tables.put(tableName, new RestTableDefinition(path, dataPath, fields));
-            if (dataPath != null) {
+            tables.put(tableName, new RestTableDefinition(path, dataPath, paginationConfig, fields));
+            
+            // Log table loading with appropriate details
+            if (paginationConfig != null && dataPath != null) {
+                LOGGER.debug("Loaded table '{}' with path '{}', data path '{}', pagination type '{}', and {} fields",
+                        tableName, path, dataPath, paginationConfig.getType(), fields.size());
+            } else if (paginationConfig != null) {
+                LOGGER.debug("Loaded table '{}' with path '{}', pagination type '{}', and {} fields",
+                        tableName, path, paginationConfig.getType(), fields.size());
+            } else if (dataPath != null) {
                 LOGGER.debug("Loaded table '{}' with path '{}', data path '{}', and {} fields",
                         tableName, path, dataPath, fields.size());
             } else {
@@ -203,17 +215,17 @@ public class RestApiMappingLoader
                 continue;
             }
 
-            // Check if this is a nested array field (key ends with [])
-            final boolean isNestedArray = rawKey.endsWith(ARRAY_SUFFIX);
-            final String baseFieldName = isNestedArray ? rawKey.substring(0, rawKey.length() - ARRAY_SUFFIX.length()) : rawKey;
+            // Check if this is a nested object field (key ends with [])
+            final boolean isNestedObject = rawKey.endsWith(ARRAY_SUFFIX);
+            final String baseFieldName = isNestedObject ? rawKey.substring(0, rawKey.length() - ARRAY_SUFFIX.length()) : rawKey;
             final String fieldName = prefix + baseFieldName;
 
-            if (fieldValue.isObject() && !isNestedArray) {
-                // Nested object — recursively parse its fields with a prefix
+            if (isNestedObject && fieldValue.isObject()) {
+                // Nested object with [] — flatten its fields with dot separator
                 final List<RestFieldDefinition> nestedFields = parseFields(fieldValue, fieldName + ".");
                 fields.addAll(nestedFields);
-            } else if (isNestedArray) {
-                // Array field — serialize as VARCHAR
+            } else if (isNestedObject) {
+                // Field with [] but not an object — treat as array, serialize as VARCHAR
                 fields.add(new RestFieldDefinition(fieldName, VARCHAR_TYPE, false, false, true));
             } else {
                 // Simple field with type string like "VARCHAR,$key,$notnull" or "INTEGER"
@@ -238,6 +250,90 @@ public class RestApiMappingLoader
         }
 
         return fields;
+    }
+
+    /**
+     * Parses the pagination configuration from a table JSON node.
+     *
+     * @param tableNode
+     *            the JSON object representing a table
+     * @return the pagination configuration, or null if no pagination is configured
+     */
+    private static PaginationConfig parsePaginationConfig(JsonNode tableNode)
+    {
+        final JsonNode paginationNode = tableNode.get(PAGINATION_KEY);
+        if (paginationNode == null || !paginationNode.isObject()) {
+            return null;
+        }
+
+        // Extract pagination type (required)
+        final JsonNode typeNode = paginationNode.get("type");
+        if (typeNode == null || typeNode.isNull()) {
+            LOGGER.warn("Pagination configuration missing 'type' field, ignoring pagination");
+            return null;
+        }
+        final String type = typeNode.asText().toLowerCase(java.util.Locale.ENGLISH);
+
+        // Validate pagination type
+        if (!"offset".equals(type) && !"page".equals(type) && !"cursor".equals(type)
+                && !"link_header".equals(type) && !"next_url".equals(type)) {
+            LOGGER.warn("Invalid pagination type '{}', ignoring pagination. Valid types: offset, page, cursor, link_header, next_url", type);
+            return null;
+        }
+
+        // Extract common fields
+        final JsonNode pageSizeNode = paginationNode.get("page_size");
+        final int pageSize = (pageSizeNode != null && !pageSizeNode.isNull()) ? pageSizeNode.asInt() : 100;
+
+        final JsonNode limitParamNode = paginationNode.get("limit_param");
+        final String limitParam = (limitParamNode != null && !limitParamNode.isNull()) ? limitParamNode.asText() : null;
+
+        // Extract type-specific fields
+        String offsetParam = null;
+        String pageParam = null;
+        int initialOffset = 0;
+        int initialPage = 1;
+        String cursorParam = null;
+        String nextCursorPath = null;
+        String nextUrlPath = null;
+
+        if ("offset".equals(type)) {
+            final JsonNode offsetParamNode = paginationNode.get("offset_param");
+            offsetParam = (offsetParamNode != null && !offsetParamNode.isNull()) ? offsetParamNode.asText() : "offset";
+
+            final JsonNode initialOffsetNode = paginationNode.get("initial_offset");
+            initialOffset = (initialOffsetNode != null && !initialOffsetNode.isNull()) ? initialOffsetNode.asInt() : 0;
+        }
+        else if ("page".equals(type)) {
+            final JsonNode pageParamNode = paginationNode.get("page_param");
+            pageParam = (pageParamNode != null && !pageParamNode.isNull()) ? pageParamNode.asText() : "page";
+
+            final JsonNode initialPageNode = paginationNode.get("initial_page");
+            initialPage = (initialPageNode != null && !initialPageNode.isNull()) ? initialPageNode.asInt() : 1;
+        }
+        else if ("cursor".equals(type)) {
+            final JsonNode cursorParamNode = paginationNode.get("cursor_param");
+            cursorParam = (cursorParamNode != null && !cursorParamNode.isNull()) ? cursorParamNode.asText() : "cursor";
+
+            final JsonNode nextCursorPathNode = paginationNode.get("next_cursor_path");
+            if (nextCursorPathNode == null || nextCursorPathNode.isNull()) {
+                LOGGER.warn("Cursor pagination requires 'next_cursor_path' field, ignoring pagination");
+                return null;
+            }
+            nextCursorPath = nextCursorPathNode.asText();
+        }
+        else if ("next_url".equals(type)) {
+            final JsonNode nextUrlPathNode = paginationNode.get("next_url_path");
+            if (nextUrlPathNode == null || nextUrlPathNode.isNull()) {
+                LOGGER.warn("Next URL pagination requires 'next_url_path' field, ignoring pagination");
+                return null;
+            }
+            nextUrlPath = nextUrlPathNode.asText();
+        }
+
+        LOGGER.debug("Parsed pagination config: type={}, pageSize={}, limitParam={}", type, pageSize, limitParam);
+        return new PaginationConfig(type, offsetParam, pageParam, limitParam, pageSize,
+                initialOffset, initialPage, cursorParam, nextCursorPath, nextUrlPath);
     }
 }
 
