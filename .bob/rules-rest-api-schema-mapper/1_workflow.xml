@@ -62,7 +62,7 @@
         <action>Examine JSON response structure</action>
         <details>
           - Identify top-level fields
-          - Note nested objects (will be mapped as VARCHAR)
+          - Note nested objects (will be flattered and marked with special syntax)
           - Note arrays (will be mapped as VARCHAR)
           - Identify natural unique identifiers
         </details>
@@ -128,6 +128,20 @@
         </field>
       </root_fields>
 
+      <optional_features>
+        <feature name="$data_path">
+          <description>Navigate to nested data array in API response</description>
+          <when_to_use>API wraps data in parent objects (e.g., {"result": {"users": [...]}})</when_to_use>
+          <example>"$data_path": "result.users"</example>
+        </feature>
+        <feature name="$pagination">
+          <description>Configure pagination for APIs that return data across multiple pages</description>
+          <when_to_use>API returns large datasets split across multiple pages</when_to_use>
+          <types>offset, page, cursor, link_header, next_url</types>
+          <see_also>Refer to 5_pagination_guide.xml for detailed documentation</see_also>
+        </feature>
+      </optional_features>
+
       <table_definition>
         <field name="$path" required="true">
           <description>Array with single endpoint path</description>
@@ -178,15 +192,61 @@
         </when_no_natural_key>
       </rule>
 
-      <rule name="nested_objects_and_arrays">
-        <principle>ALL nested objects and arrays MUST be mapped as VARCHAR</principle>
-        <important>Do NOT attempt to flatten or extract fields from nested structures</important>
-        <rationale>The connector stores complex structures as JSON strings</rationale>
+      <rule name="nested_objects">
+        <principle>Nested objects with known, fixed structure MUST be described with [] suffix syntax for flattening</principle>
+        <rationale>
+          The connector automatically flattens nested objects marked with [] suffix into separate columns.
+          Each nested field becomes a column with dot-separated naming (e.g., object.field).
+          This allows querying nested data as regular columns.
+          Multi-level nesting is fully supported (e.g., object.subobject.field).
+        </rationale>
+        <when_to_use>
+          <use>Object has a known, fixed structure (same fields in all responses)</use>
+          <use>Object fields are simple types OR other nested [] objects</use>
+          <use>You want to query nested fields as separate columns</use>
+          <use>Works with any depth of nesting (2, 3, or more levels)</use>
+        </when_to_use>
+        <when_not_to_use>
+          <dont_use>Object structure varies between responses</dont_use>
+          <dont_use>Object contains nested arrays</dont_use>
+          <alternative>Use VARCHAR to store entire object as JSON string</alternative>
+        </when_not_to_use>
+        <syntax>
+          <format>field_name[]: { "subfield1": "TYPE", "subfield2": "TYPE" }</format>
+          <result>Creates columns: field_name.subfield1, field_name.subfield2</result>
+        </syntax>
         <examples>
           <example>
-            <json_field>links: { website: "...", wikipedia: "..." }</json_field>
-            <mapping>links: "VARCHAR"</mapping>
+            <json_field>
+              "dimensions": {
+                "width": 10,
+                "height": 5,
+                "depth": 3
+              }
+            </json_field>
+            <mapping>dimensions[]: {"width": "INTEGER", "height": "INTEGER", "depth": "INTEGER"}</mapping>
+            <result_columns>dimensions.width, dimensions.height, dimensions.depth</result_columns>
           </example>
+          <example>
+            <json_field>
+              "address": {
+                "street": "123 Main St",
+                "city": "Boston",
+                "state": "MA",
+                "zip": "02101"
+              }
+            </json_field>
+            <mapping>address[]: {"street": "VARCHAR", "city": "VARCHAR", "state": "VARCHAR", "zip": "VARCHAR"}</mapping>
+            <result_columns>address.street, address.city, address.state, address.zip</result_columns>
+          </example>
+        </examples>
+      </rule>
+
+      <rule name="nested_arrays">
+        <principle>ALL nested arrays MUST be mapped as VARCHAR</principle>
+        <important>Do NOT attempt to flatten or extract fields from nested arrays</important>
+        <rationale>The connector stores complex structures as JSON strings</rationale>
+        <examples>
           <example>
             <json_field>items: [{ id: 1, name: "..." }, ...]</json_field>
             <mapping>items: "VARCHAR"</mapping>
@@ -215,7 +275,7 @@
         <guidelines>
           <guideline>Choose the smallest correct type that safely represents the data</guideline>
           <guideline>When in doubt, use VARCHAR</guideline>
-          <guideline>For nested objects/arrays, always use VARCHAR</guideline>
+          <guideline>For nested arrays, always use VARCHAR</guideline>
         </guidelines>
       </rule>
 
@@ -265,7 +325,8 @@
     <title>Before Final Output</title>
     <checks>
       <check>Each table has exactly one $path entry (array with single element)</check>
-      <check>All nested objects and arrays are mapped as VARCHAR</check>
+      <check>All nested objects are mapped with "[]" syntax</check>
+      <check>All nested arrays are mapped as VARCHAR</check>
       <check>At least one field is marked with ,$key</check>
       <check>All field names match exact JSON field names</check>
       <check>Data types are valid and appropriate</check>
@@ -285,5 +346,3 @@
     <constraint>Always follow template.json structure exactly</constraint>
   </behavioral_constraints>
 </rest_connector_workflow>
-
-<!-- Made with Bob -->
