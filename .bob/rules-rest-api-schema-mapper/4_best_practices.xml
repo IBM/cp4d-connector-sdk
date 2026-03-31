@@ -7,26 +7,38 @@
 
   <critical_rules>
     <rule priority="critical">
-      <name>Never Flatten Nested Structures</name>
+      <name>Use [] Syntax for Fixed-Structure Objects</name>
       <description>
-        ALL nested objects and arrays MUST be mapped as VARCHAR.
-        Do NOT attempt to extract fields from nested structures.
+        Nested objects with known, fixed structure should use [] suffix syntax for automatic flattening.
+        Objects with varying structure or containing arrays should use VARCHAR.
       </description>
+      <correct_flattening>
+        <![CDATA[
+"headquarters[]": {
+  "address": "VARCHAR",
+  "city": "VARCHAR",
+  "state": "VARCHAR"
+}
+        ]]>
+        <result>Creates columns: headquarters.address, headquarters.city, headquarters.state</result>
+      </correct_flattening>
+      <correct_varchar>
+        <![CDATA[
+"metadata": "VARCHAR"
+        ]]>
+        <when>Object structure varies or contains arrays/nested objects</when>
+      </correct_varchar>
       <wrong>
         <![CDATA[
 "headquarters_address": "VARCHAR",
 "headquarters_city": "VARCHAR",
 "headquarters_state": "VARCHAR"
         ]]>
+        <why>Never manually flatten - use [] syntax or VARCHAR</why>
       </wrong>
-      <correct>
-        <![CDATA[
-"headquarters": "VARCHAR"
-        ]]>
-      </correct>
       <rationale>
-        The connector stores complex structures as JSON strings.
-        Attempting to flatten will cause configuration errors.
+        The [] suffix tells the connector to automatically flatten the object into separate columns.
+        This enables querying nested fields while maintaining clean configuration.
       </rationale>
     </rule>
 
@@ -390,6 +402,124 @@
         <file>sdk-gen/subprojects/rest_connector/src/test/resources/example-basic-auth.json</file>
       </examples>
     </practice>
+
+    <practice>
+      <name>Understand Object Flattening with [] Suffix</name>
+      <description>
+        Use [] suffix syntax to flatten fixed-structure nested objects into separate columns.
+        This is a powerful feature that enables querying nested data as regular columns.
+        Multi-level nesting is fully supported - you can nest objects as deeply as needed.
+      </description>
+      <when_to_flatten>
+        <criterion>Object has consistent structure across all API responses</criterion>
+        <criterion>All nested fields are simple types OR other nested [] objects</criterion>
+        <criterion>You want to query nested fields as individual columns</criterion>
+        <criterion>Multi-level nesting is fully supported (any depth: 2, 3, 4+ levels)</criterion>
+      </when_to_flatten>
+      <when_not_to_flatten>
+        <criterion>Object structure varies between responses</criterion>
+        <criterion>Object contains arrays</criterion>
+        <criterion>You don't need to query nested fields individually</criterion>
+        <use_instead>Map as VARCHAR to store entire object as JSON</use_instead>
+      </when_not_to_flatten>
+      <syntax_examples>
+        <example>
+          <title>Simple Flattening</title>
+          <json>
+            <![CDATA[
+"address": {
+  "street": "123 Main St",
+  "city": "Boston",
+  "zip": "02101"
+}
+            ]]>
+          </json>
+          <config>
+            <![CDATA[
+"address[]": {
+  "street": "VARCHAR",
+  "city": "VARCHAR",
+  "zip": "VARCHAR"
+}
+            ]]>
+          </config>
+          <result>Creates columns: address.street, address.city, address.zip</result>
+        </example>
+        <example>
+          <title>Multi-Level Flattening (Any Depth Supported)</title>
+          <json>
+            <![CDATA[
+"product": {
+  "specifications": {
+    "dimensions": {
+      "outer": {
+        "width": 100,
+        "height": 50
+      },
+      "inner": {
+        "width": 80,
+        "height": 30
+      }
+    },
+    "weight": {
+      "value": 250,
+      "unit": "g"
+    }
+  }
+}
+            ]]>
+          </json>
+          <config>
+            <![CDATA[
+"product[]": {
+  "specifications[]": {
+    "dimensions[]": {
+      "outer[]": {
+        "width": "INTEGER",
+        "height": "INTEGER"
+      },
+      "inner[]": {
+        "width": "INTEGER",
+        "height": "INTEGER"
+      }
+    },
+    "weight[]": {
+      "value": "INTEGER",
+      "unit": "VARCHAR"
+    }
+  }
+}
+            ]]>
+          </config>
+          <result>Creates: product.specifications.dimensions.outer.width, product.specifications.dimensions.outer.height, product.specifications.dimensions.inner.width, product.specifications.dimensions.inner.height, product.specifications.weight.value, product.specifications.weight.unit</result>
+          <note>This example shows 4-level nesting - any depth is supported</note>
+        </example>
+        <example>
+          <title>When NOT to Flatten - Contains Array</title>
+          <json>
+            <![CDATA[
+"metadata": {
+  "tags": ["tag1", "tag2"],
+  "category": "electronics"
+}
+            ]]>
+          </json>
+          <config>
+            <![CDATA[
+"metadata": "VARCHAR"
+            ]]>
+          </config>
+          <reason>Contains array - cannot flatten, store as JSON string</reason>
+        </example>
+      </syntax_examples>
+      <important_notes>
+        <note>The connector uses dot (.) as separator for flattened column names</note>
+        <note>All fields within [] object must be simple types or nested [] objects</note>
+        <note>Arrays within objects prevent flattening - use VARCHAR instead</note>
+        <note>Multi-level nesting is fully supported - nest as deeply as needed (2, 3, 4+ levels)</note>
+        <note>Flattening makes nested data queryable but increases column count</note>
+      </important_notes>
+    </practice>
   </best_practices>
 
   <scope_limitation>
@@ -469,8 +599,8 @@
       <category name="Fields">
         <check>At least one field per table marked with ,$key</check>
         <check>Field names match JSON response exactly</check>
-        <check>All nested objects mapped as VARCHAR</check>
-        <check>All arrays mapped as VARCHAR</check>
+        <check>Fixed-structure objects use [] suffix for flattening</check>
+        <check>Variable-structure objects and arrays use VARCHAR</check>
         <check>Data types are appropriate for values</check>
       </category>
 

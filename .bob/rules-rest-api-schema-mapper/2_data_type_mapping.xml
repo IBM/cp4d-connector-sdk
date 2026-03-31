@@ -9,7 +9,8 @@
     <rule>Infer types strictly from JSON values and API documentation</rule>
     <rule>Choose the smallest correct type that safely represents the data</rule>
     <rule>When in doubt, use VARCHAR</rule>
-    <rule>ALL nested objects and arrays MUST be VARCHAR</rule>
+    <rule>ALL nested objects MUST be described with "[]" syntax</rule>
+    <rule>ALL nested arrays MUST be VARCHAR</rule>
   </core_principle>
 
   <type_mappings>
@@ -117,12 +118,35 @@
     <mapping>
       <json_type>object (nested)</json_type>
       <sql_types>
-        <required>VARCHAR</required>
-        <important>ALWAYS map nested objects as VARCHAR</important>
-        <rationale>Connector stores complex structures as JSON strings</rationale>
+        <option1>
+          <name>Flattened Object (with [] suffix)</name>
+          <when>Object has known, fixed structure with simple fields</when>
+          <syntax>field_name[]: { "subfield": "TYPE", ... }</syntax>
+          <result>Creates separate columns with dot notation: field_name.subfield</result>
+        </option1>
+        <option2>
+          <name>JSON String (VARCHAR)</name>
+          <when>Object structure varies, contains arrays, or is deeply nested</when>
+          <syntax>field_name: "VARCHAR"</syntax>
+          <result>Stores entire object as JSON string</result>
+        </option2>
       </sql_types>
+      <decision_criteria>
+        <use_flattening_when>
+          <criterion>Object structure is consistent across all responses</criterion>
+          <criterion>All nested fields are simple types OR other nested [] objects</criterion>
+          <criterion>You want to query nested fields individually</criterion>
+          <criterion>Multi-level nesting is fully supported (any depth)</criterion>
+        </use_flattening_when>
+        <use_varchar_when>
+          <criterion>Object structure varies between responses</criterion>
+          <criterion>Object contains nested arrays</criterion>
+          <criterion>You don't need to query nested fields individually</criterion>
+        </use_varchar_when>
+      </decision_criteria>
       <examples>
         <example>
+          <title>Flattened Object - Fixed Structure</title>
           <json>
             "headquarters": {
               "address": "Rocket Road",
@@ -130,17 +154,59 @@
               "state": "California"
             }
           </json>
-          <mapping>headquarters: "VARCHAR"</mapping>
-          <wrong>Do NOT create separate fields like headquarters_address, headquarters_city</wrong>
+          <mapping>headquarters[]: {"address":"VARCHAR", "city":"VARCHAR", "state":"VARCHAR"}</mapping>
+          <result_columns>headquarters.address, headquarters.city, headquarters.state</result_columns>
         </example>
         <example>
+          <title>Flattened Object - Numeric Fields</title>
           <json>
             "dimensions": {
               "height": 70,
               "diameter": 3.7
             }
           </json>
-          <mapping>dimensions: "VARCHAR"</mapping>
+          <mapping>dimensions[]: {"height":"INTEGER", "diameter":"DOUBLE"}</mapping>
+          <result_columns>dimensions.height, dimensions.diameter</result_columns>
+        </example>
+        <example>
+          <title>VARCHAR - Object with Array</title>
+          <json>
+            "metadata": {
+              "tags": ["tag1", "tag2"],
+              "category": "electronics"
+            }
+          </json>
+          <mapping>metadata: "VARCHAR"</mapping>
+          <reason>Contains array - cannot flatten</reason>
+        </example>
+        <example>
+          <title>Multi-Level Flattening - Fully Supported</title>
+          <json>
+            "location": {
+              "address": {
+                "street": "123 Main St",
+                "city": "Boston"
+              },
+              "coordinates": {
+                "lat": 42.3601,
+                "lon": -71.0589
+              }
+            }
+          </json>
+          <mapping>
+            location[]: {
+              "address[]": {
+                "street": "VARCHAR",
+                "city": "VARCHAR"
+              },
+              "coordinates[]": {
+                "lat": "DOUBLE",
+                "lon": "DOUBLE"
+              }
+            }
+          </mapping>
+          <result_columns>location.address.street, location.address.city, location.coordinates.lat, location.coordinates.lon</result_columns>
+          <note>Multi-level nesting is fully supported - any depth works</note>
         </example>
       </examples>
     </mapping>
@@ -233,18 +299,27 @@
     <title>Type Selection Decision Tree</title>
     <steps>
       <step number="1">
-        <question>Is it a nested object or array?</question>
-        <if_yes>Use VARCHAR (ALWAYS)</if_yes>
+        <question>Is it a nested object?</question>
+        <if_yes>
+          <sub_question>Does it have fixed structure with simple fields only?</sub_question>
+          <if_fixed_yes>Use [] syntax: field[]: {"sub": "TYPE"}</if_fixed_yes>
+          <if_fixed_no>Use VARCHAR</if_fixed_no>
+        </if_yes>
         <if_no>Continue to step 2</if_no>
       </step>
-      
       <step number="2">
-        <question>Is it a boolean (true/false)?</question>
-        <if_yes>Use BOOLEAN</if_yes>
+        <question>Is it a nested array?</question>
+        <if_yes>Use VARCHAR (ALWAYS)</if_yes>
         <if_no>Continue to step 3</if_no>
       </step>
       
       <step number="3">
+        <question>Is it a boolean (true/false)?</question>
+        <if_yes>Use BOOLEAN</if_yes>
+        <if_no>Continue to step 4</if_no>
+      </step>
+      
+      <step number="4">
         <question>Is it a number?</question>
         <if_yes>
           <sub_question>Does it have decimal places?</sub_question>
@@ -259,10 +334,10 @@
             </ranges>
           </if_decimal_no>
         </if_yes>
-        <if_no>Continue to step 4</if_no>
+        <if_no>Continue to step 5</if_no>
       </step>
       
-      <step number="4">
+      <step number="5">
         <question>Is it a string?</question>
         <if_yes>
           <sub_question>Does it represent a date/time?</sub_question>
@@ -281,18 +356,6 @@
   </decision_tree>
 
   <common_mistakes>
-    <mistake>
-      <error>Trying to flatten nested objects into separate columns</error>
-      <correct>Map entire nested object as VARCHAR</correct>
-      <example>
-        <wrong>
-          headquarters_address: "VARCHAR",
-          headquarters_city: "VARCHAR"
-        </wrong>
-        <right>headquarters: "VARCHAR"</right>
-      </example>
-    </mistake>
-
     <mistake>
       <error>Creating separate tables for array elements</error>
       <correct>Map entire array as VARCHAR</correct>
@@ -325,5 +388,3 @@
     <guideline>Review API documentation for type hints</guideline>
   </when_uncertain>
 </data_type_mapping_guide>
-
-<!-- Made with Bob -->

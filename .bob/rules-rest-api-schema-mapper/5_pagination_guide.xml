@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pagination_guide>
+  <overview>
+    This guide explains how to configure pagination for REST APIs that return data across multiple pages.
+    The connector supports 5 different pagination strategies commonly used by REST APIs.
+  </overview>
+
+  <when_to_use_pagination>
+    <criterion>API returns large datasets split across multiple pages</criterion>
+    <criterion>API documentation mentions pagination, page limits, or cursors</criterion>
+    <criterion>API responses include pagination metadata (next page, total pages, etc.)</criterion>
+    <criterion>You want to fetch ALL data, not just the first page</criterion>
+  </when_to_use_pagination>
+
+  <when_not_to_use_pagination>
+    <criterion>API returns all data in a single response</criterion>
+    <criterion>API has no pagination mechanism</criterion>
+    <criterion>You only need the first page of results</criterion>
+  </when_not_to_use_pagination>
+
+  <pagination_types>
+    <type name="offset">
+      <title>Offset-Based Pagination</title>
+      <description>
+        Uses numeric offset and limit parameters to paginate through results.
+        Common in SQL-based APIs.
+      </description>
+      <how_it_works>
+        - First request: ?offset=0&limit=100
+        - Second request: ?offset=100&limit=100
+        - Third request: ?offset=200&limit=100
+        - Continues until fewer than page_size results returned
+      </how_it_works>
+      <configuration>
+        <![CDATA[
+"$pagination": {
+  "type": "offset",
+  "offset_param": "offset",
+  "limit_param": "limit",
+  "page_size": 100,
+  "initial_offset": 0
+}
+        ]]>
+      </configuration>
+      <parameters>
+        <param name="type" required="true">Must be "offset"</param>
+        <param name="offset_param" required="true">Query parameter name for offset (e.g., "offset", "skip", "start")</param>
+        <param name="limit_param" required="true">Query parameter name for limit (e.g., "limit", "count", "size")</param>
+        <param name="page_size" required="true">Number of items per page</param>
+        <param name="initial_offset" required="false">Starting offset (default: 0)</param>
+      </parameters>
+      <example_apis>
+        <api>PostgreSQL-based REST APIs</api>
+        <api>Many custom APIs</api>
+      </example_apis>
+    </type>
+
+    <type name="page">
+      <title>Page-Based Pagination</title>
+      <description>
+        Uses page numbers to paginate through results.
+        Most common pagination type.
+      </description>
+      <how_it_works>
+        - First request: ?page=1&per_page=50
+        - Second request: ?page=2&per_page=50
+        - Third request: ?page=3&per_page=50
+        - Continues until fewer than page_size results returned
+      </how_it_works>
+      <configuration>
+        <![CDATA[
+"$pagination": {
+  "type": "page",
+  "page_param": "page",
+  "limit_param": "per_page",
+  "page_size": 50,
+  "initial_page": 1
+}
+        ]]>
+      </configuration>
+      <parameters>
+        <param name="type" required="true">Must be "page"</param>
+        <param name="page_param" required="true">Query parameter name for page number (e.g., "page", "p")</param>
+        <param name="limit_param" required="true">Query parameter name for page size (e.g., "per_page", "limit", "size")</param>
+        <param name="page_size" required="true">Number of items per page</param>
+        <param name="initial_page" required="false">Starting page number (default: 1, some APIs use 0)</param>
+      </parameters>
+      <example_apis>
+        <api>GitHub API</api>
+        <api>GitLab API</api>
+        <api>JSONPlaceholder</api>
+        <api>Most REST APIs</api>
+      </example_apis>
+    </type>
+
+    <type name="cursor">
+      <title>Cursor-Based Pagination</title>
+      <description>
+        Uses opaque cursor tokens to paginate through results.
+        Best for real-time data and large datasets.
+      </description>
+      <how_it_works>
+        - First request: /api/data (no cursor)
+        - Response includes: {"data": [...], "pagination": {"next_cursor": "abc123"}}
+        - Second request: /api/data?cursor=abc123
+        - Response includes: {"data": [...], "pagination": {"next_cursor": "def456"}}
+        - Continues until next_cursor is null or missing
+      </how_it_works>
+      <configuration>
+        <![CDATA[
+"$pagination": {
+  "type": "cursor",
+  "cursor_param": "cursor",
+  "next_cursor_path": "pagination.next_cursor",
+  "page_size": 100
+}
+        ]]>
+      </configuration>
+      <parameters>
+        <param name="type" required="true">Must be "cursor"</param>
+        <param name="cursor_param" required="true">Query parameter name for cursor (e.g., "cursor", "next", "token")</param>
+        <param name="next_cursor_path" required="true">JSON path to next cursor in response (e.g., "pagination.next_cursor", "meta.next")</param>
+        <param name="page_size" required="false">Optional page size parameter</param>
+      </parameters>
+      <example_apis>
+        <api>Twitter API</api>
+        <api>Facebook Graph API</api>
+        <api>Stripe API</api>
+      </example_apis>
+      <important>
+        The next_cursor_path uses dot notation to navigate nested JSON.
+        Example: "pagination.next_cursor" looks for response.pagination.next_cursor
+      </important>
+    </type>
+
+    <type name="link_header">
+      <title>Link Header Pagination (RFC 5988)</title>
+      <description>
+        Uses HTTP Link headers to provide next page URLs.
+        Follows RFC 5988 standard.
+      </description>
+      <how_it_works>
+        - First request: /api/data
+        - Response includes header: Link: <https://api.example.com/data?page=2>; rel="next"
+        - Second request: Uses URL from Link header
+        - Continues until no "next" link in header
+      </how_it_works>
+      <configuration>
+        <![CDATA[
+"$pagination": {
+  "type": "link_header",
+  "page_size": 100
+}
+        ]]>
+      </configuration>
+      <parameters>
+        <param name="type" required="true">Must be "link_header"</param>
+        <param name="page_size" required="false">Optional page size parameter</param>
+      </parameters>
+      <example_apis>
+        <api>GitHub API</api>
+        <api>GitLab API</api>
+        <api>APIs following RFC 5988</api>
+      </example_apis>
+      <important>
+        This is the simplest pagination type - the connector automatically
+        extracts the next page URL from the Link header.
+      </important>
+    </type>
+
+    <type name="next_url">
+      <title>Next URL Pagination</title>
+      <description>
+        API provides full URL to next page in response body.
+        Common in hypermedia APIs.
+      </description>
+      <how_it_works>
+        - First request: /api/data
+        - Response includes: {"data": [...], "pagination": {"next": "https://api.example.com/data?page=2"}}
+        - Second request: Uses URL from response
+        - Continues until next URL is null or missing
+      </how_it_works>
+      <configuration>
+        <![CDATA[
+"$pagination": {
+  "type": "next_url",
+  "next_url_path": "pagination.next",
+  "page_size": 100
+}
+        ]]>
+      </configuration>
+      <parameters>
+        <param name="type" required="true">Must be "next_url"</param>
+        <param name="next_url_path" required="true">JSON path to next URL in response (e.g., "pagination.next", "links.next", "next_page")</param>
+        <param name="page_size" required="false">Optional page size parameter</param>
+      </parameters>
+      <example_apis>
+        <api>SpaceX API</api>
+        <api>Many hypermedia APIs</api>
+      </example_apis>
+      <important>
+        The next_url_path uses dot notation to navigate nested JSON.
+        The URL can be absolute or relative.
+      </important>
+    </type>
+  </pagination_types>
+
+  <configuration_placement>
+    <rule>$pagination is a table-level configuration</rule>
+    <rule>Place it inside the table definition, alongside $path and field definitions</rule>
+    <rule>Each table can have its own pagination configuration</rule>
+    <rule>If API doesn't use pagination, omit $pagination entirely</rule>
+  </configuration_placement>
+
+  <complete_examples>
+    <example>
+      <title>GitHub Repositories (Page-Based)</title>
+      <api_docs>https://docs.github.com/en/rest/repos/repos</api_docs>
+      <configuration>
+        <![CDATA[
+{
+  "$connector_name": "GitHub API Connector",
+  "$hostname": "https://api.github.com",
+  "$authentication": "oauth2",
+  "$tables": {
+    "REPOSITORIES": {
+      "$path": ["/user/repos"],
+      "$pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "initial_page": 1
+      },
+      "id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "full_name": "VARCHAR",
+      "private": "BOOLEAN",
+      "description": "VARCHAR",
+      "created_at": "TIMESTAMP",
+      "updated_at": "TIMESTAMP"
+    }
+  }
+}
+        ]]>
+      </configuration>
+    </example>
+
+    <example>
+      <title>Stripe Charges (Cursor-Based)</title>
+      <api_docs>https://stripe.com/docs/api/charges/list</api_docs>
+      <configuration>
+        <![CDATA[
+{
+  "$connector_name": "Stripe API Connector",
+  "$hostname": "https://api.stripe.com",
+  "$authentication": "api_key",
+  "$tables": {
+    "CHARGES": {
+      "$path": ["/v1/charges"],
+      "$data_path": "data",
+      "$pagination": {
+        "type": "cursor",
+        "cursor_param": "starting_after",
+        "next_cursor_path": "data.-1.id",
+        "page_size": 100
+      },
+      "id": "VARCHAR,$key",
+      "amount": "INTEGER",
+      "currency": "VARCHAR",
+      "status": "VARCHAR",
+      "created": "BIGINT"
+    }
+  }
+}
+        ]]>
+      </configuration>
+      <note>
+        Stripe uses the last item's ID as the cursor.
+        The path "data.-1.id" means: get the last item in the data array, then get its id field.
+      </note>
+    </example>
+
+    <example>
+      <title>JSONPlaceholder Posts (Page-Based)</title>
+      <api_docs>https://jsonplaceholder.typicode.com/</api_docs>
+      <configuration>
+        <![CDATA[
+{
+  "$connector_name": "JSONPlaceholder Connector",
+  "$hostname": "https://jsonplaceholder.typicode.com",
+  "$authentication": "none",
+  "$tables": {
+    "POSTS": {
+      "$path": ["/posts"],
+      "$pagination": {
+        "type": "page",
+        "page_param": "_page",
+        "limit_param": "_limit",
+        "page_size": 10,
+        "initial_page": 1
+      },
+      "userId": "INTEGER",
+      "id": "INTEGER,$key",
+      "title": "VARCHAR",
+      "body": "VARCHAR"
+    }
+  }
+}
+        ]]>
+      </configuration>
+    </example>
+  </complete_examples>
+
+  <troubleshooting>
+    <issue>
+      <problem>Pagination stops after first page</problem>
+      <possible_causes>
+        <cause>Wrong parameter names (check API documentation)</cause>
+        <cause>Wrong pagination type selected</cause>
+        <cause>Wrong next_cursor_path or next_url_path</cause>
+      </possible_causes>
+      <solution>Verify parameter names match API documentation exactly</solution>
+    </issue>
+
+    <issue>
+      <problem>Duplicate data across pages</problem>
+      <possible_causes>
+        <cause>Wrong initial_page (should be 1 or 0 depending on API)</cause>
+        <cause>Wrong initial_offset</cause>
+      </possible_causes>
+      <solution>Check API documentation for starting page/offset number</solution>
+    </issue>
+
+    <issue>
+      <problem>Missing data</problem>
+      <possible_causes>
+        <cause>page_size too large (API may have maximum limit)</cause>
+        <cause>API rate limiting</cause>
+      </possible_causes>
+      <solution>Reduce page_size or add rate limiting handling</solution>
+    </issue>
+  </troubleshooting>
+
+  <best_practices>
+    <practice>Always check API documentation for pagination details</practice>
+    <practice>Use the largest page_size the API allows for better performance</practice>
+    <practice>Test pagination with APIs that have multiple pages of data</practice>
+    <practice>For cursor-based pagination, carefully verify the next_cursor_path</practice>
+    <practice>For next_url pagination, verify the next_url_path points to the correct field</practice>
+    <practice>Consider API rate limits when setting page_size</practice>
+  </best_practices>
+
+  <decision_tree>
+    <title>Choosing the Right Pagination Type</title>
+    <step number="1">
+      <question>Does the API documentation mention pagination?</question>
+      <if_no>Don't add $pagination configuration</if_no>
+      <if_yes>Continue to step 2</if_yes>
+    </step>
+    <step number="2">
+      <question>How does the API indicate the next page?</question>
+      <option>
+        <answer>Uses page numbers (page=1, page=2, etc.)</answer>
+        <use_type>page</use_type>
+      </option>
+      <option>
+        <answer>Uses offset and limit (offset=0, offset=100, etc.)</answer>
+        <use_type>offset</use_type>
+      </option>
+      <option>
+        <answer>Provides cursor/token in response body</answer>
+        <use_type>cursor</use_type>
+      </option>
+      <option>
+        <answer>Provides next page URL in Link HTTP header</answer>
+        <use_type>link_header</use_type>
+      </option>
+      <option>
+        <answer>Provides next page URL in response body</answer>
+        <use_type>next_url</use_type>
+      </option>
+    </step>
+  </decision_tree>
+</pagination_guide>
+
+<!-- Made with Bob -->

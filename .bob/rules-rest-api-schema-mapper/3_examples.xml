@@ -85,10 +85,10 @@
       "first_flight": "DATE",
       "country": "VARCHAR",
       "company": "VARCHAR",
-      "height": "VARCHAR",
-      "diameter": "VARCHAR",
-      "mass": "VARCHAR",
-      "engines": "VARCHAR",
+      "height[]": {"meters":"VARCHAR","feet":"VARCHAR"},
+      "diameter[]": {"meters":"VARCHAR","feet":"VARCHAR"},
+      "mass[]": {"kg":"INTEGER","lb":"INTEGER"},
+      "engines[]": {"number":"INTEGER","type":"VARCHAR","version":"VARCHAR","layout":"VARCHAR"},
       "flickr_images": "VARCHAR"
     }
   }
@@ -119,8 +119,12 @@
       </decision>
       <decision>
         <field>height, diameter, mass, engines</field>
-        <type>VARCHAR</type>
-        <reason>Nested objects - stored as JSON strings</reason>
+        <type>Flattened Objects ([] suffix)</type>
+        <reason>
+          Fixed-structure nested objects marked with [] suffix.
+          Connector automatically flattens these into separate columns with dot notation.
+          For example, height[] creates columns: height.meters, height.feet
+        </reason>
       </decision>
       <decision>
         <field>flickr_images</field>
@@ -178,7 +182,8 @@
       "email": "VARCHAR",
       "created_at": "TIMESTAMP",
       "is_active": "BOOLEAN",
-      "profile": "VARCHAR"
+      "profile[]": {"first_name": "VARCHAR", "last_name": "VARCHAR", "avatar_url": "VARCHAR"}
+      }
     }
   }
 }
@@ -204,8 +209,11 @@
       </decision>
       <decision>
         <field>profile</field>
-        <type>VARCHAR</type>
-        <reason>Nested object - stored as JSON string</reason>
+        <type>Flattened Object ([] suffix)</type>
+        <reason>
+          Fixed-structure nested object with [] suffix.
+          Creates columns: profile.first_name, profile.last_name, profile.avatar_url
+        </reason>
       </decision>
     </mapping_decisions>
   </example>
@@ -364,8 +372,9 @@
   <example name="complex_nested_structures">
     <title>API with Complex Nested Structures</title>
     <description>
-      Demonstrates handling of deeply nested objects and arrays.
-      All nested structures are mapped as VARCHAR.
+      Demonstrates handling of nested objects and arrays.
+      Fixed-structure objects use [] suffix for flattening.
+      Arrays and variable-structure objects use VARCHAR.
     </description>
 
     <sample_response endpoint="/api/products">
@@ -423,7 +432,19 @@
       "id": "VARCHAR,$key",
       "name": "VARCHAR",
       "price": "DECIMAL",
-      "specifications": "VARCHAR",
+      "specifications[]": {
+        "dimensions[]": {
+          "width": "DECIMAL",
+          "height": "DECIMAL",
+          "depth": "DECIMAL",
+          "unit": "VARCHAR"
+        },
+        "weight[]": {
+          "value": "DECIMAL",
+          "unit": "VARCHAR"
+        },
+        "materials": "VARCHAR",
+      },
       "reviews": "VARCHAR",
       "variants": "VARCHAR"
     }
@@ -435,9 +456,12 @@
     <mapping_decisions>
       <decision>
         <field>specifications</field>
-        <type>VARCHAR</type>
-        <reason>Deeply nested object with multiple levels - stored as JSON string</reason>
-        <wrong>Do NOT try to flatten into specifications_dimensions_width, etc.</wrong>
+        <type>Flattened Object ([] suffix)</type>
+        <reason>
+          Fixed-structure nested object with two levels of nesting.
+          Creates columns like: specifications.dimensions.width, specifications.weight.value
+          The materials field (array) within specifications is stored as VARCHAR.
+        </reason>
       </decision>
       <decision>
         <field>reviews</field>
@@ -453,8 +477,14 @@
     </mapping_decisions>
 
     <important>
-      ALL nested objects and arrays MUST be mapped as VARCHAR.
-      The connector will store them as JSON strings that can be queried using JSON functions in SQL.
+      <rule>Fixed-structure nested objects should use [] suffix for automatic flattening</rule>
+      <rule>The connector creates separate columns with dot notation (e.g., object.field)</rule>
+      <rule>ALL arrays MUST be mapped as VARCHAR (stored as JSON strings)</rule>
+      <rule>Objects with varying structure or containing arrays should use VARCHAR</rule>
+      <example>
+        weight[]: {"value": "DECIMAL", "unit": "VARCHAR"}
+        → Creates columns: weight.value, weight.unit
+      </example>
     </important>
   </example>
 
@@ -520,6 +550,314 @@
       <if_changes_needed>Apply exact changes requested by user</if_changes_needed>
     </step>
   </workflow_example>
+
+  <example name="api_with_pagination">
+    <title>API with Page-Based Pagination</title>
+    <description>
+      GitHub API example demonstrating page-based pagination.
+      Most common pagination type used by REST APIs.
+    </description>
+
+    <api_info>
+      <base_url>https://api.github.com</base_url>
+      <authentication>oauth2</authentication>
+      <pagination_type>page</pagination_type>
+    </api_info>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "GitHub API Connector",
+  "$connector_label": "GitHub API",
+  "$connector_description": "Connector for GitHub REST API - provides access to repositories, issues, and more",
+  "$hostname": "https://api.github.com",
+  "$authentication": "oauth2",
+  "$tables": {
+    "REPOSITORIES": {
+      "$path": ["/user/repos"],
+      "$pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "initial_page": 1
+      },
+      "id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "full_name": "VARCHAR",
+      "private": "BOOLEAN",
+      "description": "VARCHAR",
+      "html_url": "VARCHAR",
+      "created_at": "TIMESTAMP",
+      "updated_at": "TIMESTAMP",
+      "size": "INTEGER",
+      "stargazers_count": "INTEGER",
+      "language": "VARCHAR"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$pagination</field>
+        <type>page-based</type>
+        <reason>
+          GitHub API uses page numbers for pagination.
+          Requests look like: ?page=1&per_page=100, ?page=2&per_page=100, etc.
+          Connector automatically fetches all pages until no more data is returned.
+        </reason>
+      </decision>
+      <decision>
+        <field>page_size</field>
+        <value>100</value>
+        <reason>GitHub API allows up to 100 items per page - using maximum for better performance</reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="api_with_cursor_pagination">
+    <title>API with Cursor-Based Pagination</title>
+    <description>
+      Example demonstrating cursor-based pagination where the API
+      provides an opaque token to fetch the next page.
+    </description>
+
+    <api_info>
+      <base_url>https://api.example.com</base_url>
+      <authentication>api_key</authentication>
+      <pagination_type>cursor</pagination_type>
+    </api_info>
+
+    <sample_response endpoint="/api/events">
+      <![CDATA[
+{
+  "data": [
+    {"id": 1, "name": "Event 1", "timestamp": "2023-01-15T10:00:00Z"},
+    {"id": 2, "name": "Event 2", "timestamp": "2023-01-15T11:00:00Z"}
+  ],
+  "pagination": {
+    "next_cursor": "eyJpZCI6Mn0",
+    "has_more": true
+  }
+}
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "Events API Connector",
+  "$connector_label": "Events API",
+  "$connector_description": "Connector for Events API with cursor-based pagination",
+  "$hostname": "https://api.example.com",
+  "$authentication": "api_key",
+  "$tables": {
+    "EVENTS": {
+      "$path": ["/api/events"],
+      "$data_path": "data",
+      "$pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "next_cursor_path": "pagination.next_cursor",
+        "page_size": 100
+      },
+      "id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "timestamp": "TIMESTAMP"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$pagination.type</field>
+        <value>cursor</value>
+        <reason>API provides opaque cursor token in response for next page</reason>
+      </decision>
+      <decision>
+        <field>$pagination.next_cursor_path</field>
+        <value>pagination.next_cursor</value>
+        <reason>
+          Uses dot notation to navigate to cursor in response.
+          Response structure: {"data": [...], "pagination": {"next_cursor": "..."}}
+          Path "pagination.next_cursor" extracts the cursor value.
+        </reason>
+      </decision>
+      <decision>
+        <field>$data_path</field>
+        <value>data</value>
+        <reason>Actual data array is nested under "data" key in response</reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="api_with_offset_pagination">
+    <title>API with Offset-Based Pagination</title>
+    <description>
+      Example demonstrating offset-based pagination using numeric
+      offset and limit parameters.
+    </description>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "Products API Connector",
+  "$connector_label": "Products API",
+  "$connector_description": "Connector for Products API with offset-based pagination",
+  "$hostname": "https://api.example.com",
+  "$authentication": "none",
+  "$tables": {
+    "PRODUCTS": {
+      "$path": ["/api/products"],
+      "$pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "initial_offset": 0
+      },
+      "product_id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "price": "DECIMAL",
+      "category": "VARCHAR",
+      "in_stock": "BOOLEAN"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$pagination.type</field>
+        <value>offset</value>
+        <reason>
+          API uses numeric offset for pagination.
+          Requests: ?offset=0&limit=100, ?offset=100&limit=100, etc.
+        </reason>
+      </decision>
+      <decision>
+        <field>initial_offset</field>
+        <value>0</value>
+        <reason>Most APIs start at offset 0 (some may start at 1)</reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="combined_features">
+    <title>API with All Features Combined</title>
+    <description>
+      Demonstrates using $data_path, $pagination, and object flattening together.
+      Shows how all features work together in a real-world scenario.
+    </description>
+
+    <sample_response endpoint="/api/products">
+      <![CDATA[
+{
+  "status": "success",
+  "result": {
+    "items": [
+      {
+        "id": 1,
+        "name": "Widget Pro",
+        "price": {
+          "amount": 99.99,
+          "currency": "USD"
+        },
+        "dimensions": {
+          "width": 10,
+          "height": 5,
+          "depth": 3,
+          "unit": "cm"
+        },
+        "tags": ["electronics", "gadgets"]
+      }
+    ],
+    "pagination": {
+      "current_page": 1,
+      "total_pages": 10,
+      "next_cursor": "abc123"
+    }
+  }
+}
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "Advanced Products API",
+  "$connector_label": "Products API",
+  "$connector_description": "Full-featured connector demonstrating all capabilities",
+  "$hostname": "https://api.example.com",
+  "$authentication": "api_key",
+  "$tables": {
+    "PRODUCTS": {
+      "$path": ["/api/products"],
+      "$data_path": "result.items",
+      "$pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "next_cursor_path": "result.pagination.next_cursor"
+      },
+      "id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "price[]": {
+        "amount": "DECIMAL",
+        "currency": "VARCHAR"
+      },
+      "dimensions[]": {
+        "width": "INTEGER",
+        "height": "INTEGER",
+        "depth": "INTEGER",
+        "unit": "VARCHAR"
+      },
+      "tags": "VARCHAR"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$data_path</field>
+        <value>result.items</value>
+        <reason>Data array is nested: response.result.items</reason>
+      </decision>
+      <decision>
+        <field>$pagination</field>
+        <type>cursor</type>
+        <reason>
+          API uses cursor-based pagination.
+          Cursor is at: response.result.pagination.next_cursor
+        </reason>
+      </decision>
+      <decision>
+        <field>price, dimensions</field>
+        <type>Flattened Objects</type>
+        <reason>
+          Fixed-structure objects flattened with [] suffix.
+          Creates columns: price.amount, price.currency, dimensions.width, etc.
+        </reason>
+      </decision>
+      <decision>
+        <field>tags</field>
+        <type>VARCHAR</type>
+        <reason>Array stored as JSON string</reason>
+      </decision>
+    </mapping_decisions>
+
+    <important>
+      This example shows how $data_path, $pagination, and object flattening
+      work together seamlessly. All three features are independent and can
+      be used in any combination as needed.
+    </important>
+  </example>
 </configuration_examples>
 
 <!-- Made with Bob -->
