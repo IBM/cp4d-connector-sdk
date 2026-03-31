@@ -1,0 +1,104 @@
+{
+  "$connector_name": "jsonplaceholder",
+  "$connector_label": "JSONPlaceholder API",
+  "$connector_description": "Free fake REST API for testing - https://jsonplaceholder.typicode.com",
+  "$hostname": "https://jsonplaceholder.typicode.com",
+  "$authentication": "none",
+  "$tables": {
+    "POSTS": {
+        "$path": ["/posts"],
+        "$pagination": {
+            "type": "page",
+            "page_param": "_page",
+            "limit_param": "_limit",
+            "page_size": 10,
+            "initial_page": 1
+        },
+        "userId": "INTEGER",
+        "id": "INTEGER",
+        "title": "VARCHAR(500)",
+        "body": "VARCHAR(5000)"
+    },
+    "COMMENTS": {
+        "$path": ["/comments"],
+        "$pagination": {
+        "type": "page",
+        "page_param": "_page",
+        "limit_param": "_limit",
+        "page_size": 20,
+        "initial_page": 1
+        },
+        "postId": "INTEGER",
+        "id": "INTEGER",
+        "name": "VARCHAR(500)",
+        "email": "VARCHAR(200)",
+        "body": "VARCHAR(5000)"
+    },
+    "USERS": {
+        "$path": ["/users"],
+        "id": "INTEGER",
+        "name": "VARCHAR(200)",
+        "username": "VARCHAR(100)",
+        "email": "VARCHAR(200)",
+        "address[]": {
+        "street": "VARCHAR(200)",
+        "suite": "VARCHAR(100)",
+        "city": "VARCHAR(100)",
+        "zipcode": "VARCHAR(20)",
+        "geo[]": {
+            "lat": "VARCHAR(50)",
+            "lng": "VARCHAR(50)"
+        }
+        },
+        "phone": "VARCHAR(100)",
+        "website": "VARCHAR(200)",
+        "company[]": {
+        "name": "VARCHAR(200)",
+        "catchPhrase": "VARCHAR(500)",
+        "bs": "VARCHAR(500)"
+        }
+    },
+    "TODOS": {
+        "$path": ["/todos"],
+        "$pagination": {
+        "type": "page",
+        "page_param": "_page",
+        "limit_param": "_limit",
+        "page_size": 20,
+        "initial_page": 1
+        },
+        "userId": "INTEGER",
+        "id": "INTEGER",
+        "title": "VARCHAR(500)",
+        "completed": "BOOLEAN"
+    },
+    "ALBUMS": {
+        "$path": ["/albums"],
+        "$pagination": {
+        "type": "page",
+        "page_param": "_page",
+        "limit_param": "_limit",
+        "page_size": 10,
+        "initial_page": 1
+        },
+        "userId": "INTEGER",
+        "id": "INTEGER",
+        "title": "VARCHAR(500)"
+    },
+    "PHOTOS": {
+        "$path": ["/photos"],
+        "$pagination": {
+        "type": "page",
+        "page_param": "_page",
+        "limit_param": "_limit",
+        "page_size": 50,
+        "initial_page": 1
+        },
+        "albumId": "INTEGER",
+        "id": "INTEGER",
+        "title": "VARCHAR(500)",
+        "url": "VARCHAR(500)",
+        "thumbnailUrl": "VARCHAR(500)"
+    }
+  }
+}
