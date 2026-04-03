@@ -1,6 +1,6 @@
 /* *************************************************** */
 
-/* (C) Copyright IBM Corp. 2025                        */
+/* (C) Copyright IBM Corp. 2026                        */
 
 /* *************************************************** */
 package com.ibm.connect.restconnector;
