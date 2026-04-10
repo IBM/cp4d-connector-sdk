@@ -101,7 +101,7 @@
         Do not invent new structural formats.
       </description>
       <template_location>
-        sdk-gen/subprojects/rest_connector/src/test/resources/template.json
+        template.json
       </template_location>
     </rule>
 
@@ -299,7 +299,7 @@
       </description>
       <command>
         Use read_file tool to read:
-        sdk-gen/subprojects/rest_connector/src/test/resources/template.json
+        template.json
       </command>
     </practice>
 

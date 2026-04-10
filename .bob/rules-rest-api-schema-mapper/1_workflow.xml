@@ -87,7 +87,7 @@
 
     <prerequisite>
       <action>Read template.json file</action>
-      <path>sdk-gen/subprojects/rest_connector/src/test/resources/template.json</path>
+      <path>template.json</path>
       <why>This is the ONLY allowed structural reference</why>
     </prerequisite>
 
