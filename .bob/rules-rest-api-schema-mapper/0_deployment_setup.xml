@@ -74,15 +74,18 @@
         <action priority="2">
           <name>Inform User About Codeless Option</name>
           <message>
-            The codeless option will use a pre-built Docker image from the repository.
+            The codeless option will use a pre-built Docker image from Docker Hub.
             
-            Note: The Docker image download functionality is not yet implemented.
-            This is a placeholder for future implementation.
+            Docker Image: marek02/connectors-forge:latest
             
-            For now, the project structure has been created at:
+            This pre-built image contains all necessary components to run your REST API connectors.
+            When you proceed to deployment (Phase 5), you will use this image instead of building your own.
+            
+            The project structure has been created at:
             sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
             
-            Your DSL configuration files will be stored in this location.
+            Your DSL configuration files will be stored in this location and will be used
+            with the pre-built Docker image during deployment.
           </message>
         </action>
 
@@ -297,7 +300,7 @@
     <rule>This phase MUST be completed before any API configuration work begins</rule>
     <rule>Do not skip deployment option selection</rule>
     <rule>Always create the project structure before proceeding</rule>
-    <rule>For codeless option, inform user about placeholder status</rule>
+    <rule>For codeless option, inform user about pre-built Docker image (marek02/connectors-forge:latest)</rule>
     <rule>For developer option, respect user's choice between auto and manual generation</rule>
     <rule>All DSL files go to: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</rule>
     <rule>After setup is complete, proceed immediately to Phase 1</rule>
@@ -305,8 +308,8 @@
 
   <important_notes>
     <note>
-      The codeless option (Docker image download) is a placeholder for future implementation.
-      Currently, it only creates the directory structure.
+      The codeless option uses a pre-built Docker image (marek02/connectors-forge:latest) from Docker Hub.
+      This image will be used during deployment instead of building a custom image.
     </note>
     <note>
       The Gradle task 'generateJavaConnectorsForgeRest' must be run from the sdk-gen directory.
