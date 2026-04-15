@@ -1,0 +1,507 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<deployment_execution_phase>
+  <overview>
+    This phase handles the final deployment of the REST connector(s) after all DSL configuration
+    files have been created. It provides four deployment options: Local (Docker), Serverless,
+    Self-hosted Server, and OpenShift.
+  </overview>
+
+  <phase_4_multiple_connectors>
+    <title>Multiple Connectors Check</title>
+    <description>
+      After completing Phase 3 (Presentation & Confirmation) for a connector,
+      ask if the user wants to create additional connectors.
+    </description>
+
+    <step_1_ask_additional_connectors>
+      <title>Ask About Additional Connectors</title>
+      <when>After successfully creating and confirming a connector configuration</when>
+      
+      <question>
+        Would you like to create another REST API connector configuration?
+      </question>
+
+      <options>
+        <option name="yes">
+          <label>Yes, create another connector</label>
+          <action>Return to Phase 1 (API Discovery & Analysis) to create another connector</action>
+          <note>All connectors will be stored in the same resources directory</note>
+        </option>
+        
+        <option name="no">
+          <label>No, proceed to deployment</label>
+          <action>Continue to Phase 5 (Deployment Option Selection)</action>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly:
+        1. Yes - Create another connector (returns to Phase 1)
+        2. No - Proceed to deployment
+      </presentation_format>
+    </step_1_ask_additional_connectors>
+
+    <loop_behavior>
+      <description>
+        If user chooses to create another connector, repeat Phases 1-3 for the new connector.
+        Continue asking after each connector until user chooses to proceed to deployment.
+      </description>
+      <note>
+        Multiple connectors can be packaged together in a single deployment.
+        All DSL files in sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+        will be included in the deployment.
+      </note>
+    </loop_behavior>
+  </phase_4_multiple_connectors>
+
+  <phase_5_deployment_option_selection>
+    <title>Deployment Option Selection</title>
+    <description>
+      Present four deployment options and guide the user through the selected deployment process.
+    </description>
+
+    <step_1_present_deployment_options>
+      <title>Present Deployment Options</title>
+      
+      <question>
+        How would you like to deploy your REST API connector(s)?
+      </question>
+
+      <options>
+        <option name="local">
+          <number>1</number>
+          <label>Local Docker Deployment</label>
+          <description>
+            Build and run Docker container on your local machine.
+            Best for: Testing and manual verification of connectors.
+          </description>
+          <use_case>Development, testing, local verification</use_case>
+        </option>
+
+        <option name="serverless">
+          <number>2</number>
+          <label>Serverless Deployment</label>
+          <description>
+            Deploy Docker container to a serverless platform.
+            Best for: As-a-service solutions with automatic scaling.
+          </description>
+          <use_case>Cloud-native, as-a-service deployments</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+
+        <option name="self_hosted">
+          <number>3</number>
+          <label>Self-Hosted Server Deployment</label>
+          <description>
+            Deploy Docker container to your own server infrastructure.
+            Best for: As-a-service solutions with full control.
+          </description>
+          <use_case>Custom infrastructure, as-a-service with control</use_case>
+        </option>
+
+        <option name="openshift">
+          <number>4</number>
+          <label>OpenShift Deployment</label>
+          <description>
+            Deploy container to OpenShift platform.
+            Best for: On-premises enterprise deployments.
+          </description>
+          <use_case>Enterprise on-premises solutions</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present all four options with clear numbering and descriptions.
+        Indicate which options are placeholders (not yet implemented).
+      </presentation_format>
+    </step_1_present_deployment_options>
+
+    <step_2_handle_local_deployment>
+      <title>Local Docker Deployment</title>
+      <when>User selects option 1 (Local)</when>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run all necessary Gradle tasks to build and start the Docker container</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic Local Deployment</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen</name>
+            <command>cd sdk-gen</command>
+            <note>All Gradle tasks must be run from the sdk-gen directory</note>
+          </action>
+
+          <action priority="2">
+            <name>Build Project</name>
+            <command>./gradlew build</command>
+            <description>Compiles the project and runs tests</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>This may take several minutes on first run</note>
+          </action>
+
+          <action priority="3">
+            <name>Generate Flight Application</name>
+            <command>./gradlew generateFlightApp</command>
+            <description>Generates the Flight service application with all connectors</description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="4">
+            <name>Build Docker Image</name>
+            <command>./gradlew dockerBuild</command>
+            <description>Creates Docker image containing the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Requires Docker to be installed and running</note>
+          </action>
+
+          <action priority="5">
+            <name>Start Docker Container</name>
+            <command>./gradlew dockerStart</command>
+            <description>Starts the Docker container with the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Container will run in the background</note>
+          </action>
+
+          <action priority="6">
+            <name>Verify Deployment</name>
+            <description>
+              Confirm that the container is running successfully.
+              The connector(s) should now be accessible via the Flight service.
+            </description>
+          </action>
+
+          <action priority="7">
+            <name>Inform User</name>
+            <message>
+              Local deployment complete!
+              
+              Your REST API connector(s) are now running in a Docker container.
+              The Flight service is accessible and ready to use.
+              
+              To stop the container, run: ./gradlew dockerStop (from sdk-gen directory)
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_build_fails>
+            <action>Report the error details to the user</action>
+            <action>Suggest checking build logs for specific issues</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_build_fails>
+          
+          <if_docker_not_running>
+            <action>Inform user that Docker must be installed and running</action>
+            <action>Provide instructions to start Docker</action>
+          </if_docker_not_running>
+        </error_handling>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual Local Deployment Instructions</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) locally using Docker, follow these steps:
+
+          1. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          2. Build the project:
+             ./gradlew build
+             
+             This compiles the project and runs tests. May take several minutes on first run.
+
+          3. Generate the Flight application:
+             ./gradlew generateFlightApp
+             
+             This generates the Flight service application with all your connectors.
+
+          4. Build the Docker image:
+             ./gradlew dockerBuild
+             
+             This creates a Docker image containing your connector(s).
+             Note: Docker must be installed and running on your machine.
+
+          5. Start the Docker container:
+             ./gradlew dockerStart
+             
+             This starts the container with your connector(s) running.
+
+          6. Verify the deployment:
+             The connector(s) should now be accessible via the Flight service.
+
+          To stop the container later, run:
+             ./gradlew dockerStop
+
+          Let me know once you've completed these steps or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment steps
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+    </step_2_handle_local_deployment>
+
+    <step_3_handle_serverless_deployment>
+      <title>Serverless Deployment</title>
+      <when>User selects option 2 (Serverless)</when>
+
+      <placeholder_notice>
+        <message>
+          Serverless deployment is not yet implemented.
+          
+          This is a placeholder for future functionality. When implemented, this option will:
+          - Build the Docker image with your connector(s)
+          - Deploy the image to a serverless platform (e.g., AWS Lambda, Google Cloud Run, Azure Functions)
+          - Configure automatic scaling and endpoint management
+          - Provide the service URL for accessing your connector(s)
+          
+          For now, please choose one of the other deployment options:
+          - Option 1: Local Docker Deployment (for testing)
+          - Option 3: Self-Hosted Server Deployment (for production)
+        </message>
+      </placeholder_notice>
+
+      <future_implementation>
+        <description>
+          When implemented, this section will include:
+          - Cloud provider selection 
+          - Authentication and credentials configuration
+          - Serverless platform-specific deployment commands
+          - Endpoint URL generation and configuration
+          - Monitoring and logging setup
+        </description>
+      </future_implementation>
+    </step_3_handle_serverless_deployment>
+
+    <step_4_handle_self_hosted_deployment>
+      <title>Self-Hosted Server Deployment</title>
+      <when>User selects option 3 (Self-Hosted)</when>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the deployment script, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute script for me</label>
+            <description>I will run the deployment script to deploy to your server</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with instructions to run the script</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic Self-Hosted Deployment</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Execute Deployment Script</name>
+            <command>sdk-gen/subprojects/java/connectors_forge_rest/deploy-container.sh</command>
+            <description>
+              Runs the deployment script that handles:
+              - Building the Docker image
+              - Pushing to container registry (if configured)
+              - Deploying to the target server
+              - Configuring networking and access
+            </description>
+            <note>Script must have execute permissions (chmod +x)</note>
+          </action>
+
+          <action priority="2">
+            <name>Monitor Deployment</name>
+            <description>
+              Monitor the script output for successful deployment confirmation.
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Verify Deployment</name>
+            <description>
+              Confirm that the connector(s) are accessible on the target server.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Self-hosted deployment complete!
+              
+              Your REST API connector(s) have been deployed to your server.
+              The deployment script has configured the necessary networking and access.
+              
+              Check the script output for the service endpoint URL.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_script_fails>
+            <action>Report the error details from script output</action>
+            <action>Check if server credentials are configured correctly</action>
+            <action>Verify network connectivity to target server</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_script_fails>
+        </error_handling>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual Self-Hosted Deployment Instructions</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) to your self-hosted server, follow these steps:
+
+          1. Ensure the deployment script has execute permissions:
+             chmod +x sdk-gen/subprojects/java/connectors_forge_rest/deploy-container.sh
+
+          2. Run the deployment script:
+             sdk-gen/subprojects/java/connectors_forge_rest/deploy-container.sh
+
+          The script will:
+          - Build the Docker image with your connector(s)
+          - Push the image to your container registry (if configured)
+          - Deploy the container to your target server
+          - Configure networking and access
+
+          Prerequisites:
+          - Docker installed on your machine
+          - Access credentials configured for your target server
+          - Container registry credentials (if using a registry)
+          - Network connectivity to the target server
+
+          The script will output the service endpoint URL upon successful deployment.
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+    </step_4_handle_self_hosted_deployment>
+
+    <step_5_handle_openshift_deployment>
+      <title>OpenShift Deployment</title>
+      <when>User selects option 4 (OpenShift)</when>
+
+      <placeholder_notice>
+        <message>
+          OpenShift deployment is not yet implemented.
+          
+          This is a placeholder for future functionality. When implemented, this option will:
+          - Build the Docker image with your connector(s)
+          - Create OpenShift deployment configurations
+          - Deploy to your OpenShift cluster
+          - Configure routes and services
+          - Set up monitoring and logging
+          - Provide the route URL for accessing your connector(s)
+          
+          For now, please choose one of the other deployment options:
+          - Option 1: Local Docker Deployment (for testing)
+          - Option 3: Self-Hosted Server Deployment (for production)
+        </message>
+      </placeholder_notice>
+
+      <future_implementation>
+        <description>
+          When implemented, this section will include:
+          - OpenShift cluster connection configuration
+          - Project/namespace selection
+          - BuildConfig and DeploymentConfig creation
+          - Service and Route configuration
+          - ImageStream setup
+          - Resource limits and scaling configuration
+          - Health checks and readiness probes
+        </description>
+      </future_implementation>
+    </step_5_handle_openshift_deployment>
+  </phase_5_deployment_option_selection>
+
+  <completion>
+    <title>Deployment Complete</title>
+    <description>
+      After successful deployment, provide summary and next steps.
+    </description>
+
+    <summary_information>
+      <include>
+        <item>Number of connectors deployed</item>
+        <item>Deployment type used</item>
+        <item>Service endpoint URL (if applicable)</item>
+        <item>How to access and test the connector(s)</item>
+        <item>How to stop/manage the deployment</item>
+      </include>
+    </summary_information>
+
+    <next_steps>
+      <step>Test the connector(s) by making API calls through the Flight service</step>
+      <step>Monitor logs for any issues</step>
+      <step>Configure client applications to use the connector endpoint</step>
+    </next_steps>
+  </completion>
+
+  <behavioral_rules>
+    <rule>Always ask about additional connectors after completing each configuration</rule>
+    <rule>Present all four deployment options clearly, indicating placeholders</rule>
+    <rule>For implemented options (Local, Self-Hosted), offer automatic or manual execution</rule>
+    <rule>For placeholder options (Serverless, OpenShift), explain future functionality</rule>
+    <rule>Execute Gradle tasks sequentially, waiting for each to complete</rule>
+    <rule>All Gradle tasks must be run from the sdk-gen directory</rule>
+    <rule>Provide clear error messages and recovery options</rule>
+    <rule>Confirm successful deployment before completing</rule>
+  </behavioral_rules>
+
+  <important_notes>
+    <note>
+      Multiple connectors can be created and deployed together in a single container.
+      All DSL files in the resources directory will be included.
+    </note>
+    <note>
+      Local deployment requires Docker to be installed and running on the user's machine.
+    </note>
+    <note>
+      Self-hosted deployment requires proper server credentials and network access.
+    </note>
+    <note>
+      Serverless and OpenShift deployments are placeholders for future implementation.
+    </note>
+    <note>
+      The deployment script (deploy-container.sh) must have execute permissions.
+    </note>
+  </important_notes>
+</deployment_execution_phase>
+
+<!-- Made with Bob -->

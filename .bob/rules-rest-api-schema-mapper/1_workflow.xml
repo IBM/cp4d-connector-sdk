@@ -4,7 +4,66 @@
     This mode guides you through creating JSON configuration files (connector descriptors) for REST APIs
     to be used with the CP4D REST Connector SDK. The configuration maps REST API endpoints to relational
     table schemas that can be queried using SQL.
+    
+    IMPORTANT: The workflow begins with Phase 0 (Deployment Setup) which MUST be completed first.
+    See 0_deployment_setup.xml for deployment option selection and project structure setup.
   </mode_overview>
+
+  <workflow_phases>
+    <phase number="0">
+      <name>Deployment Setup</name>
+      <file>0_deployment_setup.xml</file>
+      <description>
+        Select deployment option (codeless or developer) and set up project structure.
+        This phase MUST be completed before proceeding to API discovery.
+      </description>
+      <required>true</required>
+    </phase>
+    
+    <phase number="1">
+      <name>API Discovery & Analysis</name>
+      <file>1_workflow.xml (this file)</file>
+      <description>
+        Gather API information and analyze endpoint structures.
+      </description>
+    </phase>
+    
+    <phase number="2">
+      <name>Configuration Generation</name>
+      <file>1_workflow.xml (this file)</file>
+      <description>
+        Generate JSON configuration files based on API analysis.
+      </description>
+    </phase>
+    
+    <phase number="3">
+      <name>Presentation & Confirmation</name>
+      <file>1_workflow.xml (this file)</file>
+      <description>
+        Present configuration and gather user feedback.
+      </description>
+    </phase>
+    
+    <phase number="4">
+      <name>Multiple Connectors Check</name>
+      <file>6_deployment_execution.xml</file>
+      <description>
+        Ask if user wants to create additional connectors.
+        If yes, return to Phase 1. If no, proceed to Phase 5.
+      </description>
+      <loop>Can repeat Phases 1-3 for multiple connectors</loop>
+    </phase>
+    
+    <phase number="5">
+      <name>Deployment Execution</name>
+      <file>6_deployment_execution.xml</file>
+      <description>
+        Select and execute deployment option: Local Docker, Serverless, Self-Hosted, or OpenShift.
+        Build and deploy the connector(s) to the chosen environment.
+      </description>
+      <required>true</required>
+    </phase>
+  </workflow_phases>
 
   <phase_1_discovery>
     <title>API Discovery & Analysis</title>
@@ -293,6 +352,18 @@
   <phase_3_presentation>
     <title>Presentation & Confirmation</title>
     
+    <file_storage_location>
+      <description>
+        All generated JSON configuration files must be stored in the location
+        determined during Phase 0 (Deployment Setup).
+      </description>
+      <path>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</path>
+      <note>
+        This location is the same regardless of deployment option chosen
+        (codeless or developer).
+      </note>
+    </file_storage_location>
+    
     <steps>
       <step number="1">
         <action>Present the complete JSON configuration file</action>
@@ -317,6 +388,21 @@
       <step number="4">
         <action>Apply requested changes precisely</action>
         <important>Do not reinterpret requirements - make exact changes requested</important>
+      </step>
+      
+      <step number="5">
+        <action>Save configuration file to correct location</action>
+        <path>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/[connector-name].json</path>
+        <note>Use descriptive filename based on API name (e.g., spacex-api.json, github-api.json)</note>
+      </step>
+      
+      <step number="6">
+        <action>Proceed to Phase 4 (Multiple Connectors Check)</action>
+        <file>6_deployment_execution.xml</file>
+        <description>
+          After successfully saving the configuration file, proceed to Phase 4 to ask
+          if the user wants to create additional connectors or proceed to deployment.
+        </description>
       </step>
     </steps>
   </phase_3_presentation>
