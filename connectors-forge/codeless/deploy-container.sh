@@ -148,6 +148,11 @@ parse_arguments() {
                     CONFIG_FILES+=("$1")
                     shift
                 done
+                # Validate that at least one file was collected
+                if [ ${#CONFIG_FILES[@]} -eq 0 ]; then
+                    log_error "No files provided after --files argument"
+                    usage
+                fi
                 ;;
             --port)
                 PORT="$2"
@@ -189,7 +194,7 @@ parse_arguments() {
 # ============================================
 
 validate_inputs() {
-    log_step "1/7" "Validating inputs..."
+    log_step "1/8" "Validating inputs..."
 
     # Check if all config files exist
     local file_count=0
@@ -238,25 +243,18 @@ check_container_exists() {
 find_container_by_port() {
     local port="$1"
     
-    # Get all containers
-    local response=$(curl -s "http://${DOCKER_HOST}/containers/json?all=true")
-    
-    # Parse through containers to find one using the specified host port
-    local container_id=""
-    
-    # Extract container IDs from response
-    echo "$response" | grep -o '"Id":"[^"]*"' | while read -r line; do
-        local id=$(echo "$line" | sed 's/"Id":"\([^"]*\)"/\1/')
-        
-        # Get detailed info for this container
-        local container_info=$(curl -s "http://${DOCKER_HOST}/containers/${id}/json")
-        
-        # Check if this container uses our port
-        if echo "$container_info" | grep -q "\"HostPort\":\"${port}\""; then
-            echo "$id"
-            return 0
-        fi
-    done
+    # Get all containers with port information already included and scan once
+    curl -s "http://${DOCKER_HOST}/containers/json?all=true" | awk -v port="$port" '
+        BEGIN {
+            RS="\\},\\{"
+        }
+        $0 ~ "\"PublicPort\":" port {
+            if (match($0, /"Id":"[^"]*"/)) {
+                print substr($0, RSTART + 6, RLENGTH - 7)
+                exit
+            }
+        }
+    '
 }
 
 stop_container() {
@@ -347,14 +345,12 @@ create_tar_archive() {
     
     # Copy all config files to mappings subdirectory
     # Use COPYFILE_DISABLE to prevent macOS from creating ._* files during copy
-    local file_list=()
     for file in "${CONFIG_FILES[@]}"; do
         if [[ "$OSTYPE" == "darwin"* ]]; then
             COPYFILE_DISABLE=1 cp "$file" "$TEMP_DIR/mappings/"
         else
             cp "$file" "$TEMP_DIR/mappings/"
         fi
-        file_list+=($(basename "$file"))
     done
         
     log "Copying ${#CONFIG_FILES[@]} file(s) to archive in mappings/ directory"
