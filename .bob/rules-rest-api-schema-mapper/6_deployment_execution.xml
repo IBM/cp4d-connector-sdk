@@ -1,0 +1,1053 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<deployment_execution_phase>
+  <overview>
+    This phase handles the final deployment of the REST connector(s) after all DSL configuration
+    files have been created. It provides four deployment options: Local (Docker), Serverless,
+    Self-hosted Server, and OpenShift.
+  </overview>
+
+  <phase_4_multiple_connectors>
+    <title>Multiple Connectors Check</title>
+    <description>
+      After completing Phase 3 (Presentation & Confirmation) for a connector,
+      ask if the user wants to create additional connectors.
+    </description>
+
+    <step_1_ask_additional_connectors>
+      <title>Ask About Additional Connectors</title>
+      <when>After successfully creating and confirming a connector configuration</when>
+      
+      <question>
+        Would you like to create another REST API connector configuration?
+      </question>
+
+      <options>
+        <option name="yes">
+          <label>Yes, create another connector</label>
+          <action>Return to Phase 1 (API Discovery & Analysis) to create another connector</action>
+          <note>All connectors will be stored in the same resources directory</note>
+        </option>
+        
+        <option name="no">
+          <label>No, proceed to deployment</label>
+          <action>Continue to Phase 5 (Deployment Option Selection)</action>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly:
+        1. Yes - Create another connector (returns to Phase 1)
+        2. No - Proceed to deployment
+      </presentation_format>
+    </step_1_ask_additional_connectors>
+
+    <loop_behavior>
+      <description>
+        If user chooses to create another connector, repeat Phases 1-3 for the new connector.
+        Continue asking after each connector until user chooses to proceed to deployment.
+      </description>
+      <note>
+        Multiple connectors can be packaged together in a single deployment.
+        All DSL files in sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+        will be included in the deployment.
+      </note>
+    </loop_behavior>
+  </phase_4_multiple_connectors>
+
+  <phase_5_deployment_option_selection>
+    <title>Deployment Option Selection</title>
+    <description>
+      Present four deployment options and guide the user through the selected deployment process.
+    </description>
+
+    <step_1_present_deployment_options>
+      <title>Present Deployment Options</title>
+      
+      <question>
+        How would you like to deploy your REST API connector(s)?
+      </question>
+
+      <important_note>
+        The deployment options presented depend on the deployment type chosen in Phase 0:
+        - Developer option: Shows all 4 deployment options (Local, Serverless, Self-Hosted, OpenShift)
+        - Codeless option: Shows only 3 deployment options (Serverless, Self-Hosted, OpenShift)
+          Local deployment is not available for codeless option as it requires building custom Docker image.
+      </important_note>
+
+      <options_for_developer>
+        <title>Options when Developer deployment type was chosen in Phase 0</title>
+        
+        <option name="local">
+          <number>1</number>
+          <label>Local Docker Deployment</label>
+          <description>
+            Build and run Docker container on your local machine.
+            Best for: Testing and manual verification of connectors.
+          </description>
+          <use_case>Development, testing, local verification</use_case>
+          <available_for>Developer option only</available_for>
+        </option>
+
+        <option name="serverless">
+          <number>2</number>
+          <label>Serverless Deployment</label>
+          <description>
+            Deploy Docker container to a serverless platform.
+            Best for: As-a-service solutions with automatic scaling.
+          </description>
+          <use_case>Cloud-native, as-a-service deployments</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+
+        <option name="self_hosted">
+          <number>3</number>
+          <label>Self-Hosted Server Deployment</label>
+          <description>
+            Deploy Docker container to your own server infrastructure.
+            Best for: As-a-service solutions with full control.
+          </description>
+          <use_case>Custom infrastructure, as-a-service with control</use_case>
+        </option>
+
+        <option name="openshift">
+          <number>4</number>
+          <label>OpenShift Deployment</label>
+          <description>
+            Deploy container to OpenShift platform.
+            Best for: On-premises enterprise deployments.
+          </description>
+          <use_case>Enterprise on-premises solutions</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+      </options_for_developer>
+
+      <options_for_codeless>
+        <title>Options when Codeless deployment type was chosen in Phase 0</title>
+        <note>Local Docker deployment is not available - codeless uses pre-built image (marek02/connectors-forge:latest)</note>
+        
+        <option name="serverless">
+          <number>1</number>
+          <label>Serverless Deployment</label>
+          <description>
+            Deploy pre-built Docker container to a serverless platform.
+            Best for: As-a-service solutions with automatic scaling.
+          </description>
+          <use_case>Cloud-native, as-a-service deployments</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+
+        <option name="self_hosted">
+          <number>2</number>
+          <label>Self-Hosted Server Deployment</label>
+          <description>
+            Deploy pre-built Docker container to your own server infrastructure.
+            Best for: As-a-service solutions with full control.
+          </description>
+          <use_case>Custom infrastructure, as-a-service with control</use_case>
+        </option>
+
+        <option name="openshift">
+          <number>3</number>
+          <label>OpenShift Deployment</label>
+          <description>
+            Deploy pre-built container to OpenShift platform.
+            Best for: On-premises enterprise deployments.
+          </description>
+          <use_case>Enterprise on-premises solutions</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+      </options_for_codeless>
+
+      <presentation_format>
+        - For Developer option: Present all four deployment options with clear numbering
+        - For Codeless option: Present only three deployment options (exclude Local Docker)
+        - Renumber options for codeless (1-3 instead of 2-4)
+        - Indicate which options are placeholders (not yet implemented)
+        - Explain that codeless uses pre-built image marek02/connectors-forge:latest
+      </presentation_format>
+    </step_1_present_deployment_options>
+
+    <step_2_handle_local_deployment>
+      <title>Local Docker Deployment</title>
+      <when>User selects option 1 (Local)</when>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run all necessary Gradle tasks to build and start the Docker container</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic Local Deployment</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen</name>
+            <command>cd sdk-gen</command>
+            <note>All Gradle tasks must be run from the sdk-gen directory</note>
+          </action>
+
+          <action priority="2">
+            <name>Build Project</name>
+            <command>./gradlew build</command>
+            <description>Compiles the project and runs tests</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>This may take several minutes on first run</note>
+          </action>
+
+          <action priority="3">
+            <name>Generate Flight Application</name>
+            <command>./gradlew generateFlightApp</command>
+            <description>Generates the Flight service application with all connectors</description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="4">
+            <name>Build Docker Image</name>
+            <command>./gradlew dockerBuild</command>
+            <description>Creates Docker image containing the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Requires Docker to be installed and running</note>
+          </action>
+
+          <action priority="5">
+            <name>Start Docker Container</name>
+            <command>./gradlew dockerStart</command>
+            <description>Starts the Docker container with the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Container will run in the background</note>
+          </action>
+
+          <action priority="6">
+            <name>Verify Deployment</name>
+            <description>
+              Confirm that the container is running successfully.
+              The connector(s) should now be accessible via the Flight service.
+            </description>
+          </action>
+
+          <action priority="7">
+            <name>Inform User</name>
+            <message>
+              Local deployment complete!
+              
+              Your REST API connector(s) are now running in a Docker container.
+              The Flight service is accessible and ready to use.
+              
+              To stop the container, run: ./gradlew dockerStop (from sdk-gen directory)
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_build_fails>
+            <action>Report the error details to the user</action>
+            <action>Suggest checking build logs for specific issues</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_build_fails>
+          
+          <if_docker_not_running>
+            <action>Inform user that Docker must be installed and running</action>
+            <action>Provide instructions to start Docker</action>
+          </if_docker_not_running>
+        </error_handling>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual Local Deployment Instructions</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) locally using Docker, follow these steps:
+
+          1. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          2. Build the project:
+             ./gradlew build
+             
+             This compiles the project and runs tests. May take several minutes on first run.
+
+          3. Generate the Flight application:
+             ./gradlew generateFlightApp
+             
+             This generates the Flight service application with all your connectors.
+
+          4. Build the Docker image:
+             ./gradlew dockerBuild
+             
+             This creates a Docker image containing your connector(s).
+             Note: Docker must be installed and running on your machine.
+
+          5. Start the Docker container:
+             ./gradlew dockerStart
+             
+             This starts the container with your connector(s) running.
+
+          6. Verify the deployment:
+             The connector(s) should now be accessible via the Flight service.
+
+          To stop the container later, run:
+             ./gradlew dockerStop
+
+          Let me know once you've completed these steps or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment steps
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+    </step_2_handle_local_deployment>
+
+    <step_3_handle_serverless_deployment>
+      <title>Serverless Deployment</title>
+      <when>User selects option 2 (Serverless)</when>
+
+      <placeholder_notice>
+        <message>
+          Serverless deployment is not yet implemented.
+          
+          This is a placeholder for future functionality. When implemented, this option will:
+          - Build the Docker image with your connector(s)
+          - Deploy the image to a serverless platform (e.g., AWS Lambda, Google Cloud Run, Azure Functions)
+          - Configure automatic scaling and endpoint management
+          - Provide the service URL for accessing your connector(s)
+          
+          For now, please choose one of the other deployment options:
+          - Option 1: Local Docker Deployment (for testing)
+          - Option 3: Self-Hosted Server Deployment (for production)
+        </message>
+      </placeholder_notice>
+
+      <future_implementation>
+        <description>
+          When implemented, this section will include:
+          - Cloud provider selection 
+          - Authentication and credentials configuration
+          - Serverless platform-specific deployment commands
+          - Endpoint URL generation and configuration
+          - Monitoring and logging setup
+        </description>
+      </future_implementation>
+    </step_3_handle_serverless_deployment>
+
+    <step_4_handle_self_hosted_deployment>
+      <title>Self-Hosted Server Deployment</title>
+      <when>User selects Self-Hosted option</when>
+      
+      <important_note>
+        The deployment process differs based on the deployment type chosen in Phase 0:
+        - Codeless: Uses deploy-container.sh script with pre-built image (marek02/connectors-forge:latest)
+        - Developer: Uses ./gradlew dockerPush to build and push custom Docker image
+      </important_note>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the deployment, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute for me</label>
+            <description>I will run the deployment commands/script to deploy to your server</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_codeless_automatic>
+        <title>Automatic Self-Hosted Deployment (Codeless)</title>
+        <when>User chooses automatic execution AND codeless deployment type</when>
+
+        <actions>
+          <action priority="1">
+            <name>Execute Deployment Script</name>
+            <command_unix>connectors-forge/codeless/deploy-container.sh</command_unix>
+            <command_windows>connectors-forge\codeless\deploy-container.bat</command_windows>
+            <description>
+              Runs the OS-specific deployment script that handles:
+              - Using pre-built Docker image (marek02/connectors-forge:latest)
+              - Deploying to the target server
+              - Configuring networking and access
+            </description>
+            <note>
+              The script selection is based on the operating system:
+              - Unix/Linux/macOS: deploy-container.sh (requires execute permissions: chmod +x)
+              - Windows: deploy-container.bat
+            </note>
+          </action>
+
+          <action priority="2">
+            <name>Monitor Deployment</name>
+            <description>
+              Monitor the script output for successful deployment confirmation.
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Verify Deployment</name>
+            <description>
+              Confirm that the connector(s) are accessible on the target server.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Self-hosted deployment complete!
+              
+              Your REST API connector(s) have been deployed to your server using the pre-built image.
+              The deployment script has configured the necessary networking and access.
+              
+              Check the script output for the service endpoint URL.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_script_fails>
+            <action>Report the error details from script output</action>
+            <action>Check if server credentials are configured correctly</action>
+            <action>Verify network connectivity to target server</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_script_fails>
+        </error_handling>
+      </sub_step_2a_codeless_automatic>
+
+      <sub_step_2b_developer_automatic>
+        <title>Automatic Self-Hosted Deployment (Developer)</title>
+        <when>User chooses automatic execution AND developer deployment type</when>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen</name>
+            <command>cd sdk-gen</command>
+            <note>Gradle task must be run from sdk-gen directory</note>
+          </action>
+
+          <action priority="2">
+            <name>Push Docker Image</name>
+            <command>./gradlew dockerPush</command>
+            <description>
+              Builds the Docker image with your custom connector(s) and pushes it to the configured container registry.
+              This task handles:
+              - Building the Docker image with your connector code
+              - Tagging the image appropriately
+              - Pushing to your container registry
+            </description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Container registry must be configured in gradle.properties or environment variables</note>
+          </action>
+
+          <action priority="3">
+            <name>Verify Push</name>
+            <description>
+              Confirm that the image was successfully pushed to the container registry.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Docker image push complete!
+              
+              Your custom Docker image with REST API connector(s) has been pushed to the container registry.
+              
+              Next steps:
+              - Deploy the image to your server using your deployment tools
+              - Configure the service endpoint and networking
+              - Verify the connector(s) are accessible
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_gradle_fails>
+            <action>Report the error details from Gradle output</action>
+            <action>Check if container registry credentials are configured</action>
+            <action>Verify Docker is running</action>
+            <action>Check network connectivity to container registry</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_gradle_fails>
+        </error_handling>
+      </sub_step_2b_developer_automatic>
+
+      <sub_step_2c_codeless_manual>
+        <title>Manual Self-Hosted Deployment Instructions (Codeless)</title>
+        <when>User chooses manual execution AND codeless deployment type</when>
+
+        <instructions>
+          To deploy your REST API connector(s) to your self-hosted server using the pre-built image:
+
+          For Unix/Linux/macOS:
+          1. Ensure the deployment script has execute permissions:
+             chmod +x connectors-forge/codeless/deploy-container.sh
+
+          2. Run the deployment script:
+             connectors-forge/codeless/deploy-container.sh
+
+          For Windows:
+          1. Run the deployment batch script:
+             connectors-forge\codeless\deploy-container.bat
+
+          The script will:
+          - Use the pre-built Docker image (marek02/connectors-forge:latest)
+          - Deploy the container to your target server
+          - Configure networking and access
+
+          Prerequisites:
+          - Docker installed on your machine
+          - Access credentials configured for your target server
+          - Network connectivity to the target server
+
+          The script will output the service endpoint URL upon successful deployment.
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2c_codeless_manual>
+
+      <sub_step_2d_developer_manual>
+        <title>Manual Self-Hosted Deployment Instructions (Developer)</title>
+        <when>User chooses manual execution AND developer deployment type</when>
+
+        <instructions>
+          To deploy your custom REST API connector(s) to your self-hosted server:
+
+          1. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          2. Build and push your Docker image to the container registry:
+             ./gradlew dockerPush
+
+          This will:
+          - Build a Docker image with your custom connector code
+          - Tag the image appropriately
+          - Push it to your configured container registry
+
+          Prerequisites:
+          - Docker installed and running on your machine
+          - Container registry credentials configured in gradle.properties or environment variables
+          - Network connectivity to the container registry
+
+          3. After the image is pushed, deploy it to your server using your deployment tools
+
+          4. Configure the service endpoint and networking on your server
+
+          5. Verify the connector(s) are accessible
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2d_developer_manual>
+    </step_4_handle_self_hosted_deployment>
+
+    <step_5_handle_openshift_deployment>
+      <title>OpenShift Deployment</title>
+      <when>User selects option 4 (OpenShift)</when>
+
+      <placeholder_notice>
+        <message>
+          OpenShift deployment is not yet implemented.
+          
+          This is a placeholder for future functionality. When implemented, this option will:
+          - Build the Docker image with your connector(s)
+          - Create OpenShift deployment configurations
+          - Deploy to your OpenShift cluster
+          - Configure routes and services
+          - Set up monitoring and logging
+          - Provide the route URL for accessing your connector(s)
+          
+          For now, please choose one of the other deployment options:
+          - Option 1: Local Docker Deployment (for testing)
+          - Option 3: Self-Hosted Server Deployment (for production)
+        </message>
+      </placeholder_notice>
+
+      <future_implementation>
+        <description>
+          When implemented, this section will include:
+          - OpenShift cluster connection configuration
+          - Project/namespace selection
+          - BuildConfig and DeploymentConfig creation
+          - Service and Route configuration
+          - ImageStream setup
+          - Resource limits and scaling configuration
+          - Health checks and readiness probes
+        </description>
+      </future_implementation>
+    </step_5_handle_openshift_deployment>
+  </phase_5_deployment_option_selection>
+
+  <phase_6_cp4d_registration>
+    <title>Cloud Pak for Data Registration</title>
+    <description>
+      After successful deployment, register the connector(s) with Cloud Pak for Data.
+      The registration process differs based on the deployment type chosen in Phase 0.
+    </description>
+
+    <step_1_ask_registration_preference>
+      <title>Ask Registration Preference</title>
+      <when>After successful deployment completion</when>
+
+      <question>
+        Would you like to register your connector(s) with Cloud Pak for Data now?
+      </question>
+
+      <options>
+        <option name="yes">
+          <label>Yes, register now</label>
+          <action>Proceed to registration process based on deployment type</action>
+        </option>
+
+        <option name="no">
+          <label>No, I'll register later</label>
+          <action>Skip registration and complete the workflow</action>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly:
+        1. Yes - Register connector(s) with CP4D now
+        2. No - Skip registration (can be done later)
+      </presentation_format>
+    </step_1_ask_registration_preference>
+
+    <step_2_developer_registration>
+      <title>Developer Option Registration</title>
+      <when>User chooses registration AND developer deployment type was selected in Phase 0</when>
+
+      <sub_step_1_verify_properties_file>
+        <title>Verify Properties File Creation</title>
+        
+        <important_note>
+          Before registration, you need to create a properties file with your CP4D environment configuration.
+          This file is not visible to me (it's in .bobignore), so you need to create it manually.
+        </important_note>
+
+        <instructions>
+          <step priority="1">
+            <name>Create Properties File</name>
+            <description>
+              Create a properties file in the following location:
+              sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
+              
+              Use a descriptive name like: myenv.properties, production.properties, or dev.properties
+              
+              Base your file on the template at:
+              sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
+            </description>
+          </step>
+
+          <step priority="2">
+            <name>Configure Required Properties</name>
+            <description>
+              Your properties file must include:
+              - apikey: Your IBM Cloud API key
+              - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
+              - datasource_types_uri: Datasource types API endpoint
+              - flight_uri: URI of your deployed Flight service (grpc://host:port)
+              - ssl_certificate_path: Path to your Flight service certificate (optional)
+              - ssl_certificate_validation: Set to true/false
+            </description>
+            <example>
+              Example configuration:
+              apikey=your_ibm_cloud_api_key_here
+              auth_uri=https://iam.cloud.ibm.com/identity/token
+              datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
+              flight_uri=grpc://your-server:50051
+              ssl_certificate_validation=false
+            </example>
+          </step>
+        </instructions>
+
+        <confirmation_question>
+          Have you created the properties file with your CP4D environment configuration?
+          Please provide the name of your properties file (without .properties extension).
+        </confirmation_question>
+      </sub_step_1_verify_properties_file>
+
+      <sub_step_2_ask_execution_preference>
+        <title>Ask Execution Preference</title>
+        <when>After user confirms properties file is created</when>
+
+        <question>
+          Would you like me to execute the registration, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute registration for me</label>
+            <description>I will run the Gradle register task with your environment configuration</description>
+          </option>
+
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with instructions to run the registration</description>
+          </option>
+        </options>
+      </sub_step_2_ask_execution_preference>
+
+      <sub_step_3a_automatic_registration>
+        <title>Automatic Registration (Developer)</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen</name>
+            <command>cd sdk-gen</command>
+            <note>Gradle task must be run from sdk-gen directory</note>
+          </action>
+
+          <action priority="2">
+            <name>Run Registration Task</name>
+            <command>./gradlew register -Penv={env_name}</command>
+            <description>
+              Registers the connector(s) with Cloud Pak for Data using the specified environment configuration.
+              Replace {env_name} with the properties file name provided by the user.
+            </description>
+            <working_directory>sdk-gen</working_directory>
+            <note>The env_name should match the properties file name without .properties extension</note>
+          </action>
+
+          <action priority="3">
+            <name>Verify Registration</name>
+            <description>
+              Confirm that the registration completed successfully by checking the task output.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Registration complete!
+              
+              Your REST API connector(s) have been registered with Cloud Pak for Data.
+              The connector(s) are now available for use in your CP4D environment.
+              
+              You can now create connections and access your REST API data through CP4D.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_registration_fails>
+            <action>Report the error details from Gradle output</action>
+            <action>Verify the properties file exists and contains correct values</action>
+            <action>Check network connectivity to CP4D endpoints</action>
+            <action>Verify API key has proper permissions</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_registration_fails>
+        </error_handling>
+      </sub_step_3a_automatic_registration>
+
+      <sub_step_3b_manual_registration>
+        <title>Manual Registration Instructions (Developer)</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To register your REST API connector(s) with Cloud Pak for Data:
+
+          1. Ensure you have created your properties file in:
+             sdk-gen/subprojects/flight/src/dist/resources/payload/envs/{your_env_name}.properties
+
+          2. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          3. Run the registration task with your environment name:
+             ./gradlew register -Penv={your_env_name}
+             
+             Replace {your_env_name} with your properties file name (without .properties extension)
+             For example, if your file is myenv.properties, use: -Penv=myenv
+
+          The registration task will:
+          - Authenticate with IBM Cloud using your API key
+          - Register the connector datasource type with CP4D
+          - Configure the Flight service endpoint
+          - Make the connector(s) available in your CP4D environment
+
+          Prerequisites:
+          - Valid IBM Cloud API key with proper permissions
+          - Network connectivity to CP4D endpoints
+          - Deployed and accessible Flight service
+
+          Let me know once you've completed the registration or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the registration
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_3b_manual_registration>
+    </step_2_developer_registration>
+
+    <step_3_codeless_registration>
+      <title>Codeless Option Registration</title>
+      <when>User chooses registration AND codeless deployment type was selected in Phase 0</when>
+
+      <sub_step_1_verify_properties_file>
+        <title>Verify Properties File Configuration</title>
+        
+        <important_note>
+          Before registration, you need to configure the properties file with your CP4D environment settings.
+          This file is not visible to me (it's in .bobignore), so you need to modify it manually.
+        </important_note>
+
+        <instructions>
+          <step priority="1">
+            <name>Locate Properties File</name>
+            <description>
+              The properties file is located at:
+              connectors-forge/codeless/register-envs.properties
+            </description>
+          </step>
+
+          <step priority="2">
+            <name>Configure Required Properties</name>
+            <description>
+              Edit the file and configure the following properties:
+              - apikey: Your IBM Cloud API key
+              - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
+              - datasource_types_uri: Datasource types API endpoint
+              - flight_uri: URI of your deployed Flight service (grpc://host:port)
+              - ssl_certificate_path: Path to your Flight service certificate (optional)
+              - ssl_certificate_validation: Set to true/false
+            </description>
+            <example>
+              Example configuration:
+              apikey=your_ibm_cloud_api_key_here
+              auth_uri=https://iam.cloud.ibm.com/identity/token
+              datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
+              flight_uri=grpc://your-server:50051
+              ssl_certificate_validation=false
+            </example>
+          </step>
+        </instructions>
+
+        <confirmation_question>
+          Have you configured the properties file at connectors-forge/codeless/register-envs.properties
+          with your CP4D environment settings?
+        </confirmation_question>
+      </sub_step_1_verify_properties_file>
+
+      <sub_step_2_ask_execution_preference>
+        <title>Ask Execution Preference</title>
+        <when>After user confirms properties file is configured</when>
+
+        <question>
+          Would you like me to execute the registration, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute registration for me</label>
+            <description>I will run the registration script with your configuration</description>
+          </option>
+
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with instructions to run the script</description>
+          </option>
+        </options>
+      </sub_step_2_ask_execution_preference>
+
+      <sub_step_3a_automatic_registration>
+        <title>Automatic Registration (Codeless)</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Execute Registration Script</name>
+            <command_unix>connectors-forge/codeless/register-connector.sh</command_unix>
+            <command_windows>connectors-forge\codeless\register-connector.bat</command_windows>
+            <description>
+              Runs the OS-specific registration script that handles:
+              - Reading configuration from register-envs.properties
+              - Authenticating with IBM Cloud
+              - Registering the connector with CP4D
+              - Configuring the Flight service endpoint
+            </description>
+            <note>
+              The script selection is based on the operating system:
+              - Unix/Linux/macOS: register-connector.sh (requires execute permissions: chmod +x)
+              - Windows: register-connector.bat
+            </note>
+          </action>
+
+          <action priority="2">
+            <name>Monitor Registration</name>
+            <description>
+              Monitor the script output for successful registration confirmation.
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Verify Registration</name>
+            <description>
+              Confirm that the connector(s) are registered and available in CP4D.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Registration complete!
+              
+              Your REST API connector(s) have been registered with Cloud Pak for Data.
+              The connector(s) are now available for use in your CP4D environment.
+              
+              You can now create connections and access your REST API data through CP4D.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_script_fails>
+            <action>Report the error details from script output</action>
+            <action>Verify the properties file is configured correctly</action>
+            <action>Check network connectivity to CP4D endpoints</action>
+            <action>Verify API key has proper permissions</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_script_fails>
+        </error_handling>
+      </sub_step_3a_automatic_registration>
+
+      <sub_step_3b_manual_registration>
+        <title>Manual Registration Instructions (Codeless)</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To register your REST API connector(s) with Cloud Pak for Data:
+
+          1. Ensure you have configured the properties file at:
+             connectors-forge/codeless/register-envs.properties
+
+          For Unix/Linux/macOS:
+          2. Ensure the script has execute permissions:
+             chmod +x connectors-forge/codeless/register-connector.sh
+
+          3. Run the registration script:
+             connectors-forge/codeless/register-connector.sh
+
+          For Windows:
+          2. Run the registration batch script:
+             connectors-forge\codeless\register-connector.bat
+
+          The registration script will:
+          - Read your configuration from register-envs.properties
+          - Authenticate with IBM Cloud using your API key
+          - Register the connector datasource type with CP4D
+          - Configure the Flight service endpoint
+          - Make the connector(s) available in your CP4D environment
+
+          Prerequisites:
+          - Valid IBM Cloud API key with proper permissions
+          - Network connectivity to CP4D endpoints
+          - Deployed and accessible Flight service
+          - Properly configured register-envs.properties file
+
+          Let me know once you've completed the registration or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the registration
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_3b_manual_registration>
+    </step_3_codeless_registration>
+  </phase_6_cp4d_registration>
+
+  <completion>
+    <title>Workflow Complete</title>
+    <description>
+      After successful deployment and optional registration, provide summary and next steps.
+    </description>
+
+    <summary_information>
+      <include>
+        <item>Number of connectors created</item>
+        <item>Deployment type used (Codeless or Developer)</item>
+        <item>Deployment option used (Local, Self-Hosted, etc.)</item>
+        <item>Registration status (Registered or Skipped)</item>
+        <item>Service endpoint URL (if applicable)</item>
+        <item>How to access and test the connector(s)</item>
+        <item>How to stop/manage the deployment</item>
+      </include>
+    </summary_information>
+
+    <next_steps>
+      <step>Test the connector(s) by making API calls through the Flight service</step>
+      <step>If registered with CP4D: Create connections in CP4D UI</step>
+      <step>Monitor logs for any issues</step>
+      <step>Configure client applications to use the connector endpoint</step>
+    </next_steps>
+  </completion>
+
+  <behavioral_rules>
+    <rule>Always ask about additional connectors after completing each configuration</rule>
+    <rule>Present all four deployment options clearly, indicating placeholders</rule>
+    <rule>For implemented options (Local, Self-Hosted), offer automatic or manual execution</rule>
+    <rule>For placeholder options (Serverless, OpenShift), explain future functionality</rule>
+    <rule>Execute Gradle tasks sequentially, waiting for each to complete</rule>
+    <rule>All Gradle tasks must be run from the sdk-gen directory</rule>
+    <rule>Provide clear error messages and recovery options</rule>
+    <rule>Confirm successful deployment before completing</rule>
+  </behavioral_rules>
+
+  <important_notes>
+    <note>
+      Multiple connectors can be created and deployed together in a single container.
+      All DSL files in the resources directory will be included.
+    </note>
+    <note>
+      Local deployment requires Docker to be installed and running on the user's machine.
+    </note>
+    <note>
+      Self-hosted deployment requires proper server credentials and network access.
+    </note>
+    <note>
+      Serverless and OpenShift deployments are placeholders for future implementation.
+    </note>
+    <note>
+      The deployment script (deploy-container.sh) must have execute permissions.
+    </note>
+  </important_notes>
+</deployment_execution_phase>
+
+<!-- Made with Bob -->
