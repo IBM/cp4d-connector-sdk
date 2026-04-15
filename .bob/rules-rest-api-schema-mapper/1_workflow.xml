@@ -429,6 +429,6 @@
     <constraint>Do not collapse tables for convenience</constraint>
     <constraint>Do not assume SQL semantics beyond connector rules</constraint>
     <constraint>Never map the same endpoint to multiple tables</constraint>
-    <constraint>Always follow template.json structure exactly</constraint>
+    <constraint>Always follow connectors-forge/template.json structure exactly</constraint>
   </behavioral_constraints>
 </rest_connector_workflow>

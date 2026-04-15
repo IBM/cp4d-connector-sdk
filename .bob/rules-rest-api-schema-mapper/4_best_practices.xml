@@ -101,7 +101,7 @@
         Do not invent new structural formats.
       </description>
       <template_location>
-        template.json
+        connectors-forge/template.json
       </template_location>
     </rule>
 
@@ -295,11 +295,11 @@
     <practice>
       <name>Always Read Template First</name>
       <description>
-        Before creating any configuration, read template.json to understand the structure.
+        Before creating any configuration, read connectors-forge/template.json to understand the structure.
       </description>
       <command>
         Use read_file tool to read:
-        template.json
+        connectors-forge/template.json
       </command>
     </practice>
 
@@ -587,7 +587,7 @@
       <category name="Structure">
         <check>JSON is valid (no syntax errors)</check>
         <check>All required root fields present ($connector_name, $connector_label, $connector_description, $hostname, $authentication, $tables)</check>
-        <check>Follows template.json structure exactly</check>
+        <check>Follows connectors-forge/template.json structure exactly</check>
       </category>
 
       <category name="Tables">

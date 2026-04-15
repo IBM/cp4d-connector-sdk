@@ -326,7 +326,7 @@
         <actions>
           <action priority="1">
             <name>Execute Deployment Script</name>
-            <command>sdk-gen/subprojects/java/connectors_forge_rest/deploy-container.sh</command>
+            <command>connectors-forge/codeless/deploy-container.sh</command>
             <description>
               Runs the deployment script that handles:
               - Building the Docker image
@@ -382,10 +382,10 @@
           To deploy your REST API connector(s) to your self-hosted server, follow these steps:
 
           1. Ensure the deployment script has execute permissions:
-             chmod +x sdk-gen/subprojects/java/connectors_forge_rest/deploy-container.sh
+             chmod +x connectors-forge/codeless/deploy-container.sh
 
           2. Run the deployment script:
-             sdk-gen/subprojects/java/connectors_forge_rest/deploy-container.sh
+             connectors-forge/codeless/deploy-container.sh
 
           The script will:
           - Build the Docker image with your connector(s)
