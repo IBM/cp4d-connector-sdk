@@ -202,7 +202,7 @@ validate_inputs() {
         if [ ! -f "$file" ]; then
             error_exit "File not found: $file"
         fi
-        ((file_count++))
+        file_count=$((file_count + 1))
     done
     log "All $file_count file(s) exist"
 
@@ -213,12 +213,14 @@ validate_inputs() {
     log "Port number valid"
 
     # Generate timestamp-based container name
-    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local timestamp
+    timestamp=$(date +%Y%m%d-%H%M%S)
     CONTAINER_NAME="connector-${timestamp}"
     log "Container name: $CONTAINER_NAME"
 
     # Test Docker API connectivity
-    local response=$(curl -s -o /dev/null -w "%{http_code}" "http://${DOCKER_HOST}/version" 2>/dev/null || echo "000")
+    local response
+    response=$(curl -s -o /dev/null -w "%{http_code}" "http://${DOCKER_HOST}/version" 2>/dev/null || echo "000")
     if [ "$response" != "200" ]; then
         error_exit "Cannot connect to Docker API at http://${DOCKER_HOST} (HTTP $response)"
     fi
