@@ -183,29 +183,10 @@ echo ""
 
 log_step "2/3" "Obtaining Bearer Token from IBM Cloud IAM..."
 
-TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 30 -X POST "$AUTH_URI" \
+TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=urn:ibm:params:oauth:grant-type:apikey" \
-    -d "apikey=$APIKEY" 2>&1)
-
-CURL_EXIT_CODE=$?
-if [ $CURL_EXIT_CODE -ne 0 ]; then
-    log_error "Failed to connect to IBM Cloud IAM (curl exit code: $CURL_EXIT_CODE)"
-    echo ""
-    if [ $CURL_EXIT_CODE -eq 28 ]; then
-        log_error "Connection timed out after 30 seconds"
-    elif [ $CURL_EXIT_CODE -eq 6 ]; then
-        log_error "Could not resolve host: $AUTH_URI"
-    elif [ $CURL_EXIT_CODE -eq 7 ]; then
-        log_error "Failed to connect to host"
-    fi
-    echo ""
-    log_error "Please check:"
-    echo "  1. Your internet connection"
-    echo "  2. The auth_uri in $PROPERTIES_FILE is correct"
-    echo "  3. You can reach the authentication endpoint"
-    exit 1
-fi
+    -d "apikey=$APIKEY")
 
 HTTP_CODE=$(echo "$TOKEN_RESPONSE" | tail -n1)
 TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
@@ -293,30 +274,11 @@ EOF
 log "Sending registration request..."
 log "Endpoint: $DATASOURCE_TYPES_URI"
 
-REGISTER_RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 60 -X POST "$DATASOURCE_TYPES_URI" \
+REGISTER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$DATASOURCE_TYPES_URI" \
     -H "Accept: application/json" \
     -H "Authorization: Bearer $BEARER_TOKEN" \
     -H "Content-Type: application/json" \
-    -d "$PAYLOAD" 2>&1)
-
-CURL_EXIT_CODE=$?
-if [ $CURL_EXIT_CODE -ne 0 ]; then
-    log_error "Failed to connect to datasource API (curl exit code: $CURL_EXIT_CODE)"
-    echo ""
-    if [ $CURL_EXIT_CODE -eq 28 ]; then
-        log_error "Connection timed out after 60 seconds"
-    elif [ $CURL_EXIT_CODE -eq 6 ]; then
-        log_error "Could not resolve host: $DATASOURCE_TYPES_URI"
-    elif [ $CURL_EXIT_CODE -eq 7 ]; then
-        log_error "Failed to connect to host"
-    fi
-    echo ""
-    log_error "Please check:"
-    echo "  1. Your internet connection"
-    echo "  2. The datasource_types_uri in $PROPERTIES_FILE is correct"
-    echo "  3. You can reach the datasource API endpoint"
-    exit 1
-fi
+    -d "$PAYLOAD")
 
 HTTP_CODE=$(echo "$REGISTER_RESPONSE" | tail -n1)
 RESPONSE_BODY=$(echo "$REGISTER_RESPONSE" | sed '$d')
