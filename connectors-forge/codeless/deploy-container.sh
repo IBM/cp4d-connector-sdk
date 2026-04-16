@@ -319,10 +319,14 @@ validate_inputs() {
             error_exit "File not found: $file"
         fi
 <<<<<<< HEAD
+<<<<<<< HEAD
         file_count=$((file_count + 1))
 =======
         ((file_count++))
 >>>>>>> 7a359b9 (add container deployment script)
+=======
+        file_count=$((file_count + 1))
+>>>>>>> b3bcb1a (fix for some bash versions)
     done
     log "All $file_count file(s) exist"
 
@@ -334,17 +338,23 @@ validate_inputs() {
 
     # Generate timestamp-based container name
 <<<<<<< HEAD
+<<<<<<< HEAD
     local timestamp
     timestamp=$(date +%Y%m%d-%H%M%S)
     CONTAINER_NAME="connector-${timestamp}"
     log "Container name: $CONTAINER_NAME"
 =======
     local timestamp=$(date +%Y%m%d-%H%M%S)
+=======
+    local timestamp
+    timestamp=$(date +%Y%m%d-%H%M%S)
+>>>>>>> b3bcb1a (fix for some bash versions)
     CONTAINER_NAME="connector-${timestamp}"
     log "Container name: $CONTAINER_NAME"
 
     # Test Docker API connectivity
-    local response=$(curl -s -o /dev/null -w "%{http_code}" "http://${DOCKER_HOST}/version" 2>/dev/null || echo "000")
+    local response
+    response=$(curl -s -o /dev/null -w "%{http_code}" "http://${DOCKER_HOST}/version" 2>/dev/null || echo "000")
     if [ "$response" != "200" ]; then
         error_exit "Cannot connect to Docker API at http://${DOCKER_HOST} (HTTP $response)"
     fi
