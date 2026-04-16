@@ -383,7 +383,7 @@
           <action priority="1">
             <name>Execute Deployment Script</name>
             <command_unix>connectors-forge/codeless/deploy-container.sh</command_unix>
-            <command_windows>connectors-forge\codeless\deploy-container.bat</command_windows>
+            <command_windows>connectors-forge\codeless\deploy-container.ps1</command_windows>
             <description>
               Runs the OS-specific deployment script that handles:
               - Using pre-built Docker image (marek02/connectors-forge:latest)
@@ -393,7 +393,7 @@
             <note>
               The script selection is based on the operating system:
               - Unix/Linux/macOS: deploy-container.sh (requires execute permissions: chmod +x)
-              - Windows: deploy-container.bat
+              - Windows: deploy-container.ps1 (PowerShell script)
             </note>
           </action>
 
@@ -507,8 +507,8 @@
              connectors-forge/codeless/deploy-container.sh
 
           For Windows:
-          1. Run the deployment batch script:
-             connectors-forge\codeless\deploy-container.bat
+          1. Run the PowerShell deployment script:
+             .\connectors-forge\codeless\deploy-container.ps1
 
           The script will:
           - Use the pre-built Docker image (marek02/connectors-forge:latest)
@@ -519,6 +519,7 @@
           - Docker installed on your machine
           - Access credentials configured for your target server
           - Network connectivity to the target server
+          - Windows: PowerShell 5.1 or later
 
           The script will output the service endpoint URL upon successful deployment.
 
@@ -893,7 +894,7 @@
           <action priority="1">
             <name>Execute Registration Script</name>
             <command_unix>connectors-forge/codeless/register-connector.sh</command_unix>
-            <command_windows>connectors-forge\codeless\register-connector.bat</command_windows>
+            <command_windows>connectors-forge\codeless\register-connector.ps1</command_windows>
             <description>
               Runs the OS-specific registration script that handles:
               - Reading configuration from register-envs.properties
@@ -904,7 +905,7 @@
             <note>
               The script selection is based on the operating system:
               - Unix/Linux/macOS: register-connector.sh (requires execute permissions: chmod +x)
-              - Windows: register-connector.bat
+              - Windows: register-connector.ps1 (PowerShell script)
             </note>
           </action>
 
@@ -964,8 +965,8 @@
              connectors-forge/codeless/register-connector.sh
 
           For Windows:
-          2. Run the registration batch script:
-             connectors-forge\codeless\register-connector.bat
+          2. Run the PowerShell registration script:
+             .\connectors-forge\codeless\register-connector.ps1
 
           The registration script will:
           - Read your configuration from register-envs.properties
@@ -979,6 +980,7 @@
           - Network connectivity to CP4D endpoints
           - Deployed and accessible Flight service
           - Properly configured register-envs.properties file
+          - Windows: PowerShell 5.1 or later
 
           Let me know once you've completed the registration or if you encounter any issues.
         </instructions>

@@ -1,5 +1,9 @@
 customModes:
+<<<<<<< HEAD
   - slug: connectors-forge-rest
+=======
+  - slug: rest-api-schema-mapper
+>>>>>>> f322c52 (pre demo changes)
     name: 🔌 Connectors Forge
     description: Create REST API connector configuration files for CP4D SDK
     roleDefinition: |
