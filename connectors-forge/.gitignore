@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 *.properties
+=======
+codeless/*.properties
+>>>>>>> ca1e779 (validation after registry)
