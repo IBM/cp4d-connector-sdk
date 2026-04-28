@@ -379,39 +379,96 @@
         <title>Automatic Self-Hosted Deployment (Codeless)</title>
         <when>User chooses automatic execution AND codeless deployment type</when>
 
+        <script_parameters>
+          <description>
+            The deployment script requires the following parameters to deploy the container to a remote Docker server.
+            You need to gather this information from the user before executing the script.
+          </description>
+          
+          <required_parameters>
+            <parameter name="host">
+              <flag>--host</flag>
+              <description>Remote Docker server address with port (e.g., remote-server.com:2375)</description>
+              <example>remote.example.com:2375</example>
+              <note>The Docker REST API must be accessible at this address</note>
+            </parameter>
+            
+            <parameter name="files">
+              <flag>--files</flag>
+              <description>Space-separated list of connector configuration files to upload</description>
+              <example>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/api1.json api2.json</example>
+              <note>These are the JSON connector descriptor files created in previous phases</note>
+              <location>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</location>
+            </parameter>
+            
+            <parameter name="port">
+              <flag>--port</flag>
+              <description>Port to expose on the host machine (1-65535)</description>
+              <example>9090</example>
+              <note>This port will be mapped to container's internal port 9443</note>
+            </parameter>
+          </required_parameters>
+          
+          <optional_parameters>
+            <parameter name="replace">
+              <flag>--replace</flag>
+              <description>Stop and remove existing container with same name or using the same port</description>
+              <note>Use this flag if you want to replace an existing deployment</note>
+            </parameter>
+          </optional_parameters>
+        </script_parameters>
+
         <actions>
           <action priority="1">
-            <name>Execute Deployment Script</name>
-            <command_unix>connectors-forge/codeless/deploy-container.sh</command_unix>
-            <command_windows>connectors-forge\codeless\deploy-container.ps1</command_windows>
+            <name>Gather Deployment Parameters</name>
             <description>
-              Runs the OS-specific deployment script that handles:
-              - Using pre-built Docker image (marek02/connectors-forge:latest)
-              - Deploying to the target server
-              - Configuring networking and access
+              Ask the user for the required deployment parameters:
+              1. Docker host address (--host): Remote server address with Docker API port
+              2. Configuration files (--files): List of JSON files to deploy
+              3. Exposed port (--port): Port number to expose the service
+              4. Replace mode (--replace): Whether to replace existing container (optional)
             </description>
-            <note>
-              The script selection is based on the operating system:
-              - Unix/Linux/macOS: deploy-container.sh (requires execute permissions: chmod +x)
-              - Windows: deploy-container.ps1 (PowerShell script)
-            </note>
           </action>
 
           <action priority="2">
-            <name>Monitor Deployment</name>
+            <name>Execute Deployment Script</name>
+            <command_unix>
+              ./connectors-forge/codeless/deploy-container.sh --host {host} --files {file1} {file2} ... --port {port} [--replace]
+            </command_unix>
+            <command_windows>
+              .\connectors-forge\codeless\deploy-container.ps1 -DockerHost {host} -Files {file1},{file2},... -Port {port} [-Replace]
+            </command_windows>
             <description>
-              Monitor the script output for successful deployment confirmation.
+              Runs the OS-specific deployment script with user-provided parameters.
+              The script handles:
+              - Pulling the pre-built Docker image (marek02/connectors-forge:latest)
+              - Creating tar archive with configuration files
+              - Deploying the container to the target server via Docker REST API
+              - Uploading configuration files to /config/mappings/ in the container
+              - Configuring port mapping (9443 internal → user-specified external)
+              - Starting and verifying the container
             </description>
+            <working_directory>Project root (c:/Users/MarekZuwala/dev/SDK/cp4d-connector-sdk)</working_directory>
+            <note>Script uses Docker REST API to deploy to remote server</note>
           </action>
 
           <action priority="3">
-            <name>Verify Deployment</name>
+            <name>Monitor Deployment</name>
             <description>
-              Confirm that the connector(s) are accessible on the target server.
+              Monitor the script output for successful deployment confirmation.
+              The script provides 8-step progress updates.
             </description>
           </action>
 
           <action priority="4">
+            <name>Verify Deployment</name>
+            <description>
+              Confirm that the connector(s) are accessible on the target server.
+              The script will output the container ID and name upon success.
+            </description>
+          </action>
+
+          <action priority="5">
             <name>Inform User</name>
             <message>
               Self-hosted deployment complete!
@@ -419,7 +476,7 @@
               Your REST API connector(s) have been deployed to your server using the pre-built image.
               The deployment script has configured the necessary networking and access.
               
-              Check the script output for the service endpoint URL.
+              Container details and service endpoint information are shown in the script output.
             </message>
           </action>
         </actions>
@@ -427,8 +484,10 @@
         <error_handling>
           <if_script_fails>
             <action>Report the error details from script output</action>
-            <action>Check if server credentials are configured correctly</action>
-            <action>Verify network connectivity to target server</action>
+            <action>Verify Docker REST API is accessible at the specified host</action>
+            <action>Check if configuration files exist at specified paths</action>
+            <action>Verify port number is valid (1-65535) and not in use (unless --replace is used)</action>
+            <action>Check network connectivity to target server</action>
             <action>Offer to provide manual instructions instead</action>
           </if_script_fails>
         </error_handling>
@@ -499,29 +558,57 @@
         <instructions>
           To deploy your REST API connector(s) to your self-hosted server using the pre-built image:
 
+          REQUIRED PARAMETERS:
+          You need to provide the following information to the deployment script:
+          
+          1. --host: Remote Docker server address with port (e.g., remote-server.com:2375)
+             The Docker REST API must be accessible at this address.
+          
+          2. --files: Space-separated list of connector configuration JSON files
+             Location: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+             Example: api1.json api2.json
+          
+          3. --port: Port to expose on the host machine (1-65535)
+             This will be mapped to the container's internal port 9443.
+             Example: 9090
+          
+          OPTIONAL PARAMETERS:
+          4. --replace: Add this flag to stop and remove existing container using the same name or port
+
           For Unix/Linux/macOS:
           1. Ensure the deployment script has execute permissions:
              chmod +x connectors-forge/codeless/deploy-container.sh
 
-          2. Run the deployment script:
-             connectors-forge/codeless/deploy-container.sh
+          2. Run the deployment script with required parameters:
+             ./connectors-forge/codeless/deploy-container.sh \
+               --host remote.example.com:2375 \
+               --files sdk-gen/subprojects/connectors_forge_rest/src/main/resources/api1.json api2.json \
+               --port 9090 \
+               [--replace]
 
           For Windows:
-          1. Run the PowerShell deployment script:
-             .\connectors-forge\codeless\deploy-container.ps1
+          1. Run the PowerShell deployment script with required parameters:
+             .\connectors-forge\codeless\deploy-container.ps1 `
+               -DockerHost "remote.example.com:2375" `
+               -Files "sdk-gen\subprojects\connectors_forge_rest\src\main\resources\api1.json","api2.json" `
+               -Port 9090 `
+               [-Replace]
 
           The script will:
-          - Use the pre-built Docker image (marek02/connectors-forge:latest)
-          - Deploy the container to your target server
-          - Configure networking and access
+          - Pull the pre-built Docker image (marek02/connectors-forge:latest)
+          - Create a tar archive with your configuration files
+          - Deploy the container to your target server via Docker REST API
+          - Upload configuration files to /config/mappings/ in the container
+          - Configure port mapping (9443 internal → your specified external port)
+          - Start and verify the container
 
           Prerequisites:
-          - Docker installed on your machine
-          - Access credentials configured for your target server
+          - Docker REST API accessible on the remote server
           - Network connectivity to the target server
-          - Windows: PowerShell 5.1 or later
+          - Configuration files exist at the specified paths
+          - Windows: PowerShell 5.1 or later (for tar command support)
 
-          The script will output the service endpoint URL upon successful deployment.
+          The script will output the container ID, name, and deployment status upon successful completion.
 
           Let me know once you've completed the deployment or if you encounter any issues.
         </instructions>
@@ -821,47 +908,69 @@
       <when>User chooses registration AND codeless deployment type was selected in Phase 0</when>
 
       <sub_step_1_verify_properties_file>
-        <title>Verify Properties File Configuration</title>
+        <title>Create Properties File from Template</title>
         
         <important_note>
-          Before registration, you need to configure the properties file with your CP4D environment settings.
-          This file is not visible to me (it's in .bobignore), so you need to modify it manually.
+          Before registration, you need to create a properties file based on the provided template.
+          This file is not visible to me (it's in .bobignore), so you need to create it manually.
         </important_note>
 
         <instructions>
           <step priority="1">
-            <name>Locate Properties File</name>
+            <name>Review Template File</name>
             <description>
-              The properties file is located at:
-              connectors-forge/codeless/register-envs.properties
+              A template file is provided at:
+              connectors-forge/codeless/register-envs.properties.template
+              
+              This template shows the required configuration structure with placeholder values.
             </description>
           </step>
 
           <step priority="2">
+            <name>Create Properties File</name>
+            <description>
+              Copy the template file to create your configuration:
+              
+              From: connectors-forge/codeless/register-envs.properties.template
+              To: connectors-forge/codeless/register-envs.properties
+              
+              You can do this with:
+              - Unix/Linux/macOS: cp connectors-forge/codeless/register-envs.properties.template connectors-forge/codeless/register-envs.properties
+              - Windows: copy connectors-forge\codeless\register-envs.properties.template connectors-forge\codeless\register-envs.properties
+            </description>
+          </step>
+
+          <step priority="3">
             <name>Configure Required Properties</name>
             <description>
-              Edit the file and configure the following properties:
-              - apikey: Your IBM Cloud API key
+              Edit register-envs.properties and replace all placeholder values (marked with <angle brackets>):
+              
+              REQUIRED properties to configure:
+              - apikey: Replace <your-api-key> with your IBM Cloud API key
+              - flight_hostname: Replace <your-flight-hostname> with your deployed Flight service hostname
+              - flight_port: Replace <your-flight-port> with your Flight service port number
+              
+              OPTIONAL properties (defaults provided):
               - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
-              - datasource_types_uri: Datasource types API endpoint
-              - flight_uri: URI of your deployed Flight service (grpc://host:port)
-              - ssl_certificate_path: Path to your Flight service certificate (optional)
-              - ssl_certificate_validation: Set to true/false
+              - datasource_types_uri: Datasource types API endpoint (default provided in template)
+              - ssl_certificate_path: Path to SSL certificate (commented out by default)
+              - ssl_certificate_validation: Enable/disable SSL validation (default: false)
             </description>
             <example>
-              Example configuration:
-              apikey=your_ibm_cloud_api_key_here
+              Example of configured values:
+              apikey=your_actual_ibm_cloud_api_key_here
               auth_uri=https://iam.cloud.ibm.com/identity/token
               datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
-              flight_uri=grpc://your-server:50051
+              flight_hostname=my-server.example.com
+              flight_port=50051
               ssl_certificate_validation=false
             </example>
           </step>
         </instructions>
 
         <confirmation_question>
-          Have you configured the properties file at connectors-forge/codeless/register-envs.properties
-          with your CP4D environment settings?
+          Have you created register-envs.properties from the template and configured all required values
+          (apikey, flight_hostname, flight_port)?
         </confirmation_question>
       </sub_step_1_verify_properties_file>
 
@@ -995,10 +1104,270 @@
     </step_3_codeless_registration>
   </phase_6_cp4d_registration>
 
+  <phase_7_registration_validation>
+    <title>Registration Validation & Testing</title>
+    <description>
+      After successful registration, validate that the connector(s) are properly registered
+      and accessible in Cloud Pak for Data by running discovery tests.
+    </description>
+    <when>After Phase 6 registration is completed (either automatic or manual)</when>
+
+    <step_1_ask_validation_preference>
+      <title>Ask About Validation Testing</title>
+      
+      <question>
+        Would you like to validate the registration by testing connector discovery?
+        
+        This will verify that:
+        - The connector(s) are properly registered in CP4D
+        - The Flight service is accessible
+        - Discovery queries return expected results
+      </question>
+
+      <options>
+        <option name="yes">
+          <label>Yes, validate the registration</label>
+          <description>I will guide you through creating a test configuration and running validation tests</description>
+        </option>
+
+        <option name="no">
+          <label>No, skip validation</label>
+          <description>Skip validation testing and complete the workflow</description>
+          <action>Proceed directly to completion phase</action>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly:
+        1. Yes - Validate registration with discovery tests
+        2. No - Skip validation (can be done later)
+      </presentation_format>
+    </step_1_ask_validation_preference>
+
+    <step_2_prepare_test_configuration>
+      <title>Prepare Test Configuration</title>
+      <when>User chooses to validate registration</when>
+
+      <important_note>
+        The test configuration file (test-discovery.properties) is not visible to me as it's in .bobignore.
+        I will suggest the content based on the connector information from this session, but you need to
+        create the file manually with your actual credentials.
+      </important_note>
+
+      <sub_step_1_suggest_configuration>
+        <title>Suggest Test Configuration Content</title>
+        
+        <action>
+          Based on the connector(s) created in this session, suggest the content for test-discovery.properties file.
+          
+          The suggestion should include:
+          1. Template location reference
+          2. CPD_URL placeholder (user must provide their CP4D instance URL)
+          3. CPD_TOKEN placeholder (user must provide their bearer token)
+          4. DATASOURCE_TYPES - comma-separated list of datasource type IDs from the connector descriptors
+          5. DISCOVERY_PATHS - comma-separated list of discovery paths (first endpoint path from each connector)
+          6. CONNECTION_PROPERTIES - pipe-separated JSON objects with connection properties for each connector
+          
+          For each connector, extract:
+          - Datasource type ID from the connector descriptor ($connector_name field, converted to lowercase with underscores)
+          - First endpoint path from the $tables configuration
+          - Authentication type and required properties from $authentication field
+          - Base URL from $hostname field
+        </action>
+
+        <example_suggestion_format>
+          Based on your connector configuration, here's the suggested content for test-discovery.properties:
+
+          ```properties
+          # Copy from connectors-forge/codeless/test-discovery.properties.template
+          # and fill in your actual values
+
+          # CPD Configuration (YOU MUST PROVIDE THESE)
+          CPD_URL=https://your-cpd-instance.cloud.ibm.com
+          CPD_TOKEN=your-bearer-token-here
+
+          # Connector Configuration (based on your connectors)
+          DATASOURCE_TYPES=connector1_id,connector2_id
+          DISCOVERY_PATHS=/endpoint1,/endpoint2
+          CONNECTION_PROPERTIES={"base_url":"https://api1.example.com","api_key":"YOUR_KEY"}|{"base_url":"https://api2.example.com"}
+          ```
+
+          Replace:
+          - CPD_URL with your Cloud Pak for Data instance URL
+          - CPD_TOKEN with your authentication token
+          - YOUR_KEY and other credentials with actual values
+        </example_suggestion_format>
+
+        <instructions>
+          1. Create a file named test-discovery.properties in the connectors-forge/codeless/ directory
+          
+          2. Use the template at connectors-forge/codeless/test-discovery.properties.template as a reference
+          
+          3. Copy the suggested configuration above and replace placeholders with your actual values:
+             - CPD_URL: Your Cloud Pak for Data instance URL
+             - CPD_TOKEN: Your bearer token (get from CP4D UI or ibmcloud CLI)
+             - API keys, passwords, and other credentials in CONNECTION_PROPERTIES
+          
+          4. Ensure the file is saved in the correct location: connectors-forge/codeless/test-discovery.properties
+        </instructions>
+
+        <confirmation_question>
+          Have you created the test-discovery.properties file with your configuration?
+        </confirmation_question>
+      </sub_step_1_suggest_configuration>
+    </step_2_prepare_test_configuration>
+
+    <step_3_execute_validation_tests>
+      <title>Execute Validation Tests</title>
+      <when>User confirms test configuration file is created</when>
+
+      <sub_step_1_run_test_script>
+        <title>Run Discovery Test Script</title>
+        
+        <actions>
+          <action priority="1">
+            <name>Execute Test Script</name>
+            <command_unix>connectors-forge/codeless/test-discovery.sh</command_unix>
+            <command_windows>connectors-forge\codeless\test-discovery.ps1</command_windows>
+            <description>
+              Runs the OS-specific test script that:
+              - Reads configuration from test-discovery.properties
+              - Calls CP4D Connection Service API for each connector
+              - Tests discovery without creating saved connections
+              - Reports success/failure for each connector
+              - Counts discovered assets
+            </description>
+            <note>
+              The script selection is based on the operating system:
+              - Unix/Linux/macOS: test-discovery.sh (requires execute permissions: chmod +x)
+              - Windows: test-discovery.ps1 (PowerShell script)
+            </note>
+          </action>
+
+          <action priority="2">
+            <name>Monitor Test Results</name>
+            <description>
+              Monitor the script output for:
+              - HTTP status codes (200-299 = success)
+              - Number of assets discovered per connector
+              - Any error messages or failures
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Analyze Results</name>
+            <description>
+              The script will provide:
+              - Summary of successful vs failed tests
+              - Detailed results for each connector
+              - Asset counts for successful discoveries
+              - Error messages for failures
+            </description>
+          </action>
+        </actions>
+
+        <success_criteria>
+          <criterion>All connectors return HTTP 200-299 status codes</criterion>
+          <criterion>Discovery returns expected assets for each connector</criterion>
+          <criterion>No authentication or connection errors</criterion>
+        </success_criteria>
+
+        <error_handling>
+          <if_tests_fail>
+            <action>Review error messages from script output</action>
+            <action>Verify CPD_URL and CPD_TOKEN are correct</action>
+            <action>Check that DATASOURCE_TYPES match registered connector IDs</action>
+            <action>Verify CONNECTION_PROPERTIES have correct credentials</action>
+            <action>Ensure Flight service is deployed and accessible</action>
+            <action>Check network connectivity to CP4D and Flight service</action>
+            <action>Offer to re-run tests after fixes</action>
+          </if_tests_fail>
+        </error_handling>
+      </sub_step_1_run_test_script>
+
+      <sub_step_2_interpret_results>
+        <title>Interpret Test Results</title>
+        
+        <success_message>
+          <when>All tests pass</when>
+          <message>
+            ✓ Registration validation successful!
+            
+            All connector(s) are properly registered and accessible in Cloud Pak for Data.
+            Discovery tests completed successfully with assets returned for each connector.
+            
+            Your connectors are ready to use in CP4D.
+          </message>
+        </success_message>
+
+        <partial_success_message>
+          <when>Some tests pass, some fail</when>
+          <message>
+            ⚠ Partial validation success
+            
+            Some connectors passed validation while others failed.
+            Review the detailed results above to identify issues with specific connectors.
+            
+            Successful connectors are ready to use.
+            Failed connectors need troubleshooting before they can be used.
+          </message>
+        </partial_success_message>
+
+        <failure_message>
+          <when>All tests fail</when>
+          <message>
+            ✗ Registration validation failed
+            
+            None of the connectors passed validation tests.
+            This typically indicates:
+            - Registration did not complete successfully
+            - Flight service is not accessible
+            - Configuration errors in test-discovery.properties
+            - Network connectivity issues
+            
+            Please review the error messages and troubleshooting tips above.
+          </message>
+        </failure_message>
+      </sub_step_2_interpret_results>
+    </step_3_execute_validation_tests>
+
+    <manual_validation_option>
+      <title>Manual Validation Instructions</title>
+      <when>User prefers to run validation manually</when>
+
+      <instructions>
+        To manually validate your connector registration:
+
+        1. Create test-discovery.properties file:
+           - Location: connectors-forge/codeless/test-discovery.properties
+           - Template: connectors-forge/codeless/test-discovery.properties.template
+           - Fill in your CPD_URL, CPD_TOKEN, and connector configurations
+
+        2. Run the test script:
+           
+           For Unix/Linux/macOS:
+           chmod +x connectors-forge/codeless/test-discovery.sh
+           connectors-forge/codeless/test-discovery.sh
+
+           For Windows:
+           .\connectors-forge\codeless\test-discovery.ps1
+
+        3. Review the test results:
+           - Green checkmarks (✓) indicate successful discovery
+           - Red X marks (✗) indicate failures
+           - The script will show asset counts and error messages
+
+        4. Troubleshoot any failures using the tips provided by the script
+
+        Let me know the results or if you need help interpreting them.
+      </instructions>
+    </manual_validation_option>
+  </phase_7_registration_validation>
+
   <completion>
     <title>Workflow Complete</title>
     <description>
-      After successful deployment and optional registration, provide summary and next steps.
+      After successful deployment, optional registration, and optional validation, provide summary and next steps.
     </description>
 
     <summary_information>

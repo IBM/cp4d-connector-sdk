@@ -1,3 +1,4 @@
+# Copy this file to register-envs.properties and fill in your values
 # IBM Cloud API Key (REQUIRED - set your API key)
 apikey=<your-api-key>
 
