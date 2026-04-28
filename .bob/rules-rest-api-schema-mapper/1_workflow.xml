@@ -74,6 +74,18 @@
       <optional>true</optional>
       <note>User can choose to skip registration and do it later</note>
     </phase>
+    
+    <phase number="7">
+      <name>Registration Validation & Testing</name>
+      <file>6_deployment_execution.xml</file>
+      <description>
+        Validate connector registration by running discovery tests.
+        Mode suggests test configuration based on connector information.
+        Executes OS-specific test scripts to verify registration success.
+      </description>
+      <optional>true</optional>
+      <note>Only available after Phase 6 registration is completed</note>
+    </phase>
   </workflow_phases>
 
   <phase_1_discovery>
