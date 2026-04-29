@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Container Deployment Script
-# Deploys a container to a remote Docker server via REST API
-# with configuration file upload
+# Container Deployment Script (SSH-based)
+# Deploys a container to a remote Docker server via SSH
+# with configuration file upload using tar streaming
 
 set -e  # Exit on error
 
@@ -11,7 +11,9 @@ set -e  # Exit on error
 # ============================================
 
 SCRIPT_NAME=$(basename "$0")
-DOCKER_HOST=""
+SSH_HOST=""
+SSH_USER=""
+SSH_PORT="22"
 CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
@@ -19,7 +21,6 @@ IMAGE="docker.io/marek02/connectors-forge:latest"
 CONTAINER_ID=""
 CONTAINER_NAME=""
 TEMP_DIR=""
-TEMP_ARCHIVE=""
 
 # ============================================
 # Helper Functions
@@ -38,27 +39,12 @@ log_step() {
     echo "[$1] $2"
 }
 
-json_value() {
-    local json="$1"
-    local key="$2"
-    echo "$json" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed 's/.*"\([^"]*\)"$/\1/' | head -1
-}
-
-url_encode() {
-    local string="$1"
-    local strlen=${#string}
-    local encoded=""
-    local pos c o
-    
-    for (( pos=0 ; pos<strlen ; pos++ )); do
-        c=${string:$pos:1}
-        case "$c" in
-            [-_.~a-zA-Z0-9] ) o="${c}" ;;
-            * ) printf -v o '%%%02x' "'$c"
-        esac
-        encoded+="${o}"
-    done
-    echo "${encoded}"
+# Execute command via SSH
+ssh_exec() {
+    local command="$1"
+    ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no \
+        -o ConnectTimeout=10 -o BatchMode=yes \
+        "${SSH_USER}@${SSH_HOST}" "$command" 2>&1
 }
 
 # ============================================
@@ -69,49 +55,51 @@ usage() {
     cat << EOF
 Usage: $SCRIPT_NAME --host HOST --files FILE1 [FILE2 ...] --port PORT [OPTIONS]
 
-Deploy a container to a remote Docker server via REST API.
+Deploy a container to a remote Docker server via SSH.
 
 Required Arguments:
-  --host HOST          Remote Docker server address (e.g., remote-server.com:2375)
+  --host HOST          Remote server hostname or IP (e.g., remote-server.com)
+  --ssh-user USER      SSH username (e.g., ubuntu)
   --files FILE1 ...    Space-separated list of files to upload (e.g., api1.json api2.json)
   --port PORT          Port to expose (e.g., 9090)
 
 Optional Arguments:
+  --ssh-port PORT      SSH port (default: 22)
   --replace            Stop and remove existing container with same name or using the same port
   -h, --help           Show this help message
 
+Note:
+  SSH authentication uses your default SSH keys (~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.)
+  or keys loaded in ssh-agent. Ensure your SSH keys are properly configured before running.
+
 Examples:
-  # Deploy with single file
-  $SCRIPT_NAME --host remote.example.com:2375 --files ./config-files/my-api.json --port 9090
+  # Basic deployment
+  $SCRIPT_NAME --host remote.example.com --ssh-user ubuntu \\
+    --files ./config-files/my-api.json --port 9090
 
-  # Deploy with multiple files
-  $SCRIPT_NAME --host remote.example.com:2375 --files api1.json api2.json settings.json --port 9090
+  # Multiple files
+  $SCRIPT_NAME --host 192.168.1.100 --ssh-user docker \\
+    --files api1.json api2.json --port 9090
 
-  # Replace existing container (by name or port conflict)
-  $SCRIPT_NAME --host remote.example.com:2375 --files my-api.json --port 9090 --replace
+  # Replace existing container
+  $SCRIPT_NAME --host remote.example.com --ssh-user ubuntu \\
+    --files my-api.json --port 9090 --replace
 
 EOF
     exit 1
 }
 
 # ============================================
-# Cleanup Function
+# Error Handler
 # ============================================
 
 cleanup() {
-    if [ -n "$TEMP_ARCHIVE" ] && [ -f "$TEMP_ARCHIVE" ]; then
-        rm -f "$TEMP_ARCHIVE"
-    fi
     if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
         rm -rf "$TEMP_DIR"
     fi
 }
 
 trap cleanup EXIT
-
-# ============================================
-# Error Handler
-# ============================================
 
 error_exit() {
     local message="$1"
@@ -120,7 +108,7 @@ error_exit() {
     # If container was created but deployment failed, try to remove it
     if [ -n "$CONTAINER_ID" ]; then
         log "Cleaning up failed deployment..."
-        remove_container "$CONTAINER_ID" 2>/dev/null || true
+        ssh_exec "docker rm -f $CONTAINER_ID" 2>/dev/null || true
     fi
     
     exit 1
@@ -138,7 +126,15 @@ parse_arguments() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --host)
-                DOCKER_HOST="$2"
+                SSH_HOST="$2"
+                shift 2
+                ;;
+            --ssh-user)
+                SSH_USER="$2"
+                shift 2
+                ;;
+            --ssh-port)
+                SSH_PORT="$2"
                 shift 2
                 ;;
             --files)
@@ -173,8 +169,13 @@ parse_arguments() {
     done
 
     # Validate required arguments
-    if [ -z "$DOCKER_HOST" ]; then
+    if [ -z "$SSH_HOST" ]; then
         log_error "Missing required argument: --host"
+        usage
+    fi
+
+    if [ -z "$SSH_USER" ]; then
+        log_error "Missing required argument: --ssh-user"
         usage
     fi
 
@@ -194,7 +195,14 @@ parse_arguments() {
 # ============================================
 
 validate_inputs() {
-    log_step "1/8" "Validating inputs..."
+    log_step "1/7" "Validating inputs..."
+
+    # Test SSH connectivity and Docker availability in one go
+    log "Testing SSH connectivity and Docker availability..."
+    if ! ssh_exec "docker version" >/dev/null 2>&1; then
+        error_exit "Cannot connect via SSH or Docker not available on ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
+    fi
+    log "SSH connection and Docker verified"
 
     # Check if all config files exist
     local file_count=0
@@ -217,14 +225,6 @@ validate_inputs() {
     timestamp=$(date +%Y%m%d-%H%M%S)
     CONTAINER_NAME="connector-${timestamp}"
     log "Container name: $CONTAINER_NAME"
-
-    # Test Docker API connectivity
-    local response
-    response=$(curl -s -o /dev/null -w "%{http_code}" "http://${DOCKER_HOST}/version" 2>/dev/null || echo "000")
-    if [ "$response" != "200" ]; then
-        error_exit "Cannot connect to Docker API at http://${DOCKER_HOST} (HTTP $response)"
-    fi
-    log "Docker API accessible"
 }
 
 # ============================================
@@ -233,66 +233,34 @@ validate_inputs() {
 
 check_container_exists() {
     local name="$1"
-    local filters="{\"name\":[\"^/${name}$\"]}"
-    local encoded_filters=$(url_encode "$filters")
-    
-    local response=$(curl -s "http://${DOCKER_HOST}/containers/json?all=true&filters=${encoded_filters}")
-    local container_id=$(json_value "$response" "Id")
-    
-    echo "$container_id"
+    ssh_exec "docker ps -aq --filter 'name=^${name}$'" | head -1
 }
 
 find_container_by_port() {
     local port="$1"
-    
-    # Get all containers with port information already included and scan once
-    curl -s "http://${DOCKER_HOST}/containers/json?all=true" | awk -v port="$port" '
-        BEGIN {
-            RS="\\},\\{"
-        }
-        $0 ~ "\"PublicPort\":" port {
-            if (match($0, /"Id":"[^"]*"/)) {
-                print substr($0, RSTART + 6, RLENGTH - 7)
-                exit
-            }
-        }
-    '
+    ssh_exec "docker ps -a --filter 'publish=${port}' --format '{{.ID}}'" | head -1
 }
 
-stop_container() {
+get_container_name() {
     local id="$1"
-    log "Stopping container..."
-    
-    local response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-        "http://${DOCKER_HOST}/containers/${id}/stop")
-    
-    if [ "$response" = "204" ] || [ "$response" = "304" ]; then
-        log "Container stopped"
-        return 0
-    else
-        log "Failed to stop container (HTTP $response)"
-        return 1
-    fi
+    ssh_exec "docker inspect $id --format '{{.Name}}'" | sed 's/^\///'
 }
 
-remove_container() {
+stop_and_remove_container() {
     local id="$1"
-    log "Removing container..."
+    log "Stopping and removing container..."
     
-    local response=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-        "http://${DOCKER_HOST}/containers/${id}")
-    
-    if [ "$response" = "204" ]; then
+    if ssh_exec "docker stop $id && docker rm $id" >/dev/null 2>&1; then
         log "Container removed"
         return 0
     else
-        log "Failed to remove container (HTTP $response)"
+        log "Failed to remove container"
         return 1
     fi
 }
 
 handle_existing_container() {
-    log_step "2/8" "Checking for existing containers..."
+    log_step "2/7" "Checking for existing containers..."
     
     # First check by container name
     local existing_id=$(check_container_exists "$CONTAINER_NAME")
@@ -301,8 +269,7 @@ handle_existing_container() {
         log "Container '$CONTAINER_NAME' already exists (ID: ${existing_id:0:12})"
         
         if [ "$REPLACE_MODE" = true ]; then
-            stop_container "$existing_id" || true
-            remove_container "$existing_id" || error_exit "Failed to remove existing container"
+            stop_and_remove_container "$existing_id" || error_exit "Failed to remove existing container"
         else
             error_exit "Container already exists. Use --replace to replace it."
         fi
@@ -313,15 +280,13 @@ handle_existing_container() {
         
         if [ -n "$port_conflict_id" ]; then
             # Get container name for logging
-            local container_info=$(curl -s "http://${DOCKER_HOST}/containers/${port_conflict_id}/json")
-            local container_name=$(json_value "$container_info" "Name" | sed 's/^\///')
+            local container_name=$(get_container_name "$port_conflict_id")
             
             log "Found container '$container_name' using port $PORT (ID: ${port_conflict_id:0:12})"
             
             if [ "$REPLACE_MODE" = true ]; then
                 log "Replacing container using port $PORT..."
-                stop_container "$port_conflict_id" || true
-                remove_container "$port_conflict_id" || error_exit "Failed to remove container using port $PORT"
+                stop_and_remove_container "$port_conflict_id" || error_exit "Failed to remove container using port $PORT"
             else
                 error_exit "Port $PORT is already in use by container '$container_name'. Use different port or --replace to replace existing container (WARNING: This will remove the container '$container_name')"
             fi
@@ -332,107 +297,18 @@ handle_existing_container() {
 }
 
 # ============================================
-# Archive Creation
-# ============================================
-
-create_tar_archive() {
-    log_step "3/8" "Creating tar archive..."
-    
-    # Create temporary directory
-    TEMP_DIR=$(mktemp -d)
-    TEMP_ARCHIVE="${TEMP_DIR}/config.tar.gz"
-    
-    # Create mappings subdirectory in temp directory
-    mkdir -p "$TEMP_DIR/mappings"
-    
-    # Copy all config files to mappings subdirectory
-    # Use COPYFILE_DISABLE to prevent macOS from creating ._* files during copy
-    for file in "${CONFIG_FILES[@]}"; do
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            COPYFILE_DISABLE=1 cp "$file" "$TEMP_DIR/mappings/"
-        else
-            cp "$file" "$TEMP_DIR/mappings/"
-        fi
-    done
-        
-    log "Copying ${#CONFIG_FILES[@]} file(s) to archive in mappings/ directory"
-    
-    # Create tar archive with mappings directory structure
-    # Always exclude macOS extended attributes and resource forks
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        COPYFILE_DISABLE=1 tar --no-xattrs -czf "$TEMP_ARCHIVE" -C "$TEMP_DIR" mappings 2>/dev/null
-    else
-        tar -czf "$TEMP_ARCHIVE" -C "$TEMP_DIR" mappings 2>/dev/null
-    fi
-    
-    if [ ! -f "$TEMP_ARCHIVE" ]; then
-        error_exit "Failed to create tar archive"
-    fi
-    
-    log "Archive created with mappings/ directory structure"
-}
-
-# ============================================
-# Image Pull
-# ============================================
-
-pull_image() {
-    log_step "4/8" "Pulling Docker image..."
-    
-    log "Pulling image: $IMAGE"
-    
-    local response=$(curl -s -X POST \
-        "http://${DOCKER_HOST}/images/create?fromImage=${IMAGE}" \
-        -w "\n%{http_code}")
-    
-    local http_code=$(echo "$response" | tail -1)
-    
-    if [ "$http_code" = "200" ]; then
-        log "Image pulled successfully"
-    else
-        log "Image pull completed (may already exist)"
-    fi
-}
-
-# ============================================
 # Container Creation
 # ============================================
 
 create_container() {
-    log_step "5/8" "Creating container..."
+    log_step "3/7" "Creating container..."
     
-    local json_payload=$(cat <<EOF
-{
-  "Image": "$IMAGE",
-  "ExposedPorts": {
-    "9443/tcp": {}
-  },
-  "HostConfig": {
-    "PortBindings": {
-      "9443/tcp": [
-        {
-          "HostPort": "$PORT"
-        }
-      ]
-    }
-  }
-}
-EOF
-)
-    
-    # Create container
-    local response=$(curl -s -X POST \
-        "http://${DOCKER_HOST}/containers/create?name=${CONTAINER_NAME}" \
-        -H "Content-Type: application/json" \
-        -d "$json_payload")
-    
-    # Extract container ID
-    CONTAINER_ID=$(json_value "$response" "Id")
+    # Create container with port mapping (Docker will pull image if needed)
+    log "Creating container from image: $IMAGE"
+    CONTAINER_ID=$(ssh_exec "docker create --name $CONTAINER_NAME -p ${PORT}:9443 $IMAGE")
     
     if [ -z "$CONTAINER_ID" ]; then
-        local error_msg=$(json_value "$response" "message")
-        [ -z "$error_msg" ] && error_msg="Unknown error"
-        error_exit "Failed to create container: $error_msg"
+        error_exit "Failed to create container"
     fi
     
     log "Container created: ${CONTAINER_ID:0:12}"
@@ -443,18 +319,39 @@ EOF
 # ============================================
 
 upload_config_files() {
-    log_step "6/8" "Uploading config files..."
+    log_step "4/7" "Uploading config files..."
     
-    # Upload to /config path - the tar contains mappings/ directory
-    local http_code=$(curl -s -w "%{http_code}" -o /dev/null -X PUT \
-        "http://${DOCKER_HOST}/containers/${CONTAINER_ID}/archive?path=/config" \
-        -H "Content-Type: application/x-tar" \
-        --data-binary @"$TEMP_ARCHIVE")
+    # Create temporary directory for staging files
+    TEMP_DIR=$(mktemp -d)
+    mkdir -p "$TEMP_DIR/mappings"
     
-    if [ "$http_code" = "200" ]; then
+    # Copy all config files to temp mappings directory
+    log "Preparing ${#CONFIG_FILES[@]} file(s) for upload..."
+    for file in "${CONFIG_FILES[@]}"; do
+        cp "$file" "$TEMP_DIR/mappings/"
+    done
+    
+    # Stream tar directly to docker cp via SSH
+    # The tar is created on-the-fly and piped, no archive file is created
+    (
+        cd "$TEMP_DIR" || exit 1
+        
+        # Stream tar without extended attributes (critical for macOS -> Linux)
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS: Try modern flags first, fallback to COPYFILE_DISABLE for older versions
+            tar --no-mac-metadata --no-xattrs -cf - mappings 2>/dev/null || \
+            COPYFILE_DISABLE=1 tar -cf - mappings
+        else
+            tar -cf - mappings
+        fi
+    ) | ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no \
+        -o ConnectTimeout=10 -o BatchMode=yes \
+        "${SSH_USER}@${SSH_HOST}" "docker cp - ${CONTAINER_ID}:/config"
+    
+    if [ $? -eq 0 ]; then
         log "Files uploaded to /config/mappings/"
     else
-        error_exit "Failed to upload files (HTTP $http_code). The /config directory may not exist in the container."
+        error_exit "Failed to upload files. The /config directory may not exist in the container."
     fi
 }
 
@@ -463,15 +360,12 @@ upload_config_files() {
 # ============================================
 
 start_container() {
-    log_step "7/8" "Starting container..."
+    log_step "5/7" "Starting container..."
     
-    local http_code=$(curl -s -w "%{http_code}" -o /dev/null -X POST \
-        "http://${DOCKER_HOST}/containers/${CONTAINER_ID}/start")
-    
-    if [ "$http_code" = "204" ]; then
+    if ssh_exec "docker start $CONTAINER_ID" >/dev/null 2>&1; then
         log "Container started"
     else
-        error_exit "Failed to start container (HTTP $http_code)"
+        error_exit "Failed to start container"
     fi
 }
 
@@ -480,17 +374,16 @@ start_container() {
 # ============================================
 
 verify_container_running() {
-    log_step "8/8" "Verifying container status..."
+    log_step "6/7" "Verifying container status..."
     
     sleep 2
     
-    local response=$(curl -s "http://${DOCKER_HOST}/containers/${CONTAINER_ID}/json")
+    local running=$(ssh_exec "docker inspect $CONTAINER_ID --format '{{.State.Running}}'")
     
-    # Check if "Running":true exists in the response
-    if echo "$response" | grep -q '"Running"[[:space:]]*:[[:space:]]*true'; then
+    if [ "$running" = "true" ]; then
         log "Container is running"
     else
-        local status=$(json_value "$response" "Status")
+        local status=$(ssh_exec "docker inspect $CONTAINER_ID --format '{{.State.Status}}'")
         [ -z "$status" ] && status="unknown"
         error_exit "Container is not running (Status: $status)"
     fi
@@ -502,14 +395,15 @@ verify_container_running() {
 
 main() {
     echo "=========================================="
-    echo "Container Deployment Script"
+    echo "Container Deployment Script (SSH)"
     echo "=========================================="
-    echo "Docker Host:    $DOCKER_HOST"
+    echo "SSH Host:       ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
     echo "Files:          ${#CONFIG_FILES[@]} file(s)"
     for file in "${CONFIG_FILES[@]}"; do
         echo "                - $(basename "$file")"
     done
     echo "Image:          $IMAGE"
+    echo "Port:           $PORT"
     if [ "$REPLACE_MODE" = true ]; then
         echo "Replace Mode:   Enabled"
     fi
@@ -517,8 +411,6 @@ main() {
     
     validate_inputs
     handle_existing_container
-    create_tar_archive
-    pull_image
     create_container
     upload_config_files
     start_container
@@ -531,6 +423,7 @@ main() {
     echo "Container ID:   ${CONTAINER_ID:0:12}"
     echo "Container Name: $CONTAINER_NAME"
     echo "Status:         Running"
+    echo "Port Mapping:   ${PORT}:9443"
     echo "=========================================="
 }
 

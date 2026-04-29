@@ -379,88 +379,162 @@
         <title>Automatic Self-Hosted Deployment (Codeless)</title>
         <when>User chooses automatic execution AND codeless deployment type</when>
 
-        <script_parameters>
-          <description>
-            The deployment script requires the following parameters to deploy the container to a remote Docker server.
-            You need to gather this information from the user before executing the script.
-          </description>
-          
-          <required_parameters>
-            <parameter name="host">
-              <flag>--host</flag>
-              <description>Remote Docker server address with port (e.g., remote-server.com:2375)</description>
-              <example>remote.example.com:2375</example>
-              <note>The Docker REST API must be accessible at this address</note>
-            </parameter>
-            
-            <parameter name="files">
-              <flag>--files</flag>
-              <description>Space-separated list of connector configuration files to upload</description>
-              <example>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/api1.json api2.json</example>
-              <note>These are the JSON connector descriptor files created in previous phases</note>
-              <location>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</location>
-            </parameter>
-            
-            <parameter name="port">
-              <flag>--port</flag>
-              <description>Port to expose on the host machine (1-65535)</description>
-              <example>9090</example>
-              <note>This port will be mapped to container's internal port 9443</note>
-            </parameter>
-          </required_parameters>
-          
-          <optional_parameters>
-            <parameter name="replace">
-              <flag>--replace</flag>
-              <description>Stop and remove existing container with same name or using the same port</description>
-              <note>Use this flag if you want to replace an existing deployment</note>
-            </parameter>
-          </optional_parameters>
-        </script_parameters>
-
         <actions>
           <action priority="1">
-            <name>Gather Deployment Parameters</name>
+            <name>Ask for SSH Connection Details</name>
             <description>
-              Ask the user for the required deployment parameters:
-              1. Docker host address (--host): Remote server address with Docker API port
-              2. Configuration files (--files): List of JSON files to deploy
-              3. Exposed port (--port): Port number to expose the service
-              4. Replace mode (--replace): Whether to replace existing container (optional)
+              Ask the user for SSH connection details using ask_followup_question.
+              Present these as suggested answers with placeholders for the user to fill in.
             </description>
+            <question>Please provide your SSH connection details for the remote Docker server:</question>
+            <suggested_answers>
+              <suggest>SSH Host: [hostname/IP], SSH User: [username], SSH Port: 22</suggest>
+              <suggest>SSH Host: [hostname/IP], SSH User: [username], SSH Port: [custom]</suggest>
+            </suggested_answers>
+            <note>
+              Parse the user's response to extract host, user, and port values.
+            </note>
           </action>
 
           <action priority="2">
+            <name>Ask About SSH Key Setup</name>
+            <description>
+              After receiving SSH connection details, immediately ask if SSH keys are configured.
+            </description>
+            <question>Do you have SSH key authentication set up for {ssh-user}@{host}?</question>
+            <suggested_answers>
+              <suggest>Yes, I can connect without a password</suggest>
+              <suggest>No, I need help setting up SSH keys</suggest>
+            </suggested_answers>
+          </action>
+
+          <action priority="3">
+            <name>Provide SSH Setup Instructions (if needed)</name>
+            <when>User indicates SSH keys are not set up</when>
+            <description>
+              Provide personalized SSH setup commands using the connection details from step 1.
+            </description>
+
+            <ssh_setup_instructions>
+              <title>SSH Key Authentication Setup</title>
+              <description>
+                To use the deployment script, you need to set up SSH key authentication.
+                Here are the commands personalized for your server:
+              </description>
+
+              <for_unix_linux_macos>
+                <title>For Unix/Linux/macOS:</title>
+                <command>ssh-copy-id {ssh-user}@{host}</command>
+                <command_with_custom_port>ssh-copy-id -p {ssh-port} {ssh-user}@{host}</command_with_custom_port>
+                <note>Run this command and enter your password when prompted</note>
+                <if_fails>
+                  If ssh-copy-id fails or is not available, please consult your system administrator
+                  or refer to online SSH documentation for your specific operating system.
+                </if_fails>
+              </for_unix_linux_macos>
+
+              <for_windows>
+                <title>For Windows (PowerShell):</title>
+                <command>type $env:USERPROFILE\.ssh\id_rsa.pub | ssh {ssh-user}@{host} "cat >> .ssh/authorized_keys"</command>
+                <command_with_custom_port>type $env:USERPROFILE\.ssh\id_rsa.pub | ssh -p {ssh-port} {ssh-user}@{host} "cat >> .ssh/authorized_keys"</command_with_custom_port>
+                <note>Run this command and enter your password when prompted</note>
+                <if_fails>
+                  If this command fails, please consult your system administrator
+                  or refer to online SSH documentation for Windows.
+                </if_fails>
+              </for_windows>
+
+              <verification>
+                <title>Verify SSH Access:</title>
+                <command>ssh {ssh-user}@{host}</command>
+                <command_with_custom_port>ssh -p {ssh-port} {ssh-user}@{host}</command_with_custom_port>
+                <success_criteria>You should be able to log in without entering a password</success_criteria>
+              </verification>
+            </ssh_setup_instructions>
+
+            <after_providing_instructions>
+              <question>Have you completed the SSH key setup? Can you now connect without a password?</question>
+              <suggested_answers>
+                <suggest>Yes, SSH keys are now configured</suggest>
+                <suggest>No, I encountered issues - provide manual deployment instructions instead</suggest>
+              </suggested_answers>
+            </after_providing_instructions>
+          </action>
+
+          <action priority="4">
+            <name>Gather Remaining Deployment Parameters</name>
+            <when>SSH authentication is confirmed to be working</when>
+            <description>
+              Now ask for the deployment-specific parameters.
+              Host, SSH user, and SSH port were already gathered in step 1.
+              
+              IMPORTANT: Before asking, list the available connector configuration files
+              from sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+              and explain which connector each file represents to help non-technical users.
+            </description>
+            <steps>
+              <step>List all .json files in sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</step>
+              <step>For each file, read the "$connector_name" field to identify the connector name</step>
+              <step>Present the list to the user in a clear format showing: filename → connector name</step>
+              <step>Ask which files to deploy along with container port and replace flag</step>
+            </steps>
+            <question_format>
+              I found the following connector configuration files:
+              
+              Available connectors:
+              - filename1.json → Connector Name 1
+              - filename2.json → Connector Name 2
+              
+              Which configuration files would you like to deploy?
+              Please also specify:
+              - Container port (default: 9090)
+              - Replace existing container? (yes/no, default: no)
+            </question_format>
+            <suggested_answers>
+              <suggest>Deploy: [connector-name.json], Port: 9090</suggest>
+              <suggest>Deploy: [connector1.json connector2.json], Port: 9090, Replace: yes</suggest>
+              <suggest>Deploy all connectors, Port: 9090</suggest>
+            </suggested_answers>
+            <note>
+              Parse the response to extract:
+              - files list (can be specific filenames or "all")
+              - port (default to 9090 if not specified)
+              - replace flag (default to false if not specified)
+            </note>
+          </action>
+
+          <action priority="5">
             <name>Execute Deployment Script</name>
             <command_unix>
-              ./connectors-forge/codeless/deploy-container.sh --host {host} --files {file1} {file2} ... --port {port} [--replace]
+              ./connectors-forge/codeless/deploy-container.sh --host {host} --ssh-user {ssh-user} --files {file1} {file2} ... --port {port} [--ssh-port {ssh-port}] [--replace]
             </command_unix>
             <command_windows>
-              .\connectors-forge\codeless\deploy-container.ps1 -DockerHost {host} -Files {file1},{file2},... -Port {port} [-Replace]
+              .\connectors-forge\codeless\deploy-container.ps1 -Host {host} -SshUser {ssh-user} -Files {file1},{file2},... -Port {port} [-SshPort {ssh-port}] [-Replace]
             </command_windows>
             <description>
               Runs the OS-specific deployment script with user-provided parameters.
               The script handles:
+              - Connecting to remote server via SSH (using your SSH keys)
               - Pulling the pre-built Docker image (marek02/connectors-forge:latest)
-              - Creating tar archive with configuration files
-              - Deploying the container to the target server via Docker REST API
+              - Creating and uploading tar archive with configuration files
+              - Deploying the container to the target server
               - Uploading configuration files to /config/mappings/ in the container
               - Configuring port mapping (9443 internal → user-specified external)
               - Starting and verifying the container
             </description>
-            <working_directory>Project root (c:/Users/MarekZuwala/dev/SDK/cp4d-connector-sdk)</working_directory>
-            <note>Script uses Docker REST API to deploy to remote server</note>
+            <working_directory>Project root</working_directory>
+            <note>Script uses SSH to deploy to remote server</note>
           </action>
 
-          <action priority="3">
+          <action priority="6">
             <name>Monitor Deployment</name>
             <description>
               Monitor the script output for successful deployment confirmation.
-              The script provides 8-step progress updates.
+              The script provides 7-step progress updates.
             </description>
           </action>
 
-          <action priority="4">
+          <action priority="7">
             <name>Verify Deployment</name>
             <description>
               Confirm that the connector(s) are accessible on the target server.
@@ -468,7 +542,7 @@
             </description>
           </action>
 
-          <action priority="5">
+          <action priority="8">
             <name>Inform User</name>
             <message>
               Self-hosted deployment complete!
@@ -484,10 +558,11 @@
         <error_handling>
           <if_script_fails>
             <action>Report the error details from script output</action>
-            <action>Verify Docker REST API is accessible at the specified host</action>
+            <action>Verify SSH key authentication is configured correctly</action>
             <action>Check if configuration files exist at specified paths</action>
             <action>Verify port number is valid (1-65535) and not in use (unless --replace is used)</action>
             <action>Check network connectivity to target server</action>
+            <action>Verify Docker is installed and user has permissions on remote server</action>
             <action>Offer to provide manual instructions instead</action>
           </if_script_fails>
         </error_handling>
@@ -555,25 +630,68 @@
         <title>Manual Self-Hosted Deployment Instructions (Codeless)</title>
         <when>User chooses manual execution AND codeless deployment type</when>
 
+        <ssh_prerequisites>
+          <title>SSH Key Authentication Setup (Required)</title>
+          <description>
+            The deploy-container.sh script uses SSH to connect to your remote Docker server.
+            You MUST set up SSH key authentication before running the deployment script.
+          </description>
+
+          <setup_for_unix_linux_macos>
+            <title>Unix/Linux/macOS Setup</title>
+            <command>ssh-copy-id user@remote-host</command>
+            <note>Replace 'user' with your username and 'remote-host' with your server address</note>
+            <if_fails>
+              If ssh-copy-id fails or is not available, please consult your system administrator
+              or refer to online SSH documentation for your specific operating system.
+            </if_fails>
+          </setup_for_unix_linux_macos>
+
+          <setup_for_windows>
+            <title>Windows Setup</title>
+            <command>type $env:USERPROFILE\.ssh\id_rsa.pub | ssh user@remote-host "cat >> .ssh/authorized_keys"</command>
+            <note>Replace 'user' with your username and 'remote-host' with your server address</note>
+            <if_fails>
+              If this command fails, please consult your system administrator
+              or refer to online SSH documentation for Windows.
+            </if_fails>
+          </setup_for_windows>
+
+          <verification>
+            <title>Verify SSH Access</title>
+            <command>ssh user@remote-host</command>
+            <success_criteria>You should be able to log in without entering a password</success_criteria>
+          </verification>
+
+        </ssh_prerequisites>
+
         <instructions>
           To deploy your REST API connector(s) to your self-hosted server using the pre-built image:
+
+          IMPORTANT: Before proceeding, ensure SSH key authentication is configured (see SSH Prerequisites above).
 
           REQUIRED PARAMETERS:
           You need to provide the following information to the deployment script:
           
-          1. --host: Remote Docker server address with port (e.g., remote-server.com:2375)
-             The Docker REST API must be accessible at this address.
+          1. --host: Remote server hostname or IP address (e.g., remote-server.com or 192.168.1.100)
+             SSH must be accessible on this host.
           
-          2. --files: Space-separated list of connector configuration JSON files
+          2. --ssh-user: SSH username for remote server (e.g., ubuntu)
+             User must have Docker permissions on remote server.
+          
+          3. --files: Space-separated list of connector configuration JSON files
              Location: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
              Example: api1.json api2.json
           
-          3. --port: Port to expose on the host machine (1-65535)
+          4. --port: Port to expose on the host machine (1-65535)
              This will be mapped to the container's internal port 9443.
              Example: 9090
           
           OPTIONAL PARAMETERS:
-          4. --replace: Add this flag to stop and remove existing container using the same name or port
+          5. --ssh-port: SSH port (default: 22)
+             Example: 2222
+          
+          6. --replace: Add this flag to stop and remove existing container using the same name or port
 
           For Unix/Linux/macOS:
           1. Ensure the deployment script has execute permissions:
@@ -581,32 +699,39 @@
 
           2. Run the deployment script with required parameters:
              ./connectors-forge/codeless/deploy-container.sh \
-               --host remote.example.com:2375 \
+               --host remote-server.com \
+               --ssh-user ubuntu \
                --files sdk-gen/subprojects/connectors_forge_rest/src/main/resources/api1.json api2.json \
                --port 9090 \
+               [--ssh-port 22] \
                [--replace]
 
           For Windows:
           1. Run the PowerShell deployment script with required parameters:
              .\connectors-forge\codeless\deploy-container.ps1 `
-               -DockerHost "remote.example.com:2375" `
+               -Host "remote-server.com" `
+               -SshUser "ubuntu" `
                -Files "sdk-gen\subprojects\connectors_forge_rest\src\main\resources\api1.json","api2.json" `
                -Port 9090 `
+               [-SshPort 22] `
                [-Replace]
 
           The script will:
+          - Connect to your remote server via SSH (using your SSH keys)
           - Pull the pre-built Docker image (marek02/connectors-forge:latest)
-          - Create a tar archive with your configuration files
-          - Deploy the container to your target server via Docker REST API
+          - Create and upload tar archive with your configuration files
+          - Deploy the container to your target server
           - Upload configuration files to /config/mappings/ in the container
           - Configure port mapping (9443 internal → your specified external port)
           - Start and verify the container
 
           Prerequisites:
-          - Docker REST API accessible on the remote server
+          - SSH key authentication configured (REQUIRED - see SSH Prerequisites above)
+          - Docker installed on the remote server
+          - User has Docker permissions on remote server
           - Network connectivity to the target server
           - Configuration files exist at the specified paths
-          - Windows: PowerShell 5.1 or later (for tar command support)
+          - Windows: PowerShell 5.1 or later
 
           The script will output the container ID, name, and deployment status upon successful completion.
 
