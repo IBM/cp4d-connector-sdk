@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dsl_creation_workflow>
+  <overview>
+    This workflow guides you through creating a DSL configuration file for a JDBC connector.
+    The DSL file defines all database-specific settings needed to generate and customize
+    a JDBC connector for the IBM Watson Data Platform Connect SDK.
+  </overview>
+
+  <initialization>
+    <step number="1">
+      <title>Gather Database Information</title>
+      <description>
+        Collect essential information about the target database
+      </description>
+      <required_information>
+        <item priority="critical">Database name (e.g., MySQL, PostgreSQL, Oracle, SQL Server, DB2)</item>
+        <item priority="critical">JDBC driver class name (fully qualified)</item>
+        <item priority="high">Default port number</item>
+        <item priority="high">JDBC URL template pattern</item>
+        <item priority="high">Schema vs Catalog support</item>
+        <item priority="medium">System schemas to exclude</item>
+        <item priority="medium">Identifier quote character</item>
+        <item priority="medium">Authentication methods supported</item>
+        <item priority="low">Special connection properties</item>
+        <item priority="low">Custom data type mappings</item>
+      </required_information>
+      <action>
+        If the user hasn't provided complete information, use ask_followup_question
+        to gather the database name. Then research the remaining details from
+        official database documentation.
+      </action>
+    </step>
+
+    <step number="2">
+      <title>Research Database Specifications</title>
+      <description>
+        Research official database documentation to gather accurate configuration details
+      </description>
+      <research_sources>
+        <source>Official database JDBC driver documentation</source>
+        <source>Database vendor's connection string documentation</source>
+        <source>JDBC driver Maven Central or vendor download page</source>
+        <source>Database schema/catalog documentation</source>
+      </research_sources>
+      <key_information_to_find>
+        <info>Exact JDBC driver class name (e.g., com.mysql.cj.jdbc.Driver)</info>
+        <info>JDBC URL format and required parameters</info>
+        <info>Default port number for the database</info>
+        <info>Whether database uses schemas, catalogs, or both</info>
+        <info>System/internal schemas that should be hidden</info>
+        <info>Quote character for identifiers (usually " or `)</info>
+        <info>Common connection properties (SSL, timeouts, etc.)</info>
+      </key_information_to_find>
+    </step>
+  </initialization>
+
+  <main_workflow>
+    <phase name="template_preparation">
+      <title>Phase 1: Read DSL Template</title>
+      <description>
+        Read the DSL-jdbc.json template to understand the structure
+      </description>
+      
+      <step number="1">
+        <action>Read the template file</action>
+        <tool>read_file</tool>
+        <parameters>
+          <path>sdk-gen/subprojects/java/jdbc/DSL-jdbc.json</path>
+        </parameters>
+        <note>
+          This template contains all possible configuration sections with
+          examples and documentation comments
+        </note>
+      </step>
+
+      <step number="2">
+        <action>Determine connector name</action>
+        <naming_convention>
+          <format>jdbc_[database_name_lowercase]</format>
+          <examples>
+            <example>jdbc_mysql</example>
+            <example>jdbc_postgres</example>
+            <example>jdbc_oracle</example>
+            <example>jdbc_sqlserver</example>
+            <example>jdbc_db2</example>
+          </examples>
+        </naming_convention>
+      </step>
+    </phase>
+
+    <phase name="dsl_creation">
+      <title>Phase 2: Create DSL Configuration File</title>
+      <description>
+        Create a new DSL-[database].json file with database-specific configuration
+      </description>
+
+      <step number="1">
+        <action>Create DSL file with connector metadata in sdk-gen folder</action>
+        <tool>write_to_file</tool>
+        <file_path>sdk-gen/DSL-jdbc-[database].json</file_path>
+        <required_sections>
+          <section name="connector_metadata" priority="critical">
+            <description>Basic connector identification</description>
+            <fields>
+              <field name="connector_name">
+                <format>jdbc_[database]</format>
+                <example>jdbc_mysql</example>
+              </field>
+              <field name="connector_label">
+                <format>Display name for UI</format>
+                <example>MySQL</example>
+              </field>
+              <field name="connector_description">
+                <format>Brief description of the connector</format>
+                <example>JDBC connector for MySQL databases</example>
+              </field>
+            </fields>
+          </section>
+
+          <section name="jdbc_driver" priority="critical">
+            <description>JDBC driver configuration</description>
+            <fields>
+              <field name="driver_class_name">
+                <format>Fully qualified driver class name</format>
+                <examples>
+                  <example database="MySQL">com.mysql.cj.jdbc.Driver</example>
+                  <example database="PostgreSQL">org.postgresql.Driver</example>
+                  <example database="Oracle">oracle.jdbc.OracleDriver</example>
+                  <example database="SQL Server">com.microsoft.sqlserver.jdbc.SQLServerDriver</example>
+                  <example database="DB2">com.ibm.db2.jcc.DB2Driver</example>
+                </examples>
+              </field>
+            </fields>
+          </section>
+
+          <section name="connection_properties" priority="high">
+            <description>Connection properties configuration</description>
+            <subsections>
+              <subsection name="basic_properties">
+                <description>Standard connection properties (host, port, database, username, password)</description>
+                <note>These are automatically included in the template</note>
+                <fields>
+                  <field name="port.default_value">
+                    <examples>
+                      <example database="MySQL">3306</example>
+                      <example database="PostgreSQL">5432</example>
+                      <example database="Oracle">1521</example>
+                      <example database="SQL Server">1433</example>
+                      <example database="DB2">50000</example>
+                    </examples>
+                  </field>
+                </fields>
+              </subsection>
+              <subsection name="additional_properties">
+                <description>Database-specific additional properties</description>
+                <common_properties>
+                  <property name="ssl">
+                    <type>boolean</type>
+                    <description>Enable SSL/TLS connection</description>
+                  </property>
+                  <property name="connection_timeout">
+                    <type>integer</type>
+                    <description>Connection timeout in seconds</description>
+                  </property>
+                  <property name="jdbc_url_params">
+                    <type>string</type>
+                    <description>Additional JDBC URL parameters</description>
+                  </property>
+                </common_properties>
+              </subsection>
+            </subsections>
+          </section>
+
+          <section name="authentication" priority="medium">
+            <description>Supported authentication methods</description>
+            <default_method>
+              <type>basic</type>
+              <description>Username/password authentication (always enabled)</description>
+            </default_method>
+            <optional_methods>
+              <method name="kerberos">
+                <when_to_include>Database supports Kerberos authentication</when_to_include>
+              </method>
+              <method name="oauth">
+                <when_to_include>Database supports OAuth 2.0 authentication</when_to_include>
+              </method>
+            </optional_methods>
+          </section>
+
+          <section name="database_specific_features" priority="critical">
+            <description>Database architecture characteristics</description>
+            <fields>
+              <field name="supports_schemas">
+                <type>boolean</type>
+                <description>Whether database supports schemas</description>
+                <examples>
+                  <example database="PostgreSQL">true</example>
+                  <example database="Oracle">true</example>
+                  <example database="SQL Server">true</example>
+                  <example database="MySQL">false (uses catalogs)</example>
+                </examples>
+              </field>
+              <field name="supports_catalogs">
+                <type>boolean</type>
+                <description>Whether database supports catalogs</description>
+                <examples>
+                  <example database="MySQL">true</example>
+                  <example database="SQL Server">true</example>
+                  <example database="PostgreSQL">false</example>
+                </examples>
+              </field>
+              <field name="default_schema">
+                <type>string or null</type>
+                <description>Default schema name if applicable</description>
+                <examples>
+                  <example database="PostgreSQL">public</example>
+                  <example database="SQL Server">dbo</example>
+                  <example database="Oracle">null (user's schema)</example>
+                </examples>
+              </field>
+              <field name="system_schemas">
+                <type>array of strings</type>
+                <description>System schemas to exclude from discovery</description>
+                <examples>
+                  <example database="PostgreSQL">["information_schema", "pg_catalog", "pg_toast"]</example>
+                  <example database="MySQL">["information_schema", "mysql", "performance_schema", "sys"]</example>
+                  <example database="SQL Server">["sys", "INFORMATION_SCHEMA"]</example>
+                  <example database="Oracle">["SYS", "SYSTEM", "CTXSYS", "MDSYS"]</example>
+                </examples>
+              </field>
+              <field name="identifier_quote_char">
+                <type>string</type>
+                <description>Character used to quote identifiers</description>
+                <examples>
+                  <example database="PostgreSQL">"</example>
+                  <example database="MySQL">`</example>
+                  <example database="SQL Server">"</example>
+                  <example database="Oracle">"</example>
+                </examples>
+              </field>
+            </fields>
+          </section>
+
+          <section name="url_template" priority="critical">
+            <description>JDBC URL pattern with placeholders</description>
+            <placeholder_syntax>
+              Use {property_name} for connection properties
+            </placeholder_syntax>
+            <examples>
+              <example database="MySQL">jdbc:mysql://{host}:{port}/{database}</example>
+              <example database="PostgreSQL">jdbc:postgresql://{host}:{port}/{database}</example>
+              <example database="Oracle">jdbc:oracle:thin:@{host}:{port}:{database}</example>
+              <example database="SQL Server">jdbc:sqlserver://{host}:{port};databaseName={database}</example>
+              <example database="DB2">jdbc:db2://{host}:{port}/{database}</example>
+            </examples>
+          </section>
+
+          <section name="validation_rules" priority="low">
+            <description>Optional validation rules for connection properties</description>
+            <common_rules>
+              <rule property="port">
+                <type>range</type>
+                <min>1</min>
+                <max>65535</max>
+              </rule>
+            </common_rules>
+          </section>
+
+          <section name="data_type_mappings" priority="low">
+            <description>Custom data type mappings (only if needed)</description>
+            <when_to_include>
+              Database has non-standard types that need special handling
+            </when_to_include>
+          </section>
+
+          <section name="custom_actions" priority="low">
+            <description>Custom connector actions beyond standard operations</description>
+            <when_to_include>
+              Database supports special operations like table size queries
+            </when_to_include>
+          </section>
+        </required_sections>
+      </step>
+
+      <step number="2">
+        <action>Remove all template comments and example fields</action>
+        <description>
+          Clean up the DSL file by removing all documentation fields
+        </description>
+        <fields_to_remove>
+          <field>_comment</field>
+          <field>_instructions</field>
+          <field>_note</field>
+          <field>_description</field>
+          <field>_example</field>
+          <field>_example_*</field>
+          <field>_examples</field>
+        </fields_to_remove>
+        <note>
+          These fields are for documentation only and should not be in the final DSL
+        </note>
+      </step>
+
+      <step number="3">
+        <action>Validate DSL configuration</action>
+        <validation_checks>
+          <check>All required sections are present</check>
+          <check>connector_name follows naming convention</check>
+          <check>driver_class_name is fully qualified</check>
+          <check>url_template uses correct placeholder syntax</check>
+          <check>supports_schemas and supports_catalogs are boolean</check>
+          <check>system_schemas is an array</check>
+          <check>No _example or _comment fields remain</check>
+          <check>JSON is valid and properly formatted</check>
+        </validation_checks>
+      </step>
+    </phase>
+  </main_workflow>
+
+  <completion_criteria>
+    <criterion>DSL-[database].json file created in sdk-gen folder</criterion>
+    <criterion>All required sections filled with accurate values</criterion>
+    <criterion>JDBC driver class name verified from documentation</criterion>
+    <criterion>URL template matches database's JDBC URL format</criterion>
+    <criterion>Database features (schemas/catalogs) correctly specified</criterion>
+    <criterion>System schemas identified and listed</criterion>
+    <criterion>All template comments removed</criterion>
+    <criterion>JSON is valid and well-formatted</criterion>
+  </completion_criteria>
+
+  <next_steps_after_completion>
+    <step>Use the DSL file with the JDBC Connector Creator mode</step>
+    <step>Or manually run: cd sdk-gen && ./gradlew generateJavaJdbc</step>
+    <step>Then customize: ./gradlew customizeJdbcConnector -PdslFile=DSL-jdbc-[database].json</step>
+  </next_steps_after_completion>
+
+  <error_handling>
+    <error type="insufficient_information">
+      <symptom>User hasn't provided database name or key details</symptom>
+      <solution>Use ask_followup_question to gather database name</solution>
+      <solution>Research remaining details from official documentation</solution>
+    </error>
+    <error type="unclear_database_features">
+      <symptom>Uncertain about schema/catalog support</symptom>
+      <solution>Research database architecture documentation</solution>
+      <solution>Check JDBC driver documentation for metadata methods</solution>
+    </error>
+    <error type="driver_class_not_found">
+      <symptom>Cannot find exact JDBC driver class name</symptom>
+      <solution>Check database vendor's JDBC driver documentation</solution>
+      <solution>Look for driver JAR on Maven Central</solution>
+      <solution>Search for "database_name JDBC driver class"</solution>
+    </error>
+  </error_handling>
+</dsl_creation_workflow>
+
+<!-- Made with Bob -->
