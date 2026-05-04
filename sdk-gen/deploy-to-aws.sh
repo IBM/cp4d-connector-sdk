@@ -102,6 +102,25 @@ validate_parameters() {
     log_success "All required parameters are present"
 }
 
+# Configure AWS credentials if provided in properties file
+configure_aws_credentials() {
+    if [[ -n "$AWS_ACCESS_KEY_ID" && -n "$AWS_SECRET_ACCESS_KEY" ]]; then
+        log_info "Configuring AWS credentials from properties file..."
+        export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+        
+        # Configure session token if provided (for temporary credentials)
+        if [[ -n "$AWS_SESSION_TOKEN" ]]; then
+            export AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN"
+            log_info "AWS session token configured"
+        fi
+        
+        log_success "AWS credentials configured from properties file"
+    else
+        log_info "Using existing AWS credentials configuration"
+    fi
+}
+
 # Check prerequisites
 check_prerequisites() {
     log_step "Checking prerequisites"
@@ -113,9 +132,17 @@ check_prerequisites() {
     fi
     log_success "AWS CLI is installed"
     
+    # Configure AWS credentials if provided
+    configure_aws_credentials
+    
     # Check AWS credentials
     if ! aws sts get-caller-identity --region "$AWS_REGION" &> /dev/null; then
         log_error "AWS credentials are not configured or invalid."
+        log_error "Please either:"
+        log_error "  1. Configure AWS CLI: aws configure"
+        log_error "  2. Add credentials to properties file:"
+        log_error "     AWS_ACCESS_KEY_ID=your-access-key"
+        log_error "     AWS_SECRET_ACCESS_KEY=your-secret-key"
         exit 1
     fi
     log_success "AWS credentials are valid"
