@@ -187,8 +187,18 @@ docker.buildLatest = { String imageName, String imageVersion, File dockerFile, S
   if (arg1 != null ) {
     imageVersion = arg1
   }
+  def platform = project.hasProperty('docker.platform') ? project['docker.platform'] : null
   docker.dockerCommandIgnoreFailure('rmi', "${imageName}:${latestTag}")
-  docker.dockerCommand('build', '--no-cache', '-t', "${imageName}:${imageVersion}", dockerFile.parentFile.absolutePath)
+  def buildArgs = ['build', '--no-cache']
+  if (platform != null) {
+    buildArgs.addAll(['--platform', platform])
+  }
+  buildArgs.addAll([
+    '-t',
+    "${imageName}:${imageVersion}",
+    dockerFile.parentFile.absolutePath
+  ])
+  docker.dockerCommand(*buildArgs)
   docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageName}:${latestTag}")
   if (imageRegistry != null) {
     docker.dockerCommand('tag', "${imageName}:${imageVersion}", "${imageRegistry}/${imageName}:${imageVersion}")
@@ -200,12 +210,18 @@ docker.buildLatest = { String imageName, String imageVersion, File dockerFile, S
 }
 
 docker.buildLatestWithParams = { String imageName, String imageVersion, File dockerFile, Map buildArgs, String imageRegistry = null, String contRegistry = null ->
+  def platform = project.hasProperty('docker.platform') ? project['docker.platform'] : null
   def cmdArgs = [
     'build',
-    '--no-cache',
+    '--no-cache'
+  ]
+  if (platform != null) {
+    cmdArgs.addAll(['--platform', platform])
+  }
+  cmdArgs.addAll([
     '-t',
     "${imageName}:${imageVersion}"
-  ]
+  ])
   buildArgs.each { entry ->
     cmdArgs << '--build-arg'
     cmdArgs << "$entry.key" + '=' + "$entry.value"
