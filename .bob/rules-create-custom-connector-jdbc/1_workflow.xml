@@ -260,6 +260,48 @@
         <jar_location>sdk-gen/subprojects/jdbc_{database}/build/libs/jdbc_{database}.jar</jar_location>
       </output>
     </phase>
+
+    <phase number="10" name="flight_app_generation">
+      <title>Generate Flight App</title>
+      <description>
+        Automatically generate a Flight app project that includes the newly created connector.
+        This creates a deployable application with the connector integrated.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Run autoGenerateFlightApp task</action>
+          <command>./gradlew autoGenerateFlightApp -PdslFile=subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json</command>
+          <working_directory>sdk-gen/</working_directory>
+          <note>This task automatically determines the connector name from the DSL file</note>
+        </step>
+        <step number="2">
+          <action>Verify flight app generation</action>
+          <success_indicators>
+            <indicator>✅ Flight app created successfully! message</indicator>
+            <indicator>Flight app directory created at subprojects/flight/</indicator>
+            <indicator>Connector dependency added to flight app build.gradle</indicator>
+          </success_indicators>
+        </step>
+        <step number="3">
+          <action>Verify flight app can be built</action>
+          <command>./gradlew :wdp-connect-sdk-gen-flight:build -x test</command>
+          <working_directory>sdk-gen/</working_directory>
+          <optional>true</optional>
+          <note>This step is optional but recommended to verify the flight app is properly configured</note>
+        </step>
+      </steps>
+      <what_it_does>
+        <action>Creates flight app at sdk-gen/subprojects/flight/</action>
+        <action>Adds connector as runtimeOnly dependency</action>
+        <action>Configures flight app for deployment</action>
+        <action>Makes connector ready for Cloud Pak for Data integration</action>
+      </what_it_does>
+      <output>
+        <location>sdk-gen/subprojects/flight/</location>
+        <gradle_project>:wdp-connect-sdk-gen-flight</gradle_project>
+        <connector_dependency>runtimeOnly project(path: ':wdp-connect-sdk-gen-jdbc_{database}')</connector_dependency>
+      </output>
+    </phase>
   </workflow_phases>
 
   <completion_criteria>
@@ -270,14 +312,17 @@
     <criterion>Test suite generated</criterion>
     <criterion>Code formatted with spotlessApply</criterion>
     <criterion>Connector builds successfully</criterion>
+    <criterion>Flight app generated with connector integrated</criterion>
   </completion_criteria>
 
   <next_steps_for_user>
     <step>Review generated connector code in subprojects/jdbc_{database}/</step>
+    <step>Review generated flight app in subprojects/flight/</step>
     <step>Update test credentials in TestPropertyValidation.java</step>
-    <step>Run tests: ./gradlew :jdbc_{database}:test</step>
+    <step>Run connector tests: ./gradlew :wdp-connect-sdk-gen-jdbc_{database}:test</step>
+    <step>Build flight app: ./gradlew :wdp-connect-sdk-gen-flight:build</step>
     <step>Build Docker image: ./gradlew dockerBuild</step>
-    <step>Deploy to OpenShift (see JDBC_CONNECTOR_WORKFLOW.md)</step>
+    <step>Deploy to Cloud Pak for Data (see deployment documentation)</step>
   </next_steps_for_user>
 
   <error_handling>
