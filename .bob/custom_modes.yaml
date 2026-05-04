@@ -137,8 +137,8 @@ customModes:
     groups:
       - read
       - - edit
-        - fileRegex: (sdk-gen/DSL-.*\.json|sdk-gen/.*\.gradle|sdk-gen/subprojects/.*/build\.gradle|sdk-gen/subprojects/.*/src/.*/.*\.(java|properties))$
-          description: DSL files in sdk-gen folder, Gradle build files, and generated connector source code
+        - fileRegex: (DSL-.*\.json|sdk-gen/.*\.gradle|sdk-gen/subprojects/.*/build\.gradle|sdk-gen/subprojects/.*/src/.*/.*\.(java|properties))$
+          description: DSL files, Gradle build files, and generated connector source code
       - command
   - slug: dsl-creator
     name: 📋 DSL Creator
