@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dsl_creation_best_practices>
+  <overview>
+    Best practices and guidelines for creating accurate and complete DSL configuration
+    files for JDBC connectors.
+  </overview>
+
+  <research_practices>
+    <practice priority="critical">
+      <name>Always Research Official Documentation</name>
+      <description>
+        Never guess database configuration values - always verify from official sources
+      </description>
+      <rationale>
+        Incorrect configuration leads to runtime errors and connector failures
+      </rationale>
+      <research_sources>
+        <source priority="highest">Official database JDBC driver documentation</source>
+        <source priority="high">Database vendor's connection documentation</source>
+        <source priority="high">JDBC driver Maven Central page</source>
+        <source priority="medium">Database architecture documentation</source>
+        <source priority="low">Community forums and Stack Overflow (verify accuracy)</source>
+      </research_sources>
+      <key_information>
+        <item>Exact JDBC driver class name (case-sensitive)</item>
+        <item>JDBC URL format and syntax</item>
+        <item>Default port number</item>
+        <item>Schema vs catalog support</item>
+        <item>System schema names</item>
+        <item>Identifier quote character</item>
+      </key_information>
+    </practice>
+
+    <practice priority="high">
+      <name>Verify JDBC Driver Class Name</name>
+      <description>
+        The driver class name must be exactly correct (case-sensitive)
+      </description>
+      <verification_methods>
+        <method>Check official JDBC driver documentation</method>
+        <method>Look at driver JAR manifest or documentation</method>
+        <method>Search Maven Central for the driver artifact</method>
+        <method>Check database vendor's download page</method>
+      </verification_methods>
+      <common_patterns>
+        <pattern database="MySQL">com.mysql.cj.jdbc.Driver (modern)</pattern>
+        <pattern database="MySQL">com.mysql.jdbc.Driver (legacy, avoid)</pattern>
+        <pattern database="PostgreSQL">org.postgresql.Driver</pattern>
+        <pattern database="Oracle">oracle.jdbc.OracleDriver</pattern>
+        <pattern database="SQL Server">com.microsoft.sqlserver.jdbc.SQLServerDriver</pattern>
+        <pattern database="DB2">com.ibm.db2.jcc.DB2Driver</pattern>
+      </common_patterns>
+      <warning>
+        Using an incorrect or deprecated driver class name will cause
+        ClassNotFoundException at runtime
+      </warning>
+    </practice>
+
+    <practice priority="high">
+      <name>Research Schema vs Catalog Support</name>
+      <description>
+        Understanding schema/catalog architecture is critical for proper connector behavior
+      </description>
+      <definitions>
+        <definition term="Schema">
+          A namespace within a database that contains tables, views, etc.
+          Common in PostgreSQL, Oracle, SQL Server
+        </definition>
+        <definition term="Catalog">
+          A collection of schemas or databases. Common in MySQL where
+          "database" is actually a catalog
+        </definition>
+      </definitions>
+      <database_characteristics>
+        <database name="PostgreSQL">
+          <supports_schemas>true</supports_schemas>
+          <supports_catalogs>false</supports_catalogs>
+          <default_schema>public</default_schema>
+          <note>Uses schemas extensively, catalog is the database itself</note>
+        </database>
+        <database name="MySQL">
+          <supports_schemas>false</supports_schemas>
+          <supports_catalogs>true</supports_catalogs>
+          <default_schema>null</default_schema>
+          <note>What MySQL calls "database" is actually a catalog in JDBC terms</note>
+        </database>
+        <database name="Oracle">
+          <supports_schemas>true</supports_schemas>
+          <supports_catalogs>false</supports_catalogs>
+          <default_schema>null</default_schema>
+          <note>Each user has their own schema</note>
+        </database>
+        <database name="SQL Server">
+          <supports_schemas>true</supports_schemas>
+          <supports_catalogs>true</supports_catalogs>
+          <default_schema>dbo</default_schema>
+          <note>Supports both catalogs (databases) and schemas</note>
+        </database>
+      </database_characteristics>
+    </practice>
+
+    <practice priority="medium">
+      <name>Identify System Schemas</name>
+      <description>
+        List all system/internal schemas that should be excluded from discovery
+      </description>
+      <rationale>
+        System schemas contain internal database objects that users shouldn't
+        access through the connector
+      </rationale>
+      <common_system_schemas>
+        <database name="PostgreSQL">
+          <schema>information_schema</schema>
+          <schema>pg_catalog</schema>
+          <schema>pg_toast</schema>
+          <schema>pg_temp</schema>
+        </database>
+        <database name="MySQL">
+          <schema>information_schema</schema>
+          <schema>mysql</schema>
+          <schema>performance_schema</schema>
+          <schema>sys</schema>
+        </database>
+        <database name="SQL Server">
+          <schema>sys</schema>
+          <schema>INFORMATION_SCHEMA</schema>
+          <schema>guest</schema>
+        </database>
+        <database name="Oracle">
+          <schema>SYS</schema>
+          <schema>SYSTEM</schema>
+          <schema>CTXSYS</schema>
+          <schema>MDSYS</schema>
+          <schema>OLAPSYS</schema>
+          <schema>WMSYS</schema>
+        </database>
+      </common_system_schemas>
+    </practice>
+  </research_practices>
+
+  <configuration_practices>
+    <practice priority="critical">
+      <name>Follow Naming Conventions</name>
+      <description>
+        Use consistent naming for connector identification
+      </description>
+      <connector_name_rules>
+        <rule>Always prefix with "jdbc_"</rule>
+        <rule>Use lowercase only</rule>
+        <rule>Use underscores for word separation</rule>
+        <rule>Keep it short and descriptive</rule>
+        <rule>Use standard database abbreviations</rule>
+      </connector_name_rules>
+      <good_examples>
+        <example>jdbc_mysql</example>
+        <example>jdbc_postgres</example>
+        <example>jdbc_sqlserver</example>
+        <example>jdbc_oracle</example>
+        <example>jdbc_db2</example>
+      </good_examples>
+      <bad_examples>
+        <example reason="No prefix">mysql</example>
+        <example reason="Wrong case">JDBC_MySQL</example>
+        <example reason="Wrong separator">jdbc-mysql</example>
+        <example reason="Too generic">jdbc_db</example>
+      </bad_examples>
+    </practice>
+
+    <practice priority="high">
+      <name>Use Accurate URL Templates</name>
+      <description>
+        JDBC URL templates must match the database's exact format
+      </description>
+      <placeholder_syntax>
+        <rule>Use {property_name} for connection properties</rule>
+        <rule>Property names must match those in connection_properties</rule>
+        <rule>Common properties: {host}, {port}, {database}</rule>
+      </placeholder_syntax>
+      <url_patterns>
+        <pattern database="MySQL">
+          <template>jdbc:mysql://{host}:{port}/{database}</template>
+          <note>Simple host:port/database format</note>
+        </pattern>
+        <pattern database="PostgreSQL">
+          <template>jdbc:postgresql://{host}:{port}/{database}</template>
+          <note>Similar to MySQL format</note>
+        </pattern>
+        <pattern database="Oracle">
+          <template>jdbc:oracle:thin:@{host}:{port}:{database}</template>
+          <note>Uses colon before database (SID format)</note>
+          <alternative>jdbc:oracle:thin:@{host}:{port}/{database}</alternative>
+          <alternative_note>Service name format (use slash)</alternative_note>
+        </pattern>
+        <pattern database="SQL Server">
+          <template>jdbc:sqlserver://{host}:{port};databaseName={database}</template>
+          <note>Uses semicolon and databaseName parameter</note>
+        </pattern>
+        <pattern database="DB2">
+          <template>jdbc:db2://{host}:{port}/{database}</template>
+          <note>Standard format similar to PostgreSQL</note>
+        </pattern>
+      </url_patterns>
+    </practice>
+
+    <practice priority="high">
+      <name>Remove All Template Comments</name>
+      <description>
+        Clean DSL file must not contain any documentation fields
+      </description>
+      <fields_to_remove>
+        <field>_comment</field>
+        <field>_instructions</field>
+        <field>_note</field>
+        <field>_description</field>
+        <field>_example</field>
+        <field>_example_*</field>
+        <field>_examples</field>
+        <field>_when_to_include</field>
+      </fields_to_remove>
+      <rationale>
+        These fields are for template documentation only and will cause
+        parsing errors if left in the final DSL
+      </rationale>
+      <verification>
+        Search the final DSL file for any field starting with underscore
+      </verification>
+    </practice>
+
+    <practice priority="medium">
+      <name>Define Only Common Additional Properties</name>
+      <description>
+        Include only connection properties that most users will need
+      </description>
+      <commonly_needed_properties>
+        <property name="ssl">
+          <type>boolean</type>
+          <description>Enable SSL/TLS encryption</description>
+          <when_to_include>Database supports encrypted connections</when_to_include>
+        </property>
+        <property name="connection_timeout">
+          <type>integer</type>
+          <description>Connection timeout in seconds</description>
+          <when_to_include>Users may need to adjust timeout</when_to_include>
+        </property>
+        <property name="jdbc_url_params">
+          <type>string</type>
+          <description>Additional JDBC URL parameters</description>
+          <when_to_include>Always include for flexibility</when_to_include>
+        </property>
+      </commonly_needed_properties>
+      <avoid_including>
+        <item>Highly specialized properties few users need</item>
+        <item>Properties that can be set via jdbc_url_params</item>
+        <item>Deprecated or legacy properties</item>
+        <item>Internal/advanced tuning parameters</item>
+      </avoid_including>
+    </practice>
+
+    <practice priority="medium">
+      <name>Set Appropriate Default Values</name>
+      <description>
+        Provide sensible defaults for optional properties
+      </description>
+      <default_value_guidelines>
+        <guideline>Port: Use database's standard default port</guideline>
+        <guideline>SSL: Default to false (users can enable)</guideline>
+        <guideline>Timeout: 30 seconds is reasonable default</guideline>
+        <guideline>Boolean flags: Default to false unless commonly enabled</guideline>
+      </default_value_guidelines>
+      <examples>
+        <example property="port" database="MySQL">3306</example>
+        <example property="port" database="PostgreSQL">5432</example>
+        <example property="ssl">false</example>
+        <example property="connection_timeout">30</example>
+      </examples>
+    </practice>
+  </configuration_practices>
+
+  <validation_practices>
+    <practice priority="high">
+      <name>Validate JSON Syntax</name>
+      <description>
+        Ensure the DSL file is valid JSON before completion
+      </description>
+      <validation_checks>
+        <check>All brackets and braces are balanced</check>
+        <check>All strings are properly quoted</check>
+        <check>No trailing commas</check>
+        <check>Proper comma separation between elements</check>
+        <check>Consistent indentation (2 or 4 spaces)</check>
+      </validation_checks>
+    </practice>
+
+    <practice priority="high">
+      <name>Verify Required Sections</name>
+      <description>
+        Ensure all critical sections are present and complete
+      </description>
+      <required_sections>
+        <section>connector_metadata</section>
+        <section>jdbc_driver</section>
+        <section>connection_properties</section>
+        <section>database_specific_features</section>
+        <section>url_template</section>
+      </required_sections>
+      <optional_sections>
+        <section>authentication (basic is default)</section>
+        <section>validation_rules</section>
+        <section>data_type_mappings</section>
+        <section>custom_actions</section>
+      </optional_sections>
+    </practice>
+
+    <practice priority="medium">
+      <name>Cross-Reference with Example DSL</name>
+      <description>
+        Compare your DSL with DSL-jdbc-sqlserver.json for structure
+      </description>
+      <what_to_check>
+        <item>Section organization matches</item>
+        <item>Field names are consistent</item>
+        <item>Data types are correct (string, boolean, integer, array)</item>
+        <item>No extra or missing required fields</item>
+      </what_to_check>
+    </practice>
+  </validation_practices>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Using deprecated JDBC driver class</description>
+      <example>com.mysql.jdbc.Driver instead of com.mysql.cj.jdbc.Driver</example>
+      <symptom>Deprecation warnings or driver not found</symptom>
+      <solution>Always use the latest driver class from official docs</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Incorrect schema/catalog configuration</description>
+      <example>Setting supports_schemas=true for MySQL</example>
+      <symptom>Discovery fails or returns no tables</symptom>
+      <solution>Research database architecture carefully</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Wrong URL template syntax</description>
+      <example>Using {database} when database uses different parameter name</example>
+      <symptom>Connection fails with invalid URL</symptom>
+      <solution>Verify exact URL format from JDBC driver docs</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Forgetting to remove template comments</description>
+      <example>Leaving _example or _note fields in final DSL</example>
+      <symptom>Parsing errors or unexpected behavior</symptom>
+      <solution>Search for all fields starting with underscore and remove</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Missing system schemas</description>
+      <example>Not excluding information_schema</example>
+      <symptom>System tables appear in discovery results</symptom>
+      <solution>Research and list all system/internal schemas</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Incorrect identifier quote character</description>
+      <example>Using " for MySQL instead of `</example>
+      <symptom>Queries fail with syntax errors</symptom>
+      <solution>Check database SQL syntax documentation</solution>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="Before Starting">
+      <item>Identify the target database clearly</item>
+      <item>Locate official JDBC driver documentation</item>
+      <item>Understand database architecture (schemas/catalogs)</item>
+    </category>
+
+    <category name="During Research">
+      <item>Verify JDBC driver class name from official source</item>
+      <item>Confirm default port number</item>
+      <item>Document JDBC URL format exactly</item>
+      <item>Identify all system schemas</item>
+      <item>Determine identifier quote character</item>
+    </category>
+
+    <category name="During DSL Creation">
+      <item>Follow naming conventions for connector_name</item>
+      <item>Use accurate JDBC driver class name</item>
+      <item>Set correct default port</item>
+      <item>Configure schema/catalog support correctly</item>
+      <item>List all system schemas</item>
+      <item>Use proper URL template with {placeholders}</item>
+      <item>Include only commonly needed additional properties</item>
+    </category>
+
+    <category name="Before Completion">
+      <item>Remove all _example, _comment, _note fields</item>
+      <item>Validate JSON syntax</item>
+      <item>Verify all required sections present</item>
+      <item>Check URL template uses correct syntax</item>
+      <item>Confirm driver class name is exact</item>
+      <item>Ensure system_schemas array is complete</item>
+      <item>Verify boolean values are true/false (not strings)</item>
+    </category>
+  </quality_checklist>
+
+  <documentation_practices>
+    <practice priority="low">
+      <name>Document Research Sources</name>
+      <description>
+        Keep track of where you found configuration information
+      </description>
+      <rationale>
+        Helps verify accuracy and update DSL if database changes
+      </rationale>
+      <what_to_document>
+        <item>JDBC driver documentation URL</item>
+        <item>Database version researched</item>
+        <item>Any assumptions made</item>
+      </what_to_document>
+    </practice>
+  </documentation_practices>
+</dsl_creation_best_practices>
+
+<!-- Made with Bob -->
