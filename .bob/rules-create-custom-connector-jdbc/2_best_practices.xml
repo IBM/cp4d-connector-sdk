@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jdbc_connector_best_practices>
+  <overview>
+    Best practices and guidelines for creating high-quality JDBC connectors
+    using the IBM Watson Data Platform Connect SDK.
+  </overview>
+
+  <dsl_configuration_practices>
+    <practice priority="high">
+      <name>Research Database Documentation</name>
+      <description>
+        Always research the official database documentation before filling DSL values
+      </description>
+      <rationale>
+        Accurate configuration prevents runtime errors and ensures proper connector behavior
+      </rationale>
+      <guidelines>
+        <guideline>Verify JDBC driver class name from official documentation</guideline>
+        <guideline>Check default port numbers and URL patterns</guideline>
+        <guideline>Understand schema vs catalog support for the database</guideline>
+        <guideline>Identify system schemas that should be excluded</guideline>
+        <guideline>Research authentication methods supported</guideline>
+      </guidelines>
+    </practice>
+
+    <practice priority="high">
+      <name>Use Descriptive Connector Names</name>
+      <description>
+        Follow naming conventions for consistency and clarity
+      </description>
+      <good_examples>
+        <example>jdbc_mysql - Clear and concise</example>
+        <example>jdbc_postgres - Standard abbreviation</example>
+        <example>jdbc_sqlserver - Full name for clarity</example>
+      </good_examples>
+      <bad_examples>
+        <example>mydb - Too generic</example>
+        <example>JDBC_MySQL - Wrong case</example>
+        <example>jdbc-mysql - Wrong separator</example>
+      </bad_examples>
+    </practice>
+
+    <practice priority="medium">
+      <name>Remove Example Fields from DSL</name>
+      <description>
+        Clean up all _example and _comment fields before using DSL
+      </description>
+      <rationale>
+        Example fields are for documentation only and should not be in final configuration
+      </rationale>
+      <fields_to_remove>
+        <field>_example</field>
+        <field>_example_*</field>
+        <field>_comment</field>
+        <field>_note</field>
+        <field>_description</field>
+      </fields_to_remove>
+    </practice>
+
+    <practice priority="high">
+      <name>Specify Complete URL Templates</name>
+      <description>
+        Provide accurate JDBC URL templates with proper placeholder syntax
+      </description>
+      <placeholder_syntax>
+        Use {placeholder_name} for connection properties
+      </placeholder_syntax>
+      <examples>
+        <example database="MySQL">
+          jdbc:mysql://{host}:{port}/{database}
+        </example>
+        <example database="PostgreSQL">
+          jdbc:postgresql://{host}:{port}/{database}
+        </example>
+        <example database="Oracle">
+          jdbc:oracle:thin:@{host}:{port}:{database}
+        </example>
+        <example database="SQL Server">
+          jdbc:sqlserver://{host}:{port};databaseName={database}
+        </example>
+      </examples>
+    </practice>
+
+    <practice priority="medium">
+      <name>Define Additional Properties Carefully</name>
+      <description>
+        Only add connection properties that are commonly needed
+      </description>
+      <common_properties>
+        <property>ssl - For secure connections</property>
+        <property>connection_timeout - For timeout control</property>
+        <property>jdbc_url_params - For additional URL parameters</property>
+      </common_properties>
+      <avoid>
+        <item>Overly specific properties that few users need</item>
+        <item>Properties that can be set via jdbc_url_params</item>
+        <item>Deprecated or legacy properties</item>
+      </avoid>
+    </practice>
+  </dsl_configuration_practices>
+
+  <code_generation_practices>
+    <practice priority="high">
+      <name>Always Run in Correct Directory</name>
+      <description>
+        Gradle tasks must be run from the sdk-gen directory
+      </description>
+      <correct>
+        cd sdk-gen && ./gradlew generateJavaJdbc
+      </correct>
+      <incorrect>
+        ./gradlew generateJavaJdbc (from project root)
+      </incorrect>
+    </practice>
+
+    <practice priority="high">
+      <name>Provide Accurate Task Parameters</name>
+      <description>
+        When running Gradle tasks, ensure all parameters are correct
+      </description>
+      <parameter_guidelines>
+        <guideline>Use relative paths from sdk-gen directory</guideline>
+        <guideline>DSL file path should use ../ if in parent directory</guideline>
+        <guideline>Connector directory should be relative to sdk-gen</guideline>
+        <guideline>Match connector names exactly (case-sensitive)</guideline>
+      </parameter_guidelines>
+    </practice>
+
+    <practice priority="medium">
+      <name>Verify Generated Files</name>
+      <description>
+        After each generation step, verify expected files were created
+      </description>
+      <verification_steps>
+        <step>Use list_files to check directory structure</step>
+        <step>Read key files to verify content</step>
+        <step>Check for error messages in command output</step>
+      </verification_steps>
+    </practice>
+  </code_generation_practices>
+
+  <customization_practices>
+    <practice priority="high">
+      <name>Review Customization Summary</name>
+      <description>
+        Always read CUSTOMIZATION_SUMMARY.md after customization
+      </description>
+      <rationale>
+        The summary documents what was changed and what still needs to be done
+      </rationale>
+      <what_to_check>
+        <item>Driver class name was updated correctly</item>
+        <item>Metadata fields are accurate</item>
+        <item>Additional properties were added</item>
+        <item>Next steps are clear</item>
+      </what_to_check>
+    </practice>
+
+    <practice priority="high">
+      <name>Add JDBC Driver Dependency</name>
+      <description>
+        The connector needs the JDBC driver JAR to function
+      </description>
+      <approaches>
+        <approach name="Maven Dependency">
+          <description>Preferred if driver is in Maven Central</description>
+          <example>
+            dependencies {
+                implementation 'mysql:mysql-connector-java:8.0.33'
+            }
+          </example>
+        </approach>
+        <approach name="Local JAR">
+          <description>Use if driver not in Maven Central</description>
+          <steps>
+            <step>Create lib/ directory in connector project</step>
+            <step>Copy JDBC driver JAR to lib/</step>
+            <step>Add to build.gradle: implementation files('lib/driver.jar')</step>
+          </steps>
+        </approach>
+      </approaches>
+    </practice>
+
+    <practice priority="medium">
+      <name>Validate Driver Class Name</name>
+      <description>
+        Ensure the JDBC driver class name is correct before building
+      </description>
+      <validation_method>
+        Read the Connector.java file and verify DRIVER_CLASS_NAME constant
+      </validation_method>
+      <common_mistakes>
+        <mistake>Using old/deprecated driver class names</mistake>
+        <mistake>Typos in fully qualified class name</mistake>
+        <mistake>Using driver class from wrong database</mistake>
+      </common_mistakes>
+    </practice>
+  </customization_practices>
+
+  <testing_practices>
+    <practice priority="high">
+      <name>Update Test Credentials</name>
+      <description>
+        Generated tests have placeholder credentials that must be updated
+      </description>
+      <what_to_update>
+        <field>host - Real database hostname or IP</field>
+        <field>port - Actual database port</field>
+        <field>database - Test database name</field>
+        <field>username - Valid database user</field>
+        <field>password - User's password</field>
+      </what_to_update>
+      <security_note>
+        Never commit real credentials to version control. Use environment
+        variables or test configuration files that are gitignored.
+      </security_note>
+    </practice>
+
+    <practice priority="medium">
+      <name>Test Incrementally</name>
+      <description>
+        Run tests after each major change to catch issues early
+      </description>
+      <test_sequence>
+        <step>After customization: ./gradlew :jdbc_[name]:compileJava</step>
+        <step>After adding driver: ./gradlew :jdbc_[name]:build</step>
+        <step>After updating credentials: ./gradlew :jdbc_[name]:test</step>
+      </test_sequence>
+    </practice>
+
+    <practice priority="medium">
+      <name>Review Test Coverage</name>
+      <description>
+        Ensure generated tests cover all custom properties
+      </description>
+      <what_to_verify>
+        <item>All additional connection properties are tested</item>
+        <item>Negative tests exist for required properties</item>
+        <item>Source and target properties are validated</item>
+      </what_to_verify>
+    </practice>
+  </testing_practices>
+
+  <build_practices>
+    <practice priority="high">
+      <name>Clean Build on Errors</name>
+      <description>
+        If build fails, try a clean build first
+      </description>
+      <commands>
+        <command>./gradlew clean</command>
+        <command>./gradlew :jdbc_[name]:build --refresh-dependencies</command>
+      </commands>
+    </practice>
+
+    <practice priority="medium">
+      <name>Use Verbose Output for Debugging</name>
+      <description>
+        Add flags to get more information when troubleshooting
+      </description>
+      <useful_flags>
+        <flag>--info - More detailed output</flag>
+        <flag>--debug - Full debug information</flag>
+        <flag>--stacktrace - Show full stack traces</flag>
+        <flag>--scan - Create build scan for analysis</flag>
+      </useful_flags>
+    </practice>
+
+    <practice priority="low">
+      <name>Verify JAR Contents</name>
+      <description>
+        After successful build, verify the JAR contains expected files
+      </description>
+      <verification_command>
+        jar tf build/libs/jdbc_[name]-[version].jar | grep -i connector
+      </verification_command>
+    </practice>
+  </build_practices>
+
+  <documentation_practices>
+    <practice priority="high">
+      <name>Document Custom Changes</name>
+      <description>
+        If you make manual changes beyond DSL customization, document them
+      </description>
+      <where_to_document>
+        <location>CUSTOMIZATION_SUMMARY.md - Add a "Manual Changes" section</location>
+        <location>README.md - Create if needed with setup instructions</location>
+        <location>Code comments - Explain non-obvious customizations</location>
+      </where_to_document>
+    </practice>
+
+    <practice priority="medium">
+      <name>Keep DSL File Updated</name>
+      <description>
+        If you modify the connector, update the DSL file to match
+      </description>
+      <rationale>
+        DSL serves as documentation and can be used to regenerate connector
+      </rationale>
+    </practice>
+  </documentation_practices>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Running Gradle tasks from wrong directory</description>
+      <symptom>Task not found or file not found errors</symptom>
+      <solution>Always cd to sdk-gen directory first</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Incorrect DSL file path in Gradle command</description>
+      <symptom>DSL file not found error</symptom>
+      <solution>Use ../ prefix if DSL is in parent directory</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Missing JDBC driver dependency</description>
+      <symptom>ClassNotFoundException at runtime</symptom>
+      <solution>Add driver to build.gradle dependencies</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Wrong JDBC driver class name</description>
+      <symptom>Driver not found or connection errors</symptom>
+      <solution>Verify class name in database documentation</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Not removing example fields from DSL</description>
+      <symptom>Unexpected properties or validation errors</symptom>
+      <solution>Remove all _example, _comment, _note fields</solution>
+    </pitfall>
+
+    <pitfall>
+      <description>Placeholder test credentials</description>
+      <symptom>Tests fail with connection errors</symptom>
+      <solution>Update test file with real database credentials</solution>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="Before Starting">
+      <item>Research database JDBC driver and URL format</item>
+      <item>Understand database schema/catalog support</item>
+      <item>Identify system schemas to exclude</item>
+      <item>Check authentication methods available</item>
+    </category>
+
+    <category name="During DSL Creation">
+      <item>Fill all required fields accurately</item>
+      <item>Remove all example/comment fields</item>
+      <item>Validate JDBC URL template syntax</item>
+      <item>Define only commonly needed additional properties</item>
+    </category>
+
+    <category name="After Code Generation">
+      <item>Verify all expected files were created</item>
+      <item>Check connector name matches throughout</item>
+      <item>Review generated class structure</item>
+    </category>
+
+    <category name="After Customization">
+      <item>Read CUSTOMIZATION_SUMMARY.md</item>
+      <item>Verify driver class name is correct</item>
+      <item>Check metadata fields are accurate</item>
+      <item>Add JDBC driver dependency to build.gradle</item>
+    </category>
+
+    <category name="Before Testing">
+      <item>Update test credentials with real values</item>
+      <item>Ensure test database is accessible</item>
+      <item>Verify JDBC driver is in classpath</item>
+    </category>
+
+    <category name="Before Completion">
+      <item>All tests pass successfully</item>
+      <item>Build completes without errors</item>
+      <item>JAR file is created in build/libs/</item>
+      <item>Documentation is complete and accurate</item>
+    </category>
+  </quality_checklist>
+</jdbc_connector_best_practices>
+
+<!-- Made with Bob -->
