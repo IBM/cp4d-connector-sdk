@@ -1,327 +1,303 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<jdbc_connector_creation_workflow>
+<jdbc_connector_workflow>
   <overview>
-    This workflow guides you through creating a custom JDBC connector for the IBM Watson
-    Data Platform Connect SDK. The process involves creating a DSL configuration file,
-    generating connector code, customizing it, generating tests, and building the connector.
+    This workflow guides you through creating a custom JDBC connector for any database
+    using the IBM Watson Data Platform Connect SDK. The process involves creating a DSL
+    configuration, generating connector code, customizing it, generating tests, and building
+    the final connector.
   </overview>
 
-  <initialization>
-    <step number="1">
+  <prerequisites>
+    <requirement>Java 11 or higher installed</requirement>
+    <requirement>Gradle 7.x or higher</requirement>
+    <requirement>Access to the target database for testing</requirement>
+    <requirement>JDBC driver information for the target database</requirement>
+    <requirement>Working directory must be sdk-gen/</requirement>
+  </prerequisites>
+
+  <workflow_phases>
+    <phase number="1" name="information_gathering">
       <title>Gather Database Information</title>
       <description>
-        Collect essential information about the target database to create the connector
+        Collect all necessary information about the target database before starting
+        the connector creation process.
       </description>
       <required_information>
-        <item>Database name (e.g., MySQL, PostgreSQL, Oracle, SQL Server)</item>
-        <item>JDBC driver class name (e.g., com.mysql.cj.jdbc.Driver)</item>
-        <item>Default port number</item>
-        <item>JDBC URL template pattern</item>
-        <item>Authentication methods supported</item>
-        <item>Schema/catalog support characteristics</item>
-        <item>Special connection properties or features</item>
+        <item>Database name (e.g., db2, mysql, postgresql, oracle)</item>
+        <item>JDBC driver class name (e.g., com.ibm.db2.jcc.DB2Driver)</item>
+        <item>JDBC URL template (e.g., jdbc:db2://{host}:{port}/{database})</item>
+        <item>JDBC driver Maven coordinates (group:artifact:version)</item>
+        <item>Default port number for the database</item>
+        <item>Whether database supports schemas, catalogs, or both</item>
       </required_information>
-      <action>
-        Use ask_followup_question to gather this information from the user if not provided
-      </action>
-    </step>
+      <actions>
+        <action>Ask user for the database name they want to create a connector for</action>
+        <action>Determine if user has JDBC driver information or needs help finding it</action>
+        <action>Validate that we have all required information before proceeding</action>
+      </actions>
+    </phase>
 
-    <step number="2">
-      <title>Determine Connector Name</title>
+    <phase number="2" name="dsl_creation">
+      <title>Create DSL Configuration</title>
       <description>
-        Create a standardized connector name following the naming convention
+        Create a database-specific DSL configuration file based on DSL-jdbc.json template.
+        This file defines all connector properties, driver information, and customizations.
       </description>
-      <naming_convention>
-        <format>jdbc_[database_name]</format>
-        <examples>
-          <example>jdbc_mysql</example>
-          <example>jdbc_postgres</example>
-          <example>jdbc_oracle</example>
-          <example>jdbc_sqlserver</example>
-        </examples>
-        <rules>
-          <rule>Use lowercase only</rule>
-          <rule>Use underscores to separate words</rule>
-          <rule>Keep it short and descriptive</rule>
-          <rule>Prefix with "jdbc_"</rule>
-        </rules>
-      </naming_convention>
-    </step>
-  </initialization>
-
-  <main_workflow>
-    <phase name="dsl_creation">
-      <title>Phase 1: Create DSL Configuration</title>
-      <description>
-        Create a DSL-[connector_name].json file based on the DSL-jdbc.json template
-      </description>
-      
-      <step number="1">
-        <action>Read the DSL-jdbc.json template</action>
-        <tool>read_file</tool>
-        <parameters>
-          <path>sdk-gen/subprojects/java/jdbc/DSL-jdbc.json</path>
-        </parameters>
-      </step>
-
-      <step number="2">
-        <action>Create new DSL file with database-specific configuration in sdk-gen folder</action>
-        <tool>write_to_file</tool>
-        <file_path>sdk-gen/DSL-jdbc-[database].json</file_path>
-        <required_sections>
-          <section name="connector_metadata">
-            <field>connector_name: jdbc_[database]</field>
-            <field>connector_label: Display name</field>
-            <field>connector_description: Brief description</field>
-          </section>
-          <section name="jdbc_driver">
+      <steps>
+        <step number="1">
+          <action>Read the DSL-jdbc.json template file</action>
+          <tool>read_file</tool>
+          <file>DSL-jdbc.json</file>
+        </step>
+        <step number="2">
+          <action>Create new DSL file named DSL-jdbc-{database}.json</action>
+          <tool>write_to_file</tool>
+          <naming_convention>DSL-jdbc-{database}.json (e.g., DSL-jdbc-db2.json)</naming_convention>
+        </step>
+        <step number="3">
+          <action>Fill in connector metadata</action>
+          <fields>
+            <field>connector_name: jdbc_{database} (e.g., jdbc_db2)</field>
+            <field>connector_label: {Database Name} (e.g., IBM Db2)</field>
+            <field>connector_description: Brief description of the connector</field>
+          </fields>
+        </step>
+        <step number="4">
+          <action>Configure JDBC driver information</action>
+          <fields>
             <field>driver_class_name: Fully qualified driver class</field>
-          </section>
-          <section name="url_template">
-            <field>template: JDBC URL pattern with {placeholders}</field>
-          </section>
-          <section name="database_specific_features">
-            <field>supports_schemas: true/false</field>
-            <field>supports_catalogs: true/false</field>
-            <field>identifier_quote_char: Quote character</field>
-            <field>system_schemas: Array of system schema names</field>
-          </section>
-        </required_sections>
-        <note>
-          Research the database documentation to fill in accurate values.
-          Use the DSL-jdbc-example.json as a reference for structure.
-        </note>
-      </step>
-
-      <step number="3">
-        <action>Validate DSL configuration</action>
-        <validation_checks>
-          <check>All required fields are filled</check>
-          <check>JDBC driver class name is correct</check>
-          <check>URL template uses proper placeholder syntax</check>
-          <check>No example/comment fields remain in final config</check>
-        </validation_checks>
-      </step>
+            <field>jdbc_url: JDBC URL template with {placeholders}</field>
+          </fields>
+        </step>
+        <step number="5">
+          <action>Add driver dependencies</action>
+          <location>implementation_notes.dependencies[0].driver_dependencies</location>
+          <format>["group:artifact:version"]</format>
+          <example>["com.ibm.db2:jcc:11.5.8.0"]</example>
+        </step>
+      </steps>
+      <validation>
+        <check>Verify connector_label is user-friendly and descriptive</check>
+        <check>Ensure driver_class_name is correct for the database</check>
+        <check>Confirm jdbc_url template uses correct syntax</check>
+        <check>Validate driver_dependencies array is properly formatted</check>
+      </validation>
     </phase>
 
-    <phase name="code_generation">
-      <title>Phase 2: Generate Connector Skeleton</title>
+    <phase number="3" name="label_confirmation">
+      <title>Confirm Connector Label</title>
       <description>
-        Use the generateJavaJdbc Gradle task to create the connector skeleton
+        Ask the user to confirm the connector_label before proceeding, as this will
+        be visible in the UI and should be user-friendly.
       </description>
-
-      <step number="1">
-        <action>Execute generateJavaJdbc task</action>
-        <tool>execute_command</tool>
-        <command_template>
-          cd sdk-gen && ./gradlew generateJavaJdbc
-        </command_template>
-        <interactive_prompts>
-          <prompt>
-            <question>Enter the connector label</question>
-            <answer>Use the connector_label from DSL (e.g., "MySQL", "PostgreSQL")</answer>
-          </prompt>
-          <prompt>
-            <question>Enter the connector name</question>
-            <answer>Use the connector_name from DSL (e.g., "jdbc_mysql")</answer>
-          </prompt>
-        </interactive_prompts>
-        <note>
-          The task will prompt for connector label and name. Provide values
-          from the DSL configuration file.
-        </note>
-      </step>
-
-      <step number="2">
-        <action>Verify generated files</action>
-        <tool>list_files</tool>
-        <expected_structure>
-          <directory>sdk-gen/subprojects/jdbc_[name]/</directory>
-          <files>
-            <file>build.gradle</file>
-            <file>src/main/java/.../[Name]Connector.java</file>
-            <file>src/main/java/.../[Name]ConnectorFactory.java</file>
-            <file>src/main/java/.../[Name]DatasourceType.java</file>
-            <file>src/main/java/.../[Name]FlightProducer.java</file>
-            <file>src/main/java/.../[Name]SourceInteraction.java</file>
-            <file>src/main/java/.../[Name]TargetInteraction.java</file>
-          </files>
-        </expected_structure>
-      </step>
+      <actions>
+        <action>Extract connector_label from the created DSL file</action>
+        <action>Use ask_followup_question to confirm with user</action>
+        <action>If user wants to change it, update the DSL file</action>
+      </actions>
+      <example_question>
+        I've set the connector label to "{label}". This will be displayed in the
+        Cloud Pak for Data UI. Is this label acceptable, or would you like to change it?
+      </example_question>
     </phase>
 
-    <phase name="customization">
-      <title>Phase 3: Customize Connector with DSL</title>
+    <phase number="4" name="code_generation">
+      <title>Generate Connector Template Code</title>
       <description>
-        Apply DSL configuration to customize the generated connector code
+        Run the autoGenerateJavaJdbc Gradle task to generate the connector skeleton code
+        from the DSL configuration.
       </description>
-
-      <step number="1">
-        <action>Run customizeJdbcConnector task</action>
-        <tool>execute_command</tool>
-        <command_template>
-          cd sdk-gen && ./gradlew customizeJdbcConnector \
-            -PdslFile=DSL-jdbc-[name].json \
-            -PconnectorDir=subprojects/jdbc_[name]
-        </command_template>
-        <what_it_does>
-          <item>Updates Connector.java with JDBC driver class name</item>
-          <item>Updates DatasourceType.java with metadata and properties</item>
-          <item>Adds additional connection properties from DSL</item>
-          <item>Creates CUSTOMIZATION_SUMMARY.md documentation</item>
-        </what_it_does>
-      </step>
-
-      <step number="2">
-        <action>Review customization results</action>
-        <tool>read_file</tool>
-        <files_to_check>
-          <file>sdk-gen/subprojects/jdbc_[name]/CUSTOMIZATION_SUMMARY.md</file>
-          <file>sdk-gen/subprojects/jdbc_[name]/src/main/java/.../[Name]Connector.java</file>
-        </files_to_check>
-      </step>
+      <steps>
+        <step number="1">
+          <action>Change to sdk-gen directory if not already there</action>
+          <command>cd sdk-gen</command>
+        </step>
+        <step number="2">
+          <action>Run the autoGenerateJavaJdbc task</action>
+          <command>./gradlew autoGenerateJavaJdbc -PdslFile=../DSL-jdbc-{database}.json</command>
+          <note>The DSL file path is relative to sdk-gen directory</note>
+        </step>
+        <step number="3">
+          <action>Wait for task completion and verify success</action>
+          <success_indicators>
+            <indicator>BUILD SUCCESSFUL message</indicator>
+            <indicator>New directory created in subprojects/</indicator>
+            <indicator>Java source files generated</indicator>
+          </success_indicators>
+        </step>
+      </steps>
+      <output>
+        <location>sdk-gen/subprojects/jdbc_{database}/</location>
+        <generated_files>
+          <file>src/main/java/.../Connector.java</file>
+          <file>src/main/java/.../ConnectorFactory.java</file>
+          <file>src/main/java/.../DatasourceType.java</file>
+          <file>src/main/java/.../FlightProducer.java</file>
+          <file>src/main/java/.../SourceInteraction.java</file>
+          <file>src/main/java/.../TargetInteraction.java</file>
+          <file>src/main/resources/.../Labels.properties</file>
+          <file>src/main/resources/.../Msgs.properties</file>
+          <file>build.gradle</file>
+        </generated_files>
+      </output>
     </phase>
 
-    <phase name="test_generation">
-      <title>Phase 4: Generate Test Suite</title>
+    <phase number="5" name="dsl_relocation">
+      <title>Move DSL to Connector Directory</title>
       <description>
-        Generate comprehensive property validation tests
+        Move the DSL configuration file to the generated connector's resources directory
+        for use in subsequent customization steps.
       </description>
-
-      <step number="1">
-        <action>Run generateJdbcTests task</action>
-        <tool>execute_command</tool>
-        <command_template>
-          cd sdk-gen && ./gradlew generateJdbcTests \
-            -PdslFile=DSL-jdbc-[name].json \
-            -PconnectorDir=subprojects/jdbc_[name]
-        </command_template>
-        <what_it_generates>
-          <item>TestPropertyValidation.java with comprehensive tests</item>
-          <item>Tests for basic connection properties</item>
-          <item>Tests for missing required properties (negative tests)</item>
-          <item>Tests for source/target/filter properties</item>
-          <item>Tests for additional custom properties</item>
-        </what_it_generates>
-      </step>
-
-      <step number="2">
-        <action>Review generated test file</action>
-        <tool>read_file</tool>
-        <note>
-          Tests will have placeholder connection properties that need to be
-          updated with real database credentials before running
-        </note>
-      </step>
+      <steps>
+        <step number="1">
+          <action>Identify the generated connector directory</action>
+          <pattern>sdk-gen/subprojects/jdbc_{database}/</pattern>
+        </step>
+        <step number="2">
+          <action>Create the target directory if it doesn't exist</action>
+          <command>mkdir -p sdk-gen/subprojects/jdbc_{database}/src/dist/resources/payload/etc/</command>
+        </step>
+        <step number="3">
+          <action>Copy DSL file to connector directory</action>
+          <source>DSL-jdbc-{database}.json</source>
+          <destination>sdk-gen/subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json</destination>
+          <tool>execute_command with cp or use read_file + write_to_file</tool>
+        </step>
+      </steps>
     </phase>
 
-    <phase name="flight_app_generation">
-      <title>Phase 5: Generate Flight Application</title>
+    <phase number="6" name="connector_customization">
+      <title>Customize Connector Code</title>
       <description>
-        Generate or update the Flight application to include the new connector
+        Run the customizeJdbcConnector task to apply DSL configuration to the generated
+        connector code, updating driver class names, connection URLs, and properties.
       </description>
-
-      <step number="1">
-        <action>Generate Flight app with auto-selected connector</action>
-        <tool>execute_command</tool>
-        <command_template>
-          cd sdk-gen && ./gradlew generateFlightApp -PautoSelectConnector=true
-        </command_template>
-        <what_it_does>
-          <item>Creates a Flight application project (if it doesn't exist)</item>
-          <item>Automatically includes the newly created JDBC connector</item>
-          <item>Sets up the project structure for deployment</item>
-          <item>Configures the connector as a runtime dependency</item>
-        </what_it_does>
-        <note>
-          This step ensures the connector is integrated into a deployable Flight service.
-          If a flight project already exists, you may skip this or manually add the connector
-          to the existing flight/build.gradle as a runtimeOnly dependency.
-        </note>
-      </step>
-
-      <step number="2">
-        <action>Verify Flight app structure</action>
-        <tool>list_files</tool>
-        <expected_structure>
-          <directory>sdk-gen/subprojects/flight/</directory>
-          <files>
-            <file>build.gradle (should include the new connector as runtimeOnly dependency)</file>
-            <file>src/main/java/... (Flight service implementation)</file>
-            <file>src/dist/resources/payload/Dockerfile</file>
-          </files>
-        </expected_structure>
-      </step>
+      <steps>
+        <step number="1">
+          <action>Run customizeJdbcConnector task</action>
+          <command>./gradlew customizeJdbcConnector -PdslFile=subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json -PconnectorDir=subprojects/jdbc_{database}</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+        <step number="2">
+          <action>Verify customization success</action>
+          <success_indicators>
+            <indicator>✅ Updated DRIVER_CLASS_NAME message</indicator>
+            <indicator>✅ Updated getConnectionURL() method message</indicator>
+            <indicator>✅ Created CUSTOMIZATION_SUMMARY.md</indicator>
+          </success_indicators>
+        </step>
+      </steps>
+      <what_it_does>
+        <update>Updates Connector.java with correct JDBC driver class name</update>
+        <update>Modifies getConnectionURL() method to build correct JDBC URL</update>
+        <update>Adds driver dependencies to build.gradle</update>
+        <update>Updates DatasourceType.java with metadata</update>
+        <update>Creates CUSTOMIZATION_SUMMARY.md documentation</update>
+      </what_it_does>
     </phase>
 
-    <phase name="build">
-      <title>Phase 6: Build the Connector</title>
+    <phase number="7" name="test_generation">
+      <title>Generate Test Suite</title>
       <description>
-        Build the connector JAR file
+        Generate comprehensive property validation tests for the connector using the
+        generateJdbcTests task.
       </description>
-
-      <step number="1">
-        <action>Build connector</action>
-        <tool>execute_command</tool>
-        <command_template>
-          cd sdk-gen && ./gradlew :jdbc_[name]:build
-        </command_template>
-        <what_it_does>
-          <item>Compiles Java source files</item>
-          <item>Runs tests (if configured)</item>
-          <item>Creates connector JAR in build/libs/</item>
-          <item>Validates code with PMD and other checks</item>
-        </what_it_does>
-      </step>
-
-      <step number="2">
-        <action>Verify build output</action>
-        <tool>list_files</tool>
-        <expected_output>
-          <file>sdk-gen/subprojects/jdbc_[name]/build/libs/jdbc_[name]-[version].jar</file>
-        </expected_output>
-      </step>
+      <steps>
+        <step number="1">
+          <action>Run generateJdbcTests task</action>
+          <command>./gradlew generateJdbcTests -PdslFile=subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json -PconnectorDir=subprojects/jdbc_{database}</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+        <step number="2">
+          <action>Verify test file generation</action>
+          <expected_file>sdk-gen/subprojects/jdbc_{database}/src/test/java/.../TestPropertyValidation.java</expected_file>
+        </step>
+      </steps>
+      <generated_tests>
+        <test>Basic connection property validation</test>
+        <test>Missing required properties (negative tests)</test>
+        <test>Source properties validation</test>
+        <test>Target properties validation</test>
+        <test>Filter properties validation</test>
+        <test>Additional custom properties validation</test>
+      </generated_tests>
     </phase>
-  </main_workflow>
+
+    <phase number="8" name="code_formatting">
+      <title>Apply Code Formatting</title>
+      <description>
+        Run spotlessApply to format all generated and customized code according to
+        project standards.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Run spotlessApply task</action>
+          <command>./gradlew spotlessApply</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+      </steps>
+    </phase>
+
+    <phase number="9" name="build">
+      <title>Build Connector</title>
+      <description>
+        Build the connector without running tests to verify compilation and packaging.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Run build task excluding tests</action>
+          <command>./gradlew build -x test</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+        <step number="2">
+          <action>Verify build success</action>
+          <success_indicators>
+            <indicator>BUILD SUCCESSFUL message</indicator>
+            <indicator>JAR file created in build/libs/</indicator>
+          </success_indicators>
+        </step>
+      </steps>
+      <output>
+        <jar_location>sdk-gen/subprojects/jdbc_{database}/build/libs/jdbc_{database}.jar</jar_location>
+      </output>
+    </phase>
+  </workflow_phases>
 
   <completion_criteria>
-    <criterion>DSL configuration file created with all required fields</criterion>
-    <criterion>Connector skeleton generated successfully</criterion>
-    <criterion>Connector customized with DSL configuration</criterion>
+    <criterion>DSL configuration file created and validated</criterion>
+    <criterion>Connector code generated successfully</criterion>
+    <criterion>DSL moved to connector resources directory</criterion>
+    <criterion>Connector customization completed</criterion>
     <criterion>Test suite generated</criterion>
-    <criterion>Flight application generated/updated with connector included</criterion>
-    <criterion>Connector builds without errors</criterion>
-    <criterion>CUSTOMIZATION_SUMMARY.md created with documentation</criterion>
+    <criterion>Code formatted with spotlessApply</criterion>
+    <criterion>Connector builds successfully</criterion>
   </completion_criteria>
 
-  <next_steps_after_completion>
-    <step>Add JDBC driver dependency to build.gradle</step>
-    <step>Update test credentials with real database connection details</step>
-    <step>Run tests: ./gradlew :jdbc_[name]:test</step>
-    <step>Build Flight server image: ./gradlew dockerBuild</step>
-    <step>Test locally: ./gradlew dockerStart</step>
-    <step>Deploy to OpenShift when ready</step>
-  </next_steps_after_completion>
+  <next_steps_for_user>
+    <step>Review generated connector code in subprojects/jdbc_{database}/</step>
+    <step>Update test credentials in TestPropertyValidation.java</step>
+    <step>Run tests: ./gradlew :jdbc_{database}:test</step>
+    <step>Build Docker image: ./gradlew dockerBuild</step>
+    <step>Deploy to OpenShift (see JDBC_CONNECTOR_WORKFLOW.md)</step>
+  </next_steps_for_user>
 
   <error_handling>
-    <error type="gradle_task_not_found">
-      <solution>Ensure you're in the sdk-gen directory</solution>
-      <solution>Verify gradle wrapper is executable: chmod +x gradlew</solution>
+    <error type="gradle_task_failure">
+      <action>Check Gradle output for specific error messages</action>
+      <action>Verify DSL file syntax is valid JSON</action>
+      <action>Ensure all required fields are filled in DSL</action>
+      <action>Check that working directory is correct (sdk-gen/)</action>
     </error>
-    <error type="dsl_file_not_found">
-      <solution>Check DSL file exists in sdk-gen directory</solution>
-      <solution>Verify DSL file name matches: DSL-jdbc-[database].json</solution>
-    </error>
-    <error type="connector_dir_not_found">
-      <solution>Verify connector was generated in subprojects/ directory</solution>
-      <solution>Check connector name matches exactly</solution>
+    <error type="missing_driver_info">
+      <action>Consult database documentation for JDBC driver details</action>
+      <action>Check Maven Central for driver coordinates</action>
+      <action>Refer to DSL-jdbc.json examples section</action>
     </error>
     <error type="build_failure">
-      <solution>Check for compilation errors in generated code</solution>
-      <solution>Verify JDBC driver class name is correct</solution>
-      <solution>Run with --stacktrace for detailed error information</solution>
+      <action>Check for compilation errors in generated code</action>
+      <action>Verify JDBC driver dependency is correct</action>
+      <action>Run ./gradlew clean and retry</action>
     </error>
   </error_handling>
-</jdbc_connector_creation_workflow>
+</jdbc_connector_workflow>
 
 <!-- Made with Bob -->
