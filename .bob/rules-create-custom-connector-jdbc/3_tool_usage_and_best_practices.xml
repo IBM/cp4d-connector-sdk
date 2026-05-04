@@ -1,0 +1,59 @@
+<tool_usage_and_best_practices>
+  <overview>
+    Guidelines for using tools effectively during JDBC connector creation and
+    best practices to ensure successful connector development.
+  </overview>
+
+  <tool_usage_patterns>
+    <pattern name="reading_template_files">
+      <description>Always read DSL-jdbc.json template before creating new DSL</description>
+      <tool>read_file</tool>
+      <rationale>
+        Understanding the template structure ensures you create valid DSL files
+        with all required fields and proper JSON syntax.
+      </rationale>
+      <example>
+        <read_file>
+          <args>
+            <file>
+              <path>DSL-jdbc.json</path>
+            </file>
+          </args>
+        </read_file>
+      </example>
+    </pattern>
+
+    <pattern name="creating_dsl_files">
+      <description>Create DSL files with complete, valid JSON content</description>
+      <tool>write_to_file</tool>
+      <best_practices>
+        <practice>Use proper JSON formatting with correct indentation</practice>
+        <practice>Remove all _comment, _example, and _note fields from final DSL</practice>
+        <practice>Ensure driver_dependencies array is populated</practice>
+        <practice>Validate JSON syntax before writing</practice>
+      </best_practices>
+      <example>
+        <write_to_file>
+          <path>DSL-jdbc-db2.json</path>
+          <content>
+{
+  "connector_metadata": {
+    "connector_name": "jdbc_db2",
+    "connector_label": "IBM Db2",
+    "connector_description": "JDBC connector for IBM Db2 databases"
+  },
+  "jdbc_driver": {
+    "jdbc_url": "jdbc:db2://{host}:{port}/{database}",
+    "driver_class_name": "com.ibm.db2.jcc.DB2Driver"
+  },
+  "implementation_notes": {
+    "dependencies": [
+      {
+        "driver_dependencies": ["com.ibm.db2:jcc:11.5.8.0"]
+      }
+    ]
+  }
+}
+          
+
+<!-- Made with Bob -->
