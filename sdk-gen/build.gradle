@@ -25,8 +25,8 @@ buildscript {
     }
   }
   dependencies {
-    classpath group: 'commons-io', name: 'commons-io', version: project['commons.io.version']
-    classpath group: 'org.apache.commons', name: 'commons-lang3', version: project['commons.lang3.version']
+    classpath group: 'commons-io', name: 'commons-io', version: project['commons-io.version']
+    classpath group: 'org.apache.commons', name: 'commons-lang3', version: project['commons-lang3.version']
     classpath group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
     classpath group: 'org.codehaus.gpars', name: 'gpars', version: project['gpars.version']
     classpath group: 'org.yaml', name: 'snakeyaml', version: project['snakeyaml.version']
@@ -603,6 +603,54 @@ tasks.register('generateFlightApp'){
     }
   }
 }
+
+tasks.register('autoGenerateFlightApp'){
+  dependsOn configurations.basicFlight
+  description = 'Generate a Flight app project automatically using connector name from DSL file'
+  doLast{
+    def dslFile = resolveDslFile()
+    println "Generating Flight app project from DSL: ${dslFile.absolutePath}"
+    
+    def dsl = new JsonSlurper().parse(dslFile)
+    def connectorMetadata = dsl.connector_metadata ?: [:]
+    
+    def connectorLabel = connectorMetadata.connector_label
+    if (!connectorLabel) {
+      throw new GradleException("Missing required property 'connector_metadata.connector_label' in DSL file: ${dslFile.absolutePath}")
+    }
+    
+    // Determine connector name using same logic as autoGenerateJavaJdbc
+    def connectorName = connectorMetadata.connector_name ?: connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
+    
+    // Build the full Gradle project name
+    def fullProjectName = "wdp-connect-sdk-gen-${connectorName}"
+    
+    println "Creating Flight app 'flight' with connector project: ${fullProjectName}"
+    
+    // Check if the connector project exists
+    def connectorProject = rootProject.findProject(":${fullProjectName}")
+    if (!connectorProject) {
+      throw new GradleException("Connector project ':${fullProjectName}' not found. Please generate the connector first using autoGenerateJavaJdbc.")
+    }
+    
+    def flightProjectName = 'flight'
+    def newLine = "  runtimeOnly project(path: ':${fullProjectName}')"
+    
+    println "Extracting Flight app template..."
+    FileTree connTree = zipTree(configurations.basicFlight.singleFile)
+    copy{
+      from connTree
+      into "${project.rootDir}/subprojects/${flightProjectName}"
+      filter { line -> line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line }
+      filter { line -> line.replace('  isTemplate = true', '') }
+    }
+    
+    println "✅ Flight app created successfully!"
+    println "Location: ${project.rootDir}/subprojects/${flightProjectName}"
+    println "Included connector: :${fullProjectName}"
+  }
+}
+
 tasks.register('quickstart'){
   dependsOn configurations.basicConnector
   dependsOn configurations.basicFlight
