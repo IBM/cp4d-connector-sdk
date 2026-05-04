@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<database_configuration_examples>
+  <overview>
+    Reference configurations for common databases to guide DSL creation.
+    These examples show typical values for popular database systems.
+  </overview>
+
+  <mysql>
+    <connector_metadata>
+      <connector_name>jdbc_mysql</connector_name>
+      <connector_label>MySQL</connector_label>
+      <connector_description>JDBC connector for MySQL databases</connector_description>
+    </connector_metadata>
+    
+    <jdbc_driver>
+      <driver_class_name>com.mysql.cj.jdbc.Driver</driver_class_name>
+      <note>Modern driver (8.0+). Legacy: com.mysql.jdbc.Driver</note>
+      <maven_dependency>mysql:mysql-connector-java:8.0.33</maven_dependency>
+    </jdbc_driver>
+    
+    <connection_properties>
+      <default_port>3306</default_port>
+      <common_additional_properties>
+        <property name="useSSL">Enable SSL connection</property>
+        <property name="serverTimezone">Server timezone (e.g., UTC)</property>
+        <property name="allowPublicKeyRetrieval">Allow public key retrieval</property>
+      </common_additional_properties>
+    </connection_properties>
+    
+    <database_specific_features>
+      <supports_schemas>false</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <note>MySQL uses catalogs (what it calls "databases")</note>
+      <default_schema>null</default_schema>
+      <system_schemas>
+        <schema>information_schema</schema>
+        <schema>mysql</schema>
+        <schema>performance_schema</schema>
+        <schema>sys</schema>
+      </system_schemas>
+      <identifier_quote_char>`</identifier_quote_char>
+    </database_specific_features>
+    
+    <url_template>
+      <template>jdbc:mysql://{host}:{port}/{database}</template>
+      <example>jdbc:mysql://localhost:3306/mydb</example>
+    </url_template>
+  </mysql>
+
+  <postgresql>
+    <connector_metadata>
+      <connector_name>jdbc_postgres</connector_name>
+      <connector_label>PostgreSQL</connector_label>
+      <connector_description>JDBC connector for PostgreSQL databases</connector_description>
+    </connector_metadata>
+    
+    <jdbc_driver>
+      <driver_class_name>org.postgresql.Driver</driver_class_name>
+      <maven_dependency>org.postgresql:postgresql:42.6.0</maven_dependency>
+    </jdbc_driver>
+    
+    <connection_properties>
+      <default_port>5432</default_port>
+      <common_additional_properties>
+        <property name="ssl">Enable SSL connection</property>
+        <property name="sslmode">SSL mode (require, verify-ca, verify-full)</property>
+        <property name="currentSchema">Default schema to use</property>
+      </common_additional_properties>
+    </connection_properties>
+    
+    <database_specific_features>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <default_schema>public</default_schema>
+      <system_schemas>
+        <schema>information_schema</schema>
+        <schema>pg_catalog</schema>
+        <schema>pg_toast</schema>
+        <schema>pg_temp</schema>
+      </system_schemas>
+      <identifier_quote_char>"</identifier_quote_char>
+    </database_specific_features>
+    
+    <url_template>
+      <template>jdbc:postgresql://{host}:{port}/{database}</template>
+      <example>jdbc:postgresql://localhost:5432/mydb</example>
+    </url_template>
+    
+    <special_data_types>
+      <type name="UUID">
+        <jdbc_type>OTHER</jdbc_type>
+        <arrow_type>utf8</arrow_type>
+      </type>
+      <type name="JSON/JSONB">
+        <jdbc_type>OTHER</jdbc_type>
+        <arrow_type>utf8</arrow_type>
+      </type>
+    </special_data_types>
+  </postgresql>
+
+  <oracle>
+    <connector_metadata>
+      <connector_name>jdbc_oracle</connector_name>
+      <connector_label>Oracle Database</connector_label>
+      <connector_description>JDBC connector for Oracle databases</connector_description>
+    </connector_metadata>
+    
+    <jdbc_driver>
+      <driver_class_name>oracle.jdbc.OracleDriver</driver_class_name>
+      <note>Available from Oracle Maven repository</note>
+      <maven_repository>https://maven.oracle.com</maven_repository>
+    </jdbc_driver>
+    
+    <connection_properties>
+      <default_port>1521</default_port>
+      <common_additional_properties>
+        <property name="oracle.net.ssl_version">SSL version</property>
+        <property name="oracle.net.encryption_client">Encryption level</property>
+      </common_additional_properties>
+    </connection_properties>
+    
+    <database_specific_features>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <note>Each user has their own schema</note>
+      <default_schema>null</default_schema>
+      <system_schemas>
+        <schema>SYS</schema>
+        <schema>SYSTEM</schema>
+        <schema>CTXSYS</schema>
+        <schema>MDSYS</schema>
+        <schema>OLAPSYS</schema>
+        <schema>WMSYS</schema>
+        <schema>XDB</schema>
+      </system_schemas>
+      <identifier_quote_char>"</identifier_quote_char>
+    </database_specific_features>
+    
+    <url_template>
+      <template_sid>jdbc:oracle:thin:@{host}:{port}:{database}</template_sid>
+      <template_service>jdbc:oracle:thin:@{host}:{port}/{database}</template_service>
+      <note>Use colon for SID, slash for service name</note>
+      <example_sid>jdbc:oracle:thin:@localhost:1521:ORCL</example_sid>
+      <example_service>jdbc:oracle:thin:@localhost:1521/ORCLPDB</example_service>
+    </url_template>
+  </oracle>
+
+  <sqlserver>
+    <connector_metadata>
+      <connector_name>jdbc_sqlserver</connector_name>
+      <connector_label>SQL Server</connector_label>
+      <connector_description>JDBC connector for Microsoft SQL Server databases</connector_description>
+    </connector_metadata>
+    
+    <jdbc_driver>
+      <driver_class_name>com.microsoft.sqlserver.jdbc.SQLServerDriver</driver_class_name>
+      <maven_dependency>com.microsoft.sqlserver:mssql-jdbc:12.2.0.jre11</maven_dependency>
+    </jdbc_driver>
+    
+    <connection_properties>
+      <default_port>1433</default_port>
+      <common_additional_properties>
+        <property name="encrypt">Enable connection encryption</property>
+        <property name="trustServerCertificate">Trust server certificate</property>
+        <property name="instanceName">SQL Server instance name</property>
+      </common_additional_properties>
+    </connection_properties>
+    
+    <database_specific_features>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <default_schema>dbo</default_schema>
+      <system_schemas>
+        <schema>sys</schema>
+        <schema>INFORMATION_SCHEMA</schema>
+        <schema>guest</schema>
+      </system_schemas>
+      <identifier_quote_char>"</identifier_quote_char>
+    </database_specific_features>
+    
+    <url_template>
+      <template>jdbc:sqlserver://{host}:{port};databaseName={database}</template>
+      <note>Uses semicolon and databaseName parameter</note>
+      <example>jdbc:sqlserver://localhost:1433;databaseName=mydb</example>
+    </url_template>
+  </sqlserver>
+
+  <db2>
+    <connector_metadata>
+      <connector_name>jdbc_db2</connector_name>
+      <connector_label>IBM DB2</connector_label>
+      <connector_description>JDBC connector for IBM DB2 databases</connector_description>
+    </connector_metadata>
+    
+    <jdbc_driver>
+      <driver_class_name>com.ibm.db2.jcc.DB2Driver</driver_class_name>
+      <maven_dependency>com.ibm.db2:jcc:11.5.8.0</maven_dependency>
+    </jdbc_driver>
+    
+    <connection_properties>
+      <default_port>50000</default_port>
+      <common_additional_properties>
+        <property name="sslConnection">Enable SSL</property>
+        <property name="currentSchema">Default schema</property>
+      </common_additional_properties>
+    </connection_properties>
+    
+    <database_specific_features>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <default_schema>null</default_schema>
+      <system_schemas>
+        <schema>SYSIBM</schema>
+        <schema>SYSCAT</schema>
+        <schema>SYSSTAT</schema>
+        <schema>SYSFUN</schema>
+        <schema>SYSIBMADM</schema>
+      </system_schemas>
+      <identifier_quote_char>"</identifier_quote_char>
+    </database_specific_features>
+    
+    <url_template>
+      <template>jdbc:db2://{host}:{port}/{database}</template>
+      <example>jdbc:db2://localhost:50000/mydb</example>
+    </url_template>
+  </db2>
+
+  <mariadb>
+    <connector_metadata>
+      <connector_name>jdbc_mariadb</connector_name>
+      <connector_label>MariaDB</connector_label>
+      <connector_description>JDBC connector for MariaDB databases</connector_description>
+    </connector_metadata>
+    
+    <jdbc_driver>
+      <driver_class_name>org.mariadb.jdbc.Driver</driver_class_name>
+      <maven_dependency>org.mariadb.jdbc:mariadb-java-client:3.1.4</maven_dependency>
+    </jdbc_driver>
+    
+    <connection_properties>
+      <default_port>3306</default_port>
+      <common_additional_properties>
+        <property name="useSSL">Enable SSL connection</property>
+        <property name="serverTimezone">Server timezone</property>
+      </common_additional_properties>
+    </connection_properties>
+    
+    <database_specific_features>
+      <supports_schemas>false</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <note>Similar to MySQL architecture</note>
+      <default_schema>null</default_schema>
+      <system_schemas>
+        <schema>information_schema</schema>
+        <schema>mysql</schema>
+        <schema>performance_schema</schema>
+        <schema>sys</schema>
+      </system_schemas>
+      <identifier_quote_char>`</identifier_quote_char>
+    </database_specific_features>
+    
+    <url_template>
+      <template>jdbc:mariadb://{host}:{port}/{database}</template>
+      <example>jdbc:mariadb://localhost:3306/mydb</example>
+    </url_template>
+  </mariadb>
+
+  <common_patterns>
+    <pattern name="Standard Format">
+      <description>Most databases use host:port/database format</description>
+      <databases>PostgreSQL, MySQL, MariaDB, DB2</databases>
+      <template>jdbc:[vendor]://{host}:{port}/{database}</template>
+    </pattern>
+    
+    <pattern name="Parameter Format">
+      <description>Some databases use parameters instead of path</description>
+      <databases>SQL Server</databases>
+      <template>jdbc:[vendor]://{host}:{port};databaseName={database}</template>
+    </pattern>
+    
+    <pattern name="Oracle Format">
+      <description>Oracle has unique format with @ symbol</description>
+      <databases>Oracle</databases>
+      <template>jdbc:oracle:thin:@{host}:{port}:{database}</template>
+    </pattern>
+  </common_patterns>
+
+  <port_reference>
+    <database name="MySQL">3306</database>
+    <database name="MariaDB">3306</database>
+    <database name="PostgreSQL">5432</database>
+    <database name="Oracle">1521</database>
+    <database name="SQL Server">1433</database>
+    <database name="DB2">50000</database>
+    <database name="MongoDB">27017</database>
+    <database name="Redis">6379</database>
+  </port_reference>
+
+  <quote_character_reference>
+    <database name="MySQL">`</database>
+    <database name="MariaDB">`</database>
+    <database name="PostgreSQL">"</database>
+    <database name="Oracle">"</database>
+    <database name="SQL Server">"</database>
+    <database name="DB2">"</database>
+    <note>Most databases use double quotes, MySQL/MariaDB use backticks</note>
+  </quote_character_reference>
+
+  <schema_catalog_reference>
+    <database name="PostgreSQL">
+      <schemas>true</schemas>
+      <catalogs>false</catalogs>
+      <note>Strong schema support, catalog is the database</note>
+    </database>
+    <database name="MySQL">
+      <schemas>false</schemas>
+      <catalogs>true</catalogs>
+      <note>What MySQL calls "database" is a catalog in JDBC</note>
+    </database>
+    <database name="Oracle">
+      <schemas>true</schemas>
+      <catalogs>false</catalogs>
+      <note>Schema per user model</note>
+    </database>
+    <database name="SQL Server">
+      <schemas>true</schemas>
+      <catalogs>true</catalogs>
+      <note>Supports both catalogs (databases) and schemas</note>
+    </database>
+    <database name="DB2">
+      <schemas>true</schemas>
+      <catalogs>false</catalogs>
+      <note>Schema-based organization</note>
+    </database>
+  </schema_catalog_reference>
+</database_configuration_examples>
+
+<!-- Made with Bob -->
