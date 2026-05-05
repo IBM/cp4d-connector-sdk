@@ -217,21 +217,25 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
     echo "  Datasource Type: $DATASOURCE_TYPE"
     echo "  Discovery Path: $DISCOVERY_PATH"
     
-    # Build request body
+    # URL encode the discovery path
+    ENCODED_PATH=$(echo -n "$DISCOVERY_PATH" | jq -sRr @uri)
+    
+    # Build request URL with query parameters
+    REQUEST_URL="${ENDPOINT}?path=${ENCODED_PATH}&fetch=data"
+    
+    # Build request body (without path and fetch)
     REQUEST_BODY=$(cat <<EOF
 {
   "datasource_type": "$DATASOURCE_TYPE",
-  "properties": $CONN_PROPERTIES,
-  "path": "$DISCOVERY_PATH",
-  "fetch": "data"
+  "properties": $CONN_PROPERTIES
 }
 EOF
 )
     
     echo -e "${CYAN}"
-    echo "Request Body:"
+    echo "Request URL:"
     echo -e "${NC}"
-    echo "$REQUEST_BODY" | jq '.' 2>/dev/null || echo "$REQUEST_BODY"
+    echo "$REQUEST_URL"
     echo ""
     
     echo -e "${CYAN}Sending request...${NC}"
@@ -239,7 +243,7 @@ EOF
     
     # Make the API call
     HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/discovery_response_${i}.json \
-        -X POST "$ENDPOINT" \
+        -X POST "$REQUEST_URL" \
         -H "Authorization: Bearer $CPD_TOKEN" \
         -H "Content-Type: application/json" \
         -H "Accept: application/json" \
@@ -249,13 +253,20 @@ EOF
     if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
         echo -e "${GREEN}✓ Discovery successful for $DATASOURCE_TYPE${NC}"
         
-        # Count assets
+        # Count assets - check data array first, then resources, then assets
         ASSET_COUNT=0
         if command -v jq &> /dev/null; then
-            ASSET_COUNT=$(cat /tmp/discovery_response_${i}.json | jq '.resources // .assets | length' 2>/dev/null || echo "0")
+            ASSET_COUNT=$(cat /tmp/discovery_response_${i}.json | jq '.data // .resources // .assets | length' 2>/dev/null || echo "0")
         fi
         
         echo -e "${GREEN}Discovered $ASSET_COUNT asset(s)${NC}"
+        
+        # Display first asset if any were returned
+        if [ "$ASSET_COUNT" -gt 0 ] && command -v jq &> /dev/null; then
+            echo ""
+            echo -e "${CYAN}First asset:${NC}"
+            cat /tmp/discovery_response_${i}.json | jq '.data[0] // .resources[0] // .assets[0]' 2>/dev/null || echo "Unable to parse first asset"
+        fi
         echo ""
         
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
