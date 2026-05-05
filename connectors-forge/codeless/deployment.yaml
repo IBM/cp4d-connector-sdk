@@ -2,6 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cf-flight-connector
+<<<<<<< HEAD
+=======
+  namespace: connectorsforge
+>>>>>>> 4a8a02f (codeless openshift)
   labels:
     app: cf-flight-connector
 
@@ -20,7 +24,11 @@ spec:
     spec:
       containers:
       - name: cf-flight-connector
+<<<<<<< HEAD
         image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
+=======
+        image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+>>>>>>> 4a8a02f (codeless openshift)
         imagePullPolicy: IfNotPresent
 
         ports:
