@@ -1870,23 +1870,54 @@
             <description>
               Edit register-envs.properties and replace all placeholder values (marked with <angle brackets>):
               
-              REQUIRED properties to configure:
+              AUTHENTICATION (choose ONE method):
+              
+              Option 1: IBM Cloud API Key (for IBM Cloud deployments)
               - apikey: Replace <your-api-key> with your IBM Cloud API key
+              - Keep username and password commented out
+              
+              Option 2: Username/Password (for on-premises CP4D deployments)
+              - Comment out the apikey line
+              - Uncomment username and password lines
+              - username: Replace <your-username> with your CP4D username
+              - password: Replace <your-password> with your CP4D password
+              
+              FLIGHT SERVICE (required):
               - flight_hostname: Replace <your-flight-hostname> with your deployed Flight service hostname
               - flight_port: Replace <your-flight-port> with your Flight service port number
               
-              OPTIONAL properties (defaults provided):
-              - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
-              - datasource_types_uri: Datasource types API endpoint (default provided in template)
+              ENDPOINTS (update for on-premises if needed):
+              - auth_uri: Authentication endpoint
+                * IBM Cloud: https://iam.cloud.ibm.com/identity/token (default)
+                * On-premises: https://<your-cpd-host>/icp4d-api/v1/authorize
+              - datasource_types_uri: Datasource types API endpoint
+                * IBM Cloud: https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types (default)
+                * On-premises: https://<your-cpd-host>/v2/datasource_types
+              
+              OPTIONAL properties:
               - origin_country: Origin country/region for connector registration (default: us)
               - ssl_certificate_path: Path to SSL certificate (commented out by default)
               - ssl_certificate_validation: Enable/disable SSL validation (default: false)
             </description>
             <example>
-              Example of configured values:
+              Example for IBM Cloud deployment:
               apikey=your_actual_ibm_cloud_api_key_here
+              #username=<your-username>
+              #password=<your-password>
               auth_uri=https://iam.cloud.ibm.com/identity/token
               datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
+              flight_hostname=my-server.example.com
+              flight_port=50051
+              origin_country=us
+              ssl_certificate_validation=false
+            </example>
+            <example>
+              Example for on-premises CP4D deployment:
+              #apikey=<your-api-key>
+              username=admin
+              password=your_cpd_password
+              auth_uri=https://cpd-cluster.example.com/icp4d-api/v1/authorize
+              datasource_types_uri=https://cpd-cluster.example.com/v2/datasource_types
               flight_hostname=my-server.example.com
               flight_port=50051
               origin_country=us
@@ -1896,8 +1927,12 @@
         </instructions>
 
         <confirmation_question>
-          Have you created register-envs.properties from the template and configured all required values
-          (apikey, flight_hostname, flight_port)?
+          Have you created register-envs.properties from the template and configured all required values?
+          
+          Required configuration:
+          - Authentication: Either apikey OR username+password
+          - Flight service: flight_hostname and flight_port
+          - Endpoints: auth_uri and datasource_types_uri (update for on-premises if needed)
         </confirmation_question>
       </sub_step_1_verify_properties_file>
 
@@ -1934,9 +1969,13 @@
             <description>
               Runs the OS-specific registration script that handles:
               - Reading configuration from register-envs.properties
-              - Authenticating with IBM Cloud
+              - Authenticating with IBM Cloud (API key) or on-premises CP4D (username/password)
+              - Obtaining bearer token for API access
               - Registering the connector with CP4D
               - Configuring the Flight service endpoint
+              
+              The script automatically detects which authentication method to use based on
+              which credentials are provided in the properties file.
             </description>
             <note>
               The script selection is based on the operating system:
@@ -2129,10 +2168,11 @@
           The suggestion should include:
           1. Template location reference
           2. CPD_URL placeholder (user must provide their CP4D instance URL)
-          3. CPD_TOKEN placeholder (user must provide their bearer token)
-          4. DATASOURCE_TYPES - comma-separated list of datasource type IDs from the connector descriptors
-          5. DISCOVERY_PATHS - comma-separated list of discovery paths (first endpoint path from each connector)
-          6. CONNECTION_PROPERTIES - pipe-separated JSON objects with connection properties for each connector
+          3. Authentication credentials (APIKEY or USERNAME/PASSWORD)
+          4. AUTH_URI (authentication endpoint)
+          5. DATASOURCE_TYPES - comma-separated list of datasource type IDs from the connector descriptors
+          6. DISCOVERY_PATHS - comma-separated list of discovery paths (first endpoint path from each connector)
+          7. CONNECTION_PROPERTIES - pipe-separated JSON objects with connection properties for each connector
           
           For each connector, extract:
           - Datasource type ID from the connector descriptor ($connector_name field, converted to lowercase with underscores)
@@ -2148,9 +2188,20 @@
           # Copy from connectors-forge/codeless/test-discovery.properties.template
           # and fill in your actual values
 
-          # CPD Configuration (YOU MUST PROVIDE THESE)
+          # CPD Configuration
           CPD_URL=https://your-cpd-instance.cloud.ibm.com
-          CPD_TOKEN=your-bearer-token-here
+          
+          # Authentication (choose ONE method):
+          # Option 1: IBM Cloud API Key
+          APIKEY=your-api-key-here
+          # Option 2: Username/Password (for on-premises CP4D)
+          #USERNAME=your-username
+          #PASSWORD=your-password
+          
+          # Authentication endpoint
+          # IBM Cloud: https://iam.cloud.ibm.com/identity/token
+          # On-premises: https://your-cpd-host/icp4d-api/v1/authorize
+          AUTH_URI=https://iam.cloud.ibm.com/identity/token
 
           # Connector Configuration (based on your connectors)
           DATASOURCE_TYPES=connector1_id,connector2_id
@@ -2160,8 +2211,12 @@
 
           Replace:
           - CPD_URL with your Cloud Pak for Data instance URL
-          - CPD_TOKEN with your authentication token
-          - YOUR_KEY and other credentials with actual values
+          - APIKEY with your IBM Cloud API key (or use USERNAME/PASSWORD for on-premises)
+          - AUTH_URI with the correct authentication endpoint for your deployment
+          - YOUR_KEY and other credentials in CONNECTION_PROPERTIES with actual values
+          
+          Note: The scripts will automatically obtain a bearer token using your credentials,
+          so you no longer need to provide a pre-acquired token.
         </example_suggestion_format>
 
         <instructions>
@@ -2171,10 +2226,14 @@
           
           3. Copy the suggested configuration above and replace placeholders with your actual values:
              - CPD_URL: Your Cloud Pak for Data instance URL
-             - CPD_TOKEN: Your bearer token (get from CP4D UI or ibmcloud CLI)
+             - Authentication: Choose either APIKEY (IBM Cloud) OR USERNAME+PASSWORD (on-premises)
+             - AUTH_URI: Authentication endpoint (update for on-premises if needed)
              - API keys, passwords, and other credentials in CONNECTION_PROPERTIES
           
           4. Ensure the file is saved in the correct location: connectors-forge/codeless/test-discovery.properties
+          
+          Note: The test scripts will automatically obtain a bearer token from your credentials,
+          so you don't need to manually acquire a token beforehand.
         </instructions>
 
         <confirmation_question>

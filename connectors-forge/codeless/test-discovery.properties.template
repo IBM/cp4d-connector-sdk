@@ -2,11 +2,27 @@
 # Copy this file to test-discovery.properties and fill in your values
 
 # CPD API endpoint (without trailing slash)
-CPD_URL=https://api.dataplatform.dev.cloud.ibm.com
+# IBM Cloud: https://api.dataplatform.cloud.ibm.com
+# On-premises: https://<your-cpd-host>
+CPD_URL=https://api.dataplatform.cloud.ibm.com
 
-# Authentication token for CPD API
-# Get this from your CPD instance or using ibmcloud CLI
-CPD_TOKEN=<your-bearer-token>
+# ============================================
+# Authentication Configuration
+# ============================================
+# Choose ONE authentication method:
+#
+# Option 1: IBM Cloud API Key (for IBM Cloud deployments)
+APIKEY=<your-api-key>
+#
+# Option 2: Username/Password (for on-premises CP4D deployments)
+# Uncomment the lines below and comment out APIKEY if using username/password
+#USERNAME=<your-username>
+#PASSWORD=<your-password>
+
+# Authentication API endpoint
+# IBM Cloud: https://iam.cloud.ibm.com/identity/token
+# On-premises CP4D: https://<your-cpd-host>/icp4d-api/v1/authorize
+AUTH_URI=https://iam.cloud.ibm.com/identity/token
 
 # Connector configurations (comma-separated for multiple connectors)
 # Each connector needs: datasource_type, discovery_path, and connection_properties
