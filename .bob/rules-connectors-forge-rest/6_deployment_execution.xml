@@ -6,6 +6,86 @@
     Self-hosted Server, and OpenShift.
   </overview>
 
+  <workflow_control>
+    <title>Workflow Control and Error Handling</title>
+    <description>
+      CRITICAL: The mode must follow these workflow control rules throughout all deployment phases:
+    </description>
+
+    <rule_1_wait_for_confirmation>
+      <title>Wait for User Confirmation After Each Step</title>
+      <description>
+        After executing ANY command or providing instructions (whether automatic or manual),
+        you MUST wait for the user to confirm success before proceeding.
+        
+        DO NOT assume success. DO NOT automatically proceed to the next step.
+        ALWAYS wait for explicit user confirmation.
+      </description>
+    </rule_1_wait_for_confirmation>
+
+    <rule_2_handle_failures>
+      <title>Handle Failures Appropriately</title>
+      <description>
+        If a step fails or the user reports an error:
+        
+        1. DO NOT display "Task complete" or "Success" messages
+        2. DO display:
+           - Clear description of what failed
+           - Error details from the command output (if available)
+           - Specific troubleshooting steps from the error_handling section
+           - Options to retry or get manual instructions
+        
+        3. Ask the user if they want to:
+           - Retry the failed step
+           - Switch to manual instructions
+           - Skip this deployment option and try another
+           - Get help with troubleshooting
+      </description>
+    </rule_2_handle_failures>
+
+    <rule_3_ask_before_next_phase>
+      <title>Ask Before Proceeding to Next Phase</title>
+      <description>
+        After SUCCESSFUL completion of each major phase, explicitly ask the user
+        if they want to proceed to the next phase:
+        
+        - After Deployment → Ask: "Would you like to proceed with CP4D registration?"
+        - After Registration → Ask: "Would you like to validate the registration with discovery tests?"
+        
+        DO NOT automatically proceed. Wait for user's explicit choice.
+      </description>
+      <options_format>
+        Present clear options:
+        1. Yes - Proceed to [next phase]
+        2. No - Stop here (I'll do it later)
+        3. Help - I need assistance with [current phase]
+      </options_format>
+    </rule_3_ask_before_next_phase>
+
+    <rule_4_success_messages>
+      <title>Success Messages Only on Actual Success</title>
+      <description>
+        Display "Deployment Successful!" or "Task complete" messages ONLY when:
+        - User explicitly confirms the step succeeded
+        - All verification checks pass
+        - No errors were reported
+        
+        If there's ANY uncertainty, ask for confirmation instead of assuming success.
+      </description>
+    </rule_4_success_messages>
+
+    <rule_5_provide_context>
+      <title>Provide Context at Each Step</title>
+      <description>
+        When asking for confirmation or presenting options, always provide context:
+        - What was just completed
+        - What the next step would be
+        - Why the next step is important
+        - What happens if they choose to skip
+      </description>
+    </rule_5_provide_context>
+  </workflow_control>
+
   <phase_4_multiple_connectors>
     <title>Multiple Connectors Check</title>
     <description>
@@ -378,6 +458,16 @@
         <title>Automatic Self-Hosted Deployment (Codeless)</title>
         <when>User chooses automatic execution AND codeless deployment type</when>
 
+        <workflow_control>
+          CRITICAL: Deployment execution requires careful monitoring and confirmation.
+          - Execute the deployment script and monitor its progress through all 7 steps
+          - Wait for script completion before asking for confirmation
+          - Ask user to confirm deployment succeeded (container running, all 7 steps completed)
+          - Do NOT show success message unless user confirms deployment worked
+          - If deployment fails at any step, provide troubleshooting based on the specific step and error
+          - Only proceed to registration if deployment is confirmed successful
+        </workflow_control>
+
         <actions>
           <action priority="1">
             <name>Ask for SSH Connection Details</name>
@@ -602,6 +692,17 @@
         <title>Automatic Self-Hosted Deployment (Developer)</title>
         <when>User chooses automatic execution AND developer deployment type</when>
 
+        <workflow_control>
+          CRITICAL: Docker image build and push requires confirmation.
+          - Execute dockerPush task and monitor progress
+          - Wait for task completion before asking for confirmation
+          - Ask user to confirm image was successfully pushed
+          - Do NOT show success message unless user confirms push succeeded
+          - If push fails, provide troubleshooting based on error messages
+          - Remind user they still need to deploy the image to their server
+          - Only proceed to next steps if push is confirmed successful
+        </workflow_control>
+
         <actions>
           <action priority="1">
             <name>Navigate to sdk-gen</name>
@@ -631,17 +732,38 @@
           </action>
 
           <action priority="4">
-            <name>Inform User</name>
-            <message>
-              Docker image push complete!
-              
-              Your custom Docker image with REST API connector(s) has been pushed to the container registry.
-              
-              Next steps:
-              - Deploy the image to your server using your deployment tools
-              - Configure the service endpoint and networking
-              - Verify the connector(s) are accessible
-            </message>
+            <name>Confirm Success and Inform User</name>
+            <confirmation_required>true</confirmation_required>
+            <question>
+              Did the dockerPush task complete successfully?
+              Check the output for:
+              - "BUILD SUCCESSFUL" message
+              - Image pushed to registry confirmation
+              - No error messages
+            </question>
+            <on_success>
+              <message>
+                ✓ Docker image push complete!
+                
+                Your custom Docker image with REST API connector(s) has been pushed to the container registry.
+                
+                Next steps:
+                - Deploy the image to your server using your deployment tools
+                - Configure the service endpoint and networking
+                - Verify the connector(s) are accessible
+              </message>
+            </on_success>
+            <on_failure>
+              <message>
+                ✗ Docker image push failed
+                
+                Please review the error messages above and check:
+                - Container registry credentials are configured
+                - Docker is running
+                - Network connectivity to container registry
+                - Gradle build completed successfully
+              </message>
+            </on_failure>
           </action>
         </actions>
 
@@ -1480,10 +1602,34 @@
 
     <step_1_ask_registration_preference>
       <title>Ask Registration Preference</title>
-      <when>After successful deployment completion</when>
+      <when>ONLY after successful deployment completion AND user confirmation</when>
+
+      <critical_workflow_note>
+        IMPORTANT: This step should ONLY be reached if:
+        1. The deployment step completed successfully
+        2. User explicitly confirmed the deployment succeeded
+        3. No errors were reported
+        
+        If deployment failed or user reported issues, DO NOT ask about registration.
+        Instead, focus on troubleshooting the deployment failure.
+      </critical_workflow_note>
+
+      <context_to_provide>
+        Before asking the question, provide context:
+        - Confirm what was just deployed (deployment type, location)
+        - Explain that registration makes the connector available in CP4D
+        - Note that registration can be done later if preferred
+      </context_to_provide>
 
       <question>
-        Would you like to register your connector(s) with Cloud Pak for Data now?
+        Your connector(s) have been successfully deployed.
+        
+        Would you like to register them with Cloud Pak for Data now?
+        
+        Registration will:
+        - Make the connector(s) available in your CP4D environment
+        - Allow users to create connections using these connectors
+        - Enable data discovery and access through CP4D
       </question>
 
       <options>
@@ -1495,13 +1641,20 @@
         <option name="no">
           <label>No, I'll register later</label>
           <action>Skip registration and complete the workflow</action>
+          <note>User can run registration scripts manually later</note>
+        </option>
+
+        <option name="help">
+          <label>Help - I need more information about registration</label>
+          <action>Explain registration process and requirements</action>
         </option>
       </options>
 
       <presentation_format>
-        Present options clearly:
+        Present options clearly with context:
         1. Yes - Register connector(s) with CP4D now
-        2. No - Skip registration (can be done later)
+        2. No - Skip registration (can be done later manually)
+        3. Help - Learn more about the registration process
       </presentation_format>
     </step_1_ask_registration_preference>
 
@@ -1888,14 +2041,38 @@
 
     <step_1_ask_validation_preference>
       <title>Ask About Validation Testing</title>
+      <when>ONLY after successful registration AND user confirmation</when>
       
+      <critical_workflow_note>
+        IMPORTANT: This step should ONLY be reached if:
+        1. The registration step completed successfully
+        2. User explicitly confirmed the registration succeeded
+        3. No errors were reported during registration
+        
+        If registration failed or user reported issues, DO NOT ask about validation.
+        Instead, focus on troubleshooting the registration failure.
+      </critical_workflow_note>
+
+      <context_to_provide>
+        Before asking the question, provide context:
+        - Confirm that registration completed successfully
+        - Explain that validation tests verify the connector works in CP4D
+        - Note that validation is optional but recommended
+        - Mention that tests can be run manually later if preferred
+      </context_to_provide>
+
       <question>
+        Your connector(s) have been successfully registered with Cloud Pak for Data.
+        
         Would you like to validate the registration by testing connector discovery?
         
-        This will verify that:
+        Validation will verify that:
         - The connector(s) are properly registered in CP4D
-        - The Flight service is accessible
+        - The Flight service is accessible from CP4D
         - Discovery queries return expected results
+        - Connection properties are correctly configured
+        
+        This is optional but recommended to ensure everything works correctly.
       </question>
 
       <options>
@@ -1908,19 +2085,34 @@
           <label>No, skip validation</label>
           <description>Skip validation testing and complete the workflow</description>
           <action>Proceed directly to completion phase</action>
+          <note>User can run test scripts manually later</note>
+        </option>
+
+        <option name="help">
+          <label>Help - I need more information about validation</label>
+          <action>Explain validation process and what it tests</action>
         </option>
       </options>
 
       <presentation_format>
-        Present options clearly:
-        1. Yes - Validate registration with discovery tests
-        2. No - Skip validation (can be done later)
+        Present options clearly with context:
+        1. Yes - Validate registration with discovery tests (recommended)
+        2. No - Skip validation (can be done later manually)
+        3. Help - Learn more about the validation process
       </presentation_format>
     </step_1_ask_validation_preference>
 
     <step_2_prepare_test_configuration>
       <title>Prepare Test Configuration</title>
       <when>User chooses to validate registration</when>
+
+      <workflow_control>
+        CRITICAL: This step involves user action outside the mode's control.
+        - Wait for explicit user confirmation that the file was created
+        - Do NOT proceed to test execution without confirmation
+        - If user reports issues creating the file, provide troubleshooting help
+        - Offer to re-explain the configuration if needed
+      </workflow_control>
 
       <important_note>
         The test configuration file (test-discovery.properties) is not visible to me as it's in .bobignore.
@@ -1995,6 +2187,15 @@
       <title>Execute Validation Tests</title>
       <when>User confirms test configuration file is created</when>
 
+      <workflow_control>
+        CRITICAL: Test execution requires careful monitoring and user confirmation.
+        - Execute the test script and wait for completion
+        - Ask user to confirm the test results (success/failure)
+        - Do NOT assume success - wait for explicit confirmation
+        - If tests fail, provide troubleshooting guidance
+        - Only show success messages if user confirms tests passed
+      </workflow_control>
+
       <sub_step_1_run_test_script>
         <title>Run Discovery Test Script</title>
         
@@ -2062,8 +2263,26 @@
       <sub_step_2_interpret_results>
         <title>Interpret Test Results</title>
         
+        <workflow_control>
+          CRITICAL: Result interpretation must be based on actual test output.
+          - Ask user to confirm what the test results show
+          - Only display success_message if user confirms all tests passed
+          - Display partial_success_message if user reports mixed results
+          - Display failure_message if user reports all tests failed
+          - Provide appropriate troubleshooting based on actual results
+          - Do NOT assume or guess the test outcome
+        </workflow_control>
+
+        <confirmation_question>
+          What were the results of the validation tests?
+          1. All tests passed successfully
+          2. Some tests passed, some failed
+          3. All tests failed
+          4. I need help interpreting the results
+        </confirmation_question>
+
         <success_message>
-          <when>All tests pass</when>
+          <when>User confirms all tests pass</when>
           <message>
             ✓ Registration validation successful!
             
