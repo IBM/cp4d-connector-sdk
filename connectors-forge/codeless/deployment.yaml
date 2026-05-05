@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cf-flight-connector
-  namespace: connectorsforge
   labels:
     app: cf-flight-connector
 
