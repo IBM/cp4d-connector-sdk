@@ -1,137 +1,192 @@
 #!/usr/bin/env pwsh
+
 <#
 .SYNOPSIS
-    Test connector discovery using the discoverAssetsAnonymously endpoint
+    Test connector discovery using the CPD Connection Service API.
+
 .DESCRIPTION
-    This script tests one or more REST API connectors by calling the CPD Connection Service API
-    to discover assets without creating a saved connection. Supports testing multiple connectors
-    in a single run by reading comma-separated values from the properties file.
+    This script tests one or more REST API connectors by calling
+    the CPD Connection Service discover assets endpoint
+    without creating a saved connection.
+
+    Supports:
+    - API Key authentication
+    - Username/Password authentication
+    - Multiple connectors in one run
+    - Optional SSL validation disable
+    - Detailed success/failure reporting
+
 .PARAMETER PropertiesFile
-    Path to the properties file (default: test-discovery.properties)
+    Path to the properties file.
+
 .EXAMPLE
-    .\test-discovery.ps1
-    .\test-discovery.ps1 -PropertiesFile "my-config.properties"
+    ./test-discovery.ps1
+
+.EXAMPLE
+    ./test-discovery.ps1 -PropertiesFile "my-config.properties"
 #>
 
 param(
     [string]$PropertiesFile = "test-discovery.properties"
 )
 
-# Color output functions
-function Write-Success { param($Message) Write-Host $Message -ForegroundColor Green }
-function Write-Error-Custom { param($Message) Write-Host $Message -ForegroundColor Red }
-function Write-Info { param($Message) Write-Host $Message -ForegroundColor Cyan }
-function Write-Warning-Custom { param($Message) Write-Host $Message -ForegroundColor Yellow }
+# ============================================================
+# Load required assemblies
+# ============================================================
 
-# Check if properties file exists
+Add-Type -AssemblyName System.Web
+
+# ============================================================
+# Output helpers
+# ============================================================
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor Cyan
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor Green
+}
+
+function Write-Warning-Custom {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor Yellow
+}
+
+function Write-Error-Custom {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor Red
+}
+
+# ============================================================
+# Validate properties file
+# ============================================================
+
 if (-not (Test-Path $PropertiesFile)) {
-    Write-Error-Custom "ERROR: Properties file not found: $PropertiesFile"
-    Write-Info "Please copy test-discovery.properties.template to $PropertiesFile and configure it."
+    Write-Error-Custom "Properties file not found: $PropertiesFile"
     exit 1
 }
 
 Write-Info "Loading configuration from: $PropertiesFile"
 
-# Function to read properties file
+# ============================================================
+# Read properties file
+# ============================================================
+
 function Read-PropertiesFile {
-    param([string]$FilePath)
-    
+    param(
+        [string]$FilePath
+    )
+
     $properties = @{}
+
     Get-Content $FilePath | ForEach-Object {
-        $line = $_.Trim()
-        # Skip comments and empty lines
-        if ($line -and -not $line.StartsWith('#')) {
-            $parts = $line -split '=', 2
-            if ($parts.Count -eq 2) {
-                $key = $parts[0].Trim()
-                $value = $parts[1].Trim()
-                $properties[$key] = $value
-            }
+        if ($_ -match "^\s*([^#][^=]*)=(.*)$") {
+            $key = $matches[1].Trim()
+            $value = $matches[2].Trim()
+            $properties[$key] = $value
         }
     }
+
     return $properties
 }
 
-# Load properties
 $config = Read-PropertiesFile -FilePath $PropertiesFile
 
-# Get configuration values
-$cpdUrl = $config['CPD_URL']
-$apikey = $config['APIKEY']
-$username = $config['USERNAME']
-$password = $config['PASSWORD']
-$authUri = $config['AUTH_URI']
-$datasourceTypesStr = $config['DATASOURCE_TYPES']
-$discoveryPathsStr = $config['DISCOVERY_PATHS']
-$connectionPropertiesStr = $config['CONNECTION_PROPERTIES']
+# ============================================================
+# Configuration values
+# ============================================================
 
-# Validate required parameters
+$cpdUrl                   = $config["CPD_URL"]
+$apikey                   = $config["APIKEY"]
+$username                 = $config["USERNAME"]
+$password                 = $config["PASSWORD"]
+$authUri                  = $config["AUTH_URI"]
+$datasourceTypesStr       = $config["DATASOURCE_TYPES"]
+$discoveryPathsStr        = $config["DISCOVERY_PATHS"]
+$connectionPropertiesStr  = $config["CONNECTION_PROPERTIES"]
+$sslValidation            = $config["SSL_CERTIFICATE_VALIDATION"]
+
+if (-not $sslValidation) {
+    $sslValidation = "false"
+}
+
+# ============================================================
+# Validation
+# ============================================================
+
 if (-not $cpdUrl) {
-    Write-Error-Custom "ERROR: CPD_URL is not set in properties file"
-    exit 1
-}
-
-# Check authentication credentials
-if (-not $apikey -and (-not $username -or -not $password)) {
-    Write-Error-Custom "ERROR: Missing authentication credentials"
-    Write-Error-Custom "Provide either APIKEY OR both USERNAME and PASSWORD"
-    exit 1
-}
-
-if ($apikey -and ($username -or $password)) {
-    Write-Error-Custom "ERROR: Conflicting authentication methods"
-    Write-Error-Custom "Provide either APIKEY OR USERNAME+PASSWORD, not both"
+    Write-Error-Custom "CPD_URL is missing"
     exit 1
 }
 
 if (-not $authUri) {
-    Write-Error-Custom "ERROR: AUTH_URI is not set in properties file"
+    Write-Error-Custom "AUTH_URI is missing"
     exit 1
 }
+
 if (-not $datasourceTypesStr) {
-    Write-Error-Custom "ERROR: DATASOURCE_TYPES is not set in properties file"
+    Write-Error-Custom "DATASOURCE_TYPES is missing"
     exit 1
 }
+
 if (-not $discoveryPathsStr) {
-    Write-Error-Custom "ERROR: DISCOVERY_PATHS is not set in properties file"
+    Write-Error-Custom "DISCOVERY_PATHS is missing"
     exit 1
 }
+
 if (-not $connectionPropertiesStr) {
-    Write-Error-Custom "ERROR: CONNECTION_PROPERTIES is not set in properties file"
+    Write-Error-Custom "CONNECTION_PROPERTIES is missing"
     exit 1
 }
 
-# Parse arrays
-$datasourceTypes = $datasourceTypesStr -split ',' | ForEach-Object { $_.Trim() }
-$discoveryPaths = $discoveryPathsStr -split ',' | ForEach-Object { $_.Trim() }
-$connectionPropertiesArray = $connectionPropertiesStr -split '\|' | ForEach-Object { $_.Trim() }
+$usingApiKey = -not [string]::IsNullOrWhiteSpace($apikey)
+$usingUserPass = (
+    -not [string]::IsNullOrWhiteSpace($username) -and
+    -not [string]::IsNullOrWhiteSpace($password)
+)
 
-# Validate array lengths match
-if ($datasourceTypes.Count -ne $discoveryPaths.Count -or $datasourceTypes.Count -ne $connectionPropertiesArray.Count) {
-    Write-Error-Custom "ERROR: Number of datasource types, paths, and connection properties must match"
-    Write-Error-Custom "  Datasource types: $($datasourceTypes.Count)"
-    Write-Error-Custom "  Discovery paths: $($discoveryPaths.Count)"
-    Write-Error-Custom "  Connection properties: $($connectionPropertiesArray.Count)"
+if (-not $usingApiKey -and -not $usingUserPass) {
+    Write-Error-Custom "Provide either APIKEY or USERNAME/PASSWORD"
     exit 1
 }
 
-# Remove trailing slash from CPD URL
-$cpdUrl = $cpdUrl.TrimEnd('/')
-
-# ============================================
-# Configure SSL Certificate Validation
-# ============================================
-
-# Check if SSL validation should be disabled
-$sslValidation = $config['SSL_CERTIFICATE_VALIDATION']
-if (-not $sslValidation) {
-    $sslValidation = "true"
+if ($usingApiKey -and $usingUserPass) {
+    Write-Error-Custom "Use only one authentication method"
+    exit 1
 }
 
-if ($sslValidation -eq "false") {
-    Write-Info "Disabling SSL certificate validation..."
-    
-    # For PowerShell 5.1 and earlier - use .NET ServicePointManager
+# ============================================================
+# Parse connector arrays
+# ============================================================
+
+$datasourceTypes = @($datasourceTypesStr -split "," | ForEach-Object { $_.Trim() })
+
+$discoveryPaths = @($discoveryPathsStr -split "," | ForEach-Object { $_.Trim() })
+
+$connectionPropertiesArray = @($connectionPropertiesStr -split "\|" | ForEach-Object { $_.Trim() })
+
+if (
+    $datasourceTypes.Count -ne $discoveryPaths.Count -or
+    $datasourceTypes.Count -ne $connectionPropertiesArray.Count
+) {
+    Write-Error-Custom "Mismatch in connector configuration counts"
+    Write-Host "Datasource types: $($datasourceTypes.Count)"
+    Write-Host "Discovery paths: $($discoveryPaths.Count)"
+    Write-Host "Connection properties: $($connectionPropertiesArray.Count)"
+    exit 1
+}
+
+# ============================================================
+# SSL validation
+# ============================================================
+
+if ($sslValidation.ToLower() -eq "false") {
+
+    Write-Warning-Custom "SSL certificate validation disabled"
+
     add-type @"
         using System.Net;
         using System.Security.Cryptography.X509Certificates;
@@ -147,189 +202,288 @@ if ($sslValidation -eq "false") {
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls11 -bor [System.Net.SecurityProtocolType]::Tls
 }
 
-Write-Info "`n=========================================="
-Write-Info "Obtaining Bearer Token..."
-Write-Info "=========================================="
+# ============================================================
+# Normalize URL
+# ============================================================
 
-# Build authentication request based on method
-if ($apikey) {
-    Write-Host "Using API Key authentication"
-    $tokenBody = @{
-        grant_type = "urn:ibm:params:oauth:grant-type:apikey"
-        apikey     = $apikey
-    }
-    $contentType = "application/x-www-form-urlencoded"
-} else {
-    Write-Host "Using Username/Password authentication"
-    $tokenBody = @{
-        username = $username
-        password = $password
-    } | ConvertTo-Json
-    $contentType = "application/json"
-}
+$cpdUrl = $cpdUrl.TrimEnd("/")
+
+# ============================================================
+# Authentication
+# ============================================================
+
+Write-Info ""
+Write-Info "========================================"
+Write-Info "Obtaining bearer token"
+Write-Info "========================================"
 
 try {
-    $tokenResponse = Invoke-RestMethod `
-        -Method Post `
-        -Uri $authUri `
-        -ContentType $contentType `
-        -Body $tokenBody `
-        -UseBasicParsing
-} catch {
-    Write-Error-Custom "ERROR: Failed to obtain bearer token"
-    if ($apikey) {
-        Write-Error-Custom "Please verify your API key is correct"
-    } else {
-        Write-Error-Custom "Please verify your username and password are correct"
+
+    if ($usingApiKey) {
+
+        Write-Info "Using API Key authentication"
+
+        $tokenBody = @{
+            grant_type = "urn:ibm:params:oauth:grant-type:apikey"
+            apikey     = $apikey
+        }
+
+        $tokenResponse = Invoke-RestMethod `
+            -Method POST `
+            -Uri $authUri `
+            -ContentType "application/x-www-form-urlencoded" `
+            -Body $tokenBody
     }
-    throw $_
+    else {
+
+        Write-Info "Using Username/Password authentication"
+
+        $tokenBody = @{
+            username = $username
+            password = $password
+        } | ConvertTo-Json
+
+        $tokenResponse = Invoke-RestMethod `
+            -Method POST `
+            -Uri $authUri `
+            -ContentType "application/json" `
+            -Body $tokenBody
+    }
+}
+catch {
+
+    Write-Error-Custom "Failed to obtain bearer token"
+    Write-Error-Custom $_.Exception.Message
+    exit 1
 }
 
-# Try to extract token (different field names for Cloud vs on-premises)
 $cpdToken = $tokenResponse.access_token
+
 if (-not $cpdToken) {
     $cpdToken = $tokenResponse.token
 }
 
 if (-not $cpdToken) {
-    Write-Error-Custom "ERROR: Failed to extract access token from response"
+    Write-Error-Custom "Access token not found in response"
     exit 1
 }
 
-Write-Success "✓ Bearer token obtained successfully"
+Write-Success "Bearer token obtained successfully"
 
-# Build the API endpoint
+# ============================================================
+# API setup
+# ============================================================
+
 $endpoint = "$cpdUrl/v2/connections/assets"
 
-Write-Info "`nConfiguration:"
-Write-Host "  CPD URL: $cpdUrl"
-$authMethod = if ($apikey) { "API Key" } else { "Username/Password" }
-Write-Host "  Auth Method: $authMethod"
-Write-Host "  Endpoint: $endpoint"
-Write-Host "  Number of connectors to test: $($datasourceTypes.Count)"
-
-# Prepare headers
 $headers = @{
-    "Authorization" = "Bearer $cpdToken"
+    Authorization = "Bearer $cpdToken"
+    Accept        = "application/json"
     "Content-Type" = "application/json"
-    "Accept" = "application/json"
 }
 
-# Track results
+Write-Info ""
+Write-Info "Endpoint: $endpoint"
+Write-Info "Connectors to test: $($datasourceTypes.Count)"
+
+# ============================================================
+# Results tracking
+# ============================================================
+
 $successCount = 0
 $failureCount = 0
 $results = @()
 
-# Test each connector
+# ============================================================
+# Test connectors
+# ============================================================
+
 for ($i = 0; $i -lt $datasourceTypes.Count; $i++) {
+
     $datasourceType = $datasourceTypes[$i]
     $discoveryPath = $discoveryPaths[$i]
-    $connectionProperties = $connectionPropertiesArray[$i]
-    
-    Write-Info "`n=========================================="
-    Write-Info "Testing Connector $($i + 1) of $($datasourceTypes.Count)"
-    Write-Info "=========================================="
-    Write-Host "  Datasource Type: $datasourceType"
-    Write-Host "  Discovery Path: $discoveryPath"
-    
-    # Build request body
-    $requestBody = @{
-        datasource_type = $datasourceType
-        properties = $connectionProperties | ConvertFrom-Json
-        path = $discoveryPath
-        fetch = "data"
-    }
-    
-    $requestBodyJson = $requestBody | ConvertTo-Json -Depth 10
-    
-    Write-Info "`nRequest Body:"
-    Write-Host $requestBodyJson
-    
-    Write-Info "`nSending request..."
-    
+    $connectionPropertiesRaw = $connectionPropertiesArray[$i]
+
+    Write-Info ""
+    Write-Info "========================================"
+    Write-Info "Testing connector $($i + 1)"
+    Write-Info "========================================"
+
+    Write-Host "Datasource Type : $datasourceType"
+    Write-Host "Discovery Path  : $discoveryPath"
+
     try {
-        # Make the API call
-        $response = Invoke-RestMethod -Uri $endpoint -Method Post -Headers $headers -Body $requestBodyJson -UseBasicParsing -ErrorAction Stop
-        
-        Write-Success "`n✓ Discovery successful for $datasourceType"
-        
-        # Count assets if available
+
+        $connectionProperties = $connectionPropertiesRaw | ConvertFrom-Json
+
+        # Build URL with query parameters
+        $encodedPath = [System.Web.HttpUtility]::UrlEncode($discoveryPath)
+        $requestUrl = "$endpoint`?path=$encodedPath&fetch=data"
+
+        $requestBody = @{
+            datasource_type = $datasourceType
+            properties      = $connectionProperties
+        }
+
+        $requestJson = $requestBody | ConvertTo-Json -Depth 20
+
+        Write-Info ""
+        Write-Info "Request URL:"
+        Write-Host $requestUrl
+
+        $response = Invoke-RestMethod `
+            -Method POST `
+            -Uri $requestUrl `
+            -Headers $headers `
+            -Body $requestJson
+
         $assetCount = 0
-        if ($response.resources) {
+
+        if ($response.data) {
+            $assetCount = $response.data.Count
+        }
+        elseif ($response.resources) {
             $assetCount = $response.resources.Count
-        } elseif ($response.assets) {
+        }
+        elseif ($response.assets) {
             $assetCount = $response.assets.Count
         }
-        
-        Write-Success "Discovered $assetCount asset(s)"
-        
-        $successCount++
-        $results += @{
-            DatasourceType = $datasourceType
-            Path = $discoveryPath
-            Status = "SUCCESS"
-            AssetCount = $assetCount
-        }
-        
-    } catch {
-        Write-Error-Custom "`n✗ Discovery failed for $datasourceType"
-        Write-Error-Custom "Error: $($_.Exception.Message)"
-        
-        if ($_.Exception.Response) {
-            $statusCode = $_.Exception.Response.StatusCode.value__
-            Write-Error-Custom "Status Code: $statusCode"
+
+        Write-Success ""
+        Write-Success "Discovery successful"
+        Write-Success "Assets discovered: $assetCount"
+
+        # Display first asset if any were returned
+        if ($assetCount -gt 0) {
+            Write-Info ""
+            Write-Info "First asset:"
+            $firstAsset = $null
+            if ($response.data) {
+                $firstAsset = $response.data[0]
+            }
+            elseif ($response.resources) {
+                $firstAsset = $response.resources[0]
+            }
+            elseif ($response.assets) {
+                $firstAsset = $response.assets[0]
+            }
             
-            try {
-                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-                $responseBody = $reader.ReadToEnd()
-                Write-Error-Custom "Response Body:"
-                Write-Host $responseBody
-            } catch {
-                # Ignore errors reading response body
+            if ($firstAsset) {
+                $firstAssetJson = $firstAsset | ConvertTo-Json -Depth 10
+                Write-Host $firstAssetJson
             }
         }
-        
-        $failureCount++
-        $results += @{
+
+        $successCount++
+
+        $results += [PSCustomObject]@{
             DatasourceType = $datasourceType
-            Path = $discoveryPath
-            Status = "FAILED"
-            Error = $_.Exception.Message
+            Path           = $discoveryPath
+            Status         = "SUCCESS"
+            AssetCount     = $assetCount
+            Error          = ""
+        }
+    }
+    catch {
+
+        Write-Error-Custom ""
+        Write-Error-Custom "Discovery failed"
+        Write-Error-Custom $_.Exception.Message
+
+        $responseBody = ""
+
+        try {
+
+            if ($_.Exception.Response) {
+
+                $reader = New-Object System.IO.StreamReader(
+                    $_.Exception.Response.GetResponseStream()
+                )
+
+                $responseBody = $reader.ReadToEnd()
+
+                if ($responseBody) {
+                    Write-Error-Custom "Response body:"
+                    Write-Host $responseBody
+                }
+            }
+        }
+        catch {
+        }
+
+        $failureCount++
+
+        $results += [PSCustomObject]@{
+            DatasourceType = $datasourceType
+            Path           = $discoveryPath
+            Status         = "FAILED"
+            AssetCount     = 0
+            Error          = $_.Exception.Message
         }
     }
 }
 
-# Print summary
-Write-Info "`n=========================================="
+# ============================================================
+# Summary
+# ============================================================
+
+Write-Info ""
+Write-Info "========================================"
 Write-Info "Test Summary"
-Write-Info "=========================================="
-Write-Host "Total connectors tested: $($datasourceTypes.Count)"
-Write-Success "Successful: $successCount"
+Write-Info "========================================"
+
+Write-Host "Total tested : $($datasourceTypes.Count)"
+Write-Success "Successful   : $successCount"
+
 if ($failureCount -gt 0) {
-    Write-Error-Custom "Failed: $failureCount"
+    Write-Error-Custom "Failed       : $failureCount"
 }
 
-Write-Info "`nDetailed Results:"
+Write-Info ""
+Write-Info "Detailed Results"
+
 foreach ($result in $results) {
+
     if ($result.Status -eq "SUCCESS") {
-        Write-Success "✓ $($result.DatasourceType) - Path: $($result.Path) - Assets: $($result.AssetCount)"
-    } else {
-        Write-Error-Custom "✗ $($result.DatasourceType) - Path: $($result.Path) - Error: $($result.Error)"
+
+        Write-Success (
+            "SUCCESS | Type: {0} | Path: {1} | Assets: {2}" -f `
+            $result.DatasourceType,
+            $result.Path,
+            $result.AssetCount
+        )
+    }
+    else {
+
+        Write-Error-Custom (
+            "FAILED | Type: {0} | Path: {1} | Error: {2}" -f `
+            $result.DatasourceType,
+            $result.Path,
+            $result.Error
+        )
     }
 }
 
+# ============================================================
+# Exit code
+# ============================================================
+
 if ($failureCount -gt 0) {
-    Write-Info "`nTroubleshooting tips:"
-    Write-Host "  1. Verify CPD_URL is correct and accessible"
-    Write-Host "  2. Check authentication credentials (APIKEY or USERNAME/PASSWORD)"
-    Write-Host "  3. Verify AUTH_URI is correct for your deployment"
-    Write-Host "  4. Ensure DATASOURCE_TYPES match registered connectors"
-    Write-Host "  5. Verify CONNECTION_PROPERTIES are correct for each datasource type"
-    Write-Host "  6. Check that the connectors are deployed and running"
+
+    Write-Info ""
+    Write-Info "Troubleshooting Tips"
+
+    Write-Host "1. Verify CPD_URL"
+    Write-Host "2. Verify authentication credentials"
+    Write-Host "3. Verify AUTH_URI"
+    Write-Host "4. Verify datasource types"
+    Write-Host "5. Verify connection properties JSON"
+    Write-Host "6. Verify connector deployment"
+
     exit 1
 }
 
-Write-Success "`n✓ All connector tests passed!"
-exit 0
+Write-Success ""
+Write-Success "All connector tests passed"
 
-# Made with Bob
+exit 0
