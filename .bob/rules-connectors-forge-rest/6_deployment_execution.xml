@@ -3351,10 +3351,24 @@
           6. DISCOVERY_PATHS - comma-separated list of discovery paths (first endpoint path from each connector)
           7. CONNECTION_PROPERTIES - pipe-separated JSON objects with connection properties for each connector
           
+          IMPORTANT: How to extract values from the connector configuration file:
+          
+          - DATASOURCE_TYPES: Use the exact value from $connector_name field in the config file
+            Example: If $connector_name is "GitHub API Connector", then DATASOURCE_TYPES=GitHub API Connector
+          
+          - DISCOVERY_PATHS: Use the keys from $tables object with a forward slash prefix
+            Example: If $tables has "REPOSITORIES" key, then DISCOVERY_PATHS=/REPOSITORIES
+            For multiple tables: /REPOSITORIES,/ISSUES,/PULL_REQUESTS
+          
           For each connector, extract:
+<<<<<<< HEAD
           - Datasource type ID from the connector descriptor ($connector_name field, converted to lowercase with underscores)
           - First endpoint path from the $tables configuration
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+          - Datasource type ID: exact value from $connector_name field (do NOT convert to lowercase or add underscores)
+          - Discovery paths: keys from $tables object, each prefixed with forward slash
+>>>>>>> e8665ee (fix)
           - Authentication type and required properties from $authentication field
           - Base URL from $hostname field
         </action>
@@ -3445,16 +3459,25 @@
           AUTH_URI=https://iam.cloud.ibm.com/identity/token
 
           # Connector Configuration (based on your connectors)
-          DATASOURCE_TYPES=connector1_id,connector2_id
-          DISCOVERY_PATHS=/endpoint1,/endpoint2
-          CONNECTION_PROPERTIES={"base_url":"https://api1.example.com","api_key":"YOUR_KEY"}|{"base_url":"https://api2.example.com"}
+          # DATASOURCE_TYPES: Use exact $connector_name value(s) from config file
+          # DISCOVERY_PATHS: Use $tables keys with forward slash prefix
+          DATASOURCE_TYPES=GitHub API Connector
+          DISCOVERY_PATHS=/REPOSITORIES
+          CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"YOUR_GITHUB_TOKEN"}
+          ```
+
+          Example with multiple connectors:
+          ```properties
+          DATASOURCE_TYPES=GitHub API Connector,Jira REST API
+          DISCOVERY_PATHS=/REPOSITORIES,/ISSUES
+          CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"TOKEN1"}|{"base_url":"https://jira.example.com","username":"user","password":"pass"}
           ```
 
           Replace:
           - CPD_URL with your Cloud Pak for Data instance URL
           - APIKEY with your IBM Cloud API key (or use USERNAME/PASSWORD for on-premises)
           - AUTH_URI with the correct authentication endpoint for your deployment
-          - YOUR_KEY and other credentials in CONNECTION_PROPERTIES with actual values
+          - YOUR_GITHUB_TOKEN and other credentials in CONNECTION_PROPERTIES with actual values
           
           Note: The scripts will automatically obtain a bearer token using your credentials,
           so you no longer need to provide a pre-acquired token.
