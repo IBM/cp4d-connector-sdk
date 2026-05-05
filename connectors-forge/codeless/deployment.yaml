@@ -3,9 +3,12 @@ kind: Deployment
 metadata:
   name: cf-flight-connector
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
   namespace: connectorsforge
 >>>>>>> 4a8a02f (codeless openshift)
+=======
+>>>>>>> 91abfbc (no namespace in yamls)
   labels:
     app: cf-flight-connector
 
