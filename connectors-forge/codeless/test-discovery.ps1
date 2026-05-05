@@ -129,19 +129,21 @@ if ($apikey) {
         grant_type = "urn:ibm:params:oauth:grant-type:apikey"
         apikey     = $apikey
     }
+    $contentType = "application/x-www-form-urlencoded"
 } else {
     Write-Host "Using Username/Password authentication"
     $tokenBody = @{
         username = $username
         password = $password
-    }
+    } | ConvertTo-Json
+    $contentType = "application/json"
 }
 
 try {
     $tokenResponse = Invoke-RestMethod `
         -Method Post `
         -Uri $authUri `
-        -ContentType "application/x-www-form-urlencoded" `
+        -ContentType $contentType `
         -Body $tokenBody
 } catch {
     Write-Error-Custom "ERROR: Failed to obtain bearer token"
