@@ -2381,7 +2381,11 @@
               OPTIONAL properties (defaults provided):
               - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
               - datasource_types_uri: Datasource types API endpoint (default provided in template)
+<<<<<<< HEAD
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+              - origin_country: Origin country/region for connector registration (default: us)
+>>>>>>> d40a5f4 (origin country parameter for registration)
               - ssl_certificate_path: Path to SSL certificate (commented out by default)
               - ssl_certificate_validation: Enable/disable SSL validation (default: false)
             </description>
@@ -2400,6 +2404,7 @@
               flight_hostname=my-server.example.com
               flight_port=50051
 <<<<<<< HEAD
+<<<<<<< HEAD
               origin_country=us
               ssl_certificate_validation=false
             </example>
@@ -2415,6 +2420,9 @@
               origin_country=us
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+              origin_country=us
+>>>>>>> d40a5f4 (origin country parameter for registration)
               ssl_certificate_validation=false
             </example>
           </step>
