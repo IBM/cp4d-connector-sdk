@@ -21,6 +21,7 @@ Required properties (in properties file):
   flight_port
 
 Optional:
+  origin_country (default: us)
   ssl_certificate_path
   ssl_certificate_validation
 "@
@@ -66,12 +67,15 @@ $FLIGHT_HOSTNAME = $props["flight_hostname"]
 $FLIGHT_PORT = $props["flight_port"]
 $SSL_CERT_PATH = $props["ssl_certificate_path"]
 $SSL_CERT_VALIDATION = $props["ssl_certificate_validation"]
+$ORIGIN_COUNTRY = $props["origin_country"]
 
 if (-not $SSL_CERT_VALIDATION) {
     $SSL_CERT_VALIDATION = "false"
 }
 
-$ORIGIN_COUNTRY = "us"
+if (-not $ORIGIN_COUNTRY) {
+    $ORIGIN_COUNTRY = "us"
+}
 
 # ============================================
 # Validate
@@ -104,6 +108,7 @@ Write-Host "  Auth URI:            $AUTH_URI"
 Write-Host "  Datasource API:      $DATASOURCE_TYPES_URI"
 Write-Host "  Flight Hostname:     $FLIGHT_HOSTNAME"
 Write-Host "  Flight Port:         $FLIGHT_PORT"
+Write-Host "  Origin Country:      $ORIGIN_COUNTRY"
 Write-Host "  SSL Validation:      $SSL_CERT_VALIDATION"
 
 if ($SSL_CERT_PATH) {

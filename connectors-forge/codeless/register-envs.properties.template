@@ -12,6 +12,10 @@ datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_ty
 flight_hostname=<your-flight-hostname>
 flight_port=<your-flight-port>
 
+# Origin country (OPTIONAL - default: us)
+# Specifies the country/region for the connector registration
+origin_country=us
+
 # SSL certificate settings (OPTIONAL)
 #ssl_certificate_path=/path/to/certificate.pem
 ssl_certificate_validation=false

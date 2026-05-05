@@ -48,6 +48,7 @@ REQUIRED PROPERTIES (in register-envs.properties):
     flight_port         Flight service port
 
 OPTIONAL PROPERTIES:
+    origin_country      Origin country/region (default: us)
     ssl_certificate_path    Path to SSL certificate file
     ssl_certificate_validation    Enable/disable SSL validation (true/false)
 
@@ -107,9 +108,12 @@ FLIGHT_HOSTNAME=$(get_property "flight_hostname")
 FLIGHT_PORT=$(get_property "flight_port")
 SSL_CERT_PATH=$(get_property "ssl_certificate_path")
 SSL_CERT_VALIDATION=$(get_property "ssl_certificate_validation")
+ORIGIN_COUNTRY=$(get_property "origin_country")
 
 # Set defaults
-ORIGIN_COUNTRY="us"
+if [ -z "$ORIGIN_COUNTRY" ]; then
+    ORIGIN_COUNTRY="us"
+fi
 
 if [ -z "$SSL_CERT_VALIDATION" ]; then
     SSL_CERT_VALIDATION="false"
@@ -171,6 +175,7 @@ echo "  Auth URI:            $AUTH_URI"
 echo "  Datasource API:      $DATASOURCE_TYPES_URI"
 echo "  Flight Hostname:     $FLIGHT_HOSTNAME"
 echo "  Flight Port:         $FLIGHT_PORT"
+echo "  Origin Country:      $ORIGIN_COUNTRY"
 echo "  SSL Validation:      $SSL_CERT_VALIDATION"
 if [ -n "$SSL_CERT_PATH" ]; then
     echo "  SSL Certificate:     $SSL_CERT_PATH"

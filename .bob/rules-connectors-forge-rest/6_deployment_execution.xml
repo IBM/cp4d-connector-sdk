@@ -1361,6 +1361,7 @@
               OPTIONAL properties (defaults provided):
               - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
               - datasource_types_uri: Datasource types API endpoint (default provided in template)
+              - origin_country: Origin country/region for connector registration (default: us)
               - ssl_certificate_path: Path to SSL certificate (commented out by default)
               - ssl_certificate_validation: Enable/disable SSL validation (default: false)
             </description>
@@ -1371,6 +1372,7 @@
               datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
               flight_hostname=my-server.example.com
               flight_port=50051
+              origin_country=us
               ssl_certificate_validation=false
             </example>
           </step>
