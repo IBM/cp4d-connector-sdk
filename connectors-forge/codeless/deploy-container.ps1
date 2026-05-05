@@ -9,7 +9,7 @@ param(
 # Configuration
 # ============================================
 
-$Image = "docker.io/marek02/connectors-forge:latest"
+$Image = "ghcr.io/marek-zuwala/connectors-forge:1.0.0"
 $ContainerId = $null
 $ContainerName = $null
 $TempDir = $null
