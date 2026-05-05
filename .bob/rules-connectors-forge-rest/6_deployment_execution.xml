@@ -197,6 +197,7 @@
           <label>OpenShift Deployment</label>
           <description>
 <<<<<<< HEAD
+<<<<<<< HEAD
             Deploy container to OpenShift platform using Flight Operator.
             Best for: On-premises enterprise deployments.
           </description>
@@ -208,6 +209,12 @@
           <use_case>Enterprise on-premises solutions</use_case>
           <status>Placeholder - Not yet implemented</status>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+            Deploy container to OpenShift platform using Flight Operator.
+            Best for: On-premises enterprise deployments.
+          </description>
+          <use_case>Enterprise on-premises solutions</use_case>
+>>>>>>> efbd622 (fix)
         </option>
       </options_for_developer>
 
@@ -253,9 +260,12 @@
           </description>
           <use_case>Enterprise on-premises solutions</use_case>
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
           <status>Placeholder - Not yet implemented</status>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> efbd622 (fix)
         </option>
       </options_for_codeless>
 
@@ -442,9 +452,13 @@
           - Option 1: Local Docker Deployment (for testing)
           - Option 3: Self-Hosted Server Deployment (for production)
 <<<<<<< HEAD
+<<<<<<< HEAD
           - Option 4: Openshift deployment (for production)
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+          - Option 4: Openshift deployment (for production)
+>>>>>>> efbd622 (fix)
         </message>
       </placeholder_notice>
 
@@ -1104,6 +1118,7 @@
 
     <step_5_handle_openshift_deployment>
 <<<<<<< HEAD
+<<<<<<< HEAD
       <title>OpenShift Deployment (Codeless)</title>
       <when>User selects OpenShift option for codeless deployment</when>
 
@@ -1720,10 +1735,15 @@
 =======
       <title>OpenShift Deployment</title>
       <when>User selects option 3 (OpenShift) for codeless deployment</when>
+=======
+      <title>OpenShift Deployment (Codeless)</title>
+      <when>User selects OpenShift option for codeless deployment</when>
+>>>>>>> efbd622 (fix)
 
       <important_note>
-        This step is for users who want to deploy their connector(s) to OpenShift.
+        This step is for CODELESS deployment to OpenShift.
         It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0) from GitHub Container Registry.
+        For DEVELOPER deployment to OpenShift, see step_6_handle_openshift_deployment_developer.
       </important_note>
 
       <sub_step_1_ask_execution_preference>
@@ -1996,7 +2016,374 @@
         </service_yaml>
       </deployment_files_reference>
     </step_5_handle_openshift_deployment>
+<<<<<<< HEAD
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+
+    <step_6_handle_openshift_deployment_developer>
+      <title>OpenShift Deployment (Developer)</title>
+      <when>User selects OpenShift option for developer deployment</when>
+
+      <important_note>
+        This step is for DEVELOPER deployment to OpenShift using the Flight Operator.
+        It builds a custom Docker image with your connector code and deploys it using the FlightService operator.
+        This follows the process documented in guide.md #flight-operator section.
+      </important_note>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run the build and deployment commands for OpenShift</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic OpenShift Deployment (Developer)</title>
+        <when>User chooses automatic execution</when>
+
+        <prerequisites>
+          <requirement>OpenShift CLI (oc) must be installed</requirement>
+          <requirement>User must be logged into OpenShift cluster with appropriate credentials</requirement>
+          <requirement>kubectl must be installed</requirement>
+          <requirement>make must be installed</requirement>
+          <requirement>podman or docker must be installed</requirement>
+        </prerequisites>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen Directory</name>
+            <command>cd sdk-gen</command>
+            <description>All Gradle tasks must be run from the sdk-gen directory</description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="2">
+            <name>Apply Code Formatting</name>
+            <command>./gradlew spotlessApply</command>
+            <description>Applies code formatting rules to ensure consistency</description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="3">
+            <name>Build Project</name>
+            <command>./gradlew build</command>
+            <description>Compiles the project and runs tests</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>This may take several minutes on first run</note>
+          </action>
+
+          <action priority="4">
+            <name>Generate Flight Application</name>
+            <command>./gradlew generateFlightApp</command>
+            <description>
+              Generates the Flight service application with all connectors.
+              By default, generates as a web app for WebSphere Liberty container.
+            </description>
+            <working_directory>sdk-gen</working_directory>
+            <optional_flag>
+              <flag>-PstandaloneFlightSvc=true</flag>
+              <description>
+                Use this flag if you prefer to deploy the server as a standalone application
+                instead of a WebSphere Liberty web app.
+              </description>
+            </optional_flag>
+          </action>
+
+          <action priority="5">
+            <name>Build Docker Image</name>
+            <command>./gradlew dockerBuild</command>
+            <description>Creates Docker image containing the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Requires Docker or Podman to be installed and running</note>
+          </action>
+
+          <action priority="6">
+            <name>Navigate to Flight Operator Directory</name>
+            <command>cd ../sdk-operator/flightservice</command>
+            <description>Change to the Flight Operator directory for deployment</description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="7">
+            <name>Deploy Flight Operator</name>
+            <command>./gradlew deploy-operator</command>
+            <description>
+              Deploys the FlightService operator to OpenShift.
+              This creates the flightservice-operator-system namespace and sets up the operator.
+            </description>
+            <working_directory>sdk-operator/flightservice</working_directory>
+            <note>
+              Before running, ensure you are logged into OpenShift with appropriate credentials.
+              See guide.md #configure-openshift-login for authentication options.
+            </note>
+          </action>
+
+          <action priority="8">
+            <name>Push Image to OpenShift Registry</name>
+            <command>cd ../../sdk-gen && ./gradlew dockerPush</command>
+            <description>
+              Pushes the Docker image to the OpenShift Container Registry.
+              The image will be available in the flightservice-operator-system namespace.
+            </description>
+            <working_directory>sdk-operator/flightservice</working_directory>
+          </action>
+
+          <action priority="9">
+            <name>Create FlightService Deployment File</name>
+            <description>
+              Create a YAML file to deploy your connector as a FlightService.
+              The file should be named after your connector (e.g., rest-connector-flight-service.yaml).
+            </description>
+            <file_content>
+              apiVersion: flight.wdp.ibm.com/v1alpha1
+              kind: FlightService
+              metadata:
+                name: rest-connector
+              spec:
+                replicas: 1
+                dockerImage: default-route-openshift-image-registry.apps.{your-openshift-domain}/flightservice-operator-system/rest-connector-flight-service:{version}
+            </file_content>
+            <note>
+              Replace {your-openshift-domain} with your actual OpenShift domain.
+              Replace {version} with your image version (check gradle.properties or build output).
+            </note>
+          </action>
+
+          <action priority="10">
+            <name>Deploy FlightService</name>
+            <command>oc apply -f rest-connector-flight-service.yaml</command>
+            <description>Deploys the connector using the FlightService operator</description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="11">
+            <name>Verify Deployment</name>
+            <command>oc get deployment</command>
+            <description>Check that the deployment is ready</description>
+            <expected_output>
+              NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+              rest-connector          1/1     1            1           1m
+            </expected_output>
+          </action>
+
+          <action priority="12">
+            <name>Verify Pods Running</name>
+            <command>oc get pods</command>
+            <description>Confirm the connector pod is running</description>
+            <expected_output>
+              NAME                              READY   STATUS    RESTARTS   AGE
+              rest-connector-6fd7c98d8-7dqdr    1/1     Running   0          1m
+            </expected_output>
+          </action>
+
+          <action priority="13">
+            <name>Inform User</name>
+            <message>
+              OpenShift deployment complete!
+              
+              Your REST API connector(s) have been deployed to OpenShift using the Flight Operator.
+              
+              Deployment details:
+              - Namespace: flightservice-operator-system
+              - FlightService: rest-connector
+              - Replicas: 1
+              
+              The connector is now running and accessible within the cluster.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_build_fails>
+            <action>Report the error details from Gradle output</action>
+            <action>Check if all dependencies are properly configured</action>
+            <action>Verify Java version compatibility</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_build_fails>
+          
+          <if_openshift_login_fails>
+            <action>Verify OpenShift cluster URL is correct</action>
+            <action>Check username and password are valid</action>
+            <action>Ensure network connectivity to the cluster</action>
+            <action>Refer to guide.md #configure-openshift-login for authentication options</action>
+          </if_openshift_login_fails>
+          
+          <if_operator_deployment_fails>
+            <action>Check if user has appropriate OpenShift permissions</action>
+            <action>Verify TLS certificates are properly configured (see guide.md #save-tls-certificate)</action>
+            <action>Check if required tools (oc, kubectl, make, docker/podman) are installed</action>
+            <action>Review operator logs for specific errors</action>
+          </if_operator_deployment_fails>
+          
+          <if_image_push_fails>
+            <action>Verify OpenShift Container Registry is accessible</action>
+            <action>Check if TLS certificates are properly configured</action>
+            <action>Ensure user has permissions to push to the registry</action>
+            <action>Verify image name and tag are correct</action>
+          </if_image_push_fails>
+          
+          <if_flightservice_deployment_fails>
+            <action>Check FlightService YAML syntax is correct</action>
+            <action>Verify image path and version are accurate</action>
+            <action>Check if FlightService operator is running: oc get pods -n flightservice-operator-system</action>
+            <action>Review pod logs: oc logs -l app=rest-connector</action>
+          </if_flightservice_deployment_fails>
+        </error_handling>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual OpenShift Deployment Instructions (Developer)</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) to OpenShift using the Flight Operator:
+
+          PREREQUISITES:
+          - OpenShift CLI (oc) installed on your machine
+          - kubectl installed
+          - make installed
+          - podman or docker installed
+          - Access to an OpenShift cluster with appropriate permissions
+          - Logged into OpenShift cluster (oc login)
+
+          IMPORTANT: TLS Certificate Setup
+          If your OpenShift cluster uses a TLS certificate not signed by a well-known CA,
+          you must configure it before proceeding. See guide.md #save-tls-certificate for details.
+
+          DEPLOYMENT STEPS:
+
+          1. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          2. Apply code formatting:
+             ./gradlew spotlessApply
+             
+             This ensures code consistency across the project.
+
+          3. Build the project:
+             ./gradlew build
+             
+             This compiles the project and runs tests. May take several minutes on first run.
+
+          4. Generate the Flight application:
+             ./gradlew generateFlightApp
+             
+             OR, for standalone deployment (not WebSphere Liberty):
+             ./gradlew generateFlightApp -PstandaloneFlightSvc=true
+             
+             This generates the Flight service application with all your connectors.
+
+          5. Build the Docker image:
+             ./gradlew dockerBuild
+             
+             This creates a Docker image containing your connector(s).
+             Requires Docker or Podman to be installed and running.
+
+          6. Configure OpenShift authentication (if not already logged in):
+             
+             Option A: Login via oc command:
+             oc login -u <username> -p <password> <cluster-url>
+             
+             Option B: Configure credentials in gradle.properties:
+             - Edit sdk-operator/flightservice/gradle.properties and add:
+               openshift.console.url=https://console-openshift-console.apps.your-cluster.com:6443
+             - Add credentials to ~/.gradle/encrypted.gradle.properties:
+               cd sdk-operator/flightservice
+               ./gradlew addCredentials --key "openshift.username" --value <your-user>
+               ./gradlew addCredentials --key "openshift.password" --value <your-password>
+
+          7. Deploy the FlightService operator:
+             cd ../sdk-operator/flightservice
+             ./gradlew deploy-operator
+             
+             This deploys the operator to OpenShift and creates the flightservice-operator-system namespace.
+
+          8. Push the Docker image to OpenShift Container Registry:
+             cd ../../sdk-gen
+             ./gradlew dockerPush
+             
+             This pushes your connector image to the OpenShift registry.
+
+          9. Create a FlightService deployment file:
+             Create a file named rest-connector-flight-service.yaml with this content:
+             
+             ```yaml
+             apiVersion: flight.wdp.ibm.com/v1alpha1
+             kind: FlightService
+             metadata:
+               name: rest-connector
+             spec:
+               replicas: 1
+               dockerImage: default-route-openshift-image-registry.apps.{your-domain}/flightservice-operator-system/rest-connector-flight-service:{version}
+             ```
+             
+             Replace:
+             - {your-domain} with your OpenShift cluster domain
+             - {version} with your image version (check gradle.properties or build output)
+             
+             To find your OpenShift registry route:
+             oc get routes -n openshift-image-registry
+
+          10. Deploy the FlightService:
+              oc apply -f rest-connector-flight-service.yaml
+              
+              This creates the deployment using the FlightService operator.
+
+          11. Verify the deployment:
+              oc get deployment
+              
+              You should see:
+              NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+              rest-connector          1/1     1            1           1m
+
+          12. Verify the pod is running:
+              oc get pods
+              
+              You should see:
+              NAME                              READY   STATUS    RESTARTS   AGE
+              rest-connector-6fd7c98d8-7dqdr    1/1     Running   0          1m
+
+          13. (Optional) View logs if needed:
+              oc logs -l app=rest-connector
+
+          ACCESSING THE CONNECTOR:
+          The connector is accessible within the OpenShift cluster.
+          The service endpoint will be available through the FlightService operator.
+
+          UPDATING THE DEPLOYMENT:
+          To update your connector:
+          1. Make code changes
+          2. Rebuild: ./gradlew build
+          3. Regenerate Flight app: ./gradlew generateFlightApp
+          4. Rebuild image: ./gradlew dockerBuild
+          5. Push updated image: ./gradlew dockerPush
+          6. Restart deployment: oc rollout restart deployment rest-connector
+
+          For more details, refer to guide.md #flight-operator section.
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+    </step_6_handle_openshift_deployment_developer>
+>>>>>>> efbd622 (fix)
   </phase_5_deployment_option_selection>
 
   <phase_6_cp4d_registration>
