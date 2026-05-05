@@ -509,28 +509,37 @@
               ./connectors-forge/codeless/deploy-container.sh --host {host} --ssh-user {ssh-user} --files {file1} {file2} ... --port {port} [--ssh-port {ssh-port}] [--replace]
             </command_unix>
             <command_windows>
-              .\connectors-forge\codeless\deploy-container.ps1 -Host {host} -SshUser {ssh-user} -Files {file1},{file2},... -Port {port} [-SshPort {ssh-port}] [-Replace]
+              .\connectors-forge\codeless\deploy-container.ps1 -SshHost {host} -SshUser {ssh-user} -Files {file1},{file2},... -Port {port} [-SshPort {ssh-port}] [-Replace]
             </command_windows>
             <description>
               Runs the OS-specific deployment script with user-provided parameters.
               The script handles:
-              - Connecting to remote server via SSH (using your SSH keys)
-              - Pulling the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
-              - Creating and uploading tar archive with configuration files
-              - Deploying the container to the target server
+              - Connecting to remote server via SSH (using your SSH keys - no password prompts)
+              - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
+              - Creating tar archive with configuration files and streaming it via SSH
               - Uploading configuration files to /config/mappings/ in the container
               - Configuring port mapping (9443 internal → user-specified external)
               - Starting and verifying the container
             </description>
             <working_directory>Project root</working_directory>
-            <note>Script uses SSH to deploy to remote server</note>
+            <note>Script uses SSH to execute Docker commands on remote server</note>
+            <deployment_steps>
+              The script performs 7 steps:
+              1. Validate inputs (SSH connectivity, Docker availability, files, port)
+              2. Check for existing containers (by name or port conflict)
+              3. Create container (docker create with port mapping)
+              4. Upload config files (tar streaming via SSH to docker cp)
+              5. Start container (docker start)
+              6. Verify container status (docker inspect)
+              7. Report success with container details
+            </deployment_steps>
           </action>
 
           <action priority="6">
             <name>Monitor Deployment</name>
             <description>
               Monitor the script output for successful deployment confirmation.
-              The script provides 7-step progress updates.
+              The script provides 7-step progress updates (changed from 8 steps in previous version).
             </description>
           </action>
 
@@ -558,13 +567,35 @@
         <error_handling>
           <if_script_fails>
             <action>Report the error details from script output</action>
-            <action>Verify SSH key authentication is configured correctly</action>
+            <action>Verify SSH key authentication is configured correctly (test with: ssh user@host)</action>
             <action>Check if configuration files exist at specified paths</action>
             <action>Verify port number is valid (1-65535) and not in use (unless --replace is used)</action>
             <action>Check network connectivity to target server</action>
             <action>Verify Docker is installed and user has permissions on remote server</action>
             <action>Offer to provide manual instructions instead</action>
           </if_script_fails>
+          
+          <if_ssh_connection_fails>
+            <action>Verify SSH host and port are correct</action>
+            <action>Check SSH key authentication is set up (should connect without password)</action>
+            <action>Test SSH connection manually: ssh -p {port} {user}@{host}</action>
+            <action>Verify firewall allows SSH connections</action>
+            <action>Check if SSH service is running on remote server</action>
+          </if_ssh_connection_fails>
+          
+          <if_docker_not_available>
+            <action>Verify Docker is installed on remote server</action>
+            <action>Check user has permissions to run Docker commands</action>
+            <action>Test Docker access: ssh {user}@{host} "docker version"</action>
+            <action>User may need to be added to docker group on remote server</action>
+          </if_docker_not_available>
+          
+          <if_file_upload_fails>
+            <action>Verify /config directory exists in the container image</action>
+            <action>Check tar command is available (Windows 10+ or PowerShell 7+)</action>
+            <action>Verify SSH connection is stable during file transfer</action>
+            <action>Check disk space on remote server</action>
+          </if_file_upload_fails>
         </error_handling>
       </sub_step_2a_codeless_automatic>
 
@@ -709,21 +740,29 @@
           For Windows:
           1. Run the PowerShell deployment script with required parameters:
              .\connectors-forge\codeless\deploy-container.ps1 `
-               -Host "remote-server.com" `
+               -SshHost "remote-server.com" `
                -SshUser "ubuntu" `
                -Files "sdk-gen\subprojects\connectors_forge_rest\src\main\resources\api1.json","api2.json" `
                -Port 9090 `
                [-SshPort 22] `
                [-Replace]
 
-          The script will:
-          - Connect to your remote server via SSH (using your SSH keys)
-          - Pull the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
-          - Create and upload tar archive with your configuration files
-          - Deploy the container to your target server
-          - Upload configuration files to /config/mappings/ in the container
-          - Configure port mapping (9443 internal → your specified external port)
-          - Start and verify the container
+          The script performs 7 steps:
+          1. Validates inputs - Tests SSH connectivity, Docker availability, file existence, and port validity
+          2. Checks for existing containers - Detects conflicts by name or port
+          3. Creates container - Uses docker create with port mapping (pulls image if needed)
+          4. Uploads config files - Creates tar archive and streams it via SSH to docker cp
+          5. Starts container - Executes docker start command
+          6. Verifies status - Checks that container is running
+          7. Reports success - Displays container ID, name, and port mapping
+
+          How it works:
+          - Connects to remote server via SSH using your SSH keys (no password prompts)
+          - Executes Docker commands remotely via SSH
+          - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+          - Streams configuration files directly via SSH pipe (no intermediate files on remote server)
+          - Uploads files to /config/mappings/ in the container
+          - Configures port mapping (9443 internal → your specified external port)
 
           Prerequisites:
           - SSH key authentication configured (REQUIRED - see SSH Prerequisites above)
@@ -731,7 +770,7 @@
           - User has Docker permissions on remote server
           - Network connectivity to the target server
           - Configuration files exist at the specified paths
-          - Windows: PowerShell 5.1 or later
+          - Windows: PowerShell 5.1 or later with tar command support (Windows 10+ or PowerShell 7+)
 
           The script will output the container ID, name, and deployment status upon successful completion.
 
