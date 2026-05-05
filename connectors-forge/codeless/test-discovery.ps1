@@ -118,6 +118,35 @@ if ($datasourceTypes.Count -ne $discoveryPaths.Count -or $datasourceTypes.Count 
 # Remove trailing slash from CPD URL
 $cpdUrl = $cpdUrl.TrimEnd('/')
 
+# ============================================
+# Configure SSL Certificate Validation
+# ============================================
+
+# Check if SSL validation should be disabled
+$sslValidation = $config['SSL_CERTIFICATE_VALIDATION']
+if (-not $sslValidation) {
+    $sslValidation = "true"
+}
+
+if ($sslValidation -eq "false") {
+    Write-Info "Disabling SSL certificate validation..."
+    
+    # For PowerShell 5.1 and earlier - use .NET ServicePointManager
+    add-type @"
+        using System.Net;
+        using System.Security.Cryptography.X509Certificates;
+        public class TrustAllCertsPolicy : ICertificatePolicy {
+            public bool CheckValidationResult(
+                ServicePoint svcPoint, X509Certificate certificate,
+                WebRequest request, int certificateProblem) {
+                return true;
+            }
+        }
+"@
+    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls11 -bor [System.Net.SecurityProtocolType]::Tls
+}
+
 Write-Info "`n=========================================="
 Write-Info "Obtaining Bearer Token..."
 Write-Info "=========================================="
@@ -144,7 +173,8 @@ try {
         -Method Post `
         -Uri $authUri `
         -ContentType $contentType `
-        -Body $tokenBody
+        -Body $tokenBody `
+        -UseBasicParsing
 } catch {
     Write-Error-Custom "ERROR: Failed to obtain bearer token"
     if ($apikey) {
@@ -219,7 +249,7 @@ for ($i = 0; $i -lt $datasourceTypes.Count; $i++) {
     
     try {
         # Make the API call
-        $response = Invoke-RestMethod -Uri $endpoint -Method Post -Headers $headers -Body $requestBodyJson -ErrorAction Stop
+        $response = Invoke-RestMethod -Uri $endpoint -Method Post -Headers $headers -Body $requestBodyJson -UseBasicParsing -ErrorAction Stop
         
         Write-Success "`n✓ Discovery successful for $datasourceType"
         
