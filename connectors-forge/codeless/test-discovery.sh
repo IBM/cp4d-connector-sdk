@@ -146,10 +146,14 @@ if [ -n "$APIKEY" ]; then
         -d "apikey=$APIKEY")
 else
     echo "Using Username/Password authentication"
+    # Create JSON payload for username/password
+    JSON_PAYLOAD=$(cat <<EOF
+{"username":"$USERNAME","password":"$PASSWORD"}
+EOF
+)
     TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "username=$USERNAME" \
-        -d "password=$PASSWORD")
+        -H "Content-Type: application/json" \
+        -d "$JSON_PAYLOAD")
 fi
 
 HTTP_CODE=$(echo "$TOKEN_RESPONSE" | tail -n1)
