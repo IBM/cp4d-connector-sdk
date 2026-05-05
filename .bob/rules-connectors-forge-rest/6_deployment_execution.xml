@@ -644,14 +644,19 @@
             </command_unix>
             <command_windows>
 <<<<<<< HEAD
+<<<<<<< HEAD
               .\connectors-forge\codeless\deploy-container.ps1 -SshHost {host} -SshUser {ssh-user} -Files {file1},{file2},... -Port {port} [-SshPort {ssh-port}] [-Replace]
 =======
               .\connectors-forge\codeless\deploy-container.ps1 -Host {host} -SshUser {ssh-user} -Files {file1},{file2},... -Port {port} [-SshPort {ssh-port}] [-Replace]
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+              .\connectors-forge\codeless\deploy-container.ps1 -SshHost {host} -SshUser {ssh-user} -Files {file1},{file2},... -Port {port} [-SshPort {ssh-port}] [-Replace]
+>>>>>>> e622091 (ssh deployment approach for windows)
             </command_windows>
             <description>
               Runs the OS-specific deployment script with user-provided parameters.
               The script handles:
+<<<<<<< HEAD
 <<<<<<< HEAD
               - Connecting to remote server via SSH (using your SSH keys - no password prompts)
               - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)
@@ -662,12 +667,20 @@
               - Creating and uploading tar archive with configuration files
               - Deploying the container to the target server
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+              - Connecting to remote server via SSH (using your SSH keys - no password prompts)
+              - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
+              - Creating tar archive with configuration files and streaming it via SSH
+>>>>>>> e622091 (ssh deployment approach for windows)
               - Uploading configuration files to /config/mappings/ in the container
               - Configuring port mapping (9443 internal → user-specified external)
               - Starting and verifying the container
             </description>
             <working_directory>Project root</working_directory>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e622091 (ssh deployment approach for windows)
             <note>Script uses SSH to execute Docker commands on remote server</note>
             <deployment_steps>
               The script performs 7 steps:
@@ -679,9 +692,12 @@
               6. Verify container status (docker inspect)
               7. Report success with container details
             </deployment_steps>
+<<<<<<< HEAD
 =======
             <note>Script uses SSH to deploy to remote server</note>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> e622091 (ssh deployment approach for windows)
           </action>
 
           <action priority="6">
@@ -689,10 +705,14 @@
             <description>
               Monitor the script output for successful deployment confirmation.
 <<<<<<< HEAD
+<<<<<<< HEAD
               The script provides 7-step progress updates (changed from 8 steps in previous version).
 =======
               The script provides 7-step progress updates.
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+              The script provides 7-step progress updates (changed from 8 steps in previous version).
+>>>>>>> e622091 (ssh deployment approach for windows)
             </description>
           </action>
 
@@ -721,10 +741,14 @@
           <if_script_fails>
             <action>Report the error details from script output</action>
 <<<<<<< HEAD
+<<<<<<< HEAD
             <action>Verify SSH key authentication is configured correctly (test with: ssh user@host)</action>
 =======
             <action>Verify SSH key authentication is configured correctly</action>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+            <action>Verify SSH key authentication is configured correctly (test with: ssh user@host)</action>
+>>>>>>> e622091 (ssh deployment approach for windows)
             <action>Check if configuration files exist at specified paths</action>
             <action>Verify port number is valid (1-65535) and not in use (unless --replace is used)</action>
             <action>Check network connectivity to target server</action>
@@ -732,6 +756,9 @@
             <action>Offer to provide manual instructions instead</action>
           </if_script_fails>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e622091 (ssh deployment approach for windows)
           
           <if_ssh_connection_fails>
             <action>Verify SSH host and port are correct</action>
@@ -754,8 +781,11 @@
             <action>Verify SSH connection is stable during file transfer</action>
             <action>Check disk space on remote server</action>
           </if_file_upload_fails>
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> e622091 (ssh deployment approach for windows)
         </error_handling>
       </sub_step_2a_codeless_automatic>
 
@@ -950,10 +980,14 @@
           1. Run the PowerShell deployment script with required parameters:
              .\connectors-forge\codeless\deploy-container.ps1 `
 <<<<<<< HEAD
+<<<<<<< HEAD
                -SshHost "remote-server.com" `
 =======
                -Host "remote-server.com" `
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+               -SshHost "remote-server.com" `
+>>>>>>> e622091 (ssh deployment approach for windows)
                -SshUser "ubuntu" `
                -Files "sdk-gen\subprojects\connectors_forge_rest\src\main\resources\api1.json","api2.json" `
                -Port 9090 `
@@ -961,6 +995,9 @@
                [-Replace]
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e622091 (ssh deployment approach for windows)
           The script performs 7 steps:
           1. Validates inputs - Tests SSH connectivity, Docker availability, file existence, and port validity
           2. Checks for existing containers - Detects conflicts by name or port
@@ -973,6 +1010,7 @@
           How it works:
           - Connects to remote server via SSH using your SSH keys (no password prompts)
           - Executes Docker commands remotely via SSH
+<<<<<<< HEAD
           - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
           - Streams configuration files directly via SSH pipe (no intermediate files on remote server)
           - Uploads files to /config/mappings/ in the container
@@ -987,6 +1025,12 @@
           - Configure port mapping (9443 internal → your specified external port)
           - Start and verify the container
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+          - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+          - Streams configuration files directly via SSH pipe (no intermediate files on remote server)
+          - Uploads files to /config/mappings/ in the container
+          - Configures port mapping (9443 internal → your specified external port)
+>>>>>>> e622091 (ssh deployment approach for windows)
 
           Prerequisites:
           - SSH key authentication configured (REQUIRED - see SSH Prerequisites above)
@@ -995,10 +1039,14 @@
           - Network connectivity to the target server
           - Configuration files exist at the specified paths
 <<<<<<< HEAD
+<<<<<<< HEAD
           - Windows: PowerShell 5.1 or later with tar command support (Windows 10+ or PowerShell 7+)
 =======
           - Windows: PowerShell 5.1 or later
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+          - Windows: PowerShell 5.1 or later with tar command support (Windows 10+ or PowerShell 7+)
+>>>>>>> e622091 (ssh deployment approach for windows)
 
           The script will output the container ID, name, and deployment status upon successful completion.
 
