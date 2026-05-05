@@ -58,7 +58,10 @@ read_property() {
 
 # Load configuration
 CPD_URL=$(read_property "CPD_URL")
-CPD_TOKEN=$(read_property "CPD_TOKEN")
+APIKEY=$(read_property "APIKEY")
+USERNAME=$(read_property "USERNAME")
+PASSWORD=$(read_property "PASSWORD")
+AUTH_URI=$(read_property "AUTH_URI")
 DATASOURCE_TYPES_STR=$(read_property "DATASOURCE_TYPES")
 DISCOVERY_PATHS_STR=$(read_property "DISCOVERY_PATHS")
 CONNECTION_PROPERTIES_STR=$(read_property "CONNECTION_PROPERTIES")
@@ -69,8 +72,21 @@ if [ -z "$CPD_URL" ]; then
     exit 1
 fi
 
-if [ -z "$CPD_TOKEN" ]; then
-    echo -e "${RED}ERROR: CPD_TOKEN is not set in properties file${NC}"
+# Check authentication credentials
+if [ -z "$APIKEY" ] && { [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; }; then
+    echo -e "${RED}ERROR: Missing authentication credentials${NC}"
+    echo -e "${RED}Provide either APIKEY OR both USERNAME and PASSWORD${NC}"
+    exit 1
+fi
+
+if [ -n "$APIKEY" ] && { [ -n "$USERNAME" ] || [ -n "$PASSWORD" ]; }; then
+    echo -e "${RED}ERROR: Conflicting authentication methods${NC}"
+    echo -e "${RED}Provide either APIKEY OR USERNAME+PASSWORD, not both${NC}"
+    exit 1
+fi
+
+if [ -z "$AUTH_URI" ]; then
+    echo -e "${RED}ERROR: AUTH_URI is not set in properties file${NC}"
     exit 1
 fi
 
@@ -117,12 +133,65 @@ fi
 # Remove trailing slash from CPD URL
 CPD_URL="${CPD_URL%/}"
 
+echo -e "${CYAN}=========================================${NC}"
+echo -e "${CYAN}Obtaining Bearer Token...${NC}"
+echo -e "${CYAN}=========================================${NC}"
+
+# Build authentication request based on method
+if [ -n "$APIKEY" ]; then
+    echo "Using API Key authentication"
+    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "grant_type=urn:ibm:params:oauth:grant-type:apikey" \
+        -d "apikey=$APIKEY")
+else
+    echo "Using Username/Password authentication"
+    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "username=$USERNAME" \
+        -d "password=$PASSWORD")
+fi
+
+HTTP_CODE=$(echo "$TOKEN_RESPONSE" | tail -n1)
+TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
+
+if [ "$HTTP_CODE" != "200" ]; then
+    echo -e "${RED}ERROR: Failed to obtain bearer token (HTTP $HTTP_CODE)${NC}"
+    echo ""
+    echo "Response:"
+    echo "$TOKEN_BODY"
+    echo ""
+    if [ -n "$APIKEY" ]; then
+        echo -e "${RED}Please verify your API key is correct${NC}"
+    else
+        echo -e "${RED}Please verify your username and password are correct${NC}"
+    fi
+    exit 1
+fi
+
+CPD_TOKEN=$(echo "$TOKEN_BODY" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+if [ -z "$CPD_TOKEN" ] || [ "$CPD_TOKEN" = "null" ]; then
+    # Try alternative token field name (for on-premises CP4D)
+    CPD_TOKEN=$(echo "$TOKEN_BODY" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+fi
+
+if [ -z "$CPD_TOKEN" ] || [ "$CPD_TOKEN" = "null" ]; then
+    echo -e "${RED}ERROR: Failed to extract access token from response${NC}"
+    echo ""
+    echo "Response:"
+    echo "$TOKEN_BODY"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Bearer token obtained successfully${NC}"
+
 # Build the API endpoint
 ENDPOINT="$CPD_URL/v2/connections/assets"
 
 echo -e "${CYAN}"
 echo "Configuration:"
 echo "  CPD URL: $CPD_URL"
+echo "  Auth Method: $([ -n "$APIKEY" ] && echo "API Key" || echo "Username/Password")"
 echo "  Endpoint: $ENDPOINT"
 echo "  Number of connectors to test: ${#DATASOURCE_TYPES[@]}"
 echo -e "${NC}"
@@ -240,10 +309,11 @@ if [ $FAILURE_COUNT -gt 0 ]; then
     echo ""
     echo -e "${CYAN}Troubleshooting tips:${NC}"
     echo "  1. Verify CPD_URL is correct and accessible"
-    echo "  2. Check that CPD_TOKEN is valid and not expired"
-    echo "  3. Ensure DATASOURCE_TYPES match registered connectors"
-    echo "  4. Verify CONNECTION_PROPERTIES are correct for each datasource type"
-    echo "  5. Check that the connectors are deployed and running"
+    echo "  2. Check authentication credentials (APIKEY or USERNAME/PASSWORD)"
+    echo "  3. Verify AUTH_URI is correct for your deployment"
+    echo "  4. Ensure DATASOURCE_TYPES match registered connectors"
+    echo "  5. Verify CONNECTION_PROPERTIES are correct for each datasource type"
+    echo "  6. Check that the connectors are deployed and running"
     exit 1
 fi
 

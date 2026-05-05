@@ -102,6 +102,8 @@ get_property() {
 
 # Read all properties
 APIKEY=$(get_property "apikey")
+USERNAME=$(get_property "username")
+PASSWORD=$(get_property "password")
 AUTH_URI=$(get_property "auth_uri")
 DATASOURCE_TYPES_URI=$(get_property "datasource_types_uri")
 FLIGHT_HOSTNAME=$(get_property "flight_hostname")
@@ -127,8 +129,16 @@ log_step "1/3" "Validating required properties..."
 
 VALIDATION_FAILED=false
 
-if [ -z "$APIKEY" ]; then
-    log_error "Missing required property: apikey"
+# Check that either apikey OR username+password is provided
+if [ -z "$APIKEY" ] && { [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; }; then
+    log_error "Missing authentication credentials"
+    log_error "Provide either 'apikey' OR both 'username' and 'password'"
+    VALIDATION_FAILED=true
+fi
+
+if [ -n "$APIKEY" ] && { [ -n "$USERNAME" ] || [ -n "$PASSWORD" ]; }; then
+    log_error "Conflicting authentication methods"
+    log_error "Provide either 'apikey' OR 'username'+'password', not both"
     VALIDATION_FAILED=true
 fi
 
@@ -157,9 +167,14 @@ if [ "$VALIDATION_FAILED" = true ]; then
     log_error "Validation failed. Please update $PROPERTIES_FILE with required values."
     echo ""
     echo "Required properties:"
-    echo "  - apikey=<your-ibm-cloud-api-key>"
-    echo "  - flight_hostname=<hostname>"
-    echo "  - flight_port=<port>"
+    echo "  Authentication (choose one):"
+    echo "    - apikey=<your-ibm-cloud-api-key>  (for IBM Cloud)"
+    echo "    OR"
+    echo "    - username=<your-username>  (for on-premises CP4D)"
+    echo "    - password=<your-password>  (for on-premises CP4D)"
+    echo "  Flight service:"
+    echo "    - flight_hostname=<hostname>"
+    echo "    - flight_port=<port>"
     exit 1
 fi
 
@@ -171,6 +186,7 @@ log "All required properties are present"
 
 echo ""
 log "Configuration:"
+echo "  Auth Method:         $([ -n "$APIKEY" ] && echo "API Key" || echo "Username/Password")"
 echo "  Auth URI:            $AUTH_URI"
 echo "  Datasource API:      $DATASOURCE_TYPES_URI"
 echo "  Flight Hostname:     $FLIGHT_HOSTNAME"
@@ -186,12 +202,22 @@ echo ""
 # Step 1: Get Bearer Token
 # ============================================
 
-log_step "2/3" "Obtaining Bearer Token from IBM Cloud IAM..."
+log_step "2/3" "Obtaining Bearer Token..."
 
-TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "grant_type=urn:ibm:params:oauth:grant-type:apikey" \
-    -d "apikey=$APIKEY")
+# Build authentication request based on method
+if [ -n "$APIKEY" ]; then
+    log "Using API Key authentication"
+    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "grant_type=urn:ibm:params:oauth:grant-type:apikey" \
+        -d "apikey=$APIKEY")
+else
+    log "Using Username/Password authentication"
+    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "username=$USERNAME" \
+        -d "password=$PASSWORD")
+fi
 
 HTTP_CODE=$(echo "$TOKEN_RESPONSE" | tail -n1)
 TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
@@ -202,11 +228,19 @@ if [ "$HTTP_CODE" != "200" ]; then
     echo "Response:"
     echo "$TOKEN_BODY"
     echo ""
-    log_error "Please verify your API key is correct in $PROPERTIES_FILE"
+    if [ -n "$APIKEY" ]; then
+        log_error "Please verify your API key is correct in $PROPERTIES_FILE"
+    else
+        log_error "Please verify your username and password are correct in $PROPERTIES_FILE"
+    fi
     exit 1
 fi
 
 BEARER_TOKEN=$(echo "$TOKEN_BODY" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+if [ -z "$BEARER_TOKEN" ] || [ "$BEARER_TOKEN" = "null" ]; then
+    # Try alternative token field name (for on-premises CP4D)
+    BEARER_TOKEN=$(echo "$TOKEN_BODY" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+fi
 
 if [ -z "$BEARER_TOKEN" ] || [ "$BEARER_TOKEN" = "null" ]; then
     log_error "Failed to extract access token from response"
