@@ -7,6 +7,9 @@
   </overview>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
   <workflow_control>
     <title>Workflow Control and Error Handling</title>
     <description>
@@ -87,8 +90,11 @@
     </rule_5_provide_context>
   </workflow_control>
 
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
   <phase_4_multiple_connectors>
     <title>Multiple Connectors Check</title>
     <description>
@@ -515,6 +521,9 @@
         <when>User chooses automatic execution AND codeless deployment type</when>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         <workflow_control>
           CRITICAL: Deployment execution requires careful monitoring and confirmation.
           - Execute the deployment script and monitor its progress through all 7 steps
@@ -525,8 +534,11 @@
           - Only proceed to registration if deployment is confirmed successful
         </workflow_control>
 
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         <actions>
           <action priority="1">
             <name>Ask for SSH Connection Details</name>
@@ -808,6 +820,9 @@
         <when>User chooses automatic execution AND developer deployment type</when>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         <workflow_control>
           CRITICAL: Docker image build and push requires confirmation.
           - Execute dockerPush task and monitor progress
@@ -819,8 +834,11 @@
           - Only proceed to next steps if push is confirmed successful
         </workflow_control>
 
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         <actions>
           <action priority="1">
             <name>Navigate to sdk-gen</name>
@@ -851,6 +869,9 @@
 
           <action priority="4">
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
             <name>Confirm Success and Inform User</name>
             <confirmation_required>true</confirmation_required>
             <question>
@@ -883,6 +904,7 @@
                 - Gradle build completed successfully
               </message>
             </on_failure>
+<<<<<<< HEAD
 =======
             <name>Inform User</name>
             <message>
@@ -896,6 +918,8 @@
               - Verify the connector(s) are accessible
             </message>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
           </action>
         </actions>
 
@@ -2396,6 +2420,9 @@
     <step_1_ask_registration_preference>
       <title>Ask Registration Preference</title>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
       <when>ONLY after successful deployment completion AND user confirmation</when>
 
       <critical_workflow_note>
@@ -2414,6 +2441,7 @@
         - Explain that registration makes the connector available in CP4D
         - Note that registration can be done later if preferred
       </context_to_provide>
+<<<<<<< HEAD
 
       <question>
         Your connector(s) have been successfully deployed.
@@ -2430,6 +2458,18 @@
       <question>
         Would you like to register your connector(s) with Cloud Pak for Data now?
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+
+      <question>
+        Your connector(s) have been successfully deployed.
+        
+        Would you like to register them with Cloud Pak for Data now?
+        
+        Registration will:
+        - Make the connector(s) available in your CP4D environment
+        - Allow users to create connections using these connectors
+        - Enable data discovery and access through CP4D
+>>>>>>> 943c583 (confirmations, workflow)
       </question>
 
       <options>
@@ -2442,18 +2482,25 @@
           <label>No, I'll register later</label>
           <action>Skip registration and complete the workflow</action>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
           <note>User can run registration scripts manually later</note>
         </option>
 
         <option name="help">
           <label>Help - I need more information about registration</label>
           <action>Explain registration process and requirements</action>
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         </option>
       </options>
 
       <presentation_format>
+<<<<<<< HEAD
 <<<<<<< HEAD
         Present options clearly with context:
         1. Yes - Register connector(s) with CP4D now
@@ -2467,8 +2514,12 @@
       <when>User chooses registration (applies to both developer and codeless deployment types)</when>
 =======
         Present options clearly:
+=======
+        Present options clearly with context:
+>>>>>>> 943c583 (confirmations, workflow)
         1. Yes - Register connector(s) with CP4D now
-        2. No - Skip registration (can be done later)
+        2. No - Skip registration (can be done later manually)
+        3. Help - Learn more about the registration process
       </presentation_format>
     </step_1_ask_registration_preference>
 
@@ -3025,6 +3076,7 @@
     <step_1_ask_validation_preference>
       <title>Ask About Validation Testing</title>
 <<<<<<< HEAD
+<<<<<<< HEAD
       <when>ONLY after successful registration AND user confirmation</when>
       
       <critical_workflow_note>
@@ -3058,15 +3110,44 @@
         
         This is optional but recommended to ensure everything works correctly.
 =======
+=======
+      <when>ONLY after successful registration AND user confirmation</when>
+>>>>>>> 943c583 (confirmations, workflow)
       
+      <critical_workflow_note>
+        IMPORTANT: This step should ONLY be reached if:
+        1. The registration step completed successfully
+        2. User explicitly confirmed the registration succeeded
+        3. No errors were reported during registration
+        
+        If registration failed or user reported issues, DO NOT ask about validation.
+        Instead, focus on troubleshooting the registration failure.
+      </critical_workflow_note>
+
+      <context_to_provide>
+        Before asking the question, provide context:
+        - Confirm that registration completed successfully
+        - Explain that validation tests verify the connector works in CP4D
+        - Note that validation is optional but recommended
+        - Mention that tests can be run manually later if preferred
+      </context_to_provide>
+
       <question>
+        Your connector(s) have been successfully registered with Cloud Pak for Data.
+        
         Would you like to validate the registration by testing connector discovery?
         
-        This will verify that:
+        Validation will verify that:
         - The connector(s) are properly registered in CP4D
-        - The Flight service is accessible
+        - The Flight service is accessible from CP4D
         - Discovery queries return expected results
+<<<<<<< HEAD
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+        - Connection properties are correctly configured
+        
+        This is optional but recommended to ensure everything works correctly.
+>>>>>>> 943c583 (confirmations, workflow)
       </question>
 
       <options>
@@ -3080,28 +3161,40 @@
           <description>Skip validation testing and complete the workflow</description>
           <action>Proceed directly to completion phase</action>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
           <note>User can run test scripts manually later</note>
         </option>
 
         <option name="help">
           <label>Help - I need more information about validation</label>
           <action>Explain validation process and what it tests</action>
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         </option>
       </options>
 
       <presentation_format>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         Present options clearly with context:
         1. Yes - Validate registration with discovery tests (recommended)
         2. No - Skip validation (can be done later manually)
         3. Help - Learn more about the validation process
+<<<<<<< HEAD
 =======
         Present options clearly:
         1. Yes - Validate registration with discovery tests
         2. No - Skip validation (can be done later)
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
       </presentation_format>
     </step_1_ask_validation_preference>
 
@@ -3110,6 +3203,9 @@
       <when>User chooses to validate registration</when>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
       <workflow_control>
         CRITICAL: This step involves user action outside the mode's control.
         - Wait for explicit user confirmation that the file was created
@@ -3118,8 +3214,11 @@
         - Offer to re-explain the configuration if needed
       </workflow_control>
 
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
       <important_note>
         The test configuration file (test-discovery.properties) is not visible to me as it's in .bobignore.
         I will suggest the content based on the connector information from this session, but you need to
@@ -3320,6 +3419,9 @@
       <when>User confirms test configuration file is created</when>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
       <workflow_control>
         CRITICAL: Test execution requires careful monitoring and user confirmation.
         - Execute the test script and wait for completion
@@ -3329,8 +3431,11 @@
         - Only show success messages if user confirms tests passed
       </workflow_control>
 
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 943c583 (confirmations, workflow)
       <sub_step_1_run_test_script>
         <title>Run Discovery Test Script</title>
         
@@ -3404,6 +3509,9 @@
         <title>Interpret Test Results</title>
         
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 943c583 (confirmations, workflow)
         <workflow_control>
           CRITICAL: Result interpretation must be based on actual test output.
           - Ask user to confirm what the test results show
@@ -3422,12 +3530,17 @@
           4. I need help interpreting the results
         </confirmation_question>
 
+<<<<<<< HEAD
         <success_message>
           <when>User confirms all tests pass</when>
 =======
         <success_message>
           <when>All tests pass</when>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+        <success_message>
+          <when>User confirms all tests pass</when>
+>>>>>>> 943c583 (confirmations, workflow)
           <message>
             ✓ Registration validation successful!
             
