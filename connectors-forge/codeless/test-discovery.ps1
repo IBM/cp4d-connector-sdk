@@ -57,7 +57,10 @@ $config = Read-PropertiesFile -FilePath $PropertiesFile
 
 # Get configuration values
 $cpdUrl = $config['CPD_URL']
-$cpdToken = $config['CPD_TOKEN']
+$apikey = $config['APIKEY']
+$username = $config['USERNAME']
+$password = $config['PASSWORD']
+$authUri = $config['AUTH_URI']
 $datasourceTypesStr = $config['DATASOURCE_TYPES']
 $discoveryPathsStr = $config['DISCOVERY_PATHS']
 $connectionPropertiesStr = $config['CONNECTION_PROPERTIES']
@@ -67,8 +70,22 @@ if (-not $cpdUrl) {
     Write-Error-Custom "ERROR: CPD_URL is not set in properties file"
     exit 1
 }
-if (-not $cpdToken) {
-    Write-Error-Custom "ERROR: CPD_TOKEN is not set in properties file"
+
+# Check authentication credentials
+if (-not $apikey -and (-not $username -or -not $password)) {
+    Write-Error-Custom "ERROR: Missing authentication credentials"
+    Write-Error-Custom "Provide either APIKEY OR both USERNAME and PASSWORD"
+    exit 1
+}
+
+if ($apikey -and ($username -or $password)) {
+    Write-Error-Custom "ERROR: Conflicting authentication methods"
+    Write-Error-Custom "Provide either APIKEY OR USERNAME+PASSWORD, not both"
+    exit 1
+}
+
+if (-not $authUri) {
+    Write-Error-Custom "ERROR: AUTH_URI is not set in properties file"
     exit 1
 }
 if (-not $datasourceTypesStr) {
@@ -101,11 +118,61 @@ if ($datasourceTypes.Count -ne $discoveryPaths.Count -or $datasourceTypes.Count 
 # Remove trailing slash from CPD URL
 $cpdUrl = $cpdUrl.TrimEnd('/')
 
+Write-Info "`n=========================================="
+Write-Info "Obtaining Bearer Token..."
+Write-Info "=========================================="
+
+# Build authentication request based on method
+if ($apikey) {
+    Write-Host "Using API Key authentication"
+    $tokenBody = @{
+        grant_type = "urn:ibm:params:oauth:grant-type:apikey"
+        apikey     = $apikey
+    }
+} else {
+    Write-Host "Using Username/Password authentication"
+    $tokenBody = @{
+        username = $username
+        password = $password
+    }
+}
+
+try {
+    $tokenResponse = Invoke-RestMethod `
+        -Method Post `
+        -Uri $authUri `
+        -ContentType "application/x-www-form-urlencoded" `
+        -Body $tokenBody
+} catch {
+    Write-Error-Custom "ERROR: Failed to obtain bearer token"
+    if ($apikey) {
+        Write-Error-Custom "Please verify your API key is correct"
+    } else {
+        Write-Error-Custom "Please verify your username and password are correct"
+    }
+    throw $_
+}
+
+# Try to extract token (different field names for Cloud vs on-premises)
+$cpdToken = $tokenResponse.access_token
+if (-not $cpdToken) {
+    $cpdToken = $tokenResponse.token
+}
+
+if (-not $cpdToken) {
+    Write-Error-Custom "ERROR: Failed to extract access token from response"
+    exit 1
+}
+
+Write-Success "✓ Bearer token obtained successfully"
+
 # Build the API endpoint
 $endpoint = "$cpdUrl/v2/connections/assets"
 
 Write-Info "`nConfiguration:"
 Write-Host "  CPD URL: $cpdUrl"
+$authMethod = if ($apikey) { "API Key" } else { "Username/Password" }
+Write-Host "  Auth Method: $authMethod"
 Write-Host "  Endpoint: $endpoint"
 Write-Host "  Number of connectors to test: $($datasourceTypes.Count)"
 
@@ -222,10 +289,11 @@ foreach ($result in $results) {
 if ($failureCount -gt 0) {
     Write-Info "`nTroubleshooting tips:"
     Write-Host "  1. Verify CPD_URL is correct and accessible"
-    Write-Host "  2. Check that CPD_TOKEN is valid and not expired"
-    Write-Host "  3. Ensure DATASOURCE_TYPES match registered connectors"
-    Write-Host "  4. Verify CONNECTION_PROPERTIES are correct for each datasource type"
-    Write-Host "  5. Check that the connectors are deployed and running"
+    Write-Host "  2. Check authentication credentials (APIKEY or USERNAME/PASSWORD)"
+    Write-Host "  3. Verify AUTH_URI is correct for your deployment"
+    Write-Host "  4. Ensure DATASOURCE_TYPES match registered connectors"
+    Write-Host "  5. Verify CONNECTION_PROPERTIES are correct for each datasource type"
+    Write-Host "  6. Check that the connectors are deployed and running"
     exit 1
 }
 

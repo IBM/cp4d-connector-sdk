@@ -11,10 +11,14 @@ if ($Help) {
     Write-Host @"
 Usage: register-connector.ps1
 
-Registers one or more connectors with IBM Cloud Data Platform.
+Registers one or more connectors with IBM Cloud Data Platform or on-premises CP4D.
 
 Required properties (in properties file):
-  apikey
+  Authentication (choose one):
+    - apikey (for IBM Cloud)
+    OR
+    - username AND password (for on-premises CP4D)
+  
   auth_uri
   datasource_types_uri
   flight_hostname
@@ -61,6 +65,8 @@ Get-Content $PropertiesFile | ForEach-Object {
 }
 
 $APIKEY = $props["apikey"]
+$USERNAME = $props["username"]
+$PASSWORD = $props["password"]
 $AUTH_URI = $props["auth_uri"]
 $DATASOURCE_TYPES_URI = $props["datasource_types_uri"]
 $FLIGHT_HOSTNAME = $props["flight_hostname"]
@@ -86,7 +92,21 @@ Write-Host "[1/3] Validating required properties..."
 
 $missing = @()
 
-foreach ($key in @("apikey","auth_uri","datasource_types_uri","flight_hostname","flight_port")) {
+# Check authentication credentials
+if (-not $APIKEY -and (-not $USERNAME -or -not $PASSWORD)) {
+    Write-Host "ERROR: Missing authentication credentials" -ForegroundColor Red
+    Write-Host "Provide either 'apikey' OR both 'username' and 'password'" -ForegroundColor Red
+    throw "Authentication validation failed"
+}
+
+if ($APIKEY -and ($USERNAME -or $PASSWORD)) {
+    Write-Host "ERROR: Conflicting authentication methods" -ForegroundColor Red
+    Write-Host "Provide either 'apikey' OR 'username'+'password', not both" -ForegroundColor Red
+    throw "Authentication validation failed"
+}
+
+# Check other required properties
+foreach ($key in @("auth_uri","datasource_types_uri","flight_hostname","flight_port")) {
     if (-not $props[$key]) {
         $missing += $key
     }
@@ -104,6 +124,8 @@ Write-Host "All required properties are present"
 
 Write-Host ""
 Write-Host "Configuration:"
+$authMethod = if ($APIKEY) { "API Key" } else { "Username/Password" }
+Write-Host "  Auth Method:         $authMethod"
 Write-Host "  Auth URI:            $AUTH_URI"
 Write-Host "  Datasource API:      $DATASOURCE_TYPES_URI"
 Write-Host "  Flight Hostname:     $FLIGHT_HOSTNAME"
@@ -122,19 +144,45 @@ if ($SSL_CERT_PATH) {
 Write-Host ""
 Write-Host "[2/3] Obtaining Bearer Token..."
 
-$tokenResponse = Invoke-RestMethod `
-    -Method Post `
-    -Uri $AUTH_URI `
-    -ContentType "application/x-www-form-urlencoded" `
-    -Body @{
+# Build authentication request based on method
+if ($APIKEY) {
+    Write-Host "Using API Key authentication"
+    $tokenBody = @{
         grant_type = "urn:ibm:params:oauth:grant-type:apikey"
         apikey     = $APIKEY
     }
+} else {
+    Write-Host "Using Username/Password authentication"
+    $tokenBody = @{
+        username = $USERNAME
+        password = $PASSWORD
+    }
+}
 
+try {
+    $tokenResponse = Invoke-RestMethod `
+        -Method Post `
+        -Uri $AUTH_URI `
+        -ContentType "application/x-www-form-urlencoded" `
+        -Body $tokenBody
+} catch {
+    Write-Host "ERROR: Failed to obtain bearer token" -ForegroundColor Red
+    if ($APIKEY) {
+        Write-Host "Please verify your API key is correct" -ForegroundColor Red
+    } else {
+        Write-Host "Please verify your username and password are correct" -ForegroundColor Red
+    }
+    throw $_
+}
+
+# Try to extract token (different field names for Cloud vs on-premises)
 $BEARER_TOKEN = $tokenResponse.access_token
+if (-not $BEARER_TOKEN) {
+    $BEARER_TOKEN = $tokenResponse.token
+}
 
 if (-not $BEARER_TOKEN) {
-    throw "Failed to obtain bearer token"
+    throw "Failed to extract access token from response"
 }
 
 Write-Host "Bearer token obtained"
