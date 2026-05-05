@@ -84,6 +84,29 @@ if (-not $ORIGIN_COUNTRY) {
 }
 
 # ============================================
+# Configure SSL Certificate Validation
+# ============================================
+
+if ($SSL_CERT_VALIDATION -eq "false") {
+    Write-Host "Disabling SSL certificate validation..."
+    
+    # For PowerShell 5.1 and earlier - use .NET ServicePointManager
+    add-type @"
+        using System.Net;
+        using System.Security.Cryptography.X509Certificates;
+        public class TrustAllCertsPolicy : ICertificatePolicy {
+            public bool CheckValidationResult(
+                ServicePoint svcPoint, X509Certificate certificate,
+                WebRequest request, int certificateProblem) {
+                return true;
+            }
+        }
+"@
+    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls11 -bor [System.Net.SecurityProtocolType]::Tls
+}
+
+# ============================================
 # Validate
 # ============================================
 
@@ -239,7 +262,8 @@ try {
             Accept        = "application/json"
         } `
         -ContentType "application/json" `
-        -Body $payload
+        -Body $payload `
+        -UseBasicParsing
 
     $status = $response.StatusCode
 } catch {
