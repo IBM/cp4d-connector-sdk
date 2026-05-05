@@ -76,11 +76,15 @@
           <message>
             The codeless option will use a pre-built Docker image from Docker Hub.
             
+<<<<<<< HEAD
 <<<<<<< HEAD:.bob/rules-connectors-forge-rest/0_deployment_setup.xml
             Docker Image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
 =======
             Docker Image: marek02/connectors-forge:latest
 >>>>>>> 5b82670 (mode can do everything):.bob/rules-rest-api-schema-mapper/0_deployment_setup.xml
+=======
+            Docker Image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+>>>>>>> dacf80e (custom mode can able to deploy on openshift)
             
             This pre-built image contains all necessary components to run your REST API connectors.
             When you proceed to deployment (Phase 5), you will use this image instead of building your own.
@@ -304,11 +308,15 @@
     <rule>This phase MUST be completed before any API configuration work begins</rule>
     <rule>Do not skip deployment option selection</rule>
     <rule>Always create the project structure before proceeding</rule>
+<<<<<<< HEAD
 <<<<<<< HEAD:.bob/rules-connectors-forge-rest/0_deployment_setup.xml
     <rule>For codeless option, inform user about pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)</rule>
 =======
     <rule>For codeless option, inform user about pre-built Docker image (marek02/connectors-forge:latest)</rule>
 >>>>>>> 5b82670 (mode can do everything):.bob/rules-rest-api-schema-mapper/0_deployment_setup.xml
+=======
+    <rule>For codeless option, inform user about pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)</rule>
+>>>>>>> dacf80e (custom mode can able to deploy on openshift)
     <rule>For developer option, respect user's choice between auto and manual generation</rule>
     <rule>All DSL files go to: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</rule>
     <rule>After setup is complete, proceed immediately to Phase 1</rule>
@@ -316,11 +324,15 @@
 
   <important_notes>
     <note>
+<<<<<<< HEAD
 <<<<<<< HEAD:.bob/rules-connectors-forge-rest/0_deployment_setup.xml
       The codeless option uses a pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.1) from GitHub Container Registry.
 =======
       The codeless option uses a pre-built Docker image (marek02/connectors-forge:latest) from Docker Hub.
 >>>>>>> 5b82670 (mode can do everything):.bob/rules-rest-api-schema-mapper/0_deployment_setup.xml
+=======
+      The codeless option uses a pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0) from GitHub Container Registry.
+>>>>>>> dacf80e (custom mode can able to deploy on openshift)
       This image will be used during deployment instead of building a custom image.
     </note>
     <note>

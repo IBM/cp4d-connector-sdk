@@ -214,10 +214,14 @@
       <options_for_codeless>
         <title>Options when Codeless deployment type was chosen in Phase 0</title>
 <<<<<<< HEAD
+<<<<<<< HEAD
         <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)</note>
 =======
         <note>Local Docker deployment is not available - codeless uses pre-built image (marek02/connectors-forge:latest)</note>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+        <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)</note>
+>>>>>>> dacf80e (custom mode can able to deploy on openshift)
         
         <option name="serverless">
           <number>1</number>
@@ -261,10 +265,14 @@
         - Renumber options for codeless (1-3 instead of 2-4)
         - Indicate which options are placeholders (not yet implemented)
 <<<<<<< HEAD
+<<<<<<< HEAD
         - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.1
 =======
         - Explain that codeless uses pre-built image marek02/connectors-forge:latest
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+        - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.0
+>>>>>>> dacf80e (custom mode can able to deploy on openshift)
       </presentation_format>
     </step_1_present_deployment_options>
 
@@ -459,10 +467,14 @@
       <important_note>
         The deployment process differs based on the deployment type chosen in Phase 0:
 <<<<<<< HEAD
+<<<<<<< HEAD
         - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)
 =======
         - Codeless: Uses deploy-container.sh script with pre-built image (marek02/connectors-forge:latest)
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+        - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
+>>>>>>> dacf80e (custom mode can able to deploy on openshift)
         - Developer: Uses ./gradlew dockerPush to build and push custom Docker image
       </important_note>
 
@@ -646,7 +658,7 @@
               - Creating tar archive with configuration files and streaming it via SSH
 =======
               - Connecting to remote server via SSH (using your SSH keys)
-              - Pulling the pre-built Docker image (marek02/connectors-forge:latest)
+              - Pulling the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
               - Creating and uploading tar archive with configuration files
               - Deploying the container to the target server
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
@@ -968,7 +980,7 @@
 =======
           The script will:
           - Connect to your remote server via SSH (using your SSH keys)
-          - Pull the pre-built Docker image (marek02/connectors-forge:latest)
+          - Pull the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
           - Create and upload tar archive with your configuration files
           - Deploy the container to your target server
           - Upload configuration files to /config/mappings/ in the container
@@ -1659,38 +1671,282 @@
     </step_6_handle_openshift_deployment_developer>
 =======
       <title>OpenShift Deployment</title>
-      <when>User selects option 4 (OpenShift)</when>
+      <when>User selects option 3 (OpenShift) for codeless deployment</when>
 
-      <placeholder_notice>
-        <message>
-          OpenShift deployment is not yet implemented.
-          
-          This is a placeholder for future functionality. When implemented, this option will:
-          - Build the Docker image with your connector(s)
-          - Create OpenShift deployment configurations
-          - Deploy to your OpenShift cluster
-          - Configure routes and services
-          - Set up monitoring and logging
-          - Provide the route URL for accessing your connector(s)
-          
-          For now, please choose one of the other deployment options:
-          - Option 1: Local Docker Deployment (for testing)
-          - Option 3: Self-Hosted Server Deployment (for production)
-        </message>
-      </placeholder_notice>
+      <important_note>
+        This step is for users who want to deploy their connector(s) to OpenShift.
+        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0) from GitHub Container Registry.
+      </important_note>
 
-      <future_implementation>
-        <description>
-          When implemented, this section will include:
-          - OpenShift cluster connection configuration
-          - Project/namespace selection
-          - BuildConfig and DeploymentConfig creation
-          - Service and Route configuration
-          - ImageStream setup
-          - Resource limits and scaling configuration
-          - Health checks and readiness probes
-        </description>
-      </future_implementation>
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run the OpenShift CLI commands to deploy your connector(s)</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic OpenShift Deployment</title>
+        <when>User chooses automatic execution</when>
+
+        <prerequisites>
+          <requirement>OpenShift CLI (oc) must be installed</requirement>
+          <requirement>User must have OpenShift cluster credentials</requirement>
+          <requirement>User must have permissions to create resources in the target project</requirement>
+        </prerequisites>
+
+        <actions>
+          <action priority="1">
+            <name>Gather OpenShift Connection Details</name>
+            <description>
+              Ask the user for OpenShift connection details:
+              1. OpenShift cluster URI (e.g., https://api.cluster.example.com:6443)
+              2. Username
+              3. Password
+              4. Project/namespace name (where to deploy the connector)
+            </description>
+          </action>
+
+          <action priority="2">
+            <name>Login to OpenShift</name>
+            <command>oc login -u {username} -p {password} {cluster_uri}</command>
+            <description>
+              Authenticate with the OpenShift cluster using provided credentials.
+            </description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="3">
+            <name>Select Project</name>
+            <command>oc project {project_name}</command>
+            <description>
+              Switch to the target project/namespace where the connector will be deployed.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Create ConfigMap from Connector Files</name>
+            <command>oc create configmap connectors-config --from-file=sdk-gen/subprojects/connectors_forge_rest/src/main/resources</command>
+            <description>
+              Create a ConfigMap containing all connector configuration JSON files.
+              This ConfigMap will be mounted into the container at /config/mappings.
+            </description>
+            <note>If configmap already exists, delete it first: oc delete configmap connectors-config</note>
+          </action>
+
+          <action priority="5">
+            <name>Apply Deployment Configuration</name>
+            <command>oc apply -f connectors-forge/codeless/deployment.yaml</command>
+            <description>
+              Deploy the connector container using the deployment configuration.
+              This creates a Deployment resource with the connector image and mounts the ConfigMap.
+            </description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="6">
+            <name>Apply Service Configuration</name>
+            <command>oc apply -f connectors-forge/codeless/service.yaml</command>
+            <description>
+              Create a Service to expose the connector within the cluster.
+              The service exposes port 9443 for gRPC communication.
+            </description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="7">
+            <name>Verify Deployment</name>
+            <command>oc get pods -l app=cf-flight-connector</command>
+            <description>
+              Check that the connector pod is running successfully.
+            </description>
+          </action>
+
+          <action priority="8">
+            <name>Get Service Details</name>
+            <command>oc get service cf-flight-connector-service</command>
+            <description>
+              Display the service details including the ClusterIP and port.
+            </description>
+          </action>
+
+          <action priority="9">
+            <name>Inform User</name>
+            <message>
+              OpenShift deployment complete!
+              
+              Your REST API connector(s) have been deployed to OpenShift.
+              
+              Deployment details:
+              - Namespace: {project_name}
+              - Deployment: cf-flight-connector
+              - Service: cf-flight-connector-service
+              - Port: 9443 (gRPC)
+              
+              The connector is accessible within the cluster at:
+              cf-flight-connector-service.{project_name}.svc.cluster.local:9443
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_login_fails>
+            <action>Verify OpenShift cluster URI is correct</action>
+            <action>Check username and password are valid</action>
+            <action>Ensure network connectivity to the cluster</action>
+          </if_login_fails>
+          
+          <if_project_not_found>
+            <action>Verify the project/namespace exists</action>
+            <action>Check user has access to the project</action>
+            <action>Offer to create the project if it doesn't exist</action>
+          </if_project_not_found>
+          
+          <if_configmap_creation_fails>
+            <action>Check if configmap already exists (delete and recreate)</action>
+            <action>Verify connector configuration files exist in the specified path</action>
+          </if_configmap_creation_fails>
+          
+          <if_deployment_fails>
+            <action>Check pod logs: oc logs -l app=cf-flight-connector</action>
+            <action>Verify image can be pulled from GitHub Container Registry</action>
+            <action>Check resource quotas in the namespace</action>
+          </if_deployment_fails>
+        </error_handling>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual OpenShift Deployment Instructions</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) to OpenShift:
+
+          PREREQUISITES:
+          - OpenShift CLI (oc) installed on your machine
+          - Access to an OpenShift cluster
+          - Permissions to create resources in your target project/namespace
+
+          DEPLOYMENT STEPS:
+
+          1. Login to your OpenShift cluster:
+             oc login -u <username> -p <password> <cluster-uri>
+             
+             Example:
+             oc login -u developer -p mypassword https://api.cluster.example.com:6443
+
+          2. Select the project (namespace) where you want to deploy:
+             oc project <project-name>
+             
+             Example:
+             oc project connectorsforge
+             
+             If the project doesn't exist, create it first:
+             oc new-project connectorsforge
+
+          3. Create a ConfigMap with your connector configuration files:
+             oc create configmap connectors-config --from-file=sdk-gen/subprojects/connectors_forge_rest/src/main/resources
+             
+             This command:
+             - Creates a ConfigMap named "connectors-config"
+             - Includes all JSON files from the specified directory
+             - These files will be mounted in the container at /config/mappings
+             
+             If the ConfigMap already exists, delete it first:
+             oc delete configmap connectors-config
+
+          4. Deploy the connector using the deployment configuration:
+             oc apply -f connectors-forge/codeless/deployment.yaml
+             
+             This creates:
+             - A Deployment with 1 replica
+             - Uses image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+             - Mounts the connectors-config ConfigMap
+             - Exposes port 9443 for gRPC
+
+          5. Create the service to expose the connector:
+             oc apply -f connectors-forge/codeless/service.yaml
+             
+             This creates:
+             - A ClusterIP service
+             - Exposes port 9443
+             - Makes the connector accessible within the cluster
+
+          6. Verify the deployment:
+             oc get pods -l app=cf-flight-connector
+             
+             Wait until the pod status shows "Running"
+
+          7. Check the service:
+             oc get service cf-flight-connector-service
+             
+             Note the ClusterIP and port for accessing the connector
+
+          8. View logs (if needed):
+             oc logs -l app=cf-flight-connector
+             
+             This helps troubleshoot any issues
+
+          ACCESSING THE CONNECTOR:
+          The connector is accessible within the OpenShift cluster at:
+          cf-flight-connector-service.<your-namespace>.svc.cluster.local:9443
+
+          For external access, you may need to create a Route:
+          oc expose service cf-flight-connector-service
+
+          UPDATING THE DEPLOYMENT:
+          If you need to update connector configurations:
+          1. Delete the existing ConfigMap:
+             oc delete configmap connectors-config
+          2. Recreate it with updated files:
+             oc create configmap connectors-config --from-file=sdk-gen/subprojects/connectors_forge_rest/src/main/resources
+          3. Restart the deployment:
+             oc rollout restart deployment cf-flight-connector
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+
+      <deployment_files_reference>
+        <deployment_yaml>
+          <location>connectors-forge/codeless/deployment.yaml</location>
+          <description>
+            Defines the Kubernetes Deployment resource:
+            - Image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+            - Namespace: connectorsforge (can be changed)
+            - ConfigMap mount: /config/mappings
+            - Resource limits: 256Mi memory, 200m CPU
+          </description>
+        </deployment_yaml>
+
+        <service_yaml>
+          <location>connectors-forge/codeless/service.yaml</location>
+          <description>
+            Defines the Kubernetes Service resource:
+            - Type: ClusterIP
+            - Port: 9443 (gRPC)
+            - Selector: app=cf-flight-connector
+          </description>
+        </service_yaml>
+      </deployment_files_reference>
     </step_5_handle_openshift_deployment>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
   </phase_5_deployment_option_selection>

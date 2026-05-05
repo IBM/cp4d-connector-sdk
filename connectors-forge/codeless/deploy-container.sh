@@ -31,6 +31,7 @@ SSH_PORT="22"
 CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
+<<<<<<< HEAD
 IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.1"
 CONTAINER_ID=""
 CONTAINER_NAME=""
@@ -46,6 +47,9 @@ CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
 IMAGE="docker.io/marek02/connectors-forge:latest"
+=======
+IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.0"
+>>>>>>> dacf80e (custom mode can able to deploy on openshift)
 CONTAINER_ID=""
 CONTAINER_NAME=""
 TEMP_DIR=""
