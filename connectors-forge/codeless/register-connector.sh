@@ -207,7 +207,7 @@ log_step "2/3" "Obtaining Bearer Token..."
 # Build authentication request based on method
 if [ -n "$APIKEY" ]; then
     log "Using API Key authentication"
-    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+    TOKEN_RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "grant_type=urn:ibm:params:oauth:grant-type:apikey" \
         -d "apikey=$APIKEY")
@@ -218,7 +218,7 @@ else
 {"username":"$USERNAME","password":"$PASSWORD"}
 EOF
 )
-    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+    TOKEN_RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
         -H "Content-Type: application/json" \
         -d "$JSON_PAYLOAD")
 fi
@@ -317,7 +317,7 @@ EOF
 log "Sending registration request..."
 log "Endpoint: $DATASOURCE_TYPES_URI"
 
-REGISTER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$DATASOURCE_TYPES_URI" \
+REGISTER_RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$DATASOURCE_TYPES_URI" \
     -H "Accept: application/json" \
     -H "Authorization: Bearer $BEARER_TOKEN" \
     -H "Content-Type: application/json" \
