@@ -305,7 +305,10 @@ create_container() {
     
     # Create container with port mapping (Docker will pull image if needed)
     log "Creating container from image: $IMAGE"
-    CONTAINER_ID=$(ssh_exec "docker create --name $CONTAINER_NAME -p ${PORT}:9443 $IMAGE")
+    local create_output=$(ssh_exec "docker create --name $CONTAINER_NAME -p ${PORT}:9443 $IMAGE")
+    
+    # Extract only the container ID (last line of output)
+    CONTAINER_ID=$(echo "$create_output" | tail -n 1)
     
     if [ -z "$CONTAINER_ID" ]; then
         error_exit "Failed to create container"
