@@ -117,8 +117,9 @@ done
 for i in "${!DISCOVERY_PATHS[@]}"; do
     DISCOVERY_PATHS[$i]=$(echo "${DISCOVERY_PATHS[$i]}" | xargs)
 done
+# For CONNECTION_PROPERTIES, use sed instead of xargs to preserve JSON quotes
 for i in "${!CONNECTION_PROPERTIES[@]}"; do
-    CONNECTION_PROPERTIES[$i]=$(echo "${CONNECTION_PROPERTIES[$i]}" | xargs)
+    CONNECTION_PROPERTIES[$i]=$(echo "${CONNECTION_PROPERTIES[$i]}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 done
 
 # Validate array lengths match
@@ -140,7 +141,7 @@ echo -e "${CYAN}=========================================${NC}"
 # Build authentication request based on method
 if [ -n "$APIKEY" ]; then
     echo "Using API Key authentication"
-    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+    TOKEN_RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "grant_type=urn:ibm:params:oauth:grant-type:apikey" \
         -d "apikey=$APIKEY")
@@ -151,7 +152,7 @@ else
 {"username":"$USERNAME","password":"$PASSWORD"}
 EOF
 )
-    TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
+    TOKEN_RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$AUTH_URI" \
         -H "Content-Type: application/json" \
         -d "$JSON_PAYLOAD")
 fi
@@ -223,14 +224,25 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
     # Build request URL with query parameters
     REQUEST_URL="${ENDPOINT}?path=${ENCODED_PATH}&fetch=data"
     
-    # Build request body (without path and fetch)
-    REQUEST_BODY=$(cat <<EOF
-{
-  "datasource_type": "$DATASOURCE_TYPE",
-  "properties": $CONN_PROPERTIES
-}
-EOF
-)
+    # Validate and clean the connection properties JSON
+    # First, trim any whitespace/newlines and validate
+    CLEAN_PROPERTIES=$(echo "$CONN_PROPERTIES" | tr -d '\n\r' | jq -c '.' 2>/dev/null)
+    if [ $? -ne 0 ] || [ -z "$CLEAN_PROPERTIES" ]; then
+        echo -e "${RED}ERROR: Invalid JSON in CONNECTION_PROPERTIES for $DATASOURCE_TYPE${NC}"
+        echo "Raw properties: [$CONN_PROPERTIES]"
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
+        RESULTS+=("FAILED|$DATASOURCE_TYPE|$DISCOVERY_PATH|Invalid JSON in connection properties")
+        continue
+    fi
+    
+    # Build request body using jq to ensure proper JSON formatting
+    REQUEST_BODY=$(jq -n \
+        --arg datasource_type "$DATASOURCE_TYPE" \
+        --argjson properties "$CLEAN_PROPERTIES" \
+        '{
+            datasource_type: $datasource_type,
+            properties: $properties
+        }')
     
     echo -e "${CYAN}"
     echo "Request URL:"
@@ -242,7 +254,7 @@ EOF
     echo ""
     
     # Make the API call
-    HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/discovery_response_${i}.json \
+    HTTP_CODE=$(curl -k -s -w "%{http_code}" -o /tmp/discovery_response_${i}.json \
         -X POST "$REQUEST_URL" \
         -H "Authorization: Bearer $CPD_TOKEN" \
         -H "Content-Type: application/json" \
