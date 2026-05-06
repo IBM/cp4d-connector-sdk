@@ -204,15 +204,32 @@ validate_inputs() {
     fi
     log "SSH connection and Docker verified"
 
-    # Check if all config files exist
+    # Check if all config files exist and validate metadata
     local file_count=0
     for file in "${CONFIG_FILES[@]}"; do
         if [ ! -f "$file" ]; then
             error_exit "File not found: $file"
         fi
+        
+        # Validate JSON syntax
+        if ! python3 -m json.tool "$file" >/dev/null 2>&1; then
+            error_exit "Invalid JSON in file: $file"
+        fi
+        
+        # Check for required metadata fields
+        if ! grep -q '"connector_source"' "$file"; then
+            log "WARNING: File $file is missing 'connector_source' metadata field"
+        fi
+        if ! grep -q '"target_service"' "$file"; then
+            log "WARNING: File $file is missing 'target_service' metadata field"
+        fi
+        if ! grep -q '"connector_type"' "$file"; then
+            log "WARNING: File $file is missing 'connector_type' metadata field"
+        fi
+        
         file_count=$((file_count + 1))
     done
-    log "All $file_count file(s) exist"
+    log "All $file_count file(s) validated"
 
     # Validate port number
     if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
