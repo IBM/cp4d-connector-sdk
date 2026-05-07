@@ -1,5 +1,9 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 *.properties
 =======
 codeless/*.properties
 >>>>>>> ca1e779 (validation after registry)
+=======
+*.properties
+>>>>>>> 50f169c (move files)
