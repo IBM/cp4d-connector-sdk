@@ -1658,179 +1658,9 @@
       </presentation_format>
     </step_1_ask_registration_preference>
 
-    <step_2_developer_registration>
-      <title>Developer Option Registration</title>
-      <when>User chooses registration AND developer deployment type was selected in Phase 0</when>
-
-      <sub_step_1_verify_properties_file>
-        <title>Verify Properties File Creation</title>
-        
-        <important_note>
-          Before registration, you need to create a properties file with your CP4D environment configuration.
-          This file is not visible to me (it's in .bobignore), so you need to create it manually.
-        </important_note>
-
-        <instructions>
-          <step priority="1">
-            <name>Create Properties File</name>
-            <description>
-              Create a properties file in the following location:
-              sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
-              
-              Use a descriptive name like: myenv.properties, production.properties, or dev.properties
-              
-              Base your file on the template at:
-              sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
-            </description>
-          </step>
-
-          <step priority="2">
-            <name>Configure Required Properties</name>
-            <description>
-              Your properties file must include:
-              - apikey: Your IBM Cloud API key
-              - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
-              - datasource_types_uri: Datasource types API endpoint
-              - flight_uri: URI of your deployed Flight service (grpc://host:port)
-              - ssl_certificate_path: Path to your Flight service certificate (optional)
-              - ssl_certificate_validation: Set to true/false
-            </description>
-            <example>
-              Example configuration:
-              apikey=your_ibm_cloud_api_key_here
-              auth_uri=https://iam.cloud.ibm.com/identity/token
-              datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
-              flight_uri=grpc://your-server:50051
-              ssl_certificate_validation=false
-            </example>
-          </step>
-        </instructions>
-
-        <confirmation_question>
-          Have you created the properties file with your CP4D environment configuration?
-          Please provide the name of your properties file (without .properties extension).
-        </confirmation_question>
-      </sub_step_1_verify_properties_file>
-
-      <sub_step_2_ask_execution_preference>
-        <title>Ask Execution Preference</title>
-        <when>After user confirms properties file is created</when>
-
-        <question>
-          Would you like me to execute the registration, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute registration for me</label>
-            <description>I will run the Gradle register task with your environment configuration</description>
-          </option>
-
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with instructions to run the registration</description>
-          </option>
-        </options>
-      </sub_step_2_ask_execution_preference>
-
-      <sub_step_3a_automatic_registration>
-        <title>Automatic Registration (Developer)</title>
-        <when>User chooses automatic execution</when>
-
-        <actions>
-          <action priority="1">
-            <name>Navigate to sdk-gen</name>
-            <command>cd sdk-gen</command>
-            <note>Gradle task must be run from sdk-gen directory</note>
-          </action>
-
-          <action priority="2">
-            <name>Run Registration Task</name>
-            <command>./gradlew register -Penv={env_name}</command>
-            <description>
-              Registers the connector(s) with Cloud Pak for Data using the specified environment configuration.
-              Replace {env_name} with the properties file name provided by the user.
-            </description>
-            <working_directory>sdk-gen</working_directory>
-            <note>The env_name should match the properties file name without .properties extension</note>
-          </action>
-
-          <action priority="3">
-            <name>Verify Registration</name>
-            <description>
-              Confirm that the registration completed successfully by checking the task output.
-            </description>
-          </action>
-
-          <action priority="4">
-            <name>Inform User</name>
-            <message>
-              Registration complete!
-              
-              Your REST API connector(s) have been registered with Cloud Pak for Data.
-              The connector(s) are now available for use in your CP4D environment.
-              
-              You can now create connections and access your REST API data through CP4D.
-            </message>
-          </action>
-        </actions>
-
-        <error_handling>
-          <if_registration_fails>
-            <action>Report the error details from Gradle output</action>
-            <action>Verify the properties file exists and contains correct values</action>
-            <action>Check network connectivity to CP4D endpoints</action>
-            <action>Verify API key has proper permissions</action>
-            <action>Offer to provide manual instructions instead</action>
-          </if_registration_fails>
-        </error_handling>
-      </sub_step_3a_automatic_registration>
-
-      <sub_step_3b_manual_registration>
-        <title>Manual Registration Instructions (Developer)</title>
-        <when>User chooses manual execution</when>
-
-        <instructions>
-          To register your REST API connector(s) with Cloud Pak for Data:
-
-          1. Ensure you have created your properties file in:
-             sdk-gen/subprojects/flight/src/dist/resources/payload/envs/{your_env_name}.properties
-
-          2. Navigate to the sdk-gen directory:
-             cd sdk-gen
-
-          3. Run the registration task with your environment name:
-             ./gradlew register -Penv={your_env_name}
-             
-             Replace {your_env_name} with your properties file name (without .properties extension)
-             For example, if your file is myenv.properties, use: -Penv=myenv
-
-          The registration task will:
-          - Authenticate with IBM Cloud using your API key
-          - Register the connector datasource type with CP4D
-          - Configure the Flight service endpoint
-          - Make the connector(s) available in your CP4D environment
-
-          Prerequisites:
-          - Valid IBM Cloud API key with proper permissions
-          - Network connectivity to CP4D endpoints
-          - Deployed and accessible Flight service
-
-          Let me know once you've completed the registration or if you encounter any issues.
-        </instructions>
-
-        <wait_for_confirmation>
-          <description>
-            Wait for user to confirm they have completed the registration
-            or report any issues encountered.
-          </description>
-        </wait_for_confirmation>
-      </sub_step_3b_manual_registration>
-    </step_2_developer_registration>
-
-    <step_3_codeless_registration>
-      <title>Codeless Option Registration</title>
-      <when>User chooses registration AND codeless deployment type was selected in Phase 0</when>
+    <step_2_connector_registration>
+      <title>Connector Registration</title>
+      <when>User chooses registration (applies to both developer and codeless deployment types)</when>
 
       <sub_step_1_verify_properties_file>
         <title>Create Properties File from Template</title>
@@ -1958,7 +1788,7 @@
       </sub_step_2_ask_execution_preference>
 
       <sub_step_3a_automatic_registration>
-        <title>Automatic Registration (Codeless)</title>
+        <title>Automatic Registration (Developer)</title>
         <when>User chooses automatic execution</when>
 
         <actions>
@@ -2016,14 +1846,14 @@
             <action>Report the error details from script output</action>
             <action>Verify the properties file is configured correctly</action>
             <action>Check network connectivity to CP4D endpoints</action>
-            <action>Verify API key has proper permissions</action>
+            <action>Verify API key has proper permissions (or username/password for on-premises)</action>
             <action>Offer to provide manual instructions instead</action>
           </if_script_fails>
         </error_handling>
       </sub_step_3a_automatic_registration>
 
       <sub_step_3b_manual_registration>
-        <title>Manual Registration Instructions (Codeless)</title>
+        <title>Manual Registration Instructions (Developer)</title>
         <when>User chooses manual execution</when>
 
         <instructions>
@@ -2045,13 +1875,13 @@
 
           The registration script will:
           - Read your configuration from register-envs.properties
-          - Authenticate with IBM Cloud using your API key
+          - Authenticate with IBM Cloud (API key) or on-premises CP4D (username/password)
           - Register the connector datasource type with CP4D
           - Configure the Flight service endpoint
           - Make the connector(s) available in your CP4D environment
 
           Prerequisites:
-          - Valid IBM Cloud API key with proper permissions
+          - Valid IBM Cloud API key OR on-premises CP4D credentials
           - Network connectivity to CP4D endpoints
           - Deployed and accessible Flight service
           - Properly configured register-envs.properties file
@@ -2067,7 +1897,7 @@
           </description>
         </wait_for_confirmation>
       </sub_step_3b_manual_registration>
-    </step_3_codeless_registration>
+    </step_2_connector_registration>
   </phase_6_cp4d_registration>
 
   <phase_7_registration_validation>
