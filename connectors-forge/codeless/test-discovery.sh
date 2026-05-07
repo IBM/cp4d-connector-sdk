@@ -13,12 +13,6 @@
 
 set -e
 
-# Color output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
 
 # Default values
 PROPERTIES_FILE="test-discovery.properties"
@@ -42,12 +36,12 @@ done
 
 # Check if properties file exists
 if [ ! -f "$PROPERTIES_FILE" ]; then
-    echo -e "${RED}ERROR: Properties file not found: $PROPERTIES_FILE${NC}"
-    echo -e "${CYAN}Please copy test-discovery.properties.template to $PROPERTIES_FILE and configure it.${NC}"
+    echo "ERROR: Properties file not found: $PROPERTIES_FILE"
+    echo "Please copy test-discovery.properties.template to $PROPERTIES_FILE and configure it."
     exit 1
 fi
 
-echo -e "${CYAN}Loading configuration from: $PROPERTIES_FILE${NC}"
+echo "Loading configuration from: $PROPERTIES_FILE"
 
 # Function to read properties file
 read_property() {
@@ -68,40 +62,40 @@ CONNECTION_PROPERTIES_STR=$(read_property "CONNECTION_PROPERTIES")
 
 # Validate required parameters
 if [ -z "$CPD_URL" ]; then
-    echo -e "${RED}ERROR: CPD_URL is not set in properties file${NC}"
+    echo "ERROR: CPD_URL is not set in properties file"
     exit 1
 fi
 
 # Check authentication credentials
 if [ -z "$APIKEY" ] && { [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; }; then
-    echo -e "${RED}ERROR: Missing authentication credentials${NC}"
-    echo -e "${RED}Provide either APIKEY OR both USERNAME and PASSWORD${NC}"
+    echo "ERROR: Missing authentication credentials"
+    echo "Provide either APIKEY OR both USERNAME and PASSWORD"
     exit 1
 fi
 
 if [ -n "$APIKEY" ] && { [ -n "$USERNAME" ] || [ -n "$PASSWORD" ]; }; then
-    echo -e "${RED}ERROR: Conflicting authentication methods${NC}"
-    echo -e "${RED}Provide either APIKEY OR USERNAME+PASSWORD, not both${NC}"
+    echo "ERROR: Conflicting authentication methods"
+    echo "Provide either APIKEY OR USERNAME+PASSWORD, not both"
     exit 1
 fi
 
 if [ -z "$AUTH_URI" ]; then
-    echo -e "${RED}ERROR: AUTH_URI is not set in properties file${NC}"
+    echo "ERROR: AUTH_URI is not set in properties file"
     exit 1
 fi
 
 if [ -z "$DATASOURCE_TYPES_STR" ]; then
-    echo -e "${RED}ERROR: DATASOURCE_TYPES is not set in properties file${NC}"
+    echo "ERROR: DATASOURCE_TYPES is not set in properties file"
     exit 1
 fi
 
 if [ -z "$DISCOVERY_PATHS_STR" ]; then
-    echo -e "${RED}ERROR: DISCOVERY_PATHS is not set in properties file${NC}"
+    echo "ERROR: DISCOVERY_PATHS is not set in properties file"
     exit 1
 fi
 
 if [ -z "$CONNECTION_PROPERTIES_STR" ]; then
-    echo -e "${RED}ERROR: CONNECTION_PROPERTIES is not set in properties file${NC}"
+    echo "ERROR: CONNECTION_PROPERTIES is not set in properties file"
     exit 1
 fi
 
@@ -124,19 +118,19 @@ done
 
 # Validate array lengths match
 if [ ${#DATASOURCE_TYPES[@]} -ne ${#DISCOVERY_PATHS[@]} ] || [ ${#DATASOURCE_TYPES[@]} -ne ${#CONNECTION_PROPERTIES[@]} ]; then
-    echo -e "${RED}ERROR: Number of datasource types, paths, and connection properties must match${NC}"
-    echo -e "${RED}  Datasource types: ${#DATASOURCE_TYPES[@]}${NC}"
-    echo -e "${RED}  Discovery paths: ${#DISCOVERY_PATHS[@]}${NC}"
-    echo -e "${RED}  Connection properties: ${#CONNECTION_PROPERTIES[@]}${NC}"
+    echo "ERROR: Number of datasource types, paths, and connection properties must match"
+    echo "  Datasource types: ${#DATASOURCE_TYPES[@]}"
+    echo "  Discovery paths: ${#DISCOVERY_PATHS[@]}"
+    echo "  Connection properties: ${#CONNECTION_PROPERTIES[@]}"
     exit 1
 fi
 
 # Remove trailing slash from CPD URL
 CPD_URL="${CPD_URL%/}"
 
-echo -e "${CYAN}=========================================${NC}"
-echo -e "${CYAN}Obtaining Bearer Token...${NC}"
-echo -e "${CYAN}=========================================${NC}"
+echo "========================================="
+echo "Obtaining Bearer Token..."
+echo "========================================="
 
 # Build authentication request based on method
 if [ -n "$APIKEY" ]; then
@@ -161,12 +155,12 @@ HTTP_CODE=$(echo "$TOKEN_RESPONSE" | tail -n1)
 TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
 
 if [ "$HTTP_CODE" != "200" ]; then
-    echo -e "${RED}ERROR: Failed to obtain bearer token (HTTP $HTTP_CODE)${NC}"
+    echo "ERROR: Failed to obtain bearer token (HTTP $HTTP_CODE)"
     echo ""
     if [ -n "$APIKEY" ]; then
-        echo -e "${RED}Please verify your API key is correct${NC}"
+        echo "Please verify your API key is correct"
     else
-        echo -e "${RED}Please verify your username and password are correct${NC}"
+        echo "Please verify your username and password are correct"
     fi
     exit 1
 fi
@@ -178,23 +172,23 @@ if [ -z "$CPD_TOKEN" ] || [ "$CPD_TOKEN" = "null" ]; then
 fi
 
 if [ -z "$CPD_TOKEN" ] || [ "$CPD_TOKEN" = "null" ]; then
-    echo -e "${RED}ERROR: Failed to extract access token from response${NC}"
-    echo -e "${RED}The authentication response did not contain a valid token${NC}"
+    echo "ERROR: Failed to extract access token from response"
+    echo "The authentication response did not contain a valid token"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Bearer token obtained successfully${NC}"
+echo "✓ Bearer token obtained successfully"
 
 # Build the API endpoint
 ENDPOINT="$CPD_URL/v2/connections/assets"
 
-echo -e "${CYAN}"
+echo ""
 echo "Configuration:"
 echo "  CPD URL: $CPD_URL"
 echo "  Auth Method: $([ -n "$APIKEY" ] && echo "API Key" || echo "Username/Password")"
 echo "  Endpoint: $ENDPOINT"
 echo "  Number of connectors to test: ${#DATASOURCE_TYPES[@]}"
-echo -e "${NC}"
+echo ""
 
 # Track results
 SUCCESS_COUNT=0
@@ -207,9 +201,9 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
     DISCOVERY_PATH="${DISCOVERY_PATHS[$i]}"
     CONN_PROPERTIES="${CONNECTION_PROPERTIES[$i]}"
     
-    echo -e "${CYAN}==========================================${NC}"
-    echo -e "${CYAN}Testing Connector $((i + 1)) of ${#DATASOURCE_TYPES[@]}${NC}"
-    echo -e "${CYAN}==========================================${NC}"
+    echo "=========================================="
+    echo "Testing Connector $((i + 1)) of ${#DATASOURCE_TYPES[@]}"
+    echo "=========================================="
     echo "  Datasource Type: $DATASOURCE_TYPE"
     echo "  Discovery Path: $DISCOVERY_PATH"
     
@@ -223,8 +217,8 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
     # First, trim any whitespace/newlines and validate
     CLEAN_PROPERTIES=$(echo "$CONN_PROPERTIES" | tr -d '\n\r' | jq -c '.' 2>/dev/null)
     if [ $? -ne 0 ] || [ -z "$CLEAN_PROPERTIES" ]; then
-        echo -e "${RED}ERROR: Invalid JSON in CONNECTION_PROPERTIES for $DATASOURCE_TYPE${NC}"
-        echo -e "${RED}Please verify the JSON syntax in your properties file${NC}"
+        echo "ERROR: Invalid JSON in CONNECTION_PROPERTIES for $DATASOURCE_TYPE"
+        echo "Please verify the JSON syntax in your properties file"
         FAILURE_COUNT=$((FAILURE_COUNT + 1))
         RESULTS+=("FAILED|$DATASOURCE_TYPE|$DISCOVERY_PATH|Invalid JSON in connection properties")
         continue
@@ -239,13 +233,12 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
             properties: $properties
         }')
     
-    echo -e "${CYAN}"
+    echo ""
     echo "Request URL:"
-    echo -e "${NC}"
     echo "$REQUEST_URL"
     echo ""
     
-    echo -e "${CYAN}Sending request...${NC}"
+    echo "Sending request..."
     echo ""
     
     # Make the API call
@@ -258,7 +251,7 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
     
     # Check response
     if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-        echo -e "${GREEN}✓ Discovery successful for $DATASOURCE_TYPE${NC}"
+        echo "✓ Discovery successful for $DATASOURCE_TYPE"
         
         # Count assets - check data array first, then resources, then assets
         ASSET_COUNT=0
@@ -266,12 +259,12 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
             ASSET_COUNT=$(cat /tmp/discovery_response_${i}.json | jq '.data // .resources // .assets | length' 2>/dev/null || echo "0")
         fi
         
-        echo -e "${GREEN}Discovered $ASSET_COUNT asset(s)${NC}"
+        echo "Discovered $ASSET_COUNT asset(s)"
         
         # Display first asset if any were returned
         if [ "$ASSET_COUNT" -gt 0 ] && command -v jq &> /dev/null; then
             echo ""
-            echo -e "${CYAN}First asset:${NC}"
+            echo "First asset:"
             cat /tmp/discovery_response_${i}.json | jq '.data[0] // .resources[0] // .assets[0]' 2>/dev/null || echo "Unable to parse first asset"
         fi
         echo ""
@@ -280,9 +273,9 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
         RESULTS+=("SUCCESS|$DATASOURCE_TYPE|$DISCOVERY_PATH|$ASSET_COUNT")
         
     else
-        echo -e "${RED}✗ Discovery failed for $DATASOURCE_TYPE${NC}"
-        echo -e "${RED}HTTP Status Code: $HTTP_CODE${NC}"
-        echo -e "${RED}Response Body:${NC}"
+        echo "✗ Discovery failed for $DATASOURCE_TYPE"
+        echo "HTTP Status Code: $HTTP_CODE"
+        echo "Response Body:"
         
         if command -v jq &> /dev/null; then
             cat /tmp/discovery_response_${i}.json | jq '.' 2>/dev/null || cat /tmp/discovery_response_${i}.json
@@ -301,18 +294,18 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
 done
 
 # Print summary
-echo -e "${CYAN}==========================================${NC}"
-echo -e "${CYAN}Test Summary${NC}"
-echo -e "${CYAN}==========================================${NC}"
+echo "=========================================="
+echo "Test Summary"
+echo "=========================================="
 echo "Total connectors tested: ${#DATASOURCE_TYPES[@]}"
-echo -e "${GREEN}Successful: $SUCCESS_COUNT${NC}"
+echo "Successful: $SUCCESS_COUNT"
 if [ $FAILURE_COUNT -gt 0 ]; then
-    echo -e "${RED}Failed: $FAILURE_COUNT${NC}"
+    echo "Failed: $FAILURE_COUNT"
 fi
 
-echo -e "${CYAN}"
+echo ""
 echo "Detailed Results:"
-echo -e "${NC}"
+echo ""
 for result in "${RESULTS[@]}"; do
     IFS='|' read -ra PARTS <<< "$result"
     STATUS="${PARTS[0]}"
@@ -321,15 +314,15 @@ for result in "${RESULTS[@]}"; do
     INFO="${PARTS[3]}"
     
     if [ "$STATUS" = "SUCCESS" ]; then
-        echo -e "${GREEN}✓ $DATASOURCE - Path: $PATH - Assets: $INFO${NC}"
+        echo "✓ $DATASOURCE - Path: $PATH - Assets: $INFO"
     else
-        echo -e "${RED}✗ $DATASOURCE - Path: $PATH - Error: $INFO${NC}"
+        echo "✗ $DATASOURCE - Path: $PATH - Error: $INFO"
     fi
 done
 
 if [ $FAILURE_COUNT -gt 0 ]; then
     echo ""
-    echo -e "${CYAN}Troubleshooting tips:${NC}"
+    echo "Troubleshooting tips:"
     echo "  1. Verify CPD_URL is correct and accessible"
     echo "  2. Check authentication credentials (APIKEY or USERNAME/PASSWORD)"
     echo "  3. Verify AUTH_URI is correct for your deployment"
@@ -340,7 +333,7 @@ if [ $FAILURE_COUNT -gt 0 ]; then
 fi
 
 echo ""
-echo -e "${GREEN}✓ All connector tests passed!${NC}"
+echo "✓ All connector tests passed!"
 exit 0
 
 # Made with Bob
