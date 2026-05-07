@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 customModes:
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -34,6 +35,9 @@ customModes:
       - mcp
     source: project
 >>>>>>> 9083115 (update image tag)
+=======
+customModes:
+>>>>>>> 7d7e043 (fix)
   - slug: connectors-forge-rest
 =======
   - slug: rest-api-schema-mapper
