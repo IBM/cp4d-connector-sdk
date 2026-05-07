@@ -2825,10 +2825,14 @@
             <description>
               A template file is provided at:
 <<<<<<< HEAD
+<<<<<<< HEAD
               connectors-forge/scripts/register-envs.properties.template
 =======
               connectors-forge/codeless/register-envs.properties.template
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+              connectors-forge/scripts/register-envs.properties.template
+>>>>>>> 50f169c (move files)
               
               This template shows the required configuration structure with placeholder values.
             </description>
@@ -2839,6 +2843,7 @@
             <description>
               Copy the template file to create your configuration:
               
+<<<<<<< HEAD
 <<<<<<< HEAD
               From: connectors-forge/scripts/register-envs.properties.template
               To: connectors-forge/scripts/register-envs.properties
@@ -2854,6 +2859,14 @@
               - Unix/Linux/macOS: cp connectors-forge/codeless/register-envs.properties.template connectors-forge/codeless/register-envs.properties
               - Windows: copy connectors-forge\codeless\register-envs.properties.template connectors-forge\codeless\register-envs.properties
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+              From: connectors-forge/scripts/register-envs.properties.template
+              To: connectors-forge/scripts/register-envs.properties
+              
+              You can do this with:
+              - Unix/Linux/macOS: cp connectors-forge/scripts/register-envs.properties.template connectors-forge/scripts/register-envs.properties
+              - Windows: copy connectors-forge\scripts\register-envs.properties.template connectors-forge\scripts\register-envs.properties
+>>>>>>> 50f169c (move files)
             </description>
           </step>
 
@@ -3040,6 +3053,9 @@
           <action priority="1">
             <name>Execute Registration Script</name>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 50f169c (move files)
             <command_unix>connectors-forge/scripts/register-connector.sh</command_unix>
             <command_windows>connectors-forge\scripts\register-connector.ps1</command_windows>
             <description>
@@ -3140,6 +3156,7 @@
 
           1. Ensure you have configured the properties file at:
 <<<<<<< HEAD
+<<<<<<< HEAD
              connectors-forge/scripts/register-envs.properties
 
           For Unix/Linux/macOS:
@@ -3158,17 +3175,20 @@
           - Authenticate with IBM Cloud (API key) or on-premises CP4D (username/password)
 =======
              connectors-forge/codeless/register-envs.properties
+=======
+             connectors-forge/scripts/register-envs.properties
+>>>>>>> 50f169c (move files)
 
           For Unix/Linux/macOS:
           2. Ensure the script has execute permissions:
-             chmod +x connectors-forge/codeless/register-connector.sh
+             chmod +x connectors-forge/scripts/register-connector.sh
 
           3. Run the registration script:
-             connectors-forge/codeless/register-connector.sh
+             connectors-forge/scripts/register-connector.sh
 
           For Windows:
           2. Run the PowerShell registration script:
-             .\connectors-forge\codeless\register-connector.ps1
+             .\connectors-forge\scripts\register-connector.ps1
 
           The registration script will:
           - Read your configuration from register-envs.properties
@@ -3491,6 +3511,7 @@
 
           ```properties
 <<<<<<< HEAD
+<<<<<<< HEAD
           # Copy from connectors-forge/scripts/test-discovery.properties.template
           # and fill in your actual values
 
@@ -3554,6 +3575,9 @@
           so you don't need to manually acquire a token beforehand.
 =======
           # Copy from connectors-forge/codeless/test-discovery.properties.template
+=======
+          # Copy from connectors-forge/scripts/test-discovery.properties.template
+>>>>>>> 50f169c (move files)
           # and fill in your actual values
 
           # CPD Configuration
@@ -3600,9 +3624,9 @@
         </example_suggestion_format>
 
         <instructions>
-          1. Create a file named test-discovery.properties in the connectors-forge/codeless/ directory
-          
-          2. Use the template at connectors-forge/codeless/test-discovery.properties.template as a reference
+          1. Create a file named test-discovery.properties in the connectors-forge/scripts/ directory
+
+          2. Use the template at connectors-forge/scripts/test-discovery.properties.template as a reference
           
           3. Copy the suggested configuration above and replace placeholders with your actual values:
              - CPD_URL: Your Cloud Pak for Data instance URL
@@ -3610,10 +3634,14 @@
              - AUTH_URI: Authentication endpoint (update for on-premises if needed)
              - API keys, passwords, and other credentials in CONNECTION_PROPERTIES
           
+<<<<<<< HEAD
           4. Ensure the file is saved in the correct location: connectors-forge/codeless/test-discovery.properties
 <<<<<<< HEAD
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 =======
+=======
+          4. Ensure the file is saved in the correct location: connectors-forge/scripts/test-discovery.properties
+>>>>>>> 50f169c (move files)
           
           Note: The test scripts will automatically obtain a bearer token from your credentials,
           so you don't need to manually acquire a token beforehand.
@@ -3655,12 +3683,17 @@
           <action priority="1">
             <name>Execute Test Script</name>
 <<<<<<< HEAD
+<<<<<<< HEAD
             <command_unix>connectors-forge/scripts/test-discovery.sh</command_unix>
             <command_windows>connectors-forge\scripts\test-discovery.ps1</command_windows>
 =======
             <command_unix>connectors-forge/codeless/test-discovery.sh</command_unix>
             <command_windows>connectors-forge\codeless\test-discovery.ps1</command_windows>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+            <command_unix>connectors-forge/scripts/test-discovery.sh</command_unix>
+            <command_windows>connectors-forge\scripts\test-discovery.ps1</command_windows>
+>>>>>>> 50f169c (move files)
             <description>
               Runs the OS-specific test script that:
               - Reads configuration from test-discovery.properties
@@ -3803,17 +3836,23 @@
 
         1. Create test-discovery.properties file:
 <<<<<<< HEAD
+<<<<<<< HEAD
            - Location: connectors-forge/scripts/test-discovery.properties
            - Template: connectors-forge/scripts/test-discovery.properties.template
 =======
            - Location: connectors-forge/codeless/test-discovery.properties
            - Template: connectors-forge/codeless/test-discovery.properties.template
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+           - Location: connectors-forge/scripts/test-discovery.properties
+           - Template: connectors-forge/scripts/test-discovery.properties.template
+>>>>>>> 50f169c (move files)
            - Fill in your CPD_URL, CPD_TOKEN, and connector configurations
 
         2. Run the test script:
            
            For Unix/Linux/macOS:
+<<<<<<< HEAD
 <<<<<<< HEAD
            chmod +x connectors-forge/scripts/test-discovery.sh
            connectors-forge/scripts/test-discovery.sh
@@ -3827,6 +3866,13 @@
            For Windows:
            .\connectors-forge\codeless\test-discovery.ps1
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+           chmod +x connectors-forge/scripts/test-discovery.sh
+           connectors-forge/scripts/test-discovery.sh
+
+           For Windows:
+           .\connectors-forge\scripts\test-discovery.ps1
+>>>>>>> 50f169c (move files)
 
         3. Review the test results:
            - Green checkmarks (✓) indicate successful discovery
