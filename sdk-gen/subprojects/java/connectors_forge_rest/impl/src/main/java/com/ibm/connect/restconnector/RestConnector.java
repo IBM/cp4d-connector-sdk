@@ -192,7 +192,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
             throw new IllegalStateException("API mapping not loaded. Call connect() first.");
         }
 
-        final String tableName = resolveTableName(asset);
+        final String tableName = RestConnectorUtils.resolveTableName(asset);
         final RestTableDefinition tableDef = apiMapping.getTable(tableName);
         if (tableDef == null) {
             throw new IllegalArgumentException("Table '" + tableName + "' not found in REST API mapping.");
@@ -238,32 +238,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
         LOGGER.debug("RestConnector closed");
     }
 
-    /**
-     * Resolves the table name from an asset descriptor.
-     *
-     * @param asset
-     *            the asset descriptor
-     * @return the table name (upper-case)
-     */
-    private static String resolveTableName(CustomFlightAssetDescriptor asset)
-    {
-        final String path = asset.getPath();
-        if (path != null && !path.isEmpty()) {
-            final String[] segments = path.split("/");
-            for (int i = segments.length - 1; i >= 0; i--) {
-                if (!segments[i].isEmpty()) {
-                    return segments[i].toUpperCase(java.util.Locale.ENGLISH);
-                }
-            }
-        }
-        if (asset.getName() != null && !asset.getName().isEmpty()) {
-            return asset.getName().toUpperCase(java.util.Locale.ENGLISH);
-        }
-        if (asset.getId() != null && !asset.getId().isEmpty()) {
-            return asset.getId().toUpperCase(java.util.Locale.ENGLISH);
-        }
-        throw new IllegalArgumentException("Cannot determine table name from asset descriptor");
-    }
 }
 
 // Made with Bob

@@ -89,8 +89,14 @@ public class RestConnectorFactory extends PooledConnectorFactory
                 datasourceTypeCache.put(connectorName, new RestDatasourceType(mapping, filePath));
 
                 LOGGER.info("Loaded REST connector '{}' from file: {}", connectorName, configFile.getName());
-            } catch (Exception e) {
-                LOGGER.error("Failed to load configuration from file '{}': {}", configFile.getName(), e.getMessage(), e);
+            } catch (java.io.IOException e) {
+                LOGGER.error("I/O error loading configuration from file '{}': {}", configFile.getName(), e.getMessage(), e);
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                LOGGER.error("Invalid JSON in configuration file '{}': {}", configFile.getName(), e.getMessage(), e);
+            } catch (IllegalArgumentException e) {
+                LOGGER.error("Invalid configuration in file '{}': {}", configFile.getName(), e.getMessage(), e);
+            } catch (RuntimeException e) {
+                LOGGER.error("Unexpected error loading configuration from file '{}': {}", configFile.getName(), e.getMessage(), e);
             }
         }
 
