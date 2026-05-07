@@ -981,37 +981,78 @@
 
         <prerequisites>
           <requirement>OpenShift CLI (oc) must be installed</requirement>
-          <requirement>User must have OpenShift cluster credentials</requirement>
+          <requirement>User must be logged in to OpenShift cluster</requirement>
+          <requirement>User must have selected a project/namespace</requirement>
           <requirement>User must have permissions to create resources in the target project</requirement>
         </prerequisites>
 
         <actions>
           <action priority="1">
-            <name>Gather OpenShift Connection Details</name>
+            <name>Instruct User to Login to OpenShift</name>
             <description>
-              Ask the user for OpenShift connection details:
-              1. OpenShift cluster URI (e.g., https://api.cluster.example.com:6443)
-              2. Username
-              3. Password
-              4. Project/namespace name (where to deploy the connector)
+              Before I can proceed with deployment, you need to log in to OpenShift and select a project.
+              
+              Please open a terminal and run the following commands:
+              
+              1. Login to your OpenShift cluster:
+                 oc login -u <username> -p <password> <cluster-uri>
+                 
+                 Example:
+                 oc login -u developer -p mypassword https://api.cluster.example.com:6443
+              
+              2. Select or create a project/namespace:
+                 oc project <project-name>
+                 
+                 Or create a new project:
+                 oc new-project <project-name>
+                 
+                 Example:
+                 oc project connectorsforge
+              
+              Once you've completed these steps, let me know and I'll proceed with the deployment.
             </description>
+            <wait_for_confirmation>true</wait_for_confirmation>
           </action>
 
           <action priority="2">
-            <name>Login to OpenShift</name>
-            <command>oc login -u {username} -p {password} {cluster_uri}</command>
+            <name>Verify OpenShift Authentication</name>
+            <command>oc whoami</command>
             <description>
-              Authenticate with the OpenShift cluster using provided credentials.
+              Verify that you are logged in to OpenShift.
+              This command should return your username.
             </description>
-            <working_directory>Project root</working_directory>
+            <on_success>
+              <message>✓ Authenticated as: {username}</message>
+            </on_success>
+            <on_failure>
+              <message>
+                ✗ Not logged in to OpenShift
+                
+                Please run: oc login -u <username> -p <password> <cluster-uri>
+                Then let me know when you're ready to continue.
+              </message>
+            </on_failure>
           </action>
 
           <action priority="3">
-            <name>Select Project</name>
-            <command>oc project {project_name}</command>
+            <name>Verify Project Context</name>
+            <command>oc project</command>
             <description>
-              Switch to the target project/namespace where the connector will be deployed.
+              Verify which project/namespace is currently selected.
+              This is where the connector will be deployed.
             </description>
+            <on_success>
+              <message>✓ Current project: {project_name}</message>
+            </on_success>
+            <on_failure>
+              <message>
+                ✗ No project selected
+                
+                Please run: oc project <project-name>
+                Or create a new project: oc new-project <project-name>
+                Then let me know when you're ready to continue.
+              </message>
+            </on_failure>
           </action>
 
           <action priority="4">
@@ -1080,17 +1121,17 @@
         </actions>
 
         <error_handling>
-          <if_login_fails>
-            <action>Verify OpenShift cluster URI is correct</action>
-            <action>Check username and password are valid</action>
-            <action>Ensure network connectivity to the cluster</action>
-          </if_login_fails>
+          <if_whoami_fails>
+            <action>User is not logged in to OpenShift</action>
+            <action>Instruct user to run: oc login -u <username> -p <password> <cluster-uri></action>
+            <action>Wait for user confirmation before retrying</action>
+          </if_whoami_fails>
           
-          <if_project_not_found>
-            <action>Verify the project/namespace exists</action>
-            <action>Check user has access to the project</action>
-            <action>Offer to create the project if it doesn't exist</action>
-          </if_project_not_found>
+          <if_project_check_fails>
+            <action>No project is currently selected</action>
+            <action>Instruct user to run: oc project <project-name> or oc new-project <project-name></action>
+            <action>Wait for user confirmation before retrying</action>
+          </if_project_check_fails>
           
           <if_configmap_creation_fails>
             <action>Check if configmap already exists (delete and recreate)</action>
