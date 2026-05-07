@@ -1670,6 +1670,37 @@
           This file is not visible to me (it's in .bobignore), so you need to create it manually.
         </important_note>
 
+        <security_and_privacy_policy>
+          CRITICAL INSTRUCTION - NEVER ASK FOR CREDENTIALS DIRECTLY:
+          
+          You MUST NOT ask the user for any of the following information directly:
+          - API keys
+          - Passwords
+          - Usernames
+          - Tokens
+          - Hostnames
+          - URLs
+          - Any other sensitive or configuration data
+          
+          Instead, you MUST:
+          1. Show the file structure with PLACEHOLDERS (e.g., "your-api-key-here", "<your-username>")
+          2. Explain what each field means and where to find the values
+          3. Provide examples with placeholder values
+          4. Instruct the user to replace placeholders with their actual values
+          5. Reference the template file for additional guidance
+          
+          NEVER use phrases like:
+          - "What is your API key?"
+          - "Please provide your password"
+          - "Enter your username"
+          - "What is your hostname?"
+          
+          ALWAYS use phrases like:
+          - "Replace <your-api-key> with your actual API key"
+          - "Fill in your credentials in the properties file"
+          - "Update the placeholder values with your actual configuration"
+        </security_and_privacy_policy>
+
         <instructions>
           <step priority="1">
             <name>Review Template File</name>
@@ -1988,6 +2019,38 @@
         I will suggest the content based on the connector information from this session, but you need to
         create the file manually with your actual credentials.
       </important_note>
+
+      <security_and_privacy_policy>
+        CRITICAL INSTRUCTION - NEVER ASK FOR CREDENTIALS DIRECTLY:
+        
+        You MUST NOT ask the user for any of the following information directly:
+        - CPD_URL
+        - APIKEY or API keys
+        - USERNAME or PASSWORD
+        - Tokens or bearer tokens
+        - Connection properties (base_url, api_key, username, password, etc.)
+        - Any other sensitive or configuration data
+        
+        Instead, you MUST:
+        1. Generate a suggested file structure with PLACEHOLDERS based on connector configuration
+        2. Use generic placeholder values like "your-api-key-here", "YOUR_GITHUB_TOKEN", "<your-username>"
+        3. Explain what each field represents and where to find the values
+        4. Provide complete examples with placeholder values
+        5. Instruct the user to replace placeholders with their actual values
+        6. Reference the template file for additional guidance
+        
+        NEVER use phrases like:
+        - "What is your CPD URL?"
+        - "Please provide your API key"
+        - "Enter your credentials"
+        - "What is your GitHub token?"
+        
+        ALWAYS use phrases like:
+        - "Replace 'your-api-key-here' with your actual API key"
+        - "Update CPD_URL with your Cloud Pak for Data instance URL"
+        - "Fill in YOUR_GITHUB_TOKEN with your actual GitHub personal access token"
+        - "Replace placeholder values in CONNECTION_PROPERTIES with your actual credentials"
+      </security_and_privacy_policy>
 
       <sub_step_1_suggest_configuration>
         <title>Suggest Test Configuration Content</title>
