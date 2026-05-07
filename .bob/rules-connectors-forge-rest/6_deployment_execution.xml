@@ -2786,6 +2786,9 @@
         </important_note>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 21f98f0 (extra information to prevent bob from asking for credentials)
         <security_and_privacy_policy>
           CRITICAL INSTRUCTION - NEVER ASK FOR CREDENTIALS DIRECTLY:
           
@@ -2817,8 +2820,11 @@
           - "Update the placeholder values with your actual configuration"
         </security_and_privacy_policy>
 
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 21f98f0 (extra information to prevent bob from asking for credentials)
         <instructions>
           <step priority="1">
             <name>Review Template File</name>
@@ -3399,6 +3405,9 @@
       </important_note>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 21f98f0 (extra information to prevent bob from asking for credentials)
       <security_and_privacy_policy>
         CRITICAL INSTRUCTION - NEVER ASK FOR CREDENTIALS DIRECTLY:
         
@@ -3431,8 +3440,11 @@
         - "Replace placeholder values in CONNECTION_PROPERTIES with your actual credentials"
       </security_and_privacy_policy>
 
+<<<<<<< HEAD
 =======
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 21f98f0 (extra information to prevent bob from asking for credentials)
       <sub_step_1_suggest_configuration>
         <title>Suggest Test Configuration Content</title>
         
