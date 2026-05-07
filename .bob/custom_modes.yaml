@@ -1,5 +1,4 @@
-customModes:
-- slug: connectors-forge-rest
+  - slug: connectors-forge-rest
     name: 🔌 Connectors Forge
     description: Create REST API connector configuration files for CP4D SDK
     roleDefinition: |
