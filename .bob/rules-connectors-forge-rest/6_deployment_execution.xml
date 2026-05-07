@@ -3317,6 +3317,7 @@
           Based on the connector(s) created in this session, suggest the content for test-discovery.properties file.
           
 <<<<<<< HEAD
+<<<<<<< HEAD
           IMPORTANT: The purpose of test-discovery is to verify that connector registration was successful.
           For each connector, suggest ONLY ONE table/endpoint - just enough to confirm the connector works.
           
@@ -3342,13 +3343,18 @@
           - Datasource type ID: exact value from $connector_name field (do NOT convert to lowercase or add underscores)
           - Discovery path: ANY ONE key from $tables object, prefixed with forward slash (typically the first one)
 =======
+=======
+          IMPORTANT: The purpose of test-discovery is to verify that connector registration was successful.
+          For each connector, suggest ONLY ONE table/endpoint - just enough to confirm the connector works.
+          
+>>>>>>> 5a6919b (1 table per connector for validation)
           The suggestion should include:
           1. Template location reference
           2. CPD_URL placeholder (user must provide their CP4D instance URL)
           3. Authentication credentials (APIKEY or USERNAME/PASSWORD)
           4. AUTH_URI (authentication endpoint)
-          5. DATASOURCE_TYPES - comma-separated list of datasource type IDs from the connector descriptors
-          6. DISCOVERY_PATHS - comma-separated list of discovery paths (first endpoint path from each connector)
+          5. DATASOURCE_TYPES - comma-separated list of datasource type IDs (one per connector)
+          6. DISCOVERY_PATHS - comma-separated list with ONE discovery path per connector
           7. CONNECTION_PROPERTIES - pipe-separated JSON objects with connection properties for each connector
           
           IMPORTANT: How to extract values from the connector configuration file:
@@ -3356,9 +3362,9 @@
           - DATASOURCE_TYPES: Use the exact value from $connector_name field in the config file
             Example: If $connector_name is "GitHub API Connector", then DATASOURCE_TYPES=GitHub API Connector
           
-          - DISCOVERY_PATHS: Use the keys from $tables object with a forward slash prefix
-            Example: If $tables has "REPOSITORIES" key, then DISCOVERY_PATHS=/REPOSITORIES
-            For multiple tables: /REPOSITORIES,/ISSUES,/PULL_REQUESTS
+          - DISCOVERY_PATHS: Select ANY ONE key from $tables object and prefix it with forward slash
+            Example: If $tables has "REPOSITORIES", "ISSUES", "PULL_REQUESTS" - choose just ONE: /REPOSITORIES
+            For multiple connectors, select one table from each: /REPOSITORIES,/PROJECTS
           
           For each connector, extract:
 <<<<<<< HEAD
@@ -3367,8 +3373,12 @@
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 =======
           - Datasource type ID: exact value from $connector_name field (do NOT convert to lowercase or add underscores)
+<<<<<<< HEAD
           - Discovery paths: keys from $tables object, each prefixed with forward slash
 >>>>>>> e8665ee (fix)
+=======
+          - Discovery path: ANY ONE key from $tables object, prefixed with forward slash (typically the first one)
+>>>>>>> 5a6919b (1 table per connector for validation)
           - Authentication type and required properties from $authentication field
           - Base URL from $hostname field
         </action>
@@ -3460,18 +3470,21 @@
 
           # Connector Configuration (based on your connectors)
           # DATASOURCE_TYPES: Use exact $connector_name value(s) from config file
-          # DISCOVERY_PATHS: Use $tables keys with forward slash prefix
+          # DISCOVERY_PATHS: Select ONE table per connector (for registration verification only)
           DATASOURCE_TYPES=GitHub API Connector
           DISCOVERY_PATHS=/REPOSITORIES
           CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"YOUR_GITHUB_TOKEN"}
           ```
 
-          Example with multiple connectors:
+          Example with multiple connectors (one table per connector):
           ```properties
           DATASOURCE_TYPES=GitHub API Connector,Jira REST API
-          DISCOVERY_PATHS=/REPOSITORIES,/ISSUES
+          DISCOVERY_PATHS=/REPOSITORIES,/PROJECTS
           CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"TOKEN1"}|{"base_url":"https://jira.example.com","username":"user","password":"pass"}
           ```
+          
+          Note: We test only ONE table per connector to verify registration was successful.
+          If you need to test all tables, you can run discovery tests separately for each table later.
 
           Replace:
           - CPD_URL with your Cloud Pak for Data instance URL
