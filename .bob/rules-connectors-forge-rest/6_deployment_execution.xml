@@ -2588,6 +2588,7 @@
     <step_2_connector_registration>
       <title>Connector Registration</title>
       <when>User chooses registration (applies to both developer and codeless deployment types)</when>
+<<<<<<< HEAD
 =======
         Present options clearly:
 =======
@@ -2773,6 +2774,8 @@
       <title>Codeless Option Registration</title>
       <when>User chooses registration AND codeless deployment type was selected in Phase 0</when>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+>>>>>>> 7b4b3b1 (same registration for codeless and developer paths)
 
       <sub_step_1_verify_properties_file>
         <title>Create Properties File from Template</title>
@@ -3023,10 +3026,14 @@
 
       <sub_step_3a_automatic_registration>
 <<<<<<< HEAD
+<<<<<<< HEAD
         <title>Automatic Registration (Developer)</title>
 =======
         <title>Automatic Registration (Codeless)</title>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+        <title>Automatic Registration (Developer)</title>
+>>>>>>> 7b4b3b1 (same registration for codeless and developer paths)
         <when>User chooses automatic execution</when>
 
         <actions>
@@ -3103,10 +3110,14 @@
             <action>Verify the properties file is configured correctly</action>
             <action>Check network connectivity to CP4D endpoints</action>
 <<<<<<< HEAD
+<<<<<<< HEAD
             <action>Verify API key has proper permissions (or username/password for on-premises)</action>
 =======
             <action>Verify API key has proper permissions</action>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+            <action>Verify API key has proper permissions (or username/password for on-premises)</action>
+>>>>>>> 7b4b3b1 (same registration for codeless and developer paths)
             <action>Offer to provide manual instructions instead</action>
           </if_script_fails>
         </error_handling>
@@ -3114,10 +3125,14 @@
 
       <sub_step_3b_manual_registration>
 <<<<<<< HEAD
+<<<<<<< HEAD
         <title>Manual Registration Instructions (Developer)</title>
 =======
         <title>Manual Registration Instructions (Codeless)</title>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+        <title>Manual Registration Instructions (Developer)</title>
+>>>>>>> 7b4b3b1 (same registration for codeless and developer paths)
         <when>User chooses manual execution</when>
 
         <instructions>
@@ -3157,18 +3172,26 @@
 
           The registration script will:
           - Read your configuration from register-envs.properties
+<<<<<<< HEAD
           - Authenticate with IBM Cloud using your API key
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+          - Authenticate with IBM Cloud (API key) or on-premises CP4D (username/password)
+>>>>>>> 7b4b3b1 (same registration for codeless and developer paths)
           - Register the connector datasource type with CP4D
           - Configure the Flight service endpoint
           - Make the connector(s) available in your CP4D environment
 
           Prerequisites:
 <<<<<<< HEAD
+<<<<<<< HEAD
           - Valid IBM Cloud API key OR on-premises CP4D credentials
 =======
           - Valid IBM Cloud API key with proper permissions
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+          - Valid IBM Cloud API key OR on-premises CP4D credentials
+>>>>>>> 7b4b3b1 (same registration for codeless and developer paths)
           - Network connectivity to CP4D endpoints
           - Deployed and accessible Flight service
           - Properly configured register-envs.properties file
@@ -3185,10 +3208,14 @@
         </wait_for_confirmation>
       </sub_step_3b_manual_registration>
 <<<<<<< HEAD
+<<<<<<< HEAD
     </step_2_connector_registration>
 =======
     </step_3_codeless_registration>
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
+=======
+    </step_2_connector_registration>
+>>>>>>> 7b4b3b1 (same registration for codeless and developer paths)
   </phase_6_cp4d_registration>
 
   <phase_7_registration_validation>
