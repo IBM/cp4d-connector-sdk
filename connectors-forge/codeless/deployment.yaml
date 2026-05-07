@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: cf-flight-connector
-        image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+        image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
         imagePullPolicy: IfNotPresent
 
         ports:
