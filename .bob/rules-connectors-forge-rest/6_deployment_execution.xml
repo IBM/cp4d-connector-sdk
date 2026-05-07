@@ -202,7 +202,7 @@
 
       <options_for_codeless>
         <title>Options when Codeless deployment type was chosen in Phase 0</title>
-        <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)</note>
+        <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)</note>
         
         <option name="serverless">
           <number>1</number>
@@ -241,7 +241,7 @@
         - For Codeless option: Present only three deployment options (exclude Local Docker)
         - Renumber options for codeless (1-3 instead of 2-4)
         - Indicate which options are placeholders (not yet implemented)
-        - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.0
+        - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.1
       </presentation_format>
     </step_1_present_deployment_options>
 
@@ -432,7 +432,7 @@
       
       <important_note>
         The deployment process differs based on the deployment type chosen in Phase 0:
-        - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
+        - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)
         - Developer: Uses ./gradlew dockerPush to build and push custom Docker image
       </important_note>
 
@@ -604,7 +604,7 @@
               Runs the OS-specific deployment script with user-provided parameters.
               The script handles:
               - Connecting to remote server via SSH (using your SSH keys - no password prompts)
-              - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
+              - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)
               - Creating tar archive with configuration files and streaming it via SSH
               - Uploading configuration files to /config/mappings/ in the container
               - Configuring port mapping (9443 internal → user-specified external)
@@ -880,7 +880,7 @@
           How it works:
           - Connects to remote server via SSH using your SSH keys (no password prompts)
           - Executes Docker commands remotely via SSH
-          - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+          - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
           - Streams configuration files directly via SSH pipe (no intermediate files on remote server)
           - Uploads files to /config/mappings/ in the container
           - Configures port mapping (9443 internal → your specified external port)
@@ -953,7 +953,7 @@
 
       <important_note>
         This step is for CODELESS deployment to OpenShift.
-        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0) from GitHub Container Registry.
+        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.1) from GitHub Container Registry.
         For DEVELOPER deployment to OpenShift, see step_6_handle_openshift_deployment_developer.
       </important_note>
 
@@ -1150,7 +1150,7 @@
              
              This creates:
              - A Deployment with 1 replica
-             - Uses image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+             - Uses image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
              - Mounts the connectors-config ConfigMap
              - Exposes port 9443 for gRPC
 
@@ -1209,7 +1209,7 @@
           <location>connectors-forge/codeless/deployment.yaml</location>
           <description>
             Defines the Kubernetes Deployment resource:
-            - Image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+            - Image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
             - Namespace: connectorsforge (can be changed)
             - ConfigMap mount: /config/mappings
             - Resource limits: 256Mi memory, 200m CPU
