@@ -1,4 +1,4 @@
-sdk-gen\subprojects\flight\src\dist\resources\payload\envs/
-!sdk-gen\subprojects\flight\src\dist\resources\payload\envs\template.properties
-connectors-forge\codeless\*.properties
+sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
+!sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
+connectors-forge/codeless/*.properties
 
