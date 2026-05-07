@@ -228,6 +228,7 @@
         <title>Options when Codeless deployment type was chosen in Phase 0</title>
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)</note>
 =======
         <note>Local Docker deployment is not available - codeless uses pre-built image (marek02/connectors-forge:latest)</note>
@@ -235,6 +236,9 @@
 =======
         <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)</note>
 >>>>>>> dacf80e (custom mode can able to deploy on openshift)
+=======
+        <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)</note>
+>>>>>>> 9083115 (update image tag)
         
         <option name="serverless">
           <number>1</number>
@@ -282,6 +286,7 @@
         - Indicate which options are placeholders (not yet implemented)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.1
 =======
         - Explain that codeless uses pre-built image marek02/connectors-forge:latest
@@ -289,6 +294,9 @@
 =======
         - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.0
 >>>>>>> dacf80e (custom mode can able to deploy on openshift)
+=======
+        - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.1
+>>>>>>> 9083115 (update image tag)
       </presentation_format>
     </step_1_present_deployment_options>
 
@@ -488,6 +496,7 @@
         The deployment process differs based on the deployment type chosen in Phase 0:
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)
 =======
         - Codeless: Uses deploy-container.sh script with pre-built image (marek02/connectors-forge:latest)
@@ -495,6 +504,9 @@
 =======
         - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
 >>>>>>> dacf80e (custom mode can able to deploy on openshift)
+=======
+        - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)
+>>>>>>> 9083115 (update image tag)
         - Developer: Uses ./gradlew dockerPush to build and push custom Docker image
       </important_note>
 
@@ -695,7 +707,7 @@
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 =======
               - Connecting to remote server via SSH (using your SSH keys - no password prompts)
-              - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.0)
+              - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.1)
               - Creating tar archive with configuration files and streaming it via SSH
 >>>>>>> e622091 (ssh deployment approach for windows)
               - Uploading configuration files to /config/mappings/ in the container
@@ -1049,6 +1061,7 @@
           - Connects to remote server via SSH using your SSH keys (no password prompts)
           - Executes Docker commands remotely via SSH
 <<<<<<< HEAD
+<<<<<<< HEAD
           - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
           - Streams configuration files directly via SSH pipe (no intermediate files on remote server)
           - Uploads files to /config/mappings/ in the container
@@ -1065,6 +1078,9 @@
 >>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 =======
           - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
+=======
+          - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
+>>>>>>> 9083115 (update image tag)
           - Streams configuration files directly via SSH pipe (no intermediate files on remote server)
           - Uploads files to /config/mappings/ in the container
           - Configures port mapping (9443 internal → your specified external port)
@@ -1343,6 +1359,7 @@
           1. Run the PowerShell script:
              .\connectors-forge\codeless\deploy-openshift.ps1
 
+<<<<<<< HEAD
           The script will automatically:
           1. Login to OpenShift cluster
           2. Select or create the project/namespace
@@ -1350,6 +1367,65 @@
           4. Deploy the connector using deployment.yaml
           5. Create the service using service.yaml
           6. Verify the deployment status
+=======
+          1. Login to your OpenShift cluster:
+             oc login -u <username> -p <password> <cluster-uri>
+             
+             Example:
+             oc login -u developer -p mypassword https://api.cluster.example.com:6443
+
+          2. Select the project (namespace) where you want to deploy:
+             oc project <project-name>
+             
+             Example:
+             oc project connectorsforge
+             
+             If the project doesn't exist, create it first:
+             oc new-project connectorsforge
+
+          3. Create a ConfigMap with your connector configuration files:
+             oc create configmap connectors-config --from-file=sdk-gen/subprojects/connectors_forge_rest/src/main/resources
+             
+             This command:
+             - Creates a ConfigMap named "connectors-config"
+             - Includes all JSON files from the specified directory
+             - These files will be mounted in the container at /config/mappings
+             
+             If the ConfigMap already exists, delete it first:
+             oc delete configmap connectors-config
+
+          4. Deploy the connector using the deployment configuration:
+             oc apply -f connectors-forge/codeless/deployment.yaml
+             
+             This creates:
+             - A Deployment with 1 replica
+             - Uses image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
+             - Mounts the connectors-config ConfigMap
+             - Exposes port 9443 for gRPC
+
+          5. Create the service to expose the connector:
+             oc apply -f connectors-forge/codeless/service.yaml
+             
+             This creates:
+             - A ClusterIP service
+             - Exposes port 9443
+             - Makes the connector accessible within the cluster
+
+          6. Verify the deployment:
+             oc get pods -l app=cf-flight-connector
+             
+             Wait until the pod status shows "Running"
+
+          7. Check the service:
+             oc get service cf-flight-connector-service
+             
+             Note the ClusterIP and port for accessing the connector
+
+          8. View logs (if needed):
+             oc logs -l app=cf-flight-connector
+             
+             This helps troubleshoot any issues
+>>>>>>> 9083115 (update image tag)
 
           ACCESSING THE CONNECTOR:
           The connector will be accessible within the OpenShift cluster at:

@@ -28,10 +28,14 @@ spec:
       containers:
       - name: cf-flight-connector
 <<<<<<< HEAD
+<<<<<<< HEAD
         image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
 =======
         image: ghcr.io/marek-zuwala/connectors-forge:1.0.0
 >>>>>>> 4a8a02f (codeless openshift)
+=======
+        image: ghcr.io/marek-zuwala/connectors-forge:1.0.1
+>>>>>>> 9083115 (update image tag)
         imagePullPolicy: IfNotPresent
 
         ports:

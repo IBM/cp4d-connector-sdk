@@ -32,6 +32,9 @@ CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 9083115 (update image tag)
 IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.1"
 CONTAINER_ID=""
 CONTAINER_NAME=""
