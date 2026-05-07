@@ -42,22 +42,22 @@ Add-Type -AssemblyName System.Web
 
 function Write-Info {
     param([string]$Message)
-    Write-Host $Message -ForegroundColor Cyan
+    Write-Host $Message
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-Host $Message -ForegroundColor Green
+    Write-Host $Message
 }
 
 function Write-Warning-Custom {
     param([string]$Message)
-    Write-Host $Message -ForegroundColor Yellow
+    Write-Host $Message
 }
 
 function Write-Error-Custom {
     param([string]$Message)
-    Write-Host $Message -ForegroundColor Red
+    Write-Host $Message
 }
 
 # ============================================================

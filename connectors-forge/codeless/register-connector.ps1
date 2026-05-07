@@ -117,14 +117,14 @@ $missing = @()
 
 # Check authentication credentials
 if (-not $APIKEY -and (-not $USERNAME -or -not $PASSWORD)) {
-    Write-Host "ERROR: Missing authentication credentials" -ForegroundColor Red
-    Write-Host "Provide either 'apikey' OR both 'username' and 'password'" -ForegroundColor Red
+    Write-Host "ERROR: Missing authentication credentials"
+    Write-Host "Provide either 'apikey' OR both 'username' and 'password'"
     throw "Authentication validation failed"
 }
 
 if ($APIKEY -and ($USERNAME -or $PASSWORD)) {
-    Write-Host "ERROR: Conflicting authentication methods" -ForegroundColor Red
-    Write-Host "Provide either 'apikey' OR 'username'+'password', not both" -ForegroundColor Red
+    Write-Host "ERROR: Conflicting authentication methods"
+    Write-Host "Provide either 'apikey' OR 'username'+'password', not both"
     throw "Authentication validation failed"
 }
 
@@ -191,11 +191,11 @@ try {
         -ContentType $contentType `
         -Body $tokenBody
 } catch {
-    Write-Host "ERROR: Failed to obtain bearer token" -ForegroundColor Red
+    Write-Host "ERROR: Failed to obtain bearer token"
     if ($APIKEY) {
-        Write-Host "Please verify your API key is correct" -ForegroundColor Red
+        Write-Host "Please verify your API key is correct"
     } else {
-        Write-Host "Please verify your username and password are correct" -ForegroundColor Red
+        Write-Host "Please verify your username and password are correct"
     }
     throw $_
 }
