@@ -69,7 +69,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
         this.asset = asset;
 
         // Resolve the table name from the asset path or interaction properties
-        final String tableName = resolveTableName(asset);
+        final String tableName = RestConnectorUtils.resolveTableName(asset);
         LOGGER.info("Creating source interaction for table: {}", tableName);
 
         // Look up the table definition from the loaded API mapping
@@ -189,47 +189,6 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
     }
 
     /**
-     * Resolves the table name from the asset descriptor.
-     *
-     * <p>The table name is determined by (in order of priority):
-     * <ol>
-     *   <li>The last segment of the asset path (e.g. "/ROCKETS/ROCKETS" → "ROCKETS")</li>
-     *   <li>The asset name</li>
-     *   <li>The asset ID</li>
-     * </ol>
-     *
-     * @param asset
-     *            the asset descriptor
-     * @return the table name
-     */
-    private static String resolveTableName(CustomFlightAssetDescriptor asset)
-    {
-        // Try path first: "/ROCKETS/ROCKETS" → last segment "ROCKETS"
-        final String path = asset.getPath();
-        if (path != null && !path.isEmpty()) {
-            final String[] segments = path.split("/");
-            for (int i = segments.length - 1; i >= 0; i--) {
-                if (!segments[i].isEmpty()) {
-                    return segments[i].toUpperCase(java.util.Locale.ENGLISH);
-                }
-            }
-        }
-
-        // Fall back to asset name
-        if (asset.getName() != null && !asset.getName().isEmpty()) {
-            return asset.getName().toUpperCase(java.util.Locale.ENGLISH);
-        }
-
-        // Fall back to asset ID
-        if (asset.getId() != null && !asset.getId().isEmpty()) {
-            return asset.getId().toUpperCase(java.util.Locale.ENGLISH);
-        }
-
-        throw new IllegalArgumentException("Cannot determine table name from asset: path=" + path
-                + ", name=" + asset.getName() + ", id=" + asset.getId());
-    }
-
-    /**
      * Builds the full URL for the REST API call using connection properties.
      *
      * <p>The URL is constructed from:
@@ -314,6 +273,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
         
         if ("none".equals(authType)) {
             // No authentication required
+            LOGGER.debug("No authentication configured");
             return null;
         }
 
@@ -363,6 +323,9 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
             } else {
                 LOGGER.warn("Username or password not provided in connection properties");
             }
+        }
+        else {
+            LOGGER.warn("Unknown authentication type: {}", authType);
         }
 
         return headers.isEmpty() ? null : headers;

@@ -276,11 +276,17 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
 
         responseStream = response.body();
         totalPagesFetched++;
-        final JsonFactory factory = new JsonFactory();
-        jsonParser = factory.createParser(responseStream);
-
-        // Navigate to the data array
-        navigateToDataArray();
+        
+        // For cursor and next_url pagination, we need to parse the full response to extract metadata
+        if (paginationConfig != null &&
+            ("cursor".equals(paginationConfig.getType()) || "next_url".equals(paginationConfig.getType()))) {
+            parseResponseWithMetadata();
+        } else {
+            final JsonFactory factory = new JsonFactory();
+            jsonParser = factory.createParser(responseStream);
+            // Navigate to the data array
+            navigateToDataArray();
+        }
 
         // Only pre-fetch if not already initialized (single object case)
         if (!initialized) {
@@ -491,59 +497,120 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
             LOGGER.debug("Extracted next page URL from Link header: {}", nextPageUrl);
         }
 
-        // Open new stream and parser
+        // Open new stream
         responseStream = response.body();
-        final JsonFactory factory = new JsonFactory();
-        jsonParser = factory.createParser(responseStream);
-
-        // Navigate to the data array
-        navigateToDataArray();
 
         // Increment page counter
         totalPagesFetched++;
 
-        // Extract pagination metadata from response body if needed
+        // For cursor and next_url pagination, parse the full response to extract metadata
         if ("cursor".equals(type) || "next_url".equals(type)) {
-            extractPaginationMetadata();
+            parseResponseWithMetadata();
+        } else {
+            // For other pagination types, use streaming parser
+            final JsonFactory factory = new JsonFactory();
+            jsonParser = factory.createParser(responseStream);
+            // Navigate to the data array
+            navigateToDataArray();
         }
     }
 
     /**
-     * Extracts pagination metadata (next cursor or next URL) from the JSON response.
-     * This is called after navigating to the data array, so we need to peek ahead
-     * without consuming the data array tokens.
+     * Parses the full JSON response to extract both data and pagination metadata.
+     * Used for cursor and next_url pagination types where metadata is in the response body.
      *
      * @throws IOException if an I/O error occurs
      */
-    private void extractPaginationMetadata() throws IOException
+    private void parseResponseWithMetadata() throws IOException
     {
-        // For cursor and next_url pagination, the metadata is typically in the response
-        // alongside the data array. However, since we've already navigated to the data array,
-        // we can't easily go back to read sibling fields.
-        //
-        // Solution: We'll extract this metadata BEFORE navigating to the data array.
-        // This requires refactoring the initialize() and fetchNextPage() methods.
-        //
-        // For now, we'll implement a simplified version that assumes the metadata
-        // is available in the response headers or will be extracted in the next iteration.
+        // Parse the entire response into a JsonNode to extract metadata
+        final com.fasterxml.jackson.databind.JsonNode rootNode = objectMapper.readTree(responseStream);
         
         final String type = paginationConfig.getType();
         
         if ("cursor".equals(type)) {
+            // Extract next cursor from the response
             final String cursorPath = paginationConfig.getNextCursorPath();
             if (cursorPath != null) {
-                // TODO: Extract cursor from JSON response
-                // This requires parsing the response before navigating to data array
-                LOGGER.debug("Cursor extraction from response body not yet implemented");
+                final com.fasterxml.jackson.databind.JsonNode cursorNode = extractJsonPath(rootNode, cursorPath);
+                if (cursorNode != null && !cursorNode.isNull()) {
+                    nextCursor = cursorNode.asText();
+                    LOGGER.debug("Extracted next cursor: {}", nextCursor);
+                } else {
+                    nextCursor = null;
+                    LOGGER.debug("No next cursor found in response");
+                }
             }
         } else if ("next_url".equals(type)) {
+            // Extract next URL from the response
             final String nextUrlPath = paginationConfig.getNextUrlPath();
             if (nextUrlPath != null) {
-                // TODO: Extract next URL from JSON response
-                // This requires parsing the response before navigating to data array
-                LOGGER.debug("Next URL extraction from response body not yet implemented");
+                final com.fasterxml.jackson.databind.JsonNode urlNode = extractJsonPath(rootNode, nextUrlPath);
+                if (urlNode != null && !urlNode.isNull()) {
+                    nextPageUrl = urlNode.asText();
+                    LOGGER.debug("Extracted next URL: {}", nextPageUrl);
+                } else {
+                    nextPageUrl = null;
+                    LOGGER.debug("No next URL found in response");
+                }
             }
         }
+        
+        // Now extract the data array from the parsed response
+        com.fasterxml.jackson.databind.JsonNode dataNode = rootNode;
+        if (dataPath != null && !dataPath.isEmpty()) {
+            dataNode = extractJsonPath(rootNode, dataPath);
+            if (dataNode == null) {
+                throw new IOException("Data path '" + dataPath + "' not found in JSON response");
+            }
+        }
+        
+        // Convert the data node to a JSON string and create a new parser from it
+        final String dataJson = objectMapper.writeValueAsString(dataNode);
+        final JsonFactory factory = new JsonFactory();
+        jsonParser = factory.createParser(dataJson);
+        
+        // Position parser at the start of the array
+        final JsonToken firstToken = jsonParser.nextToken();
+        if (firstToken == JsonToken.START_ARRAY) {
+            LOGGER.debug("Positioned at data array");
+        } else if (firstToken == JsonToken.START_OBJECT) {
+            // Single object response
+            final Record record = readCurrentObject();
+            nextRecord = record;
+            done = true;
+            initialized = true;
+        } else {
+            throw new IOException("Unexpected JSON token in data: " + firstToken);
+        }
+    }
+    
+    /**
+     * Extracts a value from a JSON node using a dot-separated path.
+     * For example, "pagination.next_cursor" will navigate through the JSON structure.
+     *
+     * @param node the root JSON node
+     * @param path the dot-separated path (e.g., "pagination.next_cursor")
+     * @return the value at the path, or null if not found
+     */
+    private com.fasterxml.jackson.databind.JsonNode extractJsonPath(
+            com.fasterxml.jackson.databind.JsonNode node, String path)
+    {
+        if (path == null || path.isEmpty()) {
+            return node;
+        }
+        
+        com.fasterxml.jackson.databind.JsonNode current = node;
+        final String[] segments = path.split("\\.");
+        
+        for (final String segment : segments) {
+            if (current == null || current.isNull()) {
+                return null;
+            }
+            current = current.get(segment);
+        }
+        
+        return current;
     }
 
     /**
