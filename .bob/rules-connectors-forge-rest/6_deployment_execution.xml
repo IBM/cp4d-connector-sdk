@@ -1192,7 +1192,13 @@
 
         <prerequisites>
           <requirement>OpenShift CLI (oc) must be installed</requirement>
+<<<<<<< HEAD
           <requirement>Deployment properties file must be configured</requirement>
+=======
+          <requirement>User must be logged in to OpenShift cluster</requirement>
+          <requirement>User must have selected a project/namespace</requirement>
+          <requirement>User must have permissions to create resources in the target project</requirement>
+>>>>>>> 97360fc (tell user to login to openshift instead of asing for credentials)
         </prerequisites>
 
         <security_and_privacy_policy>
@@ -1204,6 +1210,7 @@
 
         <actions>
           <action priority="1">
+<<<<<<< HEAD
             <name>Instruct User to Configure Properties File</name>
             <description>
               Before deploying to OpenShift, you need to configure the deployment properties file.
@@ -1234,11 +1241,36 @@
               3. Save the file
               
               Once you've configured the properties file, let me know and I'll proceed with the deployment.
+=======
+            <name>Instruct User to Login to OpenShift</name>
+            <description>
+              Before I can proceed with deployment, you need to log in to OpenShift and select a project.
+              
+              Please open a terminal and run the following commands:
+              
+              1. Login to your OpenShift cluster:
+                 oc login -u <username> -p <password> <cluster-uri>
+                 
+                 Example:
+                 oc login -u developer -p mypassword https://api.cluster.example.com:6443
+              
+              2. Select or create a project/namespace:
+                 oc project <project-name>
+                 
+                 Or create a new project:
+                 oc new-project <project-name>
+                 
+                 Example:
+                 oc project connectorsforge
+              
+              Once you've completed these steps, let me know and I'll proceed with the deployment.
+>>>>>>> 97360fc (tell user to login to openshift instead of asing for credentials)
             </description>
             <wait_for_confirmation>true</wait_for_confirmation>
           </action>
 
           <action priority="2">
+<<<<<<< HEAD
             <name>Execute Deployment Script</name>
             <description>
               Run the OpenShift deployment script based on your operating system.
@@ -1267,6 +1299,98 @@
               4. Deploy the connector using deployment.yaml
               5. Create the service using service.yaml
               6. Verify the deployment status
+=======
+            <name>Verify OpenShift Authentication</name>
+            <command>oc whoami</command>
+            <description>
+              Verify that you are logged in to OpenShift.
+              This command should return your username.
+            </description>
+            <on_success>
+              <message>✓ Authenticated as: {username}</message>
+            </on_success>
+            <on_failure>
+              <message>
+                ✗ Not logged in to OpenShift
+                
+                Please run: oc login -u <username> -p <password> <cluster-uri>
+                Then let me know when you're ready to continue.
+              </message>
+            </on_failure>
+          </action>
+
+          <action priority="3">
+            <name>Verify Project Context</name>
+            <command>oc project</command>
+            <description>
+              Verify which project/namespace is currently selected.
+              This is where the connector will be deployed.
+            </description>
+            <on_success>
+              <message>✓ Current project: {project_name}</message>
+            </on_success>
+            <on_failure>
+              <message>
+                ✗ No project selected
+                
+                Please run: oc project <project-name>
+                Or create a new project: oc new-project <project-name>
+                Then let me know when you're ready to continue.
+              </message>
+            </on_failure>
+          </action>
+
+          <action priority="4">
+            <name>Create ConfigMap from Connector Files</name>
+            <command>oc create configmap connectors-config --from-file=sdk-gen/subprojects/connectors_forge_rest/src/main/resources</command>
+            <description>
+              Create a ConfigMap containing all connector configuration JSON files.
+              This ConfigMap will be mounted into the container at /config/mappings.
+            </description>
+            <note>If configmap already exists, delete it first: oc delete configmap connectors-config</note>
+          </action>
+
+          <action priority="5">
+            <name>Apply Deployment Configuration</name>
+            <command>oc apply -f connectors-forge/codeless/deployment.yaml</command>
+            <description>
+              Deploy the connector container using the deployment configuration.
+              This creates a Deployment resource with the connector image and mounts the ConfigMap.
+            </description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="6">
+            <name>Apply Service Configuration</name>
+            <command>oc apply -f connectors-forge/codeless/service.yaml</command>
+            <description>
+              Create a Service to expose the connector within the cluster.
+              The service exposes port 9443 for gRPC communication.
+            </description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="7">
+            <name>Verify Deployment</name>
+            <command>oc get pods -l app=cf-flight-connector</command>
+            <description>
+              Check that the connector pod is running successfully.
+            </description>
+          </action>
+
+          <action priority="8">
+            <name>Get Service Details</name>
+            <command>oc get service cf-flight-connector-service</command>
+            <description>
+              Display the service details including the ClusterIP and port.
+            </description>
+          </action>
+
+          <action priority="9">
+            <name>Inform User</name>
+            <message>
+              OpenShift deployment complete!
+>>>>>>> 97360fc (tell user to login to openshift instead of asing for credentials)
               
               Wait for the script to complete and report the results.
             </description>
@@ -1274,6 +1398,7 @@
         </actions>
 
         <error_handling>
+<<<<<<< HEAD
           <if_properties_file_missing>
             <action>Properties file not found</action>
             <action>Instruct user to copy template: cp connectors-forge/codeless/deploy-openshift.properties.template connectors-forge/codeless/deploy-openshift.properties</action>
@@ -1291,6 +1416,19 @@
             </action>
             <action>Offer to provide manual deployment instructions</action>
           </if_script_fails>
+=======
+          <if_whoami_fails>
+            <action>User is not logged in to OpenShift</action>
+            <action>Instruct user to run: oc login -u <username> -p <password> <cluster-uri></action>
+            <action>Wait for user confirmation before retrying</action>
+          </if_whoami_fails>
+          
+          <if_project_check_fails>
+            <action>No project is currently selected</action>
+            <action>Instruct user to run: oc project <project-name> or oc new-project <project-name></action>
+            <action>Wait for user confirmation before retrying</action>
+          </if_project_check_fails>
+>>>>>>> 97360fc (tell user to login to openshift instead of asing for credentials)
           
           <if_configmap_creation_fails>
             <action>Check if configmap already exists (delete and recreate)</action>
