@@ -2,6 +2,7 @@ customModes:
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
   - slug: mode-writer
     name: ✍️ Mode Writer
@@ -39,6 +40,9 @@ customModes:
 =======
   - slug: connectors-forge-rest
 >>>>>>> ca1e779 (validation after registry)
+=======
+- slug: connectors-forge-rest
+>>>>>>> 841a804 (remove mode writer)
     name: 🔌 Connectors Forge
     description: Create REST API connector configuration files for CP4D SDK
     roleDefinition: |
