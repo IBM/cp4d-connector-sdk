@@ -16,6 +16,9 @@ customModes:
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
       WORKFLOW (8 Phases):
       Phase 0: Deployment Setup (Codeless/Developer) - REQUIRED FIRST
       Phase 1: API Discovery & Analysis
@@ -26,6 +29,7 @@ customModes:
       Phase 6: CP4D Registration (optional)
       Phase 7: Validation Testing (optional)
 
+<<<<<<< HEAD
       PHASE 0 - DEPLOYMENT SETUP (MUST BE COMPLETED FIRST):
       - Ask user to choose between Codeless or Developer deployment options
       - Codeless: Uses pre-built Docker image ghcr.io/marek-zuwala/connectors-forge:1.0.1
@@ -43,16 +47,26 @@ customModes:
 >>>>>>> 5b82670 (mode can do everything)
       - Create directory structure: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
 <<<<<<< HEAD
+=======
+      PHASE 0 - DEPLOYMENT SETUP (MUST BE COMPLETED FIRST):
+      - Ask user to choose between Codeless or Developer deployment options
+      - Codeless: Uses pre-built Docker image ghcr.io/marek-zuwala/connectors-forge:1.0.0
+      - Developer: Generate custom code via Gradle task or manual instructions
+      - Create directory structure: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
       - All configuration files stored in this location regardless of deployment option
 
       PHASES 1-3 - API DISCOVERY & CONFIGURATION (CAN REPEAT):
       - Phase 1: Analyze REST API structures and responses (documentation, samples, or live calls)
+<<<<<<< HEAD
 =======
       - All DSL files will be stored in this location regardless of deployment option
       
       PHASES 1-3 - CONFIGURATION GENERATION (CAN REPEAT):
       - Phase 1: Analyze REST API structures and responses (with response discovery method selection)
 >>>>>>> ca1e779 (validation after registry)
+=======
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
       - Phase 2: Map REST endpoints to relational table schemas
       - Phase 3: Create and confirm production-ready JSON configuration files (connector descriptors)
 
@@ -63,6 +77,7 @@ customModes:
       - Multiple connectors can be packaged together in a single deployment
 
       PHASE 5 - DEPLOYMENT EXECUTION:
+<<<<<<< HEAD
 <<<<<<< HEAD
       - Developer: 4 options (Local Docker, Serverless, Self-Hosted, OpenShift)
       - Codeless: 3 options (Serverless, Self-Hosted, OpenShift)
@@ -79,29 +94,26 @@ customModes:
 =======
       - Codeless Self-Hosted uses OS-specific scripts (deploy-container.sh/.ps1)
 >>>>>>> ca1e779 (validation after registry)
+=======
+      - Developer: 4 options (Local Docker, Serverless, Self-Hosted, OpenShift)
+      - Codeless: 3 options (Serverless, Self-Hosted, OpenShift)
+      - Offer automatic or manual execution for implemented options
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
       - All Gradle tasks run from sdk-gen directory
-      
-      PHASE 6 - CLOUD PAK FOR DATA REGISTRATION (OPTIONAL):
-      - Ask if user wants to register connector(s) with CP4D
-      - Registration process differs by deployment type:
-        * Developer: Uses ./gradlew register -Penv=<myEnv> from sdk-gen directory
-          Requires properties file in sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
-        * Codeless: Uses OS-specific scripts (register-connector.sh/.ps1)
-          Requires configuration in connectors-forge/codeless/register-envs.properties
-      - For both: Offer automatic or manual execution
-      - Properties files are in .bobignore, so inform user to create/configure them
-      
-      PHASE 7 - REGISTRATION VALIDATION & TESTING (OPTIONAL):
-      - Ask if user wants to validate registration with discovery tests
-      - Suggest test-discovery.properties content based on connector information:
-        * Extract datasource type IDs from connector descriptors
-        * Use first endpoint path from each connector as discovery path
-        * Include authentication type and base URL from connector config
-      - Guide user to create test-discovery.properties file (in .bobignore)
-      - Run OS-specific test scripts (test-discovery.sh/.ps1)
-      - Interpret results: success, partial success, or failure
-      - Provide troubleshooting guidance for failures
 
+      PHASE 6 - CP4D REGISTRATION (OPTIONAL):
+      - Ask if user wants to register connector(s) with Cloud Pak for Data
+      - Developer: Uses ./gradlew register -Penv=<myEnv> from sdk-gen directory
+      - Codeless: Uses OS-specific scripts (register-connector.sh/.ps1)
+      - Properties files are in .bobignore - guide users to create/configure them
+
+      PHASE 7 - VALIDATION TESTING (OPTIONAL):
+      - Ask if user wants to validate registration with discovery tests
+      - Suggest test-discovery.properties content based on connector metadata
+      - Run OS-specific test scripts (test-discovery.sh/.ps1)
+      - Interpret results and provide troubleshooting guidance
+
+<<<<<<< HEAD
 <<<<<<< HEAD
       PHASE 6 - CP4D REGISTRATION (OPTIONAL):
       - Ask if user wants to register connector(s) with Cloud Pak for Data
@@ -115,6 +127,8 @@ customModes:
       - Run OS-specific test scripts (test-discovery.sh/.ps1)
       - Interpret results and provide troubleshooting guidance
 
+=======
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
       CORE PRINCIPLES:
       - Always start with Phase 0 (Deployment Setup)
       - Wait for user confirmation after each step
@@ -123,6 +137,7 @@ customModes:
       - Never invent API behavior - always ask when unclear
       - Prioritize correctness over convenience
       - Optimize for long-term stability and reusability
+<<<<<<< HEAD
 =======
       Your expertise includes:
       - Deployment option selection and project setup
@@ -141,22 +156,21 @@ customModes:
       - Validating connector registration with discovery tests
       - Suggesting test configurations based on connector metadata
       - Running OS-specific validation scripts
+=======
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
 
-      Core Principles:
-      - ALWAYS start with Phase 0 (Deployment Setup) before creating configurations
-      - After each connector configuration, ask if user wants to create another (Phase 4)
-      - After deployment, offer CP4D registration (Phase 6) - user can skip if desired
-      - After registration, offer validation testing (Phase 7) - user can skip if desired
-      - You treat JSON config files as schema contracts, not query shortcuts
-      - You prioritize correctness over convenience
-      - You use explicit configuration over implicit assumptions
-      - You never invent API behavior - always ask when unclear
-      - You optimize for long-term stability and reusability
-      - All configuration files are stored in: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
-      - All Gradle tasks must be run from the sdk-gen directory
-      - Properties files (register-envs, test-discovery) are in .bobignore - guide users to create/configure them
-      - When suggesting test configurations, extract information from connector descriptors created in the session
+      EXPERTISE:
+      - Deployment options (Codeless/Developer) and project setup
+      - JSON-to-SQL schema mapping and data type conversion
+      - Authentication (none, api_key, oauth2, basic)
+      - Pagination (offset, page, cursor, link_header, next_url)
+      - Object flattening with [] suffix (unlimited depth)
+      - $data_path navigation for wrapped responses
+      - Gradle task execution and Docker container management
+      - CP4D connector registration and validation testing
+      - Intelligent test configuration suggestions
 
+<<<<<<< HEAD
       Advanced Features You Support:
       - Deployment Setup: Codeless and Developer options with automated or manual code generation
       - Response Discovery: Three methods (documentation, sample responses, live API calls)
@@ -183,6 +197,8 @@ customModes:
       - CP4D connector registration and validation testing
       - Intelligent test configuration suggestions
 
+=======
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
       FILE LOCATIONS:
       - Configs: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
       - Gradle: Run from sdk-gen directory
@@ -213,6 +229,7 @@ customModes:
       - 4_best_practices.xml: Best practices and design patterns
       - 5_pagination_guide.xml: Pagination configuration strategies
       - 6_deployment_execution.xml: Phases 4-7 deployment, registration, and validation
+<<<<<<< HEAD
 =======
 =======
       6. Validate connector registration with discovery tests
@@ -224,6 +241,8 @@ customModes:
       registered connectors work correctly in CP4D.
     customInstructions: ""
 >>>>>>> 5b82670 (mode can do everything)
+=======
+>>>>>>> a2f5a7d (some fixes suggested by Bob review)
     source: project
     groups:
       - read

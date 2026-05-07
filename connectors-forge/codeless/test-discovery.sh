@@ -163,9 +163,6 @@ TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
 if [ "$HTTP_CODE" != "200" ]; then
     echo -e "${RED}ERROR: Failed to obtain bearer token (HTTP $HTTP_CODE)${NC}"
     echo ""
-    echo "Response:"
-    echo "$TOKEN_BODY"
-    echo ""
     if [ -n "$APIKEY" ]; then
         echo -e "${RED}Please verify your API key is correct${NC}"
     else
@@ -182,9 +179,7 @@ fi
 
 if [ -z "$CPD_TOKEN" ] || [ "$CPD_TOKEN" = "null" ]; then
     echo -e "${RED}ERROR: Failed to extract access token from response${NC}"
-    echo ""
-    echo "Response:"
-    echo "$TOKEN_BODY"
+    echo -e "${RED}The authentication response did not contain a valid token${NC}"
     exit 1
 fi
 
@@ -229,7 +224,7 @@ for i in "${!DATASOURCE_TYPES[@]}"; do
     CLEAN_PROPERTIES=$(echo "$CONN_PROPERTIES" | tr -d '\n\r' | jq -c '.' 2>/dev/null)
     if [ $? -ne 0 ] || [ -z "$CLEAN_PROPERTIES" ]; then
         echo -e "${RED}ERROR: Invalid JSON in CONNECTION_PROPERTIES for $DATASOURCE_TYPE${NC}"
-        echo "Raw properties: [$CONN_PROPERTIES]"
+        echo -e "${RED}Please verify the JSON syntax in your properties file${NC}"
         FAILURE_COUNT=$((FAILURE_COUNT + 1))
         RESULTS+=("FAILED|$DATASOURCE_TYPE|$DISCOVERY_PATH|Invalid JSON in connection properties")
         continue
