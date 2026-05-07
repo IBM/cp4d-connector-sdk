@@ -229,9 +229,6 @@ TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
 if [ "$HTTP_CODE" != "200" ]; then
     log_error "Failed to obtain bearer token (HTTP $HTTP_CODE)"
     echo ""
-    echo "Response:"
-    echo "$TOKEN_BODY"
-    echo ""
     if [ -n "$APIKEY" ]; then
         log_error "Please verify your API key is correct in $PROPERTIES_FILE"
     else
@@ -248,9 +245,7 @@ fi
 
 if [ -z "$BEARER_TOKEN" ] || [ "$BEARER_TOKEN" = "null" ]; then
     log_error "Failed to extract access token from response"
-    echo ""
-    echo "Response:"
-    echo "$TOKEN_BODY"
+    log_error "The authentication response did not contain a valid token"
     exit 1
 fi
 
