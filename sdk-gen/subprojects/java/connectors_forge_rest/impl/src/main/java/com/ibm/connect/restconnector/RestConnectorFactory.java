@@ -92,10 +92,13 @@ public class RestConnectorFactory extends PooledConnectorFactory
             } catch (java.io.IOException e) {
                 LOGGER.error("I/O error loading configuration from file '{}': {}", configFile.getName(), e.getMessage(), e);
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
                 LOGGER.error("Invalid JSON in configuration file '{}': {}", configFile.getName(), e.getMessage(), e);
 >>>>>>> 472b14a (some fixes suggested by Bob review)
+=======
+>>>>>>> 9ff90e5 (fix)
             } catch (IllegalArgumentException e) {
                 LOGGER.error("Invalid configuration in file '{}': {}", configFile.getName(), e.getMessage(), e);
             } catch (RuntimeException e) {
