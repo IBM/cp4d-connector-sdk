@@ -1,0 +1,311 @@
+<database_information>
+  <overview>
+    This file contains database-specific information for common databases to help
+    you quickly create JDBC connectors. Use this as a reference when gathering
+    information for DSL configuration.
+  </overview>
+
+  <common_databases>
+    <database name="db2">
+      <display_name>IBM Db2</display_name>
+      <driver_class>com.ibm.db2.jcc.DB2Driver</driver_class>
+      <jdbc_url_template>jdbc:db2://{host}:{port}/{database}</jdbc_url_template>
+      <default_port>50000</default_port>
+      <maven_dependency>com.ibm.db2:jcc:11.5.8.0</maven_dependency>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <identifier_quote_char>"</identifier_quote_char>
+      <system_schemas>
+        <schema>SYSCAT</schema>
+        <schema>SYSIBM</schema>
+        <schema>SYSSTAT</schema>
+        <schema>SYSTOOLS</schema>
+      </system_schemas>
+    </database>
+
+    <database name="mysql">
+      <display_name>MySQL</display_name>
+      <driver_class>com.mysql.cj.jdbc.Driver</driver_class>
+      <jdbc_url_template>jdbc:mysql://{host}:{port}/{database}</jdbc_url_template>
+      <default_port>3306</default_port>
+      <maven_dependency>com.mysql:mysql-connector-j:8.0.33</maven_dependency>
+      <supports_schemas>false</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <identifier_quote_char>`</identifier_quote_char>
+      <system_schemas>
+        <schema>information_schema</schema>
+        <schema>mysql</schema>
+        <schema>performance_schema</schema>
+        <schema>sys</schema>
+      </system_schemas>
+      <additional_url_params>useSSL=false&serverTimezone=UTC</additional_url_params>
+    </database>
+
+    <database name="postgresql">
+      <display_name>PostgreSQL</display_name>
+      <driver_class>org.postgresql.Driver</driver_class>
+      <jdbc_url_template>jdbc:postgresql://{host}:{port}/{database}</jdbc_url_template>
+      <default_port>5432</default_port>
+      <maven_dependency>org.postgresql:postgresql:42.6.0</maven_dependency>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <identifier_quote_char>"</identifier_quote_char>
+      <default_schema>public</default_schema>
+      <system_schemas>
+        <schema>information_schema</schema>
+        <schema>pg_catalog</schema>
+        <schema>pg_toast</schema>
+      </system_schemas>
+    </database>
+
+    <database name="oracle">
+      <display_name>Oracle Database</display_name>
+      <driver_class>oracle.jdbc.OracleDriver</driver_class>
+      <jdbc_url_template>jdbc:oracle:thin:@{host}:{port}:{database}</jdbc_url_template>
+      <alternate_url_template>jdbc:oracle:thin:@{host}:{port}/{database}</alternate_url_template>
+      <default_port>1521</default_port>
+      <maven_dependency>com.oracle.database.jdbc:ojdbc8:21.9.0.0</maven_dependency>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <identifier_quote_char>"</identifier_quote_char>
+      <system_schemas>
+        <schema>SYS</schema>
+        <schema>SYSTEM</schema>
+        <schema>CTXSYS</schema>
+        <schema>MDSYS</schema>
+        <schema>OLAPSYS</schema>
+        <schema>WMSYS</schema>
+        <schema>XDB</schema>
+      </system_schemas>
+      <notes>
+        Oracle uses SID or Service Name. The template shows SID format with colon.
+        For Service Name, use forward slash instead.
+      </notes>
+    </database>
+
+    <database name="sqlserver">
+      <display_name>Microsoft SQL Server</display_name>
+      <driver_class>com.microsoft.sqlserver.jdbc.SQLServerDriver</driver_class>
+      <jdbc_url_template>jdbc:sqlserver://{host}:{port};databaseName={database}</jdbc_url_template>
+      <default_port>1433</default_port>
+      <maven_dependency>com.microsoft.sqlserver:mssql-jdbc:12.2.0.jre11</maven_dependency>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <identifier_quote_char>"</identifier_quote_char>
+      <default_schema>dbo</default_schema>
+      <system_schemas>
+        <schema>sys</schema>
+        <schema>INFORMATION_SCHEMA</schema>
+      </system_schemas>
+    </database>
+
+    <database name="mariadb">
+      <display_name>MariaDB</display_name>
+      <driver_class>org.mariadb.jdbc.Driver</driver_class>
+      <jdbc_url_template>jdbc:mariadb://{host}:{port}/{database}</jdbc_url_template>
+      <default_port>3306</default_port>
+      <maven_dependency>org.mariadb.jdbc:mariadb-java-client:3.1.4</maven_dependency>
+      <supports_schemas>false</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <identifier_quote_char>`</identifier_quote_char>
+      <system_schemas>
+        <schema>information_schema</schema>
+        <schema>mysql</schema>
+        <schema>performance_schema</schema>
+      </system_schemas>
+    </database>
+
+    <database name="snowflake">
+      <display_name>Snowflake</display_name>
+      <driver_class>net.snowflake.client.jdbc.SnowflakeDriver</driver_class>
+      <jdbc_url_template>jdbc:snowflake://{account}.snowflakecomputing.com/?db={database}&warehouse={warehouse}</jdbc_url_template>
+      <default_port>443</default_port>
+      <maven_dependency>net.snowflake:snowflake-jdbc:3.13.30</maven_dependency>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <identifier_quote_char>"</identifier_quote_char>
+      <additional_properties>
+        <property name="account" required="true">Snowflake account identifier</property>
+        <property name="warehouse" required="true">Snowflake warehouse name</property>
+      </additional_properties>
+    </database>
+
+    <database name="redshift">
+      <display_name>Amazon Redshift</display_name>
+      <driver_class>com.amazon.redshift.jdbc.Driver</driver_class>
+      <jdbc_url_template>jdbc:redshift://{host}:{port}/{database}</jdbc_url_template>
+      <default_port>5439</default_port>
+      <maven_dependency>com.amazon.redshift:redshift-jdbc42:2.1.0.9</maven_dependency>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <identifier_quote_char>"</identifier_quote_char>
+      <default_schema>public</default_schema>
+      <system_schemas>
+        <schema>information_schema</schema>
+        <schema>pg_catalog</schema>
+      </system_schemas>
+    </database>
+
+    <database name="teradata">
+      <display_name>Teradata</display_name>
+      <driver_class>com.teradata.jdbc.TeraDriver</driver_class>
+      <jdbc_url_template>jdbc:teradata://{host}/DATABASE={database}</jdbc_url_template>
+      <default_port>1025</default_port>
+      <maven_dependency>com.teradata.jdbc:terajdbc4:17.20.00.15</maven_dependency>
+      <supports_schemas>false</supports_schemas>
+      <supports_catalogs>true</supports_catalogs>
+      <identifier_quote_char>"</identifier_quote_char>
+      <system_schemas>
+        <schema>DBC</schema>
+        <schema>SYSLIB</schema>
+        <schema>SYSUDTLIB</schema>
+      </system_schemas>
+    </database>
+
+    <database name="hive">
+      <display_name>Apache Hive</display_name>
+      <driver_class>org.apache.hive.jdbc.HiveDriver</driver_class>
+      <jdbc_url_template>jdbc:hive2://{host}:{port}/{database}</jdbc_url_template>
+      <default_port>10000</default_port>
+      <maven_dependency>org.apache.hive:hive-jdbc:3.1.3</maven_dependency>
+      <supports_schemas>true</supports_schemas>
+      <supports_catalogs>false</supports_catalogs>
+      <identifier_quote_char>`</identifier_quote_char>
+      <default_schema>default</default_schema>
+    </database>
+  </common_databases>
+
+  <finding_driver_information>
+    <method name="maven_central">
+      <description>Search Maven Central Repository</description>
+      <url>https://search.maven.org/</url>
+      <steps>
+        <step>Go to Maven Central search</step>
+        <step>Search for database name + "jdbc" (e.g., "mysql jdbc")</step>
+        <step>Look for official driver artifacts</step>
+        <step>Copy the Maven coordinates (group:artifact:version)</step>
+      </steps>
+    </method>
+
+    <method name="database_documentation">
+      <description>Consult official database documentation</description>
+      <steps>
+        <step>Visit the database vendor's official website</step>
+        <step>Look for JDBC driver download or documentation section</step>
+        <step>Find the driver class name and connection URL format</step>
+        <step>Check for Maven/Gradle dependency information</step>
+      </steps>
+    </method>
+
+    <method name="existing_connectors">
+      <description>Reference existing connector implementations</description>
+      <location>sdk-gen/subprojects/jdbc_*/</location>
+      <steps>
+        <step>Look at similar database connectors</step>
+        <step>Check their DSL files for driver information</step>
+        <step>Review build.gradle for dependency declarations</step>
+      </steps>
+    </method>
+  </finding_driver_information>
+
+  <jdbc_url_patterns>
+    <pattern type="standard">
+      <format>jdbc:{vendor}://{host}:{port}/{database}</format>
+      <used_by>MySQL, PostgreSQL, MariaDB, Db2</used_by>
+    </pattern>
+
+    <pattern type="oracle_sid">
+      <format>jdbc:oracle:thin:@{host}:{port}:{sid}</format>
+      <used_by>Oracle (SID format)</used_by>
+    </pattern>
+
+    <pattern type="oracle_service">
+      <format>jdbc:oracle:thin:@{host}:{port}/{service_name}</format>
+      <used_by>Oracle (Service Name format)</used_by>
+    </pattern>
+
+    <pattern type="sqlserver">
+      <format>jdbc:sqlserver://{host}:{port};databaseName={database}</format>
+      <used_by>Microsoft SQL Server</used_by>
+    </pattern>
+
+    <pattern type="with_params">
+      <format>jdbc:{vendor}://{host}:{port}/{database}?param1=value1&param2=value2</format>
+      <used_by>Databases requiring additional URL parameters</used_by>
+    </pattern>
+  </jdbc_url_patterns>
+
+  <common_connection_properties>
+    <property name="host">
+      <type>string</type>
+      <required>true</required>
+      <description>Database server hostname or IP address</description>
+      <default>localhost</default>
+    </property>
+
+    <property name="port">
+      <type>integer</type>
+      <required>true</required>
+      <description>Database server port number</description>
+      <validation>Must be between 1 and 65535</validation>
+    </property>
+
+    <property name="database">
+      <type>string</type>
+      <required>true</required>
+      <description>Database name or SID</description>
+      <alternate_names>
+        <name>catalog</name>
+        <name>sid</name>
+        <name>service_name</name>
+      </alternate_names>
+    </property>
+
+    <property name="username">
+      <type>string</type>
+      <required>true</required>
+      <description>Database username for authentication</description>
+    </property>
+
+    <property name="password">
+      <type>string</type>
+      <required>true</required>
+      <description>Database password for authentication</description>
+      <masked>true</masked>
+    </property>
+
+    <property name="ssl">
+      <type>boolean</type>
+      <required>false</required>
+      <description>Enable SSL/TLS encrypted connection</description>
+      <default>false</default>
+    </property>
+
+    <property name="connection_timeout">
+      <type>integer</type>
+      <required>false</required>
+      <description>Connection timeout in seconds</description>
+      <default>30</default>
+    </property>
+  </common_connection_properties>
+
+  <usage_guidelines>
+    <guideline>
+      When user provides a database name, first check if it's in the common_databases list
+    </guideline>
+    <guideline>
+      If found, use the predefined information to populate the DSL file
+    </guideline>
+    <guideline>
+      If not found, ask user for the required driver information
+    </guideline>
+    <guideline>
+      Always verify the Maven dependency is accessible before proceeding
+    </guideline>
+    <guideline>
+      For enterprise databases, user may need to provide their own driver JAR
+    </guideline>
+  </usage_guidelines>
+</database_information>
+
+<!-- Made with Bob -->
