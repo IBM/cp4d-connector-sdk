@@ -36,7 +36,7 @@ function Write-Log {
 
 function Write-LogError {
     param([string]$Message)
-    Write-Host "ERROR: $Message" -ForegroundColor Red
+    Write-Host "ERROR: $Message"
 }
 
 function Write-LogStep {
