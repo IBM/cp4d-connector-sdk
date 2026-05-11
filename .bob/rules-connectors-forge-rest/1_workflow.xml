@@ -74,10 +74,6 @@
       <optional>true</optional>
       <note>User can choose to skip registration and do it later</note>
     </phase>
-<<<<<<< HEAD:.bob/rules-connectors-forge-rest/1_workflow.xml
-<<<<<<< HEAD:.bob/rules-connectors-forge-rest/1_workflow.xml
-=======
->>>>>>> ca1e779 (validation after registry):.bob/rules-rest-api-schema-mapper/1_workflow.xml
     
     <phase number="7">
       <name>Registration Validation & Testing</name>
@@ -90,11 +86,6 @@
       <optional>true</optional>
       <note>Only available after Phase 6 registration is completed</note>
     </phase>
-<<<<<<< HEAD:.bob/rules-connectors-forge-rest/1_workflow.xml
-=======
->>>>>>> 5b82670 (mode can do everything):.bob/rules-rest-api-schema-mapper/1_workflow.xml
-=======
->>>>>>> ca1e779 (validation after registry):.bob/rules-rest-api-schema-mapper/1_workflow.xml
   </workflow_phases>
 
   <phase_1_discovery>
