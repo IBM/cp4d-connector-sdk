@@ -1,21 +1,4 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
 !sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
 connectors-forge/codeless/*.properties
-<<<<<<< HEAD
 connectors-forge/scripts/*.properties
-=======
-sdk-gen\subprojects\flight\src\dist\resources\payload\envs/
-!sdk-gen\subprojects\flight\src\dist\resources\payload\envs\template.properties
-connectors-forge\codeless\*.properties
-=======
-sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
-!sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
-connectors-forge/codeless/*.properties
->>>>>>> a2f5a7d (some fixes suggested by Bob review)
-
->>>>>>> 1bb7de1 (bobignore)
-=======
-connectors-forge/scripts/*.properties
->>>>>>> 50f169c (move files)
