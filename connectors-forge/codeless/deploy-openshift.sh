@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROPERTIES_FILE="${SCRIPT_DIR}/deploy-openshift.properties"
 
 # Hardcoded configuration
-DOCKER_IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.1"
+DOCKER_IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.2"
 CONFIG_FILES_PATH="sdk-gen/subprojects/connectors_forge_rest/src/main/resources"
 DEPLOYMENT_YAML="${SCRIPT_DIR}/deployment.yaml"
 SERVICE_YAML="${SCRIPT_DIR}/service.yaml"
