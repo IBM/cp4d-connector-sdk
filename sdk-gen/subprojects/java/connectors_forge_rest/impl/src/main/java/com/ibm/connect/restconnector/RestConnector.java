@@ -172,10 +172,10 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
             }
         }
         else {
-            LOGGER.warn("Unsupported discovery path: {}", path);
+            LOGGER.warn("Unsupported discovery path supplied for discovery");
         }
 
-        LOGGER.info("Discovered {} assets for path '{}'", assets.size(), path);
+        LOGGER.info("Discovered {} assets", assets.size());
         return assets;
     }
 

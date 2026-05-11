@@ -170,7 +170,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
                 initialize();
             }
             catch (Exception e) {
-                LOGGER.error("Failed to initialize HTTP stream for URL: {}", baseUrl, e);
+                LOGGER.error("Failed to initialize HTTP stream", e);
                 done = true;
                 return false;
             }
@@ -239,7 +239,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         // Build the initial URL with pagination parameters if configured
         final String currentUrl = buildCurrentPageUrl();
         
-        LOGGER.info("Opening HTTP stream for URL: {}", currentUrl);
+        LOGGER.info("Opening HTTP stream");
         httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
                 .build();
@@ -263,7 +263,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final HttpResponse<InputStream> response = httpClient.send(request, BodyHandlers.ofInputStream());
 
         if (response.statusCode() != HTTP_OK) {
-            throw new IOException("HTTP request failed with status " + response.statusCode() + " for URL: " + currentUrl);
+            throw new IOException("HTTP request failed with status " + response.statusCode());
         }
 
         // Store response headers for Link header pagination
@@ -309,7 +309,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         
         // If dataPath is specified, navigate to the nested array
         if (dataPath != null && !dataPath.isEmpty()) {
-            LOGGER.debug("Navigating to nested data path: {}", dataPath);
+            LOGGER.debug("Navigating to configured nested data path");
             if (firstToken != JsonToken.START_OBJECT) {
                 throw new IOException("Expected START_OBJECT at root when dataPath is specified, but got: " + firstToken);
             }
@@ -323,7 +323,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
                     // Move to the value of this field
                     firstToken = jsonParser.nextToken();
                     found = true;
-                    LOGGER.debug("Found data path '{}', token type: {}", dataPath, firstToken);
+                    LOGGER.debug("Found configured data path, token type: {}", firstToken);
                     break;
                 }
                 // Skip this field's value
@@ -350,7 +350,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
             done = true; // Only one record
             initialized = true;
         } else {
-            throw new IOException("Unexpected JSON token at start of response: " + firstToken + " for URL: " + baseUrl);
+            throw new IOException("Unexpected JSON token at start of response: " + firstToken);
         }
     }
 
@@ -464,7 +464,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
 
         // Build URL for next page
         final String nextUrl = buildCurrentPageUrl();
-        LOGGER.debug("Fetching next page from URL: {}", nextUrl);
+        LOGGER.debug("Fetching next page");
 
         // Make HTTP request
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
@@ -494,7 +494,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         // Extract next page URL from Link header if using link_header pagination
         if ("link_header".equals(type)) {
             nextPageUrl = extractLinkHeader(lastResponseHeaders);
-            LOGGER.debug("Extracted next page URL from Link header: {}", nextPageUrl);
+            LOGGER.debug("Extracted next page URL from Link header");
         }
 
         // Open new stream
@@ -535,7 +535,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
                 final com.fasterxml.jackson.databind.JsonNode cursorNode = extractJsonPath(rootNode, cursorPath);
                 if (cursorNode != null && !cursorNode.isNull()) {
                     nextCursor = cursorNode.asText();
-                    LOGGER.debug("Extracted next cursor: {}", nextCursor);
+                    LOGGER.debug("Extracted next cursor");
                 } else {
                     nextCursor = null;
                     LOGGER.debug("No next cursor found in response");
@@ -548,7 +548,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
                 final com.fasterxml.jackson.databind.JsonNode urlNode = extractJsonPath(rootNode, nextUrlPath);
                 if (urlNode != null && !urlNode.isNull()) {
                     nextPageUrl = urlNode.asText();
-                    LOGGER.debug("Extracted next URL: {}", nextPageUrl);
+                    LOGGER.debug("Extracted next URL");
                 } else {
                     nextPageUrl = null;
                     LOGGER.debug("No next URL found in response");
