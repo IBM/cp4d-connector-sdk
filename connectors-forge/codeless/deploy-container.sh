@@ -1,20 +1,8 @@
 #!/bin/bash
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 # Container Deployment Script (SSH-based)
 # Deploys a container to a remote Docker server via SSH
 # with configuration file upload using tar streaming
-=======
-# Container Deployment Script
-# Deploys a container to a remote Docker server via REST API
-# with configuration file upload
->>>>>>> 7a359b9 (add container deployment script)
-=======
-# Container Deployment Script (SSH-based)
-# Deploys a container to a remote Docker server via SSH
-# with configuration file upload using tar streaming
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 
 set -e  # Exit on error
 
@@ -23,44 +11,16 @@ set -e  # Exit on error
 # ============================================
 
 SCRIPT_NAME=$(basename "$0")
-<<<<<<< HEAD
-<<<<<<< HEAD
 SSH_HOST=""
 SSH_USER=""
 SSH_PORT="22"
 CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 9083115 (update image tag)
-IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.1"
+IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.2"
 CONTAINER_ID=""
 CONTAINER_NAME=""
 TEMP_DIR=""
-=======
-DOCKER_HOST=""
-=======
-SSH_HOST=""
-SSH_USER=""
-SSH_PORT="22"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
-CONFIG_FILES=()
-PORT=""
-REPLACE_MODE=false
-IMAGE="docker.io/marek02/connectors-forge:latest"
-=======
-IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.0"
->>>>>>> dacf80e (custom mode can able to deploy on openshift)
-CONTAINER_ID=""
-CONTAINER_NAME=""
-TEMP_DIR=""
-<<<<<<< HEAD
-TEMP_ARCHIVE=""
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 
 # ============================================
 # Helper Functions
@@ -79,42 +39,12 @@ log_step() {
     echo "[$1] $2"
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 # Execute command via SSH
 ssh_exec() {
     local command="$1"
     ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no \
         -o ConnectTimeout=10 -o BatchMode=yes \
         "${SSH_USER}@${SSH_HOST}" "$command" 2>&1
-<<<<<<< HEAD
-=======
-json_value() {
-    local json="$1"
-    local key="$2"
-    echo "$json" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed 's/.*"\([^"]*\)"$/\1/' | head -1
-}
-
-url_encode() {
-    local string="$1"
-    local strlen=${#string}
-    local encoded=""
-    local pos c o
-    
-    for (( pos=0 ; pos<strlen ; pos++ )); do
-        c=${string:$pos:1}
-        case "$c" in
-            [-_.~a-zA-Z0-9] ) o="${c}" ;;
-            * ) printf -v o '%%%02x' "'$c"
-        esac
-        encoded+="${o}"
-    done
-    echo "${encoded}"
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 }
 
 # ============================================
@@ -125,32 +55,15 @@ usage() {
     cat << EOF
 Usage: $SCRIPT_NAME --host HOST --files FILE1 [FILE2 ...] --port PORT [OPTIONS]
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 Deploy a container to a remote Docker server via SSH.
 
 Required Arguments:
   --host HOST          Remote server hostname or IP (e.g., remote-server.com)
   --ssh-user USER      SSH username (e.g., ubuntu)
-=======
-Deploy a container to a remote Docker server via REST API.
-
-Required Arguments:
-  --host HOST          Remote Docker server address (e.g., remote-server.com:2375)
->>>>>>> 7a359b9 (add container deployment script)
-=======
-Deploy a container to a remote Docker server via SSH.
-
-Required Arguments:
-  --host HOST          Remote server hostname or IP (e.g., remote-server.com)
-  --ssh-user USER      SSH username (e.g., ubuntu)
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
   --files FILE1 ...    Space-separated list of files to upload (e.g., api1.json api2.json)
   --port PORT          Port to expose (e.g., 9090)
 
 Optional Arguments:
-<<<<<<< HEAD
-<<<<<<< HEAD
   --ssh-port PORT      SSH port (default: 22)
   --replace            Stop and remove existing container with same name or using the same port
   -h, --help           Show this help message
@@ -171,62 +84,16 @@ Examples:
   # Replace existing container
   $SCRIPT_NAME --host remote.example.com --ssh-user ubuntu \\
     --files my-api.json --port 9090 --replace
-=======
-=======
-  --ssh-port PORT      SSH port (default: 22)
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
-  --replace            Stop and remove existing container with same name or using the same port
-  -h, --help           Show this help message
-
-Note:
-  SSH authentication uses your default SSH keys (~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.)
-  or keys loaded in ssh-agent. Ensure your SSH keys are properly configured before running.
-
-Examples:
-  # Basic deployment
-  $SCRIPT_NAME --host remote.example.com --ssh-user ubuntu \\
-    --files ./config-files/my-api.json --port 9090
-
-  # Multiple files
-  $SCRIPT_NAME --host 192.168.1.100 --ssh-user docker \\
-    --files api1.json api2.json --port 9090
-
-<<<<<<< HEAD
-  # Replace existing container (by name or port conflict)
-  $SCRIPT_NAME --host remote.example.com:2375 --files my-api.json --port 9090 --replace
->>>>>>> 7a359b9 (add container deployment script)
-=======
-  # Replace existing container
-  $SCRIPT_NAME --host remote.example.com --ssh-user ubuntu \\
-    --files my-api.json --port 9090 --replace
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 
 EOF
     exit 1
 }
 
 # ============================================
-<<<<<<< HEAD
-<<<<<<< HEAD
 # Error Handler
 # ============================================
 
 cleanup() {
-=======
-# Cleanup Function
-# ============================================
-
-cleanup() {
-    if [ -n "$TEMP_ARCHIVE" ] && [ -f "$TEMP_ARCHIVE" ]; then
-        rm -f "$TEMP_ARCHIVE"
-    fi
->>>>>>> 7a359b9 (add container deployment script)
-=======
-# Error Handler
-# ============================================
-
-cleanup() {
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
         rm -rf "$TEMP_DIR"
     fi
@@ -234,16 +101,6 @@ cleanup() {
 
 trap cleanup EXIT
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-# ============================================
-# Error Handler
-# ============================================
-
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 error_exit() {
     local message="$1"
     log_error "$message"
@@ -251,15 +108,7 @@ error_exit() {
     # If container was created but deployment failed, try to remove it
     if [ -n "$CONTAINER_ID" ]; then
         log "Cleaning up failed deployment..."
-<<<<<<< HEAD
-<<<<<<< HEAD
         ssh_exec "docker rm -f $CONTAINER_ID" 2>/dev/null || true
-=======
-        remove_container "$CONTAINER_ID" 2>/dev/null || true
->>>>>>> 7a359b9 (add container deployment script)
-=======
-        ssh_exec "docker rm -f $CONTAINER_ID" 2>/dev/null || true
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     fi
     
     exit 1
@@ -277,10 +126,6 @@ parse_arguments() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --host)
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
                 SSH_HOST="$2"
                 shift 2
                 ;;
@@ -290,12 +135,6 @@ parse_arguments() {
                 ;;
             --ssh-port)
                 SSH_PORT="$2"
-<<<<<<< HEAD
-=======
-                DOCKER_HOST="$2"
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
                 shift 2
                 ;;
             --files)
@@ -305,20 +144,11 @@ parse_arguments() {
                     CONFIG_FILES+=("$1")
                     shift
                 done
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 754d02d (registering a connector and windows scripts)
                 # Validate that at least one file was collected
                 if [ ${#CONFIG_FILES[@]} -eq 0 ]; then
                     log_error "No files provided after --files argument"
                     usage
                 fi
-<<<<<<< HEAD
-=======
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 754d02d (registering a connector and windows scripts)
                 ;;
             --port)
                 PORT="$2"
@@ -339,33 +169,16 @@ parse_arguments() {
     done
 
     # Validate required arguments
-<<<<<<< HEAD
-<<<<<<< HEAD
     if [ -z "$SSH_HOST" ]; then
-=======
-    if [ -z "$DOCKER_HOST" ]; then
->>>>>>> 7a359b9 (add container deployment script)
-=======
-    if [ -z "$SSH_HOST" ]; then
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
         log_error "Missing required argument: --host"
         usage
     fi
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     if [ -z "$SSH_USER" ]; then
         log_error "Missing required argument: --ssh-user"
         usage
     fi
 
-<<<<<<< HEAD
-=======
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     if [ ${#CONFIG_FILES[@]} -eq 0 ]; then
         log_error "Missing required argument: --files"
         usage
@@ -391,31 +204,13 @@ validate_inputs() {
     fi
     log "SSH connection and Docker verified"
 
-<<<<<<< HEAD
-    # Test SSH connectivity and Docker availability in one go
-    log "Testing SSH connectivity and Docker availability..."
-    if ! ssh_exec "docker version" >/dev/null 2>&1; then
-        error_exit "Cannot connect via SSH or Docker not available on ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
-    fi
-    log "SSH connection and Docker verified"
-
-=======
->>>>>>> 7a359b9 (add container deployment script)
     # Check if all config files exist
     local file_count=0
     for file in "${CONFIG_FILES[@]}"; do
         if [ ! -f "$file" ]; then
             error_exit "File not found: $file"
         fi
-<<<<<<< HEAD
-<<<<<<< HEAD
         file_count=$((file_count + 1))
-=======
-        ((file_count++))
->>>>>>> 7a359b9 (add container deployment script)
-=======
-        file_count=$((file_count + 1))
->>>>>>> b3bcb1a (fix for some bash versions)
     done
     log "All $file_count file(s) exist"
 
@@ -426,32 +221,10 @@ validate_inputs() {
     log "Port number valid"
 
     # Generate timestamp-based container name
-<<<<<<< HEAD
-<<<<<<< HEAD
     local timestamp
     timestamp=$(date +%Y%m%d-%H%M%S)
     CONTAINER_NAME="connector-${timestamp}"
     log "Container name: $CONTAINER_NAME"
-<<<<<<< HEAD
-=======
-    local timestamp=$(date +%Y%m%d-%H%M%S)
-=======
-    local timestamp
-    timestamp=$(date +%Y%m%d-%H%M%S)
->>>>>>> b3bcb1a (fix for some bash versions)
-    CONTAINER_NAME="connector-${timestamp}"
-    log "Container name: $CONTAINER_NAME"
-
-    # Test Docker API connectivity
-    local response
-    response=$(curl -s -o /dev/null -w "%{http_code}" "http://${DOCKER_HOST}/version" 2>/dev/null || echo "000")
-    if [ "$response" != "200" ]; then
-        error_exit "Cannot connect to Docker API at http://${DOCKER_HOST} (HTTP $response)"
-    fi
-    log "Docker API accessible"
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 }
 
 # ============================================
@@ -460,27 +233,11 @@ validate_inputs() {
 
 check_container_exists() {
     local name="$1"
-<<<<<<< HEAD
-<<<<<<< HEAD
     ssh_exec "docker ps -aq --filter 'name=^${name}$'" | head -1
-=======
-    local filters="{\"name\":[\"^/${name}$\"]}"
-    local encoded_filters=$(url_encode "$filters")
-    
-    local response=$(curl -s "http://${DOCKER_HOST}/containers/json?all=true&filters=${encoded_filters}")
-    local container_id=$(json_value "$response" "Id")
-    
-    echo "$container_id"
->>>>>>> 7a359b9 (add container deployment script)
-=======
-    ssh_exec "docker ps -aq --filter 'name=^${name}$'" | head -1
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 }
 
 find_container_by_port() {
     local port="$1"
-<<<<<<< HEAD
-<<<<<<< HEAD
     ssh_exec "docker ps -a --filter 'publish=${port}' --format '{{.ID}}'" | head -1
 }
 
@@ -498,58 +255,12 @@ stop_and_remove_container() {
         return 0
     else
         log "Failed to remove container"
-=======
-    
-    # Get all containers with port information already included and scan once
-    curl -s "http://${DOCKER_HOST}/containers/json?all=true" | awk -v port="$port" '
-        BEGIN {
-            RS="\\},\\{"
-        }
-        $0 ~ "\"PublicPort\":" port {
-            if (match($0, /"Id":"[^"]*"/)) {
-                print substr($0, RSTART + 6, RLENGTH - 7)
-                exit
-            }
-        }
-    '
-=======
-    ssh_exec "docker ps -a --filter 'publish=${port}' --format '{{.ID}}'" | head -1
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
-}
-
-get_container_name() {
-    local id="$1"
-    ssh_exec "docker inspect $id --format '{{.Name}}'" | sed 's/^\///'
-}
-
-stop_and_remove_container() {
-    local id="$1"
-    log "Stopping and removing container..."
-    
-    if ssh_exec "docker stop $id && docker rm $id" >/dev/null 2>&1; then
-        log "Container removed"
-        return 0
-    else
-<<<<<<< HEAD
-        log "Failed to remove container (HTTP $response)"
->>>>>>> 7a359b9 (add container deployment script)
-=======
-        log "Failed to remove container"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
         return 1
     fi
 }
 
 handle_existing_container() {
-<<<<<<< HEAD
-<<<<<<< HEAD
     log_step "2/7" "Checking for existing containers..."
-=======
-    log_step "2/8" "Checking for existing containers..."
->>>>>>> 7a359b9 (add container deployment script)
-=======
-    log_step "2/7" "Checking for existing containers..."
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     
     # First check by container name
     local existing_id=$(check_container_exists "$CONTAINER_NAME")
@@ -558,16 +269,7 @@ handle_existing_container() {
         log "Container '$CONTAINER_NAME' already exists (ID: ${existing_id:0:12})"
         
         if [ "$REPLACE_MODE" = true ]; then
-<<<<<<< HEAD
-<<<<<<< HEAD
             stop_and_remove_container "$existing_id" || error_exit "Failed to remove existing container"
-=======
-            stop_container "$existing_id" || true
-            remove_container "$existing_id" || error_exit "Failed to remove existing container"
->>>>>>> 7a359b9 (add container deployment script)
-=======
-            stop_and_remove_container "$existing_id" || error_exit "Failed to remove existing container"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
         else
             error_exit "Container already exists. Use --replace to replace it."
         fi
@@ -578,31 +280,13 @@ handle_existing_container() {
         
         if [ -n "$port_conflict_id" ]; then
             # Get container name for logging
-<<<<<<< HEAD
-<<<<<<< HEAD
             local container_name=$(get_container_name "$port_conflict_id")
-=======
-            local container_info=$(curl -s "http://${DOCKER_HOST}/containers/${port_conflict_id}/json")
-            local container_name=$(json_value "$container_info" "Name" | sed 's/^\///')
->>>>>>> 7a359b9 (add container deployment script)
-=======
-            local container_name=$(get_container_name "$port_conflict_id")
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
             
             log "Found container '$container_name' using port $PORT (ID: ${port_conflict_id:0:12})"
             
             if [ "$REPLACE_MODE" = true ]; then
                 log "Replacing container using port $PORT..."
-<<<<<<< HEAD
-<<<<<<< HEAD
                 stop_and_remove_container "$port_conflict_id" || error_exit "Failed to remove container using port $PORT"
-=======
-                stop_container "$port_conflict_id" || true
-                remove_container "$port_conflict_id" || error_exit "Failed to remove container using port $PORT"
->>>>>>> 7a359b9 (add container deployment script)
-=======
-                stop_and_remove_container "$port_conflict_id" || error_exit "Failed to remove container using port $PORT"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
             else
                 error_exit "Port $PORT is already in use by container '$container_name'. Use different port or --replace to replace existing container (WARNING: This will remove the container '$container_name')"
             fi
@@ -613,81 +297,10 @@ handle_existing_container() {
 }
 
 # ============================================
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-# Archive Creation
-# ============================================
-
-create_tar_archive() {
-    log_step "3/8" "Creating tar archive..."
-    
-    # Create temporary directory
-    TEMP_DIR=$(mktemp -d)
-    TEMP_ARCHIVE="${TEMP_DIR}/config.tar.gz"
-    
-    # Create mappings subdirectory in temp directory
-    mkdir -p "$TEMP_DIR/mappings"
-    
-    # Copy all config files to mappings subdirectory
-    # Use COPYFILE_DISABLE to prevent macOS from creating ._* files during copy
-    for file in "${CONFIG_FILES[@]}"; do
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            COPYFILE_DISABLE=1 cp "$file" "$TEMP_DIR/mappings/"
-        else
-            cp "$file" "$TEMP_DIR/mappings/"
-        fi
-    done
-        
-    log "Copying ${#CONFIG_FILES[@]} file(s) to archive in mappings/ directory"
-    
-    # Create tar archive with mappings directory structure
-    # Always exclude macOS extended attributes and resource forks
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        COPYFILE_DISABLE=1 tar --no-xattrs -czf "$TEMP_ARCHIVE" -C "$TEMP_DIR" mappings 2>/dev/null
-    else
-        tar -czf "$TEMP_ARCHIVE" -C "$TEMP_DIR" mappings 2>/dev/null
-    fi
-    
-    if [ ! -f "$TEMP_ARCHIVE" ]; then
-        error_exit "Failed to create tar archive"
-    fi
-    
-    log "Archive created with mappings/ directory structure"
-}
-
-# ============================================
-# Image Pull
-# ============================================
-
-pull_image() {
-    log_step "4/8" "Pulling Docker image..."
-    
-    log "Pulling image: $IMAGE"
-    
-    local response=$(curl -s -X POST \
-        "http://${DOCKER_HOST}/images/create?fromImage=${IMAGE}" \
-        -w "\n%{http_code}")
-    
-    local http_code=$(echo "$response" | tail -1)
-    
-    if [ "$http_code" = "200" ]; then
-        log "Image pulled successfully"
-    else
-        log "Image pull completed (may already exist)"
-    fi
-}
-
-# ============================================
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
 # Container Creation
 # ============================================
 
 create_container() {
-<<<<<<< HEAD
-<<<<<<< HEAD
     log_step "3/7" "Creating container..."
     
     # Create container with port mapping (Docker will pull image if needed)
@@ -696,31 +309,9 @@ create_container() {
     
     # Extract only the container ID (last line of output)
     CONTAINER_ID=$(echo "$create_output" | tail -n 1)
-<<<<<<< HEAD
     
     if [ -z "$CONTAINER_ID" ]; then
         error_exit "Failed to create container"
-=======
-    log_step "5/8" "Creating container..."
-=======
-    log_step "3/7" "Creating container..."
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
-    
-    # Create container with port mapping (Docker will pull image if needed)
-    log "Creating container from image: $IMAGE"
-    CONTAINER_ID=$(ssh_exec "docker create --name $CONTAINER_NAME -p ${PORT}:9443 $IMAGE")
-=======
->>>>>>> 2f155df (fix: container id when running and pulling)
-    
-    if [ -z "$CONTAINER_ID" ]; then
-<<<<<<< HEAD
-        local error_msg=$(json_value "$response" "message")
-        [ -z "$error_msg" ] && error_msg="Unknown error"
-        error_exit "Failed to create container: $error_msg"
->>>>>>> 7a359b9 (add container deployment script)
-=======
-        error_exit "Failed to create container"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     fi
     
     log "Container created: ${CONTAINER_ID:0:12}"
@@ -731,8 +322,6 @@ create_container() {
 # ============================================
 
 upload_config_files() {
-<<<<<<< HEAD
-<<<<<<< HEAD
     log_step "4/7" "Uploading config files..."
     
     # Create temporary directory for staging files
@@ -766,48 +355,6 @@ upload_config_files() {
         log "Files uploaded to /config/mappings/"
     else
         error_exit "Failed to upload files. The /config directory may not exist in the container."
-=======
-    log_step "6/8" "Uploading config files..."
-=======
-    log_step "4/7" "Uploading config files..."
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
-    
-    # Create temporary directory for staging files
-    TEMP_DIR=$(mktemp -d)
-    mkdir -p "$TEMP_DIR/mappings"
-    
-    # Copy all config files to temp mappings directory
-    log "Preparing ${#CONFIG_FILES[@]} file(s) for upload..."
-    for file in "${CONFIG_FILES[@]}"; do
-        cp "$file" "$TEMP_DIR/mappings/"
-    done
-    
-    # Stream tar directly to docker cp via SSH
-    # The tar is created on-the-fly and piped, no archive file is created
-    (
-        cd "$TEMP_DIR" || exit 1
-        
-        # Stream tar without extended attributes (critical for macOS -> Linux)
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            # macOS: Try modern flags first, fallback to COPYFILE_DISABLE for older versions
-            tar --no-mac-metadata --no-xattrs -cf - mappings 2>/dev/null || \
-            COPYFILE_DISABLE=1 tar -cf - mappings
-        else
-            tar -cf - mappings
-        fi
-    ) | ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no \
-        -o ConnectTimeout=10 -o BatchMode=yes \
-        "${SSH_USER}@${SSH_HOST}" "docker cp - ${CONTAINER_ID}:/config"
-    
-    if [ $? -eq 0 ]; then
-        log "Files uploaded to /config/mappings/"
-    else
-<<<<<<< HEAD
-        error_exit "Failed to upload files (HTTP $http_code). The /config directory may not exist in the container."
->>>>>>> 7a359b9 (add container deployment script)
-=======
-        error_exit "Failed to upload files. The /config directory may not exist in the container."
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     fi
 }
 
@@ -816,29 +363,12 @@ upload_config_files() {
 # ============================================
 
 start_container() {
-<<<<<<< HEAD
-<<<<<<< HEAD
     log_step "5/7" "Starting container..."
     
     if ssh_exec "docker start $CONTAINER_ID" >/dev/null 2>&1; then
         log "Container started"
     else
         error_exit "Failed to start container"
-=======
-    log_step "7/8" "Starting container..."
-=======
-    log_step "5/7" "Starting container..."
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
-    
-    if ssh_exec "docker start $CONTAINER_ID" >/dev/null 2>&1; then
-        log "Container started"
-    else
-<<<<<<< HEAD
-        error_exit "Failed to start container (HTTP $http_code)"
->>>>>>> 7a359b9 (add container deployment script)
-=======
-        error_exit "Failed to start container"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     fi
 }
 
@@ -847,8 +377,6 @@ start_container() {
 # ============================================
 
 verify_container_running() {
-<<<<<<< HEAD
-<<<<<<< HEAD
     log_step "6/7" "Verifying container status..."
     
     sleep 2
@@ -859,25 +387,6 @@ verify_container_running() {
         log "Container is running"
     else
         local status=$(ssh_exec "docker inspect $CONTAINER_ID --format '{{.State.Status}}'")
-=======
-    log_step "8/8" "Verifying container status..."
-=======
-    log_step "6/7" "Verifying container status..."
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
-    
-    sleep 2
-    
-    local running=$(ssh_exec "docker inspect $CONTAINER_ID --format '{{.State.Running}}'")
-    
-    if [ "$running" = "true" ]; then
-        log "Container is running"
-    else
-<<<<<<< HEAD
-        local status=$(json_value "$response" "Status")
->>>>>>> 7a359b9 (add container deployment script)
-=======
-        local status=$(ssh_exec "docker inspect $CONTAINER_ID --format '{{.State.Status}}'")
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
         [ -z "$status" ] && status="unknown"
         error_exit "Container is not running (Status: $status)"
     fi
@@ -889,34 +398,15 @@ verify_container_running() {
 
 main() {
     echo "=========================================="
-<<<<<<< HEAD
-<<<<<<< HEAD
     echo "Container Deployment Script (SSH)"
     echo "=========================================="
     echo "SSH Host:       ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
-=======
-    echo "Container Deployment Script"
-    echo "=========================================="
-    echo "Docker Host:    $DOCKER_HOST"
->>>>>>> 7a359b9 (add container deployment script)
-=======
-    echo "Container Deployment Script (SSH)"
-    echo "=========================================="
-    echo "SSH Host:       ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     echo "Files:          ${#CONFIG_FILES[@]} file(s)"
     for file in "${CONFIG_FILES[@]}"; do
         echo "                - $(basename "$file")"
     done
     echo "Image:          $IMAGE"
-<<<<<<< HEAD
-<<<<<<< HEAD
     echo "Port:           $PORT"
-=======
->>>>>>> 7a359b9 (add container deployment script)
-=======
-    echo "Port:           $PORT"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     if [ "$REPLACE_MODE" = true ]; then
         echo "Replace Mode:   Enabled"
     fi
@@ -924,14 +414,6 @@ main() {
     
     validate_inputs
     handle_existing_container
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-    create_tar_archive
-    pull_image
->>>>>>> 7a359b9 (add container deployment script)
-=======
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     create_container
     upload_config_files
     start_container
@@ -944,14 +426,7 @@ main() {
     echo "Container ID:   ${CONTAINER_ID:0:12}"
     echo "Container Name: $CONTAINER_NAME"
     echo "Status:         Running"
-<<<<<<< HEAD
-<<<<<<< HEAD
     echo "Port Mapping:   ${PORT}:9443"
-=======
->>>>>>> 7a359b9 (add container deployment script)
-=======
-    echo "Port Mapping:   ${PORT}:9443"
->>>>>>> 5b83da7 (change deployment to ssh and fix bob mode rules)
     echo "=========================================="
 }
 
