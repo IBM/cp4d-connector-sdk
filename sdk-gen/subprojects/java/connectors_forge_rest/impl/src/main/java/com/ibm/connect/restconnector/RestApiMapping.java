@@ -19,7 +19,7 @@ public class RestApiMapping
     private final String connectorLabel;
     private final String connectorDescription;
     private final String baseUrl;
-    private final String authenticationType;
+    private final AuthenticationType authenticationType;
     private final Map<String, RestTableDefinition> tables;
 
     /**
@@ -39,13 +39,13 @@ public class RestApiMapping
      *            a map of table name to table definition
      */
     public RestApiMapping(String connectorName, String connectorLabel, String connectorDescription,
-            String baseUrl, String authenticationType, Map<String, RestTableDefinition> tables)
+            String baseUrl, AuthenticationType authenticationType, Map<String, RestTableDefinition> tables)
     {
         this.connectorName = connectorName;
         this.connectorLabel = connectorLabel;
         this.connectorDescription = connectorDescription;
         this.baseUrl = baseUrl;
-        this.authenticationType = authenticationType != null ? authenticationType : "none";
+        this.authenticationType = authenticationType != null ? authenticationType : AuthenticationType.NONE;
         this.tables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
     }
 
@@ -96,6 +96,16 @@ public class RestApiMapping
      */
     public String getAuthenticationType()
     {
+        return authenticationType.getValue();
+    }
+
+    /**
+     * Returns the authentication type enum for this API.
+     *
+     * @return the authentication type enum
+     */
+    public AuthenticationType getAuthenticationTypeEnum()
+    {
         return authenticationType;
     }
 
@@ -134,7 +144,7 @@ public class RestApiMapping
     public String toString()
     {
         return "RestApiMapping{connectorName='" + connectorName + "', baseUrl='" + baseUrl
-                + "', authenticationType='" + authenticationType + "', tables=" + tables.keySet() + "}";
+                + "', authenticationType='" + authenticationType.getValue() + "', tables=" + tables.keySet() + "}";
     }
 }
 

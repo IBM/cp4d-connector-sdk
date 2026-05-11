@@ -127,7 +127,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
 
         // Build the full URL using connection properties (host and port) + path
         final String url = buildUrl();
-        LOGGER.info("Starting stream from URL: {}", url);
+        LOGGER.info("Starting stream for requested asset");
 
         // Build authentication headers from connection properties
         final java.util.Map<String, String> authHeaders = buildAuthHeaders();
@@ -256,7 +256,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
         
         // Build the URL
         final String url = protocol + "://" + host + ":" + port + tableDef.getPath();
-        LOGGER.debug("Built URL: {} (host={}, port={})", url, host, port);
+        LOGGER.debug("Built request URL from configured host and port");
         
         return url;
     }
@@ -269,9 +269,9 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      */
     private java.util.Map<String, String> buildAuthHeaders() throws Exception
     {
-        final String authType = connector.getApiMapping().getAuthenticationType();
+        final AuthenticationType authType = connector.getApiMapping().getAuthenticationTypeEnum();
         
-        if ("none".equals(authType)) {
+        if (authType == AuthenticationType.NONE) {
             // No authentication required
             LOGGER.debug("No authentication configured");
             return null;
@@ -280,13 +280,13 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
         // Get connection properties from asset
         final com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties connProps = asset.getConnectionProperties();
         if (connProps == null) {
-            LOGGER.warn("No connection properties provided for authentication type: {}", authType);
+            LOGGER.warn("No connection properties provided for configured authentication");
             return null;
         }
 
         final java.util.Map<String, String> headers = new java.util.HashMap<>();
 
-        if ("api_key".equals(authType)) {
+        if (authType == AuthenticationType.API_KEY) {
             // API Key authentication using Authorization header
             final Object apiKeyObj = connProps.get("api_key");
             if (apiKeyObj != null) {
@@ -297,7 +297,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
                 LOGGER.warn("API key not provided in connection properties");
             }
         }
-        else if ("oauth2".equals(authType)) {
+        else if (authType == AuthenticationType.OAUTH2) {
             // OAuth 2.0 Bearer Token authentication
             final Object tokenObj = connProps.get("bearer_token");
             if (tokenObj != null) {
@@ -308,7 +308,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
                 LOGGER.warn("Bearer token not provided in connection properties");
             }
         }
-        else if ("basic".equals(authType)) {
+        else if (authType == AuthenticationType.BASIC) {
             // Basic authentication (username:password encoded in Base64)
             final Object usernameObj = connProps.get("username");
             final Object passwordObj = connProps.get("password");
@@ -319,7 +319,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
                 final String credentials = username + ":" + password;
                 final String encodedCredentials = java.util.Base64.getEncoder().encodeToString(credentials.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 headers.put("Authorization", "Basic " + encodedCredentials);
-                LOGGER.debug("Using Basic authentication for user: {}", username);
+                LOGGER.debug("Using Basic authentication");
             } else {
                 LOGGER.warn("Username or password not provided in connection properties");
             }

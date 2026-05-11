@@ -19,7 +19,7 @@ package com.ibm.connect.restconnector;
  */
 public final class PaginationConfig
 {
-    private final String type;
+    private final PaginationType type;
     private final String offsetParam;
     private final String pageParam;
     private final String limitParam;
@@ -54,7 +54,7 @@ public final class PaginationConfig
      * @param nextUrlPath
      *            the JSON path to next URL in response (for next_url type)
      */
-    public PaginationConfig(String type, String offsetParam, String pageParam, String limitParam,
+    public PaginationConfig(PaginationType type, String offsetParam, String pageParam, String limitParam,
             int pageSize, int initialOffset, int initialPage, String cursorParam,
             String nextCursorPath, String nextUrlPath)
     {
@@ -76,6 +76,16 @@ public final class PaginationConfig
      * @return the type (offset, page, cursor, link_header, next_url)
      */
     public String getType()
+    {
+        return type != null ? type.getValue() : null;
+    }
+
+    /**
+     * Returns the pagination type enum.
+     *
+     * @return the pagination type enum
+     */
+    public PaginationType getTypeEnum()
     {
         return type;
     }
@@ -173,7 +183,7 @@ public final class PaginationConfig
     @Override
     public String toString()
     {
-        return "PaginationConfig{type='" + type + "', offsetParam='" + offsetParam
+        return "PaginationConfig{type='" + getType() + "', offsetParam='" + offsetParam
                 + "', pageParam='" + pageParam + "', limitParam='" + limitParam
                 + "', pageSize=" + pageSize + ", initialOffset=" + initialOffset
                 + ", initialPage=" + initialPage + ", cursorParam='" + cursorParam

@@ -49,6 +49,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RestApiMappingLoader
 {
     private static final Logger LOGGER = getLogger(RestApiMappingLoader.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final String CONNECTOR_NAME_KEY = "$connector_name";
     private static final String CONNECTOR_LABEL_KEY = "$connector_label";
@@ -95,99 +96,131 @@ public class RestApiMappingLoader
      */
     public static RestApiMapping parse(String jsonContent) throws IOException
     {
-        final ObjectMapper mapper = new ObjectMapper();
-        final JsonNode root = mapper.readTree(jsonContent);
+        final JsonNode root = MAPPER.readTree(jsonContent);
+        final ConnectorMetadata metadata = parseConnectorMetadata(root);
+        final String baseUrl = parseBaseUrl(root);
+        final AuthenticationType authenticationType = parseAuthenticationType(root);
+        final Map<String, RestTableDefinition> tables = parseTables(root);
 
-        // Extract connector metadata
-        final JsonNode connectorNameNode = root.get(CONNECTOR_NAME_KEY);
-        final String connectorName = (connectorNameNode != null && !connectorNameNode.isNull())
-                ? connectorNameNode.asText() : "REST Connector";
+        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables",
+                metadata.connectorName, authenticationType.getValue(), tables.size());
+        return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
+                baseUrl, authenticationType, tables);
+    }
 
-        final JsonNode connectorLabelNode = root.get(CONNECTOR_LABEL_KEY);
-        final String connectorLabel = (connectorLabelNode != null && !connectorLabelNode.isNull())
-                ? connectorLabelNode.asText() : "REST Connector";
+    private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
+    {
+        final String connectorName = getTextOrDefault(root, CONNECTOR_NAME_KEY, "REST Connector");
+        final String connectorLabel = getTextOrDefault(root, CONNECTOR_LABEL_KEY, "REST Connector");
+        final String connectorDescription = getTextOrDefault(root, CONNECTOR_DESCRIPTION_KEY, "REST API Connector");
+        return new ConnectorMetadata(connectorName, connectorLabel, connectorDescription);
+    }
 
-        final JsonNode connectorDescriptionNode = root.get(CONNECTOR_DESCRIPTION_KEY);
-        final String connectorDescription = (connectorDescriptionNode != null && !connectorDescriptionNode.isNull())
-                ? connectorDescriptionNode.asText() : "REST API Connector";
-
-        // Extract base URL
+    private static String parseBaseUrl(JsonNode root) throws IOException
+    {
         final JsonNode hostnameNode = root.get(HOSTNAME_KEY);
         if (hostnameNode == null || hostnameNode.isNull()) {
             throw new IOException("Missing required '$hostname' key in JSON configuration file");
         }
-        final String baseUrl = hostnameNode.asText();
+        return hostnameNode.asText();
+    }
 
-        // Extract authentication type (optional, defaults to "none")
-        final JsonNode authenticationNode = root.get(AUTHENTICATION_KEY);
-        final String authenticationType = (authenticationNode != null && !authenticationNode.isNull())
-                ? authenticationNode.asText().toLowerCase(java.util.Locale.ENGLISH) : "none";
-        
-        // Validate authentication type
-        if (!"none".equals(authenticationType) && !"api_key".equals(authenticationType)
-                && !"oauth2".equals(authenticationType) && !"basic".equals(authenticationType)) {
-            LOGGER.warn("Invalid authentication type '{}', defaulting to 'none'. Valid values: none, api_key, oauth2, basic",
-                    authenticationType);
+    private static AuthenticationType parseAuthenticationType(JsonNode root)
+    {
+        final String rawAuthenticationType = getTextOrDefault(root, AUTHENTICATION_KEY, AuthenticationType.NONE.getValue());
+        final AuthenticationType authenticationType = AuthenticationType.fromValue(rawAuthenticationType);
+        if (authenticationType == AuthenticationType.NONE
+                && !AuthenticationType.NONE.getValue().equals(rawAuthenticationType.toLowerCase(java.util.Locale.ENGLISH))) {
+            LOGGER.warn("Invalid authentication type '{}', defaulting to '{}'. Valid values: {}",
+                    rawAuthenticationType, AuthenticationType.NONE.getValue(), AuthenticationType.validValues());
         }
+        return authenticationType;
+    }
 
-        // Extract tables
+    private static Map<String, RestTableDefinition> parseTables(JsonNode root) throws IOException
+    {
         final JsonNode tablesNode = root.get(TABLES_KEY);
         if (tablesNode == null || !tablesNode.isObject()) {
             throw new IOException("Missing or invalid '$tables' key in JSON configuration file");
         }
 
-        // Parse each table definition
         final Map<String, RestTableDefinition> tables = new LinkedHashMap<>();
         final Iterator<Map.Entry<String, JsonNode>> tableEntries = tablesNode.fields();
         while (tableEntries.hasNext()) {
             final Map.Entry<String, JsonNode> tableEntry = tableEntries.next();
-            final String tableName = tableEntry.getKey();
-            final JsonNode tableNode = tableEntry.getValue();
-
-            if (!tableNode.isObject()) {
-                LOGGER.warn("Skipping non-object table entry: {}", tableName);
-                continue;
-            }
-
-            // Extract path
-            final JsonNode pathNode = tableNode.get(PATH_KEY);
-            if (pathNode == null || !pathNode.isArray() || pathNode.size() == 0) {
-                LOGGER.warn("Skipping table '{}': missing or empty '$path' array", tableName);
-                continue;
-            }
-            final String path = pathNode.get(0).asText();
-
-            // Extract optional data path for nested responses
-            final JsonNode dataPathNode = tableNode.get(DATA_PATH_KEY);
-            final String dataPath = (dataPathNode != null && !dataPathNode.isNull())
-                    ? dataPathNode.asText() : null;
-
-            // Extract optional pagination configuration
-            final PaginationConfig paginationConfig = parsePaginationConfig(tableNode);
-
-            // Parse fields (including nested objects)
-            final List<RestFieldDefinition> fields = parseFields(tableNode, "");
-
-            tables.put(tableName, new RestTableDefinition(path, dataPath, paginationConfig, fields));
-            
-            // Log table loading with appropriate details
-            if (paginationConfig != null && dataPath != null) {
-                LOGGER.debug("Loaded table '{}' with path '{}', data path '{}', pagination type '{}', and {} fields",
-                        tableName, path, dataPath, paginationConfig.getType(), fields.size());
-            } else if (paginationConfig != null) {
-                LOGGER.debug("Loaded table '{}' with path '{}', pagination type '{}', and {} fields",
-                        tableName, path, paginationConfig.getType(), fields.size());
-            } else if (dataPath != null) {
-                LOGGER.debug("Loaded table '{}' with path '{}', data path '{}', and {} fields",
-                        tableName, path, dataPath, fields.size());
-            } else {
-                LOGGER.debug("Loaded table '{}' with path '{}' and {} fields", tableName, path, fields.size());
+            final RestTableEntry parsedTable = parseTable(tableEntry);
+            if (parsedTable != null) {
+                tables.put(parsedTable.tableName, parsedTable.tableDefinition);
             }
         }
+        return tables;
+    }
 
-        LOGGER.info("Loaded REST API configuration: connectorName='{}', baseUrl='{}', authenticationType='{}', {} tables",
-                connectorName, baseUrl, authenticationType, tables.size());
-        return new RestApiMapping(connectorName, connectorLabel, connectorDescription, baseUrl, authenticationType, tables);
+    private static RestTableEntry parseTable(Map.Entry<String, JsonNode> tableEntry)
+    {
+        final String tableName = tableEntry.getKey();
+        final JsonNode tableNode = tableEntry.getValue();
+
+        if (!tableNode.isObject()) {
+            LOGGER.warn("Skipping non-object table entry: {}", tableName);
+            return null;
+        }
+
+        final String path = parseTablePath(tableName, tableNode);
+        if (path == null) {
+            return null;
+        }
+
+        final String dataPath = parseOptionalText(tableNode, DATA_PATH_KEY);
+        final PaginationConfig paginationConfig = parsePaginationConfig(tableNode);
+        final List<RestFieldDefinition> fields = parseFields(tableNode, "");
+
+        logParsedTable(tableName, dataPath, paginationConfig, fields.size());
+
+        return new RestTableEntry(tableName, new RestTableDefinition(path, dataPath, paginationConfig, fields));
+    }
+
+    private static String parseTablePath(String tableName, JsonNode tableNode)
+    {
+        final JsonNode pathNode = tableNode.get(PATH_KEY);
+        if (pathNode == null || !pathNode.isArray() || pathNode.size() == 0) {
+            LOGGER.warn("Skipping table '{}': missing or empty '$path' array", tableName);
+            return null;
+        }
+        return pathNode.get(0).asText();
+    }
+
+    private static void logParsedTable(String tableName, String dataPath, PaginationConfig paginationConfig, int fieldCount)
+    {
+        if (paginationConfig != null && dataPath != null) {
+            LOGGER.debug("Loaded table '{}' with data path '{}', pagination type '{}', and {} fields",
+                    tableName, dataPath, paginationConfig.getType(), fieldCount);
+        } else if (paginationConfig != null) {
+            LOGGER.debug("Loaded table '{}' with pagination type '{}' and {} fields",
+                    tableName, paginationConfig.getType(), fieldCount);
+        } else if (dataPath != null) {
+            LOGGER.debug("Loaded table '{}' with data path '{}' and {} fields", tableName, dataPath, fieldCount);
+        } else {
+            LOGGER.debug("Loaded table '{}' with {} fields", tableName, fieldCount);
+        }
+    }
+
+    private static String getTextOrDefault(JsonNode node, String key, String defaultValue)
+    {
+        final JsonNode childNode = node.get(key);
+        if (childNode == null || childNode.isNull()) {
+            return defaultValue;
+        }
+        return childNode.asText();
+    }
+
+    private static String parseOptionalText(JsonNode node, String key)
+    {
+        final JsonNode childNode = node.get(key);
+        if (childNode == null || childNode.isNull()) {
+            return null;
+        }
+        return childNode.asText();
     }
 
     /**
@@ -262,29 +295,14 @@ public class RestApiMappingLoader
             return null;
         }
 
-        // Extract pagination type (required)
-        final JsonNode typeNode = paginationNode.get("type");
-        if (typeNode == null || typeNode.isNull()) {
-            LOGGER.warn("Pagination configuration missing 'type' field, ignoring pagination");
-            return null;
-        }
-        final String type = typeNode.asText().toLowerCase(java.util.Locale.ENGLISH);
-
-        // Validate pagination type
-        if (!"offset".equals(type) && !"page".equals(type) && !"cursor".equals(type)
-                && !"link_header".equals(type) && !"next_url".equals(type)) {
-            LOGGER.warn("Invalid pagination type '{}', ignoring pagination. Valid types: offset, page, cursor, link_header, next_url", type);
+        final PaginationType type = parsePaginationType(paginationNode);
+        if (type == null) {
             return null;
         }
 
-        // Extract common fields
-        final JsonNode pageSizeNode = paginationNode.get("page_size");
-        final int pageSize = (pageSizeNode != null && !pageSizeNode.isNull()) ? pageSizeNode.asInt() : 100;
+        final int pageSize = paginationNode.hasNonNull("page_size") ? paginationNode.get("page_size").asInt() : 100;
+        final String limitParam = parseOptionalText(paginationNode, "limit_param");
 
-        final JsonNode limitParamNode = paginationNode.get("limit_param");
-        final String limitParam = (limitParamNode != null && !limitParamNode.isNull()) ? limitParamNode.asText() : null;
-
-        // Extract type-specific fields
         String offsetParam = null;
         String pageParam = null;
         int initialOffset = 0;
@@ -293,43 +311,89 @@ public class RestApiMappingLoader
         String nextCursorPath = null;
         String nextUrlPath = null;
 
-        if ("offset".equals(type)) {
-            final JsonNode offsetParamNode = paginationNode.get("offset_param");
-            offsetParam = (offsetParamNode != null && !offsetParamNode.isNull()) ? offsetParamNode.asText() : "offset";
-
-            final JsonNode initialOffsetNode = paginationNode.get("initial_offset");
-            initialOffset = (initialOffsetNode != null && !initialOffsetNode.isNull()) ? initialOffsetNode.asInt() : 0;
-        }
-        else if ("page".equals(type)) {
-            final JsonNode pageParamNode = paginationNode.get("page_param");
-            pageParam = (pageParamNode != null && !pageParamNode.isNull()) ? pageParamNode.asText() : "page";
-
-            final JsonNode initialPageNode = paginationNode.get("initial_page");
-            initialPage = (initialPageNode != null && !initialPageNode.isNull()) ? initialPageNode.asInt() : 1;
-        }
-        else if ("cursor".equals(type)) {
-            final JsonNode cursorParamNode = paginationNode.get("cursor_param");
-            cursorParam = (cursorParamNode != null && !cursorParamNode.isNull()) ? cursorParamNode.asText() : "cursor";
-
-            final JsonNode nextCursorPathNode = paginationNode.get("next_cursor_path");
-            if (nextCursorPathNode == null || nextCursorPathNode.isNull()) {
-                LOGGER.warn("Cursor pagination requires 'next_cursor_path' field, ignoring pagination");
+        switch (type) {
+        case OFFSET:
+            offsetParam = getTextOrDefault(paginationNode, "offset_param", "offset");
+            initialOffset = paginationNode.hasNonNull("initial_offset") ? paginationNode.get("initial_offset").asInt() : 0;
+            break;
+        case PAGE:
+            pageParam = getTextOrDefault(paginationNode, "page_param", "page");
+            initialPage = paginationNode.hasNonNull("initial_page") ? paginationNode.get("initial_page").asInt() : 1;
+            break;
+        case CURSOR:
+            cursorParam = getTextOrDefault(paginationNode, "cursor_param", "cursor");
+            nextCursorPath = parseRequiredPaginationField(paginationNode, "next_cursor_path",
+                    "Cursor pagination requires 'next_cursor_path' field, ignoring pagination");
+            if (nextCursorPath == null) {
                 return null;
             }
-            nextCursorPath = nextCursorPathNode.asText();
-        }
-        else if ("next_url".equals(type)) {
-            final JsonNode nextUrlPathNode = paginationNode.get("next_url_path");
-            if (nextUrlPathNode == null || nextUrlPathNode.isNull()) {
-                LOGGER.warn("Next URL pagination requires 'next_url_path' field, ignoring pagination");
+            break;
+        case NEXT_URL:
+            nextUrlPath = parseRequiredPaginationField(paginationNode, "next_url_path",
+                    "Next URL pagination requires 'next_url_path' field, ignoring pagination");
+            if (nextUrlPath == null) {
                 return null;
             }
-            nextUrlPath = nextUrlPathNode.asText();
+            break;
+        case LINK_HEADER:
+        default:
+            break;
         }
 
-        LOGGER.debug("Parsed pagination config: type={}, pageSize={}, limitParam={}", type, pageSize, limitParam);
+        LOGGER.debug("Parsed pagination config: type={}, pageSize={}, limitParam={}", type.getValue(), pageSize, limitParam);
         return new PaginationConfig(type, offsetParam, pageParam, limitParam, pageSize,
                 initialOffset, initialPage, cursorParam, nextCursorPath, nextUrlPath);
+    }
+
+    private static PaginationType parsePaginationType(JsonNode paginationNode)
+    {
+        final String rawType = parseOptionalText(paginationNode, "type");
+        if (rawType == null) {
+            LOGGER.warn("Pagination configuration missing 'type' field, ignoring pagination");
+            return null;
+        }
+
+        final PaginationType paginationType = PaginationType.fromValue(rawType);
+        if (paginationType == null) {
+            LOGGER.warn("Invalid pagination type '{}', ignoring pagination. Valid types: {}", rawType,
+                    PaginationType.validValues());
+        }
+        return paginationType;
+    }
+
+    private static String parseRequiredPaginationField(JsonNode paginationNode, String fieldName, String warningMessage)
+    {
+        final String fieldValue = parseOptionalText(paginationNode, fieldName);
+        if (fieldValue == null) {
+            LOGGER.warn(warningMessage);
+        }
+        return fieldValue;
+    }
+
+    private static final class ConnectorMetadata
+    {
+        private final String connectorName;
+        private final String connectorLabel;
+        private final String connectorDescription;
+
+        private ConnectorMetadata(String connectorName, String connectorLabel, String connectorDescription)
+        {
+            this.connectorName = connectorName;
+            this.connectorLabel = connectorLabel;
+            this.connectorDescription = connectorDescription;
+        }
+    }
+
+    private static final class RestTableEntry
+    {
+        private final String tableName;
+        private final RestTableDefinition tableDefinition;
+
+        private RestTableEntry(String tableName, RestTableDefinition tableDefinition)
+        {
+            this.tableName = tableName;
+            this.tableDefinition = tableDefinition;
+        }
     }
 }
 
