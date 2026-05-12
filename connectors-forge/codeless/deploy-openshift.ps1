@@ -194,37 +194,38 @@ function Connect-OpenShift {
 function Initialize-Project {
     Write-LogStep "3/7" "Setting up project/namespace..."
     
-    try {
-        # Check if project exists
-        $projectExists = $false
-        $output = oc get project $OpenShiftProject 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            $projectExists = $true
+    # Check if project exists (suppress all output)
+    $ErrorActionPreference = "SilentlyContinue"
+    $projectExists = $false
+    $null = oc get project $OpenShiftProject 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $projectExists = $true
+    }
+    $ErrorActionPreference = "Stop"
+    
+    if ($projectExists) {
+        Write-Log "Project '$OpenShiftProject' exists"
+        $null = oc project $OpenShiftProject 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-LogError "Failed to switch to project '$OpenShiftProject'"
+            exit 1
         }
-        
-        if ($projectExists) {
-            Write-Log "Project '$OpenShiftProject' exists"
-            $null = oc project $OpenShiftProject 2>&1
-            Write-Log "Switched to project '$OpenShiftProject'"
-        }
-        else {
-            if ($CreateProjectIfNotExists -eq "true") {
-                Write-Log "Project '$OpenShiftProject' does not exist, creating it..."
-                $output = oc new-project $OpenShiftProject 2>&1
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to create project"
-                }
-                Write-Log "Project '$OpenShiftProject' created successfully"
-            }
-            else {
-                Write-LogError "Project '$OpenShiftProject' does not exist and CREATE_PROJECT_IF_NOT_EXISTS is false"
+        Write-Log "Switched to project '$OpenShiftProject'"
+    }
+    else {
+        if ($CreateProjectIfNotExists -eq "true") {
+            Write-Log "Project '$OpenShiftProject' does not exist, creating it..."
+            $output = oc new-project $OpenShiftProject 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-LogError "Failed to create project '$OpenShiftProject'"
                 exit 1
             }
+            Write-Log "Project '$OpenShiftProject' created successfully"
         }
-    }
-    catch {
-        Write-LogError "Failed to setup project: $_"
-        exit 1
+        else {
+            Write-LogError "Project '$OpenShiftProject' does not exist and CREATE_PROJECT_IF_NOT_EXISTS is false"
+            exit 1
+        }
     }
 }
 
