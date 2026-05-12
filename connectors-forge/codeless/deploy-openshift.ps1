@@ -253,39 +253,40 @@ function New-ConfigMap {
     
     Write-Log "Found $jsonCount connector configuration file(s)"
     
-    try {
-        # Check if ConfigMap already exists
-        $configMapExists = $false
-        $output = oc get configmap $ConfigMapName 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            $configMapExists = $true
-        }
-        
-        if ($configMapExists) {
-            if ($RecreateConfigMap -eq "true") {
-                Write-Log "ConfigMap '$ConfigMapName' already exists, deleting it..."
-                $null = oc delete configmap $ConfigMapName 2>&1
-                Write-Log "ConfigMap deleted"
-            }
-            else {
-                Write-LogError "ConfigMap '$ConfigMapName' already exists and RECREATE_CONFIGMAP is false"
+    # Check if ConfigMap already exists (suppress all output)
+    $ErrorActionPreference = "SilentlyContinue"
+    $configMapExists = $false
+    $null = oc get configmap $ConfigMapName 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $configMapExists = $true
+    }
+    $ErrorActionPreference = "Stop"
+    
+    if ($configMapExists) {
+        if ($RecreateConfigMap -eq "true") {
+            Write-Log "ConfigMap '$ConfigMapName' already exists, deleting it..."
+            $null = oc delete configmap $ConfigMapName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-LogError "Failed to delete ConfigMap '$ConfigMapName'"
                 exit 1
             }
+            Write-Log "ConfigMap deleted"
         }
-        
-        # Create ConfigMap
-        Write-Log "Creating ConfigMap '$ConfigMapName'..."
-        $output = oc create configmap $ConfigMapName --from-file=$ConfigFilesPath 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create ConfigMap"
+        else {
+            Write-LogError "ConfigMap '$ConfigMapName' already exists and RECREATE_CONFIGMAP is false"
+            exit 1
         }
-        
-        Write-Log "ConfigMap '$ConfigMapName' created successfully"
     }
-    catch {
-        Write-LogError "Failed to create ConfigMap: $_"
+    
+    # Create ConfigMap
+    Write-Log "Creating ConfigMap '$ConfigMapName'..."
+    $output = oc create configmap $ConfigMapName --from-file=$ConfigFilesPath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-LogError "Failed to create ConfigMap: $output"
         exit 1
     }
+    
+    Write-Log "ConfigMap '$ConfigMapName' created successfully"
 }
 
 # ============================================
