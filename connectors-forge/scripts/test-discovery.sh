@@ -46,7 +46,7 @@ echo "Loading configuration from: $PROPERTIES_FILE"
 # Function to read properties file
 read_property() {
     local key=$1
-    local value=$(grep "^${key}=" "$PROPERTIES_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    local value=$(grep -v '^[[:space:]]*#' "$PROPERTIES_FILE" | grep "^${key}=" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     echo "$value"
 }
 
