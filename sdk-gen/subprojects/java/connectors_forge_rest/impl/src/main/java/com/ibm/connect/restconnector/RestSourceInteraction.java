@@ -70,7 +70,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
 
         // Resolve the table name from the asset path or interaction properties
         final String tableName = RestConnectorUtils.resolveTableName(asset);
-        LOGGER.info("Creating source interaction for table: {}", tableName);
+        LOGGER.debug("Creating source interaction for table: {}", tableName);
 
         // Look up the table definition from the loaded API mapping
         final RestApiMapping apiMapping = connector.getApiMapping();

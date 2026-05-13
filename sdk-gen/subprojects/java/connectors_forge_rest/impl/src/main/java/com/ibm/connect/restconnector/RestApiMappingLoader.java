@@ -63,6 +63,12 @@ public class RestApiMappingLoader
     private static final String KEY_MODIFIER = "$key";
     private static final String NOTNULL_MODIFIER = "$notnull";
     private static final String ARRAY_SUFFIX = "[]";
+    
+    // Array of all supported modifiers for easy extension
+    private static final String[] ALL_MODIFIERS = {
+        KEY_MODIFIER,
+        NOTNULL_MODIFIER
+    };
 
     private RestApiMappingLoader()
     {
@@ -264,21 +270,37 @@ public class RestApiMappingLoader
                 final boolean isKey = rawType.contains(KEY_MODIFIER);
                 final boolean isNotNull = rawType.contains(NOTNULL_MODIFIER);
                 
-                // Remove modifiers from the type string
-                String typeString = rawType;
-                typeString = typeString.replace("," + KEY_MODIFIER, "");
-                typeString = typeString.replace(KEY_MODIFIER + ",", "");
-                typeString = typeString.replace(KEY_MODIFIER, "");
-                typeString = typeString.replace("," + NOTNULL_MODIFIER, "");
-                typeString = typeString.replace(NOTNULL_MODIFIER + ",", "");
-                typeString = typeString.replace(NOTNULL_MODIFIER, "");
-                typeString = typeString.trim();
+                // Remove all modifiers from the type string
+                final String typeString = removeModifiers(rawType);
 
                 fields.add(new RestFieldDefinition(fieldName, typeString, isKey, isNotNull));
             }
         }
 
         return fields;
+    }
+
+    /**
+     * Removes all known modifiers from a type string.
+     * <p>
+     * This method handles modifiers in any position (beginning, middle, or end)
+     * and with or without surrounding commas.
+     *
+     * @param rawType the raw type string with potential modifiers (e.g., "VARCHAR,$key,$notnull")
+     * @return the clean type string without modifiers (e.g., "VARCHAR")
+     */
+    private static String removeModifiers(String rawType)
+    {
+        String result = rawType;
+        
+        // Remove each modifier in all possible positions
+        for (String modifier : ALL_MODIFIERS) {
+            result = result.replace("," + modifier, "");  // Remove ",modifier"
+            result = result.replace(modifier + ",", "");  // Remove "modifier,"
+            result = result.replace(modifier, "");        // Remove standalone "modifier"
+        }
+        
+        return result.trim();
     }
 
     /**

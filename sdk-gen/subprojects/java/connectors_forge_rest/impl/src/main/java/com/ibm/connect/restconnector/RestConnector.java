@@ -74,7 +74,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
                 RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
         }
         
-        LOGGER.info("Connected: loaded {} tables for connector '{}' ({})",
+        LOGGER.debug("Connected: loaded {} tables for connector '{}' ({})",
                 apiMapping.getTables().size(), datasourceTypeName, apiMapping.getConnectorLabel());
     }
 
