@@ -98,51 +98,62 @@ public class RestDatasourceType extends CustomFlightDatasourceType
 
         // Add authentication-specific connection properties based on the authentication type
         final AuthenticationType authType = mapping.getAuthenticationTypeEnum();
-        if (authType == AuthenticationType.API_KEY) {
-            // API Key authentication
-            properties.addConnectionItem(
-                    new CustomDatasourceTypeProperty()
-                            .name("api_key")
-                            .label("API Key")
-                            .description("The API key for authentication")
-                            .type(TypeEnum.STRING)
-                            .required(true)
-                            .masked(true)
-                            .group("credentials"));
+        switch (authType) {
+            case API_KEY:
+                // API Key authentication
+                properties.addConnectionItem(
+                        new CustomDatasourceTypeProperty()
+                                .name("api_key")
+                                .label("API Key")
+                                .description("The API key for authentication")
+                                .type(TypeEnum.STRING)
+                                .required(true)
+                                .masked(true)
+                                .group("credentials"));
+                break;
+            
+            case OAUTH2:
+                // OAuth 2.0 Bearer Token authentication
+                properties.addConnectionItem(
+                        new CustomDatasourceTypeProperty()
+                                .name("bearer_token")
+                                .label("Bearer Token")
+                                .description("The OAuth 2.0 bearer token for authentication")
+                                .type(TypeEnum.STRING)
+                                .required(true)
+                                .masked(true)
+                                .group("credentials"));
+                break;
+            
+            case BASIC:
+                // Basic authentication (username + password)
+                properties.addConnectionItem(
+                        new CustomDatasourceTypeProperty()
+                                .name("username")
+                                .label("Username")
+                                .description("The username for basic authentication")
+                                .type(TypeEnum.STRING)
+                                .required(true)
+                                .group("credentials"));
+                properties.addConnectionItem(
+                        new CustomDatasourceTypeProperty()
+                                .name("password")
+                                .label("Password")
+                                .description("The password for basic authentication")
+                                .type(TypeEnum.STRING)
+                                .required(true)
+                                .masked(true)
+                                .group("credentials"));
+                break;
+            
+            case NONE:
+                // No authentication properties needed
+                break;
+            
+            default:
+                // Should never happen if AuthenticationType enum is complete
+                break;
         }
-        else if (authType == AuthenticationType.OAUTH2) {
-            // OAuth 2.0 Bearer Token authentication
-            properties.addConnectionItem(
-                    new CustomDatasourceTypeProperty()
-                            .name("bearer_token")
-                            .label("Bearer Token")
-                            .description("The OAuth 2.0 bearer token for authentication")
-                            .type(TypeEnum.STRING)
-                            .required(true)
-                            .masked(true)
-                            .group("credentials"));
-        }
-        else if (authType == AuthenticationType.BASIC) {
-            // Basic authentication (username + password)
-            properties.addConnectionItem(
-                    new CustomDatasourceTypeProperty()
-                            .name("username")
-                            .label("Username")
-                            .description("The username for basic authentication")
-                            .type(TypeEnum.STRING)
-                            .required(true)
-                            .group("credentials"));
-            properties.addConnectionItem(
-                    new CustomDatasourceTypeProperty()
-                            .name("password")
-                            .label("Password")
-                            .description("The password for basic authentication")
-                            .type(TypeEnum.STRING)
-                            .required(true)
-                            .masked(true)
-                            .group("credentials"));
-        }
-        // If authType is "none", no authentication properties are added
 
         // Define the source interaction properties.
         // table_name: the name of the table (endpoint) to read from
