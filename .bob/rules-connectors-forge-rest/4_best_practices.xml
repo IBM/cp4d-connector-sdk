@@ -131,6 +131,91 @@
     </rule>
 
     <rule priority="critical">
+      <name>Include Metadata Section</name>
+      <description>
+        All Forge-created connectors MUST include a $metadata section with required fields.
+        This metadata enables tracking, filtering, and analytics of Connector Forge usage.
+      </description>
+      <required_fields>
+        <field name="connector_source">
+          <type>String</type>
+          <value>Always "connector_forge" for Forge-created connectors</value>
+          <required>true</required>
+        </field>
+        <field name="target_service">
+          <type>String</type>
+          <description>Name of the service/API being connected to (e.g., "Salesforce", "GitHub", "SpaceX API")</description>
+          <required>true</required>
+          <inference>Should be inferred from API hostname and confirmed with user</inference>
+        </field>
+        <field name="connector_type">
+          <type>String</type>
+          <value>Always "rest_api" for REST connectors</value>
+          <required>true</required>
+        </field>
+        <field name="created_at">
+          <type>String</type>
+          <format>ISO 8601 timestamp (e.g., "2026-05-06T12:00:00Z")</format>
+          <required>true</required>
+          <auto_generated>true</auto_generated>
+        </field>
+        <field name="created_by">
+          <type>String</type>
+          <description>User ID of the person who created the connector</description>
+          <required>true</required>
+          <default>If unavailable, use "unknown"</default>
+        </field>
+        <field name="forge_version">
+          <type>String</type>
+          <description>Version of Connector Forge used to create the connector</description>
+          <required>true</required>
+          <format>Semantic versioning (e.g., "1.0.0")</format>
+        </field>
+      </required_fields>
+      <correct>
+        <![CDATA[
+{
+  "$connector_name": "salesforce-connector",
+  "$connector_label": "Salesforce",
+  "$connector_description": "Connect to Salesforce API",
+  "$metadata": {
+    "connector_source": "connector_forge",
+    "target_service": "Salesforce",
+    "connector_type": "rest_api",
+    "created_at": "2026-05-06T12:00:00Z",
+    "created_by": "user_12345",
+    "forge_version": "1.0.0"
+  },
+  "$hostname": "https://api.salesforce.com",
+  "$authentication": "oauth2",
+  "$tables": { ... }
+}
+        ]]>
+      </correct>
+      <wrong>
+        <![CDATA[
+{
+  "$connector_name": "salesforce_connector",
+  "$connector_label": "Salesforce",
+  "$connector_description": "Connect to Salesforce API",
+  "$hostname": "https://api.salesforce.com",
+  "$authentication": "oauth2",
+  "$tables": { ... }
+}
+        ]]>
+        <why>Missing required $metadata section</why>
+      </wrong>
+      <rationale>
+        Metadata enables:
+        - Distinguishing Forge-created connectors from manually-built ones
+        - Tracking which services users are connecting to
+        - Measuring Connector Forge adoption and usage patterns
+        - Providing audit trail for connector provenance
+        - Supporting future analytics and reporting capabilities
+      </rationale>
+    </rule>
+
+    <rule priority="critical">
       <name>Use Exact JSON Field Names</name>
       <description>
         Column names must match JSON field names exactly.
@@ -397,6 +482,10 @@
       <checklist>
         <check>JSON is valid and properly formatted</check>
         <check>All required root fields are present</check>
+        <check>$metadata section is present with all required fields</check>
+        <check>connector_source is set to "connector_forge"</check>
+        <check>target_service is populated and accurate</check>
+        <check>created_at is valid ISO 8601 timestamp</check>
         <check>Each table has exactly one $path entry</check>
         <check>At least one field per table is marked with ,$key</check>
         <check>All nested objects/arrays are VARCHAR</check>
@@ -611,8 +700,18 @@
     <categories>
       <category name="Structure">
         <check>JSON is valid (no syntax errors)</check>
-        <check>All required root fields present ($connector_name, $connector_label, $connector_description, $hostname, $authentication, $tables)</check>
+        <check>All required root fields present ($connector_name, $connector_label, $connector_description, $metadata, $hostname, $authentication, $tables)</check>
         <check>Follows connectors-forge/template.json structure exactly</check>
+      </category>
+
+      <category name="Metadata">
+        <check>$metadata section is present</check>
+        <check>connector_source is "connector_forge"</check>
+        <check>target_service is populated with service name</check>
+        <check>connector_type is "rest_api"</check>
+        <check>created_at is valid ISO 8601 timestamp</check>
+        <check>created_by is populated (or "unknown")</check>
+        <check>forge_version follows semantic versioning</check>
       </category>
 
       <category name="Tables">
