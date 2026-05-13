@@ -66,7 +66,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "SpaceX API Connector",
+  "$connector_name": "spacex-api-connector",
   "$connector_label": "SpaceX API",
   "$connector_description": "Connector for SpaceX public REST API - provides access to rockets, launches, capsules, and more",
   "$hostname": "https://api.spacexdata.com",
@@ -169,7 +169,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "Example API Key Auth Connector",
+  "$connector_name": "example-api-key-auth-connector",
   "$connector_label": "Example API Key Authentication",
   "$connector_description": "Example REST API connector using API Key authentication",
   "$hostname": "https://api.example.com",
@@ -248,7 +248,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "NBP API Connector",
+  "$connector_name": "nbp-api-connector",
   "$connector_label": "NBP API",
   "$connector_description": "Connector for Polish National Bank (NBP) public REST API providing exchange rates and gold prices",
   "$hostname": "https://api.nbp.pl",
@@ -300,7 +300,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "Example OAuth2 Auth Connector",
+  "$connector_name": "example-oauth2-auth-connector",
   "$connector_label": "Example OAuth2 Authentication",
   "$connector_description": "Example REST API connector using OAuth2 Bearer Token authentication",
   "$hostname": "https://api.example.com",
@@ -341,7 +341,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "Example Basic Auth Connector",
+  "$connector_name": "example-basic-auth-connector",
   "$connector_label": "Example Basic Authentication",
   "$connector_description": "Example REST API connector using Basic (username/password) authentication",
   "$hostname": "https://api.example.com",
@@ -421,7 +421,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "Product Catalog API",
+  "$connector_name": "product-catalog-api",
   "$connector_label": "Product Catalog",
   "$connector_description": "Product catalog with complex nested structures",
   "$hostname": "https://api.example.com",
@@ -567,7 +567,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "GitHub API Connector",
+  "$connector_name": "github-api-connector",
   "$connector_label": "GitHub API",
   "$connector_description": "Connector for GitHub REST API - provides access to repositories, issues, and more",
   "$hostname": "https://api.github.com",
@@ -648,7 +648,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "Events API Connector",
+  "$connector_name": "events-api-connector",
   "$connector_label": "Events API",
   "$connector_description": "Connector for Events API with cursor-based pagination",
   "$hostname": "https://api.example.com",
@@ -705,7 +705,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "Products API Connector",
+  "$connector_name": "products-api-connector",
   "$connector_label": "Products API",
   "$connector_description": "Connector for Products API with offset-based pagination",
   "$hostname": "https://api.example.com",
@@ -790,7 +790,7 @@
     <configuration>
       <![CDATA[
 {
-  "$connector_name": "Advanced Products API",
+  "$connector_name": "advanced-products-api",
   "$connector_label": "Products API",
   "$connector_description": "Full-featured connector demonstrating all capabilities",
   "$hostname": "https://api.example.com",

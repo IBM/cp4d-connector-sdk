@@ -2260,7 +2260,7 @@
           IMPORTANT: How to extract values from the connector configuration file:
           
           - DATASOURCE_TYPES: Use the exact value from $connector_name field in the config file
-            Example: If $connector_name is "GitHub API Connector", then DATASOURCE_TYPES=GitHub API Connector
+            Example: If $connector_name is "github-api-connector", then DATASOURCE_TYPES=github-api-connector
           
           - DISCOVERY_PATHS: Select ANY ONE key from $tables object and prefix it with forward slash
             Example: If $tables has "REPOSITORIES", "ISSUES", "PULL_REQUESTS" - choose just ONE: /REPOSITORIES
@@ -2298,14 +2298,14 @@
           # Connector Configuration (based on your connectors)
           # DATASOURCE_TYPES: Use exact $connector_name value(s) from config file
           # DISCOVERY_PATHS: Select ONE table per connector (for registration verification only)
-          DATASOURCE_TYPES=GitHub API Connector
+          DATASOURCE_TYPES=github-api-connector
           DISCOVERY_PATHS=/REPOSITORIES
           CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"YOUR_GITHUB_TOKEN"}
           ```
 
           Example with multiple connectors (one table per connector):
           ```properties
-          DATASOURCE_TYPES=GitHub API Connector,Jira REST API
+          DATASOURCE_TYPES=github-api-connector,jira-rest-api
           DISCOVERY_PATHS=/REPOSITORIES,/PROJECTS
           CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"TOKEN1"}|{"base_url":"https://jira.example.com","username":"user","password":"pass"}
           ```

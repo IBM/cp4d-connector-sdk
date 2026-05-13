@@ -106,6 +106,31 @@
     </rule>
 
     <rule priority="critical">
+      <name>Use kebab-case for Connector Names</name>
+      <description>
+        The $connector_name field MUST use kebab-case format (lowercase with hyphens).
+        This is the internal identifier used by the system.
+      </description>
+      <format>kebab-case (lowercase letters, numbers, and hyphens only)</format>
+      <examples>
+        <good>spacex-api-connector</good>
+        <good>github-api-connector</good>
+        <good>nbp-api-connector</good>
+        <good>example-oauth2-auth-connector</good>
+      </examples>
+      <wrong_examples>
+        <bad>SpaceX API Connector</bad>
+        <bad>GitHub_API_Connector</bad>
+        <bad>nbp_api_connector</bad>
+        <bad>Example OAuth2 Auth Connector</bad>
+      </wrong_examples>
+      <note>
+        The $connector_label field can use Title Case with spaces for display purposes,
+        but $connector_name must always be kebab-case.
+      </note>
+    </rule>
+
+    <rule priority="critical">
       <name>Use Exact JSON Field Names</name>
       <description>
         Column names must match JSON field names exactly.
