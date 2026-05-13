@@ -219,7 +219,7 @@
       <configuration>
         <![CDATA[
 {
-  "$connector_name": "GitHub API Connector",
+  "$connector_name": "github-api-connector",
   "$hostname": "https://api.github.com",
   "$authentication": "oauth2",
   "$tables": {

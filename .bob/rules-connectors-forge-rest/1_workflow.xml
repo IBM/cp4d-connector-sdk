@@ -377,19 +377,20 @@
       <root_fields>
         <field name="$connector_name" required="true">
           <description>Internal name for the connector</description>
-          <format>Descriptive name with "Connector" suffix</format>
-          <example>SpaceX API Connector</example>
+          <format>kebab-case format (lowercase with hyphens)</format>
+          <example>spacex-api-connector</example>
         </field>
         
         <field name="$connector_label" required="true">
           <description>Display label shown in UI</description>
-          <format>Short, user-friendly name</format>
+          <format>Short, user-friendly name (Title Case)</format>
           <example>SpaceX API</example>
         </field>
         
         <field name="$connector_description" required="true">
           <description>Brief description of what the connector provides</description>
           <example>Connector for SpaceX public REST API - provides access to rockets, launches, and more</example>
+          <note>Use clear, descriptive sentences</note>
         </field>
         
         <field name="$hostname" required="true">
@@ -616,7 +617,7 @@
       <step number="5">
         <action>Save configuration file to correct location</action>
         <path>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/[connector-name].json</path>
-        <note>Use descriptive filename based on API name (e.g., spacex-api.json, github-api.json)</note>
+        <note>Use kebab-case filename based on API name (e.g., spacex-api.json, github-api.json)</note>
       </step>
       
       <step number="6">

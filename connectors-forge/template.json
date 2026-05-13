@@ -1,5 +1,5 @@
 {
-  "$connector_name": "API Name Connector",
+  "$connector_name": "api-name-connector",
   "$connector_label": "Display Label",
   "$connector_description": "Description of what this connector provides access to",
   "$hostname": "https://api.example.com",
