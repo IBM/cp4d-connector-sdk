@@ -2141,3 +2141,82 @@ After making the changes you can run the build to undeploy and deploy the flight
 $ ./gradlew undeploy-operator
 $ ./gradlew deploy-operator
 ```
+
+
+# Connector Metadata
+
+## Overview
+Starting with version 1.0.0, all connectors created through Connector Forge include metadata fields in their DSL (JSON specification) to identify Forge-created connectors and track their target services. This metadata enables filtering, querying, and analytics of Connector Forge usage within the platform.
+
+## Metadata Structure
+
+All Forge-created connectors include a `$metadata` section in their connector specification with the following fields:
+
+```json
+{
+  "$connector_name": "salesforce_connector",
+  "$connector_label": "Salesforce",
+  "$connector_description": "Connect to Salesforce API",
+  "$metadata": {
+    "connector_source": "connector_forge",
+    "target_service": "Salesforce",
+    "connector_type": "rest_api",
+    "created_at": "2026-05-06T12:00:00Z",
+    "created_by": "user_12345",
+    "forge_version": "1.0.0"
+  },
+  "$hostname": "https://api.salesforce.com",
+  "$authentication": "oauth2",
+  "$tables": { ... }
+}
+```
+
+## Metadata Fields
+
+| Field | Type | Description | Auto-populated |
+|-------|------|-------------|----------------|
+| `connector_source` | String | Always set to "connector_forge" for Forge-created connectors | Yes |
+| `target_service` | String | Name of the service/API being connected to (e.g., "Salesforce", "GitHub") | Inferred, user-confirmed |
+| `connector_type` | String | Always set to "rest_api" for REST connectors | Yes |
+| `created_at` | String | ISO 8601 timestamp of when the connector was created | Yes |
+| `created_by` | String | User ID of the person who created the connector | Extracted from context or "unknown" |
+| `forge_version` | String | Version of Connector Forge used to create the connector | Yes |
+
+## Purpose and Benefits
+
+The metadata enables:
+
+1. **Connector Provenance**: Distinguish Forge-created connectors from manually-built ones
+2. **Service Tracking**: Identify which services/APIs users are connecting to
+3. **Usage Analytics**: Measure Connector Forge adoption and usage patterns
+4. **Filtering and Querying**: Query connectors by source, service, or creation date
+5. **Audit Trail**: Track who created connectors and when
+6. **Version Management**: Identify which Forge version was used
+
+## Metadata Lifecycle
+
+- **Creation**: Metadata is automatically populated when a connector is created through Connector Forge
+- **Updates**: Metadata persists through connector updates and regeneration
+- **Deployment**: Metadata is validated during deployment to ensure all required fields are present
+- **Registration**: Metadata is included in the datasource type definition when registered with Cloud Pak for Data
+
+## Target Service Inference
+
+The `target_service` field is automatically inferred from the API hostname during connector creation:
+
+- `api.salesforce.com` → "Salesforce"
+- `api.github.com` → "GitHub"  
+- `api.spacexdata.com` → "SpaceX API"
+
+Users are prompted to confirm or override the inferred service name to ensure accuracy.
+
+## Validation
+
+Deployment scripts automatically validate that:
+- The `$metadata` section is present
+- All required fields are populated
+- `connector_source` is set to "connector_forge"
+- `connector_type` is set to "rest_api"
+- `created_at` is a valid ISO 8601 timestamp
+
+Warnings are displayed if metadata fields are missing, but deployment continues to maintain backward compatibility with existing connectors.

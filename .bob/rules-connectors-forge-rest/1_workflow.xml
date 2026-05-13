@@ -21,7 +21,7 @@
     </phase>
     
     <phase number="1">
-      <name>API Discovery & Analysis</name>
+      <name>API Discovery and Analysis</name>
       <file>1_workflow.xml (this file)</file>
       <description>
         Gather API information and analyze endpoint structures.
@@ -37,7 +37,7 @@
     </phase>
     
     <phase number="3">
-      <name>Presentation & Confirmation</name>
+      <name>Presentation and Confirmation</name>
       <file>1_workflow.xml (this file)</file>
       <description>
         Present configuration and gather user feedback.
@@ -76,7 +76,7 @@
     </phase>
     
     <phase number="7">
-      <name>Registration Validation & Testing</name>
+      <name>Registration Validation and Testing</name>
       <file>6_deployment_execution.xml</file>
       <description>
         Validate connector registration by running discovery tests.
@@ -89,7 +89,7 @@
   </workflow_phases>
 
   <phase_1_discovery>
-    <title>API Discovery & Analysis</title>
+    <title>API Discovery and Analysis</title>
     <description>
       Before generating any JSON configuration file, you MUST gather required information.
       Never proceed without complete information.
@@ -373,6 +373,104 @@
       <why>This is the ONLY allowed structural reference</why>
     </prerequisite>
 
+    <metadata_generation>
+      <title>Automatic Metadata Population</title>
+      <description>
+        All Forge-created connectors MUST include metadata section with auto-populated fields.
+        This metadata enables tracking, filtering, and analytics of Connector Forge usage.
+      </description>
+      
+      <auto_populated_fields>
+        <field name="connector_source">
+          <value>connector_forge</value>
+          <rule>Always hardcoded to "connector_forge"</rule>
+        </field>
+        
+        <field name="connector_type">
+          <value>rest_api</value>
+          <rule>Always hardcoded to "rest_api" for REST connectors</rule>
+        </field>
+        
+        <field name="created_at">
+          <format>ISO 8601 UTC timestamp</format>
+          <example>2026-05-06T12:00:00Z</example>
+          <rule>Auto-generate current timestamp when creating configuration</rule>
+        </field>
+        
+        <field name="forge_version">
+          <value>1.0.0</value>
+          <format>Semantic versioning</format>
+          <rule>Use current Connector Forge version</rule>
+        </field>
+        
+        <field name="created_by">
+          <description>User ID of the person creating the connector</description>
+          <rule>Extract from environment/context if available, otherwise use "unknown"</rule>
+          <default>unknown</default>
+        </field>
+      </auto_populated_fields>
+      
+      <user_confirmed_fields>
+        <field name="target_service">
+          <description>Name of the service/API being connected to</description>
+          <inference_process>
+            <step>1. Analyze the API hostname (e.g., api.salesforce.com → "Salesforce")</step>
+            <step>2. Extract service name from domain or API documentation</step>
+            <step>3. Present inference to user for confirmation</step>
+            <step>4. Allow user to override/customize if needed</step>
+          </inference_process>
+          <examples>
+            <example>
+              <hostname>https://api.spacexdata.com</hostname>
+              <inferred>SpaceX API</inferred>
+              <prompt>Based on the hostname 'api.spacexdata.com', I've identified this as "SpaceX API". Is this correct?</prompt>
+            </example>
+            <example>
+              <hostname>https://api.github.com</hostname>
+              <inferred>GitHub</inferred>
+              <prompt>Based on the hostname 'api.github.com', I've identified this as "GitHub". Is this correct?</prompt>
+            </example>
+            <example>
+              <hostname>https://login.salesforce.com</hostname>
+              <inferred>Salesforce</inferred>
+              <prompt>Based on the hostname 'login.salesforce.com', I've identified this as "Salesforce". Is this correct?</prompt>
+            </example>
+          </examples>
+          <user_interaction>
+            <question>I've identified the target service as "{inferred_name}". Is this correct?</question>
+            <options>
+              <option>Yes, that's correct</option>
+              <option>No, let me provide the correct name</option>
+            </options>
+          </user_interaction>
+        </field>
+      </user_confirmed_fields>
+      
+      <metadata_placement>
+        <rule>Metadata section must appear after $connector_description and before $hostname</rule>
+        <structure>
+          <![CDATA[
+{
+  "$connector_name": "...",
+  "$connector_label": "...",
+  "$connector_description": "...",
+  "$metadata": {
+    "connector_source": "connector_forge",
+    "target_service": "Service Name",
+    "connector_type": "rest_api",
+    "created_at": "2026-05-06T12:00:00Z",
+    "created_by": "user_12345",
+    "forge_version": "1.0.0"
+  },
+  "$hostname": "...",
+  "$authentication": "...",
+  "$tables": { ... }
+}
+          ]]>
+        </structure>
+      </metadata_placement>
+    </metadata_generation>
+
     <structure>
       <root_fields>
         <field name="$connector_name" required="true">
@@ -391,6 +489,41 @@
           <description>Brief description of what the connector provides</description>
           <example>Connector for SpaceX public REST API - provides access to rockets, launches, and more</example>
           <note>Use clear, descriptive sentences</note>
+        </field>
+        
+        <field name="$metadata" required="true">
+          <description>Metadata about the connector for tracking and analytics</description>
+          <auto_generated>true</auto_generated>
+          <fields>
+            <field name="connector_source">
+              <value>Always "connector_forge"</value>
+              <auto_populated>true</auto_populated>
+            </field>
+            <field name="target_service">
+              <description>Name of the service/API (e.g., "Salesforce", "GitHub", "SpaceX API")</description>
+              <inference>Inferred from hostname, confirmed with user</inference>
+              <example>SpaceX API</example>
+            </field>
+            <field name="connector_type">
+              <value>Always "rest_api"</value>
+              <auto_populated>true</auto_populated>
+            </field>
+            <field name="created_at">
+              <description>ISO 8601 timestamp of creation</description>
+              <auto_generated>true</auto_generated>
+              <example>2026-05-06T12:00:00Z</example>
+            </field>
+            <field name="created_by">
+              <description>User ID of creator</description>
+              <default>unknown</default>
+              <note>Extract from environment if available</note>
+            </field>
+            <field name="forge_version">
+              <description>Version of Connector Forge</description>
+              <format>Semantic versioning</format>
+              <example>1.0.0</example>
+            </field>
+          </fields>
         </field>
         
         <field name="$hostname" required="true">
@@ -574,7 +707,7 @@
   </phase_2_configuration_generation>
 
   <phase_3_presentation>
-    <title>Presentation & Confirmation</title>
+    <title>Presentation and Confirmation</title>
     
     <file_storage_location>
       <description>
@@ -634,6 +767,13 @@
   <validation_checklist>
     <title>Before Final Output</title>
     <checks>
+      <check>$metadata section is present with all required fields</check>
+      <check>connector_source is set to "connector_forge"</check>
+      <check>target_service is populated and confirmed with user</check>
+      <check>connector_type is set to "rest_api"</check>
+      <check>created_at is valid ISO 8601 timestamp</check>
+      <check>created_by is populated (or "unknown")</check>
+      <check>forge_version follows semantic versioning</check>
       <check>Each table has exactly one $path entry (array with single element)</check>
       <check>All nested objects are mapped with "[]" syntax</check>
       <check>All nested arrays are mapped as VARCHAR</check>

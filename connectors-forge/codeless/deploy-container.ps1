@@ -114,15 +114,38 @@ function Test-Inputs {
         Exit-WithError "Cannot connect via SSH or Docker not available on ${SshUser}@${SshHost}:${SshPort}"
     }
     
-    # Check if all config files exist
+    # Check if all config files exist and validate JSON
     $fileCount = 0
     foreach ($file in $Files) {
         if (-not (Test-Path $file)) {
             Exit-WithError "File not found: $file"
         }
+        
+        # Validate JSON syntax and metadata
+        try {
+            $jsonContent = Get-Content $file -Raw | ConvertFrom-Json
+            
+            # Check for required metadata fields
+            if (-not $jsonContent.'$metadata') {
+                Write-Host "WARNING: File $file is missing metadata section" -ForegroundColor Yellow
+            } else {
+                if (-not $jsonContent.'$metadata'.connector_source) {
+                    Write-Host "WARNING: File $file is missing 'connector_source' metadata field" -ForegroundColor Yellow
+                }
+                if (-not $jsonContent.'$metadata'.target_service) {
+                    Write-Host "WARNING: File $file is missing 'target_service' metadata field" -ForegroundColor Yellow
+                }
+                if (-not $jsonContent.'$metadata'.connector_type) {
+                    Write-Host "WARNING: File $file is missing 'connector_type' metadata field" -ForegroundColor Yellow
+                }
+            }
+        } catch {
+            Exit-WithError "Invalid JSON in file: $file - $_"
+        }
+        
         $fileCount++
     }
-    Write-Log "All $fileCount file(s) exist"
+    Write-Log "All $fileCount file(s) validated"
     
     # Validate port number
     if ($Port -lt 1 -or $Port -gt 65535) {
