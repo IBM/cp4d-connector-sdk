@@ -97,8 +97,8 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                         .group("domain"));
 
         // Add authentication-specific connection properties based on the authentication type
-        final String authType = mapping.getAuthenticationType();
-        if ("api_key".equals(authType)) {
+        final AuthenticationType authType = mapping.getAuthenticationTypeEnum();
+        if (authType == AuthenticationType.API_KEY) {
             // API Key authentication
             properties.addConnectionItem(
                     new CustomDatasourceTypeProperty()
@@ -110,7 +110,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                             .masked(true)
                             .group("credentials"));
         }
-        else if ("oauth2".equals(authType)) {
+        else if (authType == AuthenticationType.OAUTH2) {
             // OAuth 2.0 Bearer Token authentication
             properties.addConnectionItem(
                     new CustomDatasourceTypeProperty()
@@ -122,7 +122,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                             .masked(true)
                             .group("credentials"));
         }
-        else if ("basic".equals(authType)) {
+        else if (authType == AuthenticationType.BASIC) {
             // Basic authentication (username + password)
             properties.addConnectionItem(
                     new CustomDatasourceTypeProperty()
