@@ -1,0 +1,48 @@
+# Cloud Pak for Data Configuration
+# Copy this file to test-discovery.properties and fill in your values
+
+# CPD API endpoint (without trailing slash)
+# IBM Cloud: https://api.dataplatform.cloud.ibm.com
+# On-premises: https://<your-cpd-host>
+CPD_URL=https://api.dataplatform.cloud.ibm.com
+
+# ============================================
+# Authentication Configuration
+# ============================================
+# Choose ONE authentication method:
+#
+# Option 1: IBM Cloud API Key (for IBM Cloud deployments)
+APIKEY=<your-api-key>
+#
+# Option 2: Username/Password (for on-premises CP4D deployments)
+# Uncomment the lines below and comment out APIKEY if using username/password
+#USERNAME=<your-username>
+#PASSWORD=<your-password>
+
+# Authentication API endpoint
+# IBM Cloud: https://iam.cloud.ibm.com/identity/token
+# On-premises CP4D: https://<your-cpd-host>/icp4d-api/v1/authorize
+AUTH_URI=https://iam.cloud.ibm.com/identity/token
+
+# Connector configurations (comma-separated for multiple connectors)
+# Each connector needs: datasource_type, discovery_path, and connection_properties
+
+# Datasource type IDs (comma-separated)
+# Example for multiple REST API connectors: rest_api_connector1,rest_api_connector2,rest_api_connector3
+DATASOURCE_TYPES=rest_api_connector
+
+# Discovery paths (comma-separated, one per datasource type)
+# For REST API connectors, paths typically represent API endpoints
+# Example: /users,/products,/orders
+DISCOVERY_PATHS=/endpoint
+
+# Connection properties (pipe-separated JSON objects, one per datasource type)
+# Use | as separator between different connector properties
+# Example for multiple connectors:
+# {"base_url":"https://api1.example.com","api_key":"key1"}|{"base_url":"https://api2.example.com","username":"user","password":"pass"}|{"base_url":"https://api3.example.com"}
+CONNECTION_PROPERTIES={"base_url":"https://api.example.com","api_key":"your-api-key"}
+
+# Full example with 3 REST API connectors:
+# DATASOURCE_TYPES=github_api,jsonplaceholder_api,public_api
+# DISCOVERY_PATHS=/repos,/users,/entries
+# CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"ghp_xxx"}|{"base_url":"https://jsonplaceholder.typicode.com"}|{"base_url":"https://api.publicapis.org"}

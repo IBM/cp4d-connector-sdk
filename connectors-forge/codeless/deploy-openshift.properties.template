@@ -1,0 +1,25 @@
+# OpenShift Deployment Configuration Template
+# Copy this file to deploy-openshift.properties and fill in your values
+# DO NOT commit the actual deploy-openshift.properties file with credentials
+
+# OpenShift Cluster Configuration
+# The OpenShift cluster API URL (e.g., https://api.cluster.example.com:6443)
+OPENSHIFT_CLUSTER_URL=
+
+# Authentication - Choose ONE method:
+# Method 1: Username/Password Authentication
+OPENSHIFT_USERNAME=
+OPENSHIFT_PASSWORD=
+
+# Method 2: Token Authentication (comment out username/password if using token)
+# OPENSHIFT_TOKEN=
+
+# Project/Namespace Configuration
+# The OpenShift project/namespace where the connector will be deployed
+OPENSHIFT_PROJECT=
+
+# Set to 'true' to create the project if it doesn't exist, 'false' to fail if not found
+CREATE_PROJECT_IF_NOT_EXISTS=true
+
+# Set to 'true' to delete and recreate ConfigMap if it already exists
+RECREATE_CONFIGMAP=true

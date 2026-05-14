@@ -1,0 +1,2580 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<deployment_execution_phase>
+  <overview>
+    This phase handles the final deployment of the REST connector(s) after all DSL configuration
+    files have been created. It provides four deployment options: Local (Docker), Serverless,
+    Self-hosted Server, and OpenShift.
+  </overview>
+
+  <workflow_control>
+    <title>Workflow Control and Error Handling</title>
+    <description>
+      CRITICAL: The mode must follow these workflow control rules throughout all deployment phases:
+    </description>
+
+    <rule_1_wait_for_confirmation>
+      <title>Wait for User Confirmation After Each Step</title>
+      <description>
+        After executing ANY command or providing instructions (whether automatic or manual),
+        you MUST wait for the user to confirm success before proceeding.
+        
+        DO NOT assume success. DO NOT automatically proceed to the next step.
+        ALWAYS wait for explicit user confirmation.
+      </description>
+    </rule_1_wait_for_confirmation>
+
+    <rule_2_handle_failures>
+      <title>Handle Failures Appropriately</title>
+      <description>
+        If a step fails or the user reports an error:
+        
+        1. DO NOT display "Task complete" or "Success" messages
+        2. DO display:
+           - Clear description of what failed
+           - Error details from the command output (if available)
+           - Specific troubleshooting steps from the error_handling section
+           - Options to retry or get manual instructions
+        
+        3. Ask the user if they want to:
+           - Retry the failed step
+           - Switch to manual instructions
+           - Skip this deployment option and try another
+           - Get help with troubleshooting
+      </description>
+    </rule_2_handle_failures>
+
+    <rule_3_ask_before_next_phase>
+      <title>Ask Before Proceeding to Next Phase</title>
+      <description>
+        After SUCCESSFUL completion of each major phase, explicitly ask the user
+        if they want to proceed to the next phase:
+        
+        - After Deployment → Ask: "Would you like to proceed with CP4D registration?"
+        - After Registration → Ask: "Would you like to validate the registration with discovery tests?"
+        
+        DO NOT automatically proceed. Wait for user's explicit choice.
+      </description>
+      <options_format>
+        Present clear options:
+        1. Yes - Proceed to [next phase]
+        2. No - Stop here (I'll do it later)
+        3. Help - I need assistance with [current phase]
+      </options_format>
+    </rule_3_ask_before_next_phase>
+
+    <rule_4_success_messages>
+      <title>Success Messages Only on Actual Success</title>
+      <description>
+        Display "Deployment Successful!" or "Task complete" messages ONLY when:
+        - User explicitly confirms the step succeeded
+        - All verification checks pass
+        - No errors were reported
+        
+        If there's ANY uncertainty, ask for confirmation instead of assuming success.
+      </description>
+    </rule_4_success_messages>
+
+    <rule_5_provide_context>
+      <title>Provide Context at Each Step</title>
+      <description>
+        When asking for confirmation or presenting options, always provide context:
+        - What was just completed
+        - What the next step would be
+        - Why the next step is important
+        - What happens if they choose to skip
+      </description>
+    </rule_5_provide_context>
+  </workflow_control>
+
+  <phase_4_multiple_connectors>
+    <title>Multiple Connectors Check</title>
+    <description>
+      After completing Phase 3 (Presentation & Confirmation) for a connector,
+      ask if the user wants to create additional connectors.
+    </description>
+
+    <step_1_ask_additional_connectors>
+      <title>Ask About Additional Connectors</title>
+      <when>After successfully creating and confirming a connector configuration</when>
+      
+      <question>
+        Would you like to create another REST API connector configuration?
+      </question>
+
+      <options>
+        <option name="yes">
+          <label>Yes, create another connector</label>
+          <action>Return to Phase 1 (API Discovery & Analysis) to create another connector</action>
+          <note>All connectors will be stored in the same resources directory</note>
+        </option>
+        
+        <option name="no">
+          <label>No, proceed to deployment</label>
+          <action>Continue to Phase 5 (Deployment Option Selection)</action>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly:
+        1. Yes - Create another connector (returns to Phase 1)
+        2. No - Proceed to deployment
+      </presentation_format>
+    </step_1_ask_additional_connectors>
+
+    <loop_behavior>
+      <description>
+        If user chooses to create another connector, repeat Phases 1-3 for the new connector.
+        Continue asking after each connector until user chooses to proceed to deployment.
+      </description>
+      <note>
+        Multiple connectors can be packaged together in a single deployment.
+        All DSL files in sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+        will be included in the deployment.
+      </note>
+    </loop_behavior>
+  </phase_4_multiple_connectors>
+
+  <phase_5_deployment_option_selection>
+    <title>Deployment Option Selection</title>
+    <description>
+      Present four deployment options and guide the user through the selected deployment process.
+    </description>
+
+    <step_1_present_deployment_options>
+      <title>Present Deployment Options</title>
+      
+      <question>
+        How would you like to deploy your REST API connector(s)?
+      </question>
+
+      <important_note>
+        The deployment options presented depend on the deployment type chosen in Phase 0:
+        - Developer option: Shows all 4 deployment options (Local, Serverless, Self-Hosted, OpenShift)
+        - Codeless option: Shows only 3 deployment options (Serverless, Self-Hosted, OpenShift)
+          Local deployment is not available for codeless option as it requires building custom Docker image.
+      </important_note>
+
+      <options_for_developer>
+        <title>Options when Developer deployment type was chosen in Phase 0</title>
+        
+        <option name="local">
+          <number>1</number>
+          <label>Local Docker Deployment</label>
+          <description>
+            Build and run Docker container on your local machine.
+            Best for: Testing and manual verification of connectors.
+          </description>
+          <use_case>Development, testing, local verification</use_case>
+          <available_for>Developer option only</available_for>
+        </option>
+
+        <option name="serverless">
+          <number>2</number>
+          <label>Serverless Deployment</label>
+          <description>
+            Deploy Docker container to a serverless platform.
+            Best for: As-a-service solutions with automatic scaling.
+          </description>
+          <use_case>Cloud-native, as-a-service deployments</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+
+        <option name="self_hosted">
+          <number>3</number>
+          <label>Self-Hosted Server Deployment</label>
+          <description>
+            Deploy Docker container to your own server infrastructure.
+            Best for: As-a-service solutions with full control.
+          </description>
+          <use_case>Custom infrastructure, as-a-service with control</use_case>
+        </option>
+
+        <option name="openshift">
+          <number>4</number>
+          <label>OpenShift Deployment</label>
+          <description>
+            Deploy container to OpenShift platform using Flight Operator.
+            Best for: On-premises enterprise deployments.
+          </description>
+          <use_case>Enterprise on-premises solutions</use_case>
+        </option>
+      </options_for_developer>
+
+      <options_for_codeless>
+        <title>Options when Codeless deployment type was chosen in Phase 0</title>
+        <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.2)</note>
+        
+        <option name="serverless">
+          <number>1</number>
+          <label>Serverless Deployment</label>
+          <description>
+            Deploy pre-built Docker container to a serverless platform.
+            Best for: As-a-service solutions with automatic scaling.
+          </description>
+          <use_case>Cloud-native, as-a-service deployments</use_case>
+          <status>Placeholder - Not yet implemented</status>
+        </option>
+
+        <option name="self_hosted">
+          <number>2</number>
+          <label>Self-Hosted Server Deployment</label>
+          <description>
+            Deploy pre-built Docker container to your own server infrastructure.
+            Best for: As-a-service solutions with full control.
+          </description>
+          <use_case>Custom infrastructure, as-a-service with control</use_case>
+        </option>
+
+        <option name="openshift">
+          <number>3</number>
+          <label>OpenShift Deployment</label>
+          <description>
+            Deploy pre-built container to OpenShift platform.
+            Best for: On-premises enterprise deployments.
+          </description>
+          <use_case>Enterprise on-premises solutions</use_case>
+        </option>
+      </options_for_codeless>
+
+      <presentation_format>
+        - For Developer option: Present all four deployment options with clear numbering
+        - For Codeless option: Present only three deployment options (exclude Local Docker)
+        - Renumber options for codeless (1-3 instead of 2-4)
+        - Indicate which options are placeholders (not yet implemented)
+        - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.2
+      </presentation_format>
+    </step_1_present_deployment_options>
+
+    <step_2_handle_local_deployment>
+      <title>Local Docker Deployment</title>
+      <when>User selects option 1 (Local)</when>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run all necessary Gradle tasks to build and start the Docker container</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic Local Deployment</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen</name>
+            <command>cd sdk-gen</command>
+            <note>All Gradle tasks must be run from the sdk-gen directory</note>
+          </action>
+
+          <action priority="2">
+            <name>Build Project</name>
+            <command>./gradlew build</command>
+            <description>Compiles the project and runs tests</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>This may take several minutes on first run</note>
+          </action>
+
+          <action priority="3">
+            <name>Generate Flight Application</name>
+            <command>./gradlew generateFlightApp</command>
+            <description>Generates the Flight service application with all connectors</description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="4">
+            <name>Build Docker Image</name>
+            <command>./gradlew dockerBuild</command>
+            <description>Creates Docker image containing the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Requires Docker to be installed and running</note>
+          </action>
+
+          <action priority="5">
+            <name>Start Docker Container</name>
+            <command>./gradlew dockerStart</command>
+            <description>Starts the Docker container with the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Container will run in the background</note>
+          </action>
+
+          <action priority="6">
+            <name>Verify Deployment</name>
+            <description>
+              Confirm that the container is running successfully.
+              The connector(s) should now be accessible via the Flight service.
+            </description>
+          </action>
+
+          <action priority="7">
+            <name>Inform User</name>
+            <message>
+              Local deployment complete!
+              
+              Your REST API connector(s) are now running in a Docker container.
+              The Flight service is accessible and ready to use.
+              
+              To stop the container, run: ./gradlew dockerStop (from sdk-gen directory)
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_build_fails>
+            <action>Report the error details to the user</action>
+            <action>Suggest checking build logs for specific issues</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_build_fails>
+          
+          <if_docker_not_running>
+            <action>Inform user that Docker must be installed and running</action>
+            <action>Provide instructions to start Docker</action>
+          </if_docker_not_running>
+        </error_handling>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual Local Deployment Instructions</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) locally using Docker, follow these steps:
+
+          1. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          2. Build the project:
+             ./gradlew build
+             
+             This compiles the project and runs tests. May take several minutes on first run.
+
+          3. Generate the Flight application:
+             ./gradlew generateFlightApp
+             
+             This generates the Flight service application with all your connectors.
+
+          4. Build the Docker image:
+             ./gradlew dockerBuild
+             
+             This creates a Docker image containing your connector(s).
+             Note: Docker must be installed and running on your machine.
+
+          5. Start the Docker container:
+             ./gradlew dockerStart
+             
+             This starts the container with your connector(s) running.
+
+          6. Verify the deployment:
+             The connector(s) should now be accessible via the Flight service.
+
+          To stop the container later, run:
+             ./gradlew dockerStop
+
+          Let me know once you've completed these steps or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment steps
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+    </step_2_handle_local_deployment>
+
+    <step_3_handle_serverless_deployment>
+      <title>Serverless Deployment</title>
+      <when>User selects option 2 (Serverless)</when>
+
+      <placeholder_notice>
+        <message>
+          Serverless deployment is not yet implemented.
+          
+          This is a placeholder for future functionality. When implemented, this option will:
+          - Build the Docker image with your connector(s)
+          - Deploy the image to a serverless platform (e.g., AWS Lambda, Google Cloud Run, Azure Functions)
+          - Configure automatic scaling and endpoint management
+          - Provide the service URL for accessing your connector(s)
+          
+          For now, please choose one of the other deployment options:
+          - Option 1: Local Docker Deployment (for testing)
+          - Option 3: Self-Hosted Server Deployment (for production)
+          - Option 4: Openshift deployment (for production)
+        </message>
+      </placeholder_notice>
+
+      <future_implementation>
+        <description>
+          When implemented, this section will include:
+          - Cloud provider selection 
+          - Authentication and credentials configuration
+          - Serverless platform-specific deployment commands
+          - Endpoint URL generation and configuration
+          - Monitoring and logging setup
+        </description>
+      </future_implementation>
+    </step_3_handle_serverless_deployment>
+
+    <step_4_handle_self_hosted_deployment>
+      <title>Self-Hosted Server Deployment</title>
+      <when>User selects Self-Hosted option</when>
+      
+      <important_note>
+        The deployment process differs based on the deployment type chosen in Phase 0:
+        - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.2)
+        - Developer: Uses ./gradlew dockerPush to build and push custom Docker image
+      </important_note>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the deployment, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute for me</label>
+            <description>I will run the deployment commands/script to deploy to your server</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_codeless_automatic>
+        <title>Automatic Self-Hosted Deployment (Codeless)</title>
+        <when>User chooses automatic execution AND codeless deployment type</when>
+
+        <workflow_control>
+          CRITICAL: Deployment execution requires careful monitoring and confirmation.
+          - Execute the deployment script and monitor its progress through all 7 steps
+          - Wait for script completion before asking for confirmation
+          - Ask user to confirm deployment succeeded (container running, all 7 steps completed)
+          - Do NOT show success message unless user confirms deployment worked
+          - If deployment fails at any step, provide troubleshooting based on the specific step and error
+          - Only proceed to registration if deployment is confirmed successful
+        </workflow_control>
+
+        <actions>
+          <action priority="1">
+            <name>Ask for SSH Connection Details</name>
+            <description>
+              Ask the user for SSH connection details using ask_followup_question.
+              Present these as suggested answers with placeholders for the user to fill in.
+            </description>
+            <question>Please provide your SSH connection details for the remote Docker server:</question>
+            <suggested_answers>
+              <suggest>SSH Host: [hostname/IP], SSH User: [username], SSH Port: 22</suggest>
+              <suggest>SSH Host: [hostname/IP], SSH User: [username], SSH Port: [custom]</suggest>
+            </suggested_answers>
+            <note>
+              Parse the user's response to extract host, user, and port values.
+            </note>
+          </action>
+
+          <action priority="2">
+            <name>Ask About SSH Key Setup</name>
+            <description>
+              After receiving SSH connection details, immediately ask if SSH keys are configured.
+            </description>
+            <question>Do you have SSH key authentication set up for {ssh-user}@{host}?</question>
+            <suggested_answers>
+              <suggest>Yes, I can connect without a password</suggest>
+              <suggest>No, I need help setting up SSH keys</suggest>
+            </suggested_answers>
+          </action>
+
+          <action priority="3">
+            <name>Provide SSH Setup Instructions (if needed)</name>
+            <when>User indicates SSH keys are not set up</when>
+            <description>
+              Provide personalized SSH setup commands using the connection details from step 1.
+            </description>
+
+            <ssh_setup_instructions>
+              <title>SSH Key Authentication Setup</title>
+              <description>
+                To use the deployment script, you need to set up SSH key authentication.
+                Here are the commands personalized for your server:
+              </description>
+
+              <for_unix_linux_macos>
+                <title>For Unix/Linux/macOS:</title>
+                <command>ssh-copy-id {ssh-user}@{host}</command>
+                <command_with_custom_port>ssh-copy-id -p {ssh-port} {ssh-user}@{host}</command_with_custom_port>
+                <note>Run this command and enter your password when prompted</note>
+                <if_fails>
+                  If ssh-copy-id fails or is not available, please consult your system administrator
+                  or refer to online SSH documentation for your specific operating system.
+                </if_fails>
+              </for_unix_linux_macos>
+
+              <for_windows>
+                <title>For Windows (PowerShell):</title>
+                <command>type $env:USERPROFILE\.ssh\id_rsa.pub | ssh {ssh-user}@{host} "cat >> .ssh/authorized_keys"</command>
+                <command_with_custom_port>type $env:USERPROFILE\.ssh\id_rsa.pub | ssh -p {ssh-port} {ssh-user}@{host} "cat >> .ssh/authorized_keys"</command_with_custom_port>
+                <note>Run this command and enter your password when prompted</note>
+                <if_fails>
+                  If this command fails, please consult your system administrator
+                  or refer to online SSH documentation for Windows.
+                </if_fails>
+              </for_windows>
+
+              <verification>
+                <title>Verify SSH Access:</title>
+                <command>ssh {ssh-user}@{host}</command>
+                <command_with_custom_port>ssh -p {ssh-port} {ssh-user}@{host}</command_with_custom_port>
+                <success_criteria>You should be able to log in without entering a password</success_criteria>
+              </verification>
+            </ssh_setup_instructions>
+
+            <after_providing_instructions>
+              <question>Have you completed the SSH key setup? Can you now connect without a password?</question>
+              <suggested_answers>
+                <suggest>Yes, SSH keys are now configured</suggest>
+                <suggest>No, I encountered issues - provide manual deployment instructions instead</suggest>
+              </suggested_answers>
+            </after_providing_instructions>
+          </action>
+
+          <action priority="4">
+            <name>Gather Remaining Deployment Parameters</name>
+            <when>SSH authentication is confirmed to be working</when>
+            <description>
+              Now ask for the deployment-specific parameters.
+              Host, SSH user, and SSH port were already gathered in step 1.
+              
+              IMPORTANT: Before asking, list the available connector configuration files
+              from sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+              and explain which connector each file represents to help non-technical users.
+            </description>
+            <steps>
+              <step>List all .json files in sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</step>
+              <step>For each file, read the "$connector_name" field to identify the connector name</step>
+              <step>Present the list to the user in a clear format showing: filename → connector name</step>
+              <step>Ask which files to deploy along with container port and replace flag</step>
+            </steps>
+            <question_format>
+              I found the following connector configuration files:
+              
+              Available connectors:
+              - filename1.json → Connector Name 1
+              - filename2.json → Connector Name 2
+              
+              Which configuration files would you like to deploy?
+              Please also specify:
+              - Container port (default: 9090)
+              - Replace existing container? (yes/no, default: no)
+            </question_format>
+            <suggested_answers>
+              <suggest>Deploy: [connector-name.json], Port: 9090</suggest>
+              <suggest>Deploy: [connector1.json connector2.json], Port: 9090, Replace: yes</suggest>
+              <suggest>Deploy all connectors, Port: 9090</suggest>
+            </suggested_answers>
+            <note>
+              Parse the response to extract:
+              - files list (can be specific filenames or "all")
+              - port (default to 9090 if not specified)
+              - replace flag (default to false if not specified)
+            </note>
+          </action>
+
+          <action priority="5">
+            <name>Execute Deployment Script</name>
+            <command_unix>
+              ./connectors-forge/codeless/deploy-container.sh --host {host} --ssh-user {ssh-user} --files {file1} {file2} ... --port {port} [--ssh-port {ssh-port}] [--replace]
+            </command_unix>
+            <command_windows>
+              .\connectors-forge\codeless\deploy-container.ps1 -SshHost {host} -SshUser {ssh-user} -Files {file1},{file2},... -Port {port} [-SshPort {ssh-port}] [-Replace]
+            </command_windows>
+            <description>
+              Runs the OS-specific deployment script with user-provided parameters.
+              The script handles:
+              - Connecting to remote server via SSH (using your SSH keys - no password prompts)
+              - Creating container from pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.2)
+              - Creating tar archive with configuration files and streaming it via SSH
+              - Uploading configuration files to /config/mappings/ in the container
+              - Configuring port mapping (9443 internal → user-specified external)
+              - Starting and verifying the container
+            </description>
+            <working_directory>Project root</working_directory>
+            <note>Script uses SSH to execute Docker commands on remote server</note>
+            <deployment_steps>
+              The script performs 7 steps:
+              1. Validate inputs (SSH connectivity, Docker availability, files, port)
+              2. Check for existing containers (by name or port conflict)
+              3. Create container (docker create with port mapping)
+              4. Upload config files (tar streaming via SSH to docker cp)
+              5. Start container (docker start)
+              6. Verify container status (docker inspect)
+              7. Report success with container details
+            </deployment_steps>
+          </action>
+
+          <action priority="6">
+            <name>Monitor Deployment</name>
+            <description>
+              Monitor the script output for successful deployment confirmation.
+              The script provides 7-step progress updates (changed from 8 steps in previous version).
+            </description>
+          </action>
+
+          <action priority="7">
+            <name>Verify Deployment</name>
+            <description>
+              Confirm that the connector(s) are accessible on the target server.
+              The script will output the container ID and name upon success.
+            </description>
+          </action>
+
+          <action priority="8">
+            <name>Inform User</name>
+            <message>
+              Self-hosted deployment complete!
+              
+              Your REST API connector(s) have been deployed to your server using the pre-built image.
+              The deployment script has configured the necessary networking and access.
+              
+              Container details and service endpoint information are shown in the script output.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_script_fails>
+            <action>Report the error details from script output</action>
+            <action>Verify SSH key authentication is configured correctly (test with: ssh user@host)</action>
+            <action>Check if configuration files exist at specified paths</action>
+            <action>Verify port number is valid (1-65535) and not in use (unless --replace is used)</action>
+            <action>Check network connectivity to target server</action>
+            <action>Verify Docker is installed and user has permissions on remote server</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_script_fails>
+          
+          <if_ssh_connection_fails>
+            <action>Verify SSH host and port are correct</action>
+            <action>Check SSH key authentication is set up (should connect without password)</action>
+            <action>Test SSH connection manually: ssh -p {port} {user}@{host}</action>
+            <action>Verify firewall allows SSH connections</action>
+            <action>Check if SSH service is running on remote server</action>
+          </if_ssh_connection_fails>
+          
+          <if_docker_not_available>
+            <action>Verify Docker is installed on remote server</action>
+            <action>Check user has permissions to run Docker commands</action>
+            <action>Test Docker access: ssh {user}@{host} "docker version"</action>
+            <action>User may need to be added to docker group on remote server</action>
+          </if_docker_not_available>
+          
+          <if_file_upload_fails>
+            <action>Verify /config directory exists in the container image</action>
+            <action>Check tar command is available (Windows 10+ or PowerShell 7+)</action>
+            <action>Verify SSH connection is stable during file transfer</action>
+            <action>Check disk space on remote server</action>
+          </if_file_upload_fails>
+        </error_handling>
+      </sub_step_2a_codeless_automatic>
+
+      <sub_step_2b_developer_automatic>
+        <title>Automatic Self-Hosted Deployment (Developer)</title>
+        <when>User chooses automatic execution AND developer deployment type</when>
+
+        <workflow_control>
+          CRITICAL: Docker image build and push requires confirmation.
+          - Execute dockerPush task and monitor progress
+          - Wait for task completion before asking for confirmation
+          - Ask user to confirm image was successfully pushed
+          - Do NOT show success message unless user confirms push succeeded
+          - If push fails, provide troubleshooting based on error messages
+          - Remind user they still need to deploy the image to their server
+          - Only proceed to next steps if push is confirmed successful
+        </workflow_control>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen</name>
+            <command>cd sdk-gen</command>
+            <note>Gradle task must be run from sdk-gen directory</note>
+          </action>
+
+          <action priority="2">
+            <name>Push Docker Image</name>
+            <command>./gradlew dockerPush</command>
+            <description>
+              Builds the Docker image with your custom connector(s) and pushes it to the configured container registry.
+              This task handles:
+              - Building the Docker image with your connector code
+              - Tagging the image appropriately
+              - Pushing to your container registry
+            </description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Container registry must be configured in gradle.properties or environment variables</note>
+          </action>
+
+          <action priority="3">
+            <name>Verify Push</name>
+            <description>
+              Confirm that the image was successfully pushed to the container registry.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Confirm Success and Inform User</name>
+            <confirmation_required>true</confirmation_required>
+            <question>
+              Did the dockerPush task complete successfully?
+              Check the output for:
+              - "BUILD SUCCESSFUL" message
+              - Image pushed to registry confirmation
+              - No error messages
+            </question>
+            <on_success>
+              <message>
+                ✓ Docker image push complete!
+                
+                Your custom Docker image with REST API connector(s) has been pushed to the container registry.
+                
+                Next steps:
+                - Deploy the image to your server using your deployment tools
+                - Configure the service endpoint and networking
+                - Verify the connector(s) are accessible
+              </message>
+            </on_success>
+            <on_failure>
+              <message>
+                ✗ Docker image push failed
+                
+                Please review the error messages above and check:
+                - Container registry credentials are configured
+                - Docker is running
+                - Network connectivity to container registry
+                - Gradle build completed successfully
+              </message>
+            </on_failure>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_gradle_fails>
+            <action>Report the error details from Gradle output</action>
+            <action>Check if container registry credentials are configured</action>
+            <action>Verify Docker is running</action>
+            <action>Check network connectivity to container registry</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_gradle_fails>
+        </error_handling>
+      </sub_step_2b_developer_automatic>
+
+      <sub_step_2c_codeless_manual>
+        <title>Manual Self-Hosted Deployment Instructions (Codeless)</title>
+        <when>User chooses manual execution AND codeless deployment type</when>
+
+        <ssh_prerequisites>
+          <title>SSH Key Authentication Setup (Required)</title>
+          <description>
+            The deploy-container.sh script uses SSH to connect to your remote Docker server.
+            You MUST set up SSH key authentication before running the deployment script.
+          </description>
+
+          <setup_for_unix_linux_macos>
+            <title>Unix/Linux/macOS Setup</title>
+            <command>ssh-copy-id user@remote-host</command>
+            <note>Replace 'user' with your username and 'remote-host' with your server address</note>
+            <if_fails>
+              If ssh-copy-id fails or is not available, please consult your system administrator
+              or refer to online SSH documentation for your specific operating system.
+            </if_fails>
+          </setup_for_unix_linux_macos>
+
+          <setup_for_windows>
+            <title>Windows Setup</title>
+            <command>type $env:USERPROFILE\.ssh\id_rsa.pub | ssh user@remote-host "cat >> .ssh/authorized_keys"</command>
+            <note>Replace 'user' with your username and 'remote-host' with your server address</note>
+            <if_fails>
+              If this command fails, please consult your system administrator
+              or refer to online SSH documentation for Windows.
+            </if_fails>
+          </setup_for_windows>
+
+          <verification>
+            <title>Verify SSH Access</title>
+            <command>ssh user@remote-host</command>
+            <success_criteria>You should be able to log in without entering a password</success_criteria>
+          </verification>
+
+        </ssh_prerequisites>
+
+        <instructions>
+          To deploy your REST API connector(s) to your self-hosted server using the pre-built image:
+
+          IMPORTANT: Before proceeding, ensure SSH key authentication is configured (see SSH Prerequisites above).
+
+          REQUIRED PARAMETERS:
+          You need to provide the following information to the deployment script:
+          
+          1. --host: Remote server hostname or IP address (e.g., remote-server.com or 192.168.1.100)
+             SSH must be accessible on this host.
+          
+          2. --ssh-user: SSH username for remote server (e.g., ubuntu)
+             User must have Docker permissions on remote server.
+          
+          3. --files: Space-separated list of connector configuration JSON files
+             Location: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+             Example: api1.json api2.json
+          
+          4. --port: Port to expose on the host machine (1-65535)
+             This will be mapped to the container's internal port 9443.
+             Example: 9090
+          
+          OPTIONAL PARAMETERS:
+          5. --ssh-port: SSH port (default: 22)
+             Example: 2222
+          
+          6. --replace: Add this flag to stop and remove existing container using the same name or port
+
+          For Unix/Linux/macOS:
+          1. Ensure the deployment script has execute permissions:
+             chmod +x connectors-forge/codeless/deploy-container.sh
+
+          2. Run the deployment script with required parameters:
+             ./connectors-forge/codeless/deploy-container.sh \
+               --host remote-server.com \
+               --ssh-user ubuntu \
+               --files sdk-gen/subprojects/connectors_forge_rest/src/main/resources/api1.json api2.json \
+               --port 9090 \
+               [--ssh-port 22] \
+               [--replace]
+
+          For Windows:
+          1. Run the PowerShell deployment script with required parameters:
+             .\connectors-forge\codeless\deploy-container.ps1 `
+               -SshHost "remote-server.com" `
+               -SshUser "ubuntu" `
+               -Files "sdk-gen\subprojects\connectors_forge_rest\src\main\resources\api1.json","api2.json" `
+               -Port 9090 `
+               [-SshPort 22] `
+               [-Replace]
+
+          The script performs 7 steps:
+          1. Validates inputs - Tests SSH connectivity, Docker availability, file existence, and port validity
+          2. Checks for existing containers - Detects conflicts by name or port
+          3. Creates container - Uses docker create with port mapping (pulls image if needed)
+          4. Uploads config files - Creates tar archive and streams it via SSH to docker cp
+          5. Starts container - Executes docker start command
+          6. Verifies status - Checks that container is running
+          7. Reports success - Displays container ID, name, and port mapping
+
+          How it works:
+          - Connects to remote server via SSH using your SSH keys (no password prompts)
+          - Executes Docker commands remotely via SSH
+          - Uses pre-built image: ghcr.io/marek-zuwala/connectors-forge:1.0.2
+          - Streams configuration files directly via SSH pipe (no intermediate files on remote server)
+          - Uploads files to /config/mappings/ in the container
+          - Configures port mapping (9443 internal → your specified external port)
+
+          Prerequisites:
+          - SSH key authentication configured (REQUIRED - see SSH Prerequisites above)
+          - Docker installed on the remote server
+          - User has Docker permissions on remote server
+          - Network connectivity to the target server
+          - Configuration files exist at the specified paths
+          - Windows: PowerShell 5.1 or later with tar command support (Windows 10+ or PowerShell 7+)
+
+          The script will output the container ID, name, and deployment status upon successful completion.
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2c_codeless_manual>
+
+      <sub_step_2d_developer_manual>
+        <title>Manual Self-Hosted Deployment Instructions (Developer)</title>
+        <when>User chooses manual execution AND developer deployment type</when>
+
+        <instructions>
+          To deploy your custom REST API connector(s) to your self-hosted server:
+
+          1. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          2. Build and push your Docker image to the container registry:
+             ./gradlew dockerPush
+
+          This will:
+          - Build a Docker image with your custom connector code
+          - Tag the image appropriately
+          - Push it to your configured container registry
+
+          Prerequisites:
+          - Docker installed and running on your machine
+          - Container registry credentials configured in gradle.properties or environment variables
+          - Network connectivity to the container registry
+
+          3. After the image is pushed, deploy it to your server using your deployment tools
+
+          4. Configure the service endpoint and networking on your server
+
+          5. Verify the connector(s) are accessible
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2d_developer_manual>
+    </step_4_handle_self_hosted_deployment>
+
+    <step_5_handle_openshift_deployment>
+      <title>OpenShift Deployment (Codeless)</title>
+      <when>User selects OpenShift option for codeless deployment</when>
+
+      <important_note>
+        This step is for CODELESS deployment to OpenShift.
+        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.2) from GitHub Container Registry.
+        For DEVELOPER deployment to OpenShift, see step_6_handle_openshift_deployment_developer.
+      </important_note>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run the OpenShift CLI commands to deploy your connector(s)</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic OpenShift Deployment</title>
+        <when>User chooses automatic execution</when>
+
+        <security_and_privacy_policy>
+          NEVER ask the user directly for sensitive credentials like:
+          - OpenShift passwords
+          - Authentication tokens
+          - API keys
+          
+          Instead, guide them to create a properties file based on the template with placeholder values.
+          The deployment script will read credentials from the properties file.
+        </security_and_privacy_policy>
+
+        <prerequisites>
+          <requirement>OpenShift CLI (oc) must be installed</requirement>
+          <requirement>User must have OpenShift cluster access</requirement>
+          <requirement>User must have permissions to create resources in the target project</requirement>
+        </prerequisites>
+
+        <sub_step_1_verify_properties_file>
+          <title>Create Properties File from Template</title>
+          
+          <important_note>
+            Before deployment, you need to create a properties file based on the provided template.
+            This file is not visible to me (it's in .bobignore), so you need to create it manually.
+          </important_note>
+
+          <instructions>
+            <step priority="1">
+              <name>Review Template File</name>
+              <description>
+                A template file is provided at:
+                connectors-forge/codeless/deploy-openshift.properties.template
+                
+                This template shows the required configuration structure with placeholder values.
+              </description>
+            </step>
+
+            <step priority="2">
+              <name>Create Properties File</name>
+              <description>
+                Copy the template file to create your configuration:
+                
+                From: connectors-forge/codeless/deploy-openshift.properties.template
+                To: connectors-forge/codeless/deploy-openshift.properties
+                
+                You can do this with:
+                - Unix/Linux/macOS: cp connectors-forge/codeless/deploy-openshift.properties.template connectors-forge/codeless/deploy-openshift.properties
+                - Windows: copy connectors-forge\codeless\deploy-openshift.properties.template connectors-forge\codeless\deploy-openshift.properties
+              </description>
+            </step>
+
+            <step priority="3">
+              <name>Configure Required Properties</name>
+              <description>
+                Edit deploy-openshift.properties and replace all placeholder values (marked with <angle brackets>):
+                
+                REQUIRED SETTINGS:
+                - OPENSHIFT_CLUSTER_URL: Your OpenShift cluster URL
+                  Example: https://api.cluster.example.com:6443
+                
+                - OPENSHIFT_PROJECT: The project/namespace where you want to deploy
+                  Example: connectorsforge
+                
+                AUTHENTICATION (choose ONE method):
+                
+                Option 1: Username/Password
+                - OPENSHIFT_USERNAME: Replace <your-username> with your OpenShift username
+                - OPENSHIFT_PASSWORD: Replace <your-password> with your OpenShift password
+                - Keep OPENSHIFT_TOKEN commented out
+                
+                Option 2: Token (recommended for automation)
+                - OPENSHIFT_TOKEN: Replace <your-token> with your OpenShift authentication token
+                  (Get token from: oc whoami -t)
+                - Comment out OPENSHIFT_USERNAME and OPENSHIFT_PASSWORD
+                
+                OPTIONAL SETTINGS:
+                - CREATE_PROJECT_IF_NOT_EXISTS: Set to "true" to auto-create project if it doesn't exist (default: false)
+                - RECREATE_CONFIGMAP: Set to "true" to recreate ConfigMap if it already exists (default: false)
+              </description>
+              <example>
+                Example configuration with username/password:
+                OPENSHIFT_CLUSTER_URL=https://api.cluster.example.com:6443
+                OPENSHIFT_USERNAME=developer
+                OPENSHIFT_PASSWORD=mypassword
+                #OPENSHIFT_TOKEN=<your-token>
+                OPENSHIFT_PROJECT=connectorsforge
+                CREATE_PROJECT_IF_NOT_EXISTS=false
+                RECREATE_CONFIGMAP=false
+              </example>
+              <example>
+                Example configuration with token:
+                OPENSHIFT_CLUSTER_URL=https://api.cluster.example.com:6443
+                #OPENSHIFT_USERNAME=<your-username>
+                #OPENSHIFT_PASSWORD=<your-password>
+                OPENSHIFT_TOKEN=sha256~abc123def456...
+                OPENSHIFT_PROJECT=connectorsforge
+                CREATE_PROJECT_IF_NOT_EXISTS=true
+                RECREATE_CONFIGMAP=true
+              </example>
+            </step>
+          </instructions>
+
+          <confirmation_question>
+            Have you created deploy-openshift.properties from the template and configured all required values?
+            
+            Required configuration:
+            - OpenShift cluster URL
+            - Authentication: Either username+password OR token
+            - Project/namespace name
+          </confirmation_question>
+        </sub_step_1_verify_properties_file>
+
+        <sub_step_2_execute_deployment>
+          <title>Execute Deployment Script</title>
+          <when>After user confirms properties file is configured</when>
+
+          <actions>
+            <action priority="1">
+              <name>Execute Deployment Script</name>
+              <command_unix>connectors-forge/codeless/deploy-openshift.sh</command_unix>
+              <command_windows>connectors-forge\codeless\deploy-openshift.ps1</command_windows>
+              <description>
+                Runs the OS-specific deployment script that handles:
+                - Reading configuration from deploy-openshift.properties
+                - Logging into OpenShift cluster (using username/password OR token)
+                - Setting up the project/namespace (creating if configured to do so)
+                - Creating ConfigMap with connector configuration files
+                - Deploying the connector using deployment.yaml
+                - Creating the service using service.yaml
+                - Verifying the deployment is successful
+                
+                The script automatically detects which authentication method to use based on
+                which credentials are provided in the properties file.
+              </description>
+              <note>
+                The script selection is based on the operating system:
+                - Unix/Linux/macOS: deploy-openshift.sh (requires execute permissions: chmod +x)
+                - Windows: deploy-openshift.ps1 (PowerShell script)
+              </note>
+            </action>
+
+            <action priority="2">
+              <name>Monitor Deployment</name>
+              <description>
+                Monitor the script output for successful deployment confirmation.
+                The script provides detailed progress information for each step.
+              </description>
+            </action>
+
+            <action priority="3">
+              <name>Verify Deployment</name>
+              <description>
+                Confirm that the connector(s) are deployed and running in OpenShift.
+              </description>
+            </action>
+
+            <action priority="4">
+              <name>Inform User</name>
+              <message>
+                OpenShift deployment complete!
+                
+                Your REST API connector(s) have been deployed to OpenShift.
+                
+                The connector is accessible within the cluster at:
+                cf-flight-connector-service.{project_name}.svc.cluster.local:9443
+                
+                To check the deployment status:
+                oc get pods -l app=cf-flight-connector
+                
+                To view logs:
+                oc logs -l app=cf-flight-connector
+              </message>
+            </action>
+          </actions>
+
+          <error_handling>
+            <if_script_fails>
+              <action>Report the error details from script output</action>
+              <action>Verify the properties file is configured correctly</action>
+              <action>Check network connectivity to OpenShift cluster</action>
+              <action>Verify authentication credentials are valid</action>
+              <action>Offer to provide manual instructions instead</action>
+            </if_script_fails>
+            
+            <if_login_fails>
+              <action>Verify OpenShift cluster URL is correct and accessible</action>
+              <action>Check authentication credentials (username/password or token)</action>
+              <action>Ensure network connectivity to the cluster</action>
+              <action>Try logging in manually first: oc login</action>
+            </if_login_fails>
+            
+            <if_project_not_found>
+              <action>Verify the project/namespace name is correct</action>
+              <action>Check user has access to the project</action>
+              <action>Set CREATE_PROJECT_IF_NOT_EXISTS=true in properties file to auto-create</action>
+              <action>Or create manually: oc new-project {project_name}</action>
+            </if_project_not_found>
+            
+            <if_configmap_creation_fails>
+              <action>Check if ConfigMap already exists</action>
+              <action>Set RECREATE_CONFIGMAP=true in properties file to auto-recreate</action>
+              <action>Or delete manually: oc delete configmap connectors-config</action>
+              <action>Verify connector configuration files exist in sdk-gen/subprojects/connectors_forge_rest/src/main/resources</action>
+            </if_configmap_creation_fails>
+            
+            <if_deployment_fails>
+              <action>Check pod logs: oc logs -l app=cf-flight-connector</action>
+              <action>Verify image can be pulled from GitHub Container Registry</action>
+              <action>Check resource quotas in the namespace: oc describe quota</action>
+              <action>Verify deployment.yaml and service.yaml files are present in connectors-forge/codeless/</action>
+            </if_deployment_fails>
+          </error_handling>
+        </sub_step_2_execute_deployment>
+
+        <deployment_scripts_reference>
+          <script_bash>
+            <location>connectors-forge/codeless/deploy-openshift.sh</location>
+            <description>Bash script for Linux/macOS deployment automation</description>
+          </script_bash>
+          <script_powershell>
+            <location>connectors-forge/codeless/deploy-openshift.ps1</location>
+            <description>PowerShell script for Windows deployment automation</description>
+          </script_powershell>
+          <properties_template>
+            <location>connectors-forge/codeless/deploy-openshift.properties.template</location>
+            <description>Template for OpenShift deployment configuration</description>
+          </properties_template>
+        </deployment_scripts_reference>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual OpenShift Deployment Instructions</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) to OpenShift using the deployment script:
+
+          1. Ensure you have configured the properties file at:
+             connectors-forge/codeless/deploy-openshift.properties
+             
+             (See the automatic deployment section above for details on creating this file from the template)
+
+          For Unix/Linux/macOS:
+          2. Ensure the script has execute permissions:
+             chmod +x connectors-forge/codeless/deploy-openshift.sh
+
+          3. Run the deployment script:
+             connectors-forge/codeless/deploy-openshift.sh
+
+          For Windows:
+          2. Run the PowerShell deployment script:
+             .\connectors-forge\codeless\deploy-openshift.ps1
+
+          The deployment script will:
+          - Read your configuration from deploy-openshift.properties
+          - Login to OpenShift cluster (using username/password OR token)
+          - Setup the project/namespace (create if configured to do so)
+          - Create ConfigMap with connector configuration files from sdk-gen/subprojects/connectors_forge_rest/src/main/resources
+          - Deploy the connector using connectors-forge/codeless/deployment.yaml
+          - Create the service using connectors-forge/codeless/service.yaml
+          - Verify the deployment is successful
+          - Display the service endpoint information
+
+          WHAT THE SCRIPT DOES:
+          The script automates all the OpenShift deployment steps:
+          1. Authenticates with your OpenShift cluster
+          2. Switches to (or creates) the target project/namespace
+          3. Creates a ConfigMap named "connectors-config" with your connector JSON files
+          4. Deploys the connector using image: ghcr.io/marek-zuwala/connectors-forge:1.0.2
+          5. Creates a ClusterIP service exposing port 9443
+          6. Verifies the pod is running
+          7. Shows you the service details
+
+          ACCESSING THE CONNECTOR:
+          After successful deployment, the connector is accessible within the OpenShift cluster at:
+          cf-flight-connector-service.<your-namespace>.svc.cluster.local:9443
+
+          To check deployment status:
+          oc get pods -l app=cf-flight-connector
+
+          To view logs:
+          oc logs -l app=cf-flight-connector
+
+          For external access, you may need to create a Route:
+          oc expose service cf-flight-connector-service
+
+          UPDATING THE DEPLOYMENT:
+          To update connector configurations:
+          1. Set RECREATE_CONFIGMAP=true in deploy-openshift.properties
+          2. Run the deployment script again
+          
+          Or manually:
+          1. Delete the existing ConfigMap: oc delete configmap connectors-config
+          2. Recreate it: oc create configmap connectors-config --from-file=sdk-gen/subprojects/connectors_forge_rest/src/main/resources
+          3. Restart the deployment: oc rollout restart deployment cf-flight-connector
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+
+      <deployment_files_reference>
+        <deployment_yaml>
+          <location>connectors-forge/codeless/deployment.yaml</location>
+          <description>
+            Defines the Kubernetes Deployment resource:
+            - Image: ghcr.io/marek-zuwala/connectors-forge:1.0.2
+            - Namespace: connectorsforge (can be changed)
+            - ConfigMap mount: /config/mappings
+            - Resource limits: 256Mi memory, 200m CPU
+          </description>
+        </deployment_yaml>
+
+        <service_yaml>
+          <location>connectors-forge/codeless/service.yaml</location>
+          <description>
+            Defines the Kubernetes Service resource:
+            - Type: ClusterIP
+            - Port: 9443 (gRPC)
+            - Selector: app=cf-flight-connector
+          </description>
+        </service_yaml>
+      </deployment_files_reference>
+    </step_5_handle_openshift_deployment>
+
+    <step_6_handle_openshift_deployment_developer>
+      <title>OpenShift Deployment (Developer)</title>
+      <when>User selects OpenShift option for developer deployment</when>
+
+      <important_note>
+        This step is for DEVELOPER deployment to OpenShift using the Flight Operator.
+        It builds a custom Docker image with your connector code and deploys it using the FlightService operator.
+        This follows the process documented in guide.md #flight-operator section.
+      </important_note>
+
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run the build and deployment commands for OpenShift</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic OpenShift Deployment (Developer)</title>
+        <when>User chooses automatic execution</when>
+
+        <prerequisites>
+          <requirement>OpenShift CLI (oc) must be installed</requirement>
+          <requirement>User must be logged into OpenShift cluster with appropriate credentials</requirement>
+          <requirement>kubectl must be installed</requirement>
+          <requirement>make must be installed</requirement>
+          <requirement>podman or docker must be installed</requirement>
+        </prerequisites>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen Directory</name>
+            <command>cd sdk-gen</command>
+            <description>All Gradle tasks must be run from the sdk-gen directory</description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="2">
+            <name>Apply Code Formatting</name>
+            <command>./gradlew spotlessApply</command>
+            <description>Applies code formatting rules to ensure consistency</description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="3">
+            <name>Build Project</name>
+            <command>./gradlew build</command>
+            <description>Compiles the project and runs tests</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>This may take several minutes on first run</note>
+          </action>
+
+          <action priority="4">
+            <name>Generate Flight Application</name>
+            <command>./gradlew generateFlightApp</command>
+            <description>
+              Generates the Flight service application with all connectors.
+              By default, generates as a web app for WebSphere Liberty container.
+            </description>
+            <working_directory>sdk-gen</working_directory>
+            <optional_flag>
+              <flag>-PstandaloneFlightSvc=true</flag>
+              <description>
+                Use this flag if you prefer to deploy the server as a standalone application
+                instead of a WebSphere Liberty web app.
+              </description>
+            </optional_flag>
+          </action>
+
+          <action priority="5">
+            <name>Build Docker Image</name>
+            <command>./gradlew dockerBuild</command>
+            <description>Creates Docker image containing the connector(s)</description>
+            <working_directory>sdk-gen</working_directory>
+            <note>Requires Docker or Podman to be installed and running</note>
+          </action>
+
+          <action priority="6">
+            <name>Navigate to Flight Operator Directory</name>
+            <command>cd ../sdk-operator/flightservice</command>
+            <description>Change to the Flight Operator directory for deployment</description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="7">
+            <name>Deploy Flight Operator</name>
+            <command>./gradlew deploy-operator</command>
+            <description>
+              Deploys the FlightService operator to OpenShift.
+              This creates the flightservice-operator-system namespace and sets up the operator.
+            </description>
+            <working_directory>sdk-operator/flightservice</working_directory>
+            <note>
+              Before running, ensure you are logged into OpenShift with appropriate credentials.
+              See guide.md #configure-openshift-login for authentication options.
+            </note>
+          </action>
+
+          <action priority="8">
+            <name>Push Image to OpenShift Registry</name>
+            <command>cd ../../sdk-gen && ./gradlew dockerPush</command>
+            <description>
+              Pushes the Docker image to the OpenShift Container Registry.
+              The image will be available in the flightservice-operator-system namespace.
+            </description>
+            <working_directory>sdk-operator/flightservice</working_directory>
+          </action>
+
+          <action priority="9">
+            <name>Create FlightService Deployment File</name>
+            <description>
+              Create a YAML file to deploy your connector as a FlightService.
+              The file should be named after your connector (e.g., rest-connector-flight-service.yaml).
+            </description>
+            <file_content>
+              apiVersion: flight.wdp.ibm.com/v1alpha1
+              kind: FlightService
+              metadata:
+                name: rest-connector
+              spec:
+                replicas: 1
+                dockerImage: default-route-openshift-image-registry.apps.{your-openshift-domain}/flightservice-operator-system/rest-connector-flight-service:{version}
+            </file_content>
+            <note>
+              Replace {your-openshift-domain} with your actual OpenShift domain.
+              Replace {version} with your image version (check gradle.properties or build output).
+            </note>
+          </action>
+
+          <action priority="10">
+            <name>Deploy FlightService</name>
+            <command>oc apply -f rest-connector-flight-service.yaml</command>
+            <description>Deploys the connector using the FlightService operator</description>
+            <working_directory>Project root</working_directory>
+          </action>
+
+          <action priority="11">
+            <name>Verify Deployment</name>
+            <command>oc get deployment</command>
+            <description>Check that the deployment is ready</description>
+            <expected_output>
+              NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+              rest-connector          1/1     1            1           1m
+            </expected_output>
+          </action>
+
+          <action priority="12">
+            <name>Verify Pods Running</name>
+            <command>oc get pods</command>
+            <description>Confirm the connector pod is running</description>
+            <expected_output>
+              NAME                              READY   STATUS    RESTARTS   AGE
+              rest-connector-6fd7c98d8-7dqdr    1/1     Running   0          1m
+            </expected_output>
+          </action>
+
+          <action priority="13">
+            <name>Inform User</name>
+            <message>
+              OpenShift deployment complete!
+              
+              Your REST API connector(s) have been deployed to OpenShift using the Flight Operator.
+              
+              Deployment details:
+              - Namespace: flightservice-operator-system
+              - FlightService: rest-connector
+              - Replicas: 1
+              
+              The connector is now running and accessible within the cluster.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_build_fails>
+            <action>Report the error details from Gradle output</action>
+            <action>Check if all dependencies are properly configured</action>
+            <action>Verify Java version compatibility</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_build_fails>
+          
+          <if_openshift_login_fails>
+            <action>Verify OpenShift cluster URL is correct</action>
+            <action>Check username and password are valid</action>
+            <action>Ensure network connectivity to the cluster</action>
+            <action>Refer to guide.md #configure-openshift-login for authentication options</action>
+          </if_openshift_login_fails>
+          
+          <if_operator_deployment_fails>
+            <action>Check if user has appropriate OpenShift permissions</action>
+            <action>Verify TLS certificates are properly configured (see guide.md #save-tls-certificate)</action>
+            <action>Check if required tools (oc, kubectl, make, docker/podman) are installed</action>
+            <action>Review operator logs for specific errors</action>
+          </if_operator_deployment_fails>
+          
+          <if_image_push_fails>
+            <action>Verify OpenShift Container Registry is accessible</action>
+            <action>Check if TLS certificates are properly configured</action>
+            <action>Ensure user has permissions to push to the registry</action>
+            <action>Verify image name and tag are correct</action>
+          </if_image_push_fails>
+          
+          <if_flightservice_deployment_fails>
+            <action>Check FlightService YAML syntax is correct</action>
+            <action>Verify image path and version are accurate</action>
+            <action>Check if FlightService operator is running: oc get pods -n flightservice-operator-system</action>
+            <action>Review pod logs: oc logs -l app=rest-connector</action>
+          </if_flightservice_deployment_fails>
+        </error_handling>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual OpenShift Deployment Instructions (Developer)</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To deploy your REST API connector(s) to OpenShift using the Flight Operator:
+
+          PREREQUISITES:
+          - OpenShift CLI (oc) installed on your machine
+          - kubectl installed
+          - make installed
+          - podman or docker installed
+          - Access to an OpenShift cluster with appropriate permissions
+          - Logged into OpenShift cluster (oc login)
+
+          IMPORTANT: TLS Certificate Setup
+          If your OpenShift cluster uses a TLS certificate not signed by a well-known CA,
+          you must configure it before proceeding. See guide.md #save-tls-certificate for details.
+
+          DEPLOYMENT STEPS:
+
+          1. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          2. Apply code formatting:
+             ./gradlew spotlessApply
+             
+             This ensures code consistency across the project.
+
+          3. Build the project:
+             ./gradlew build
+             
+             This compiles the project and runs tests. May take several minutes on first run.
+
+          4. Generate the Flight application:
+             ./gradlew generateFlightApp
+             
+             OR, for standalone deployment (not WebSphere Liberty):
+             ./gradlew generateFlightApp -PstandaloneFlightSvc=true
+             
+             This generates the Flight service application with all your connectors.
+
+          5. Build the Docker image:
+             ./gradlew dockerBuild
+             
+             This creates a Docker image containing your connector(s).
+             Requires Docker or Podman to be installed and running.
+
+          6. Configure OpenShift authentication (if not already logged in):
+             
+             Option A: Login via oc command:
+             oc login -u <username> -p <password> <cluster-url>
+             
+             Option B: Configure credentials in gradle.properties:
+             - Edit sdk-operator/flightservice/gradle.properties and add:
+               openshift.console.url=https://console-openshift-console.apps.your-cluster.com:6443
+             - Add credentials to ~/.gradle/encrypted.gradle.properties:
+               cd sdk-operator/flightservice
+               ./gradlew addCredentials --key "openshift.username" --value <your-user>
+               ./gradlew addCredentials --key "openshift.password" --value <your-password>
+
+          7. Deploy the FlightService operator:
+             cd ../sdk-operator/flightservice
+             ./gradlew deploy-operator
+             
+             This deploys the operator to OpenShift and creates the flightservice-operator-system namespace.
+
+          8. Push the Docker image to OpenShift Container Registry:
+             cd ../../sdk-gen
+             ./gradlew dockerPush
+             
+             This pushes your connector image to the OpenShift registry.
+
+          9. Create a FlightService deployment file:
+             Create a file named rest-connector-flight-service.yaml with this content:
+             
+             ```yaml
+             apiVersion: flight.wdp.ibm.com/v1alpha1
+             kind: FlightService
+             metadata:
+               name: rest-connector
+             spec:
+               replicas: 1
+               dockerImage: default-route-openshift-image-registry.apps.{your-domain}/flightservice-operator-system/rest-connector-flight-service:{version}
+             ```
+             
+             Replace:
+             - {your-domain} with your OpenShift cluster domain
+             - {version} with your image version (check gradle.properties or build output)
+             
+             To find your OpenShift registry route:
+             oc get routes -n openshift-image-registry
+
+          10. Deploy the FlightService:
+              oc apply -f rest-connector-flight-service.yaml
+              
+              This creates the deployment using the FlightService operator.
+
+          11. Verify the deployment:
+              oc get deployment
+              
+              You should see:
+              NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+              rest-connector          1/1     1            1           1m
+
+          12. Verify the pod is running:
+              oc get pods
+              
+              You should see:
+              NAME                              READY   STATUS    RESTARTS   AGE
+              rest-connector-6fd7c98d8-7dqdr    1/1     Running   0          1m
+
+          13. (Optional) View logs if needed:
+              oc logs -l app=rest-connector
+
+          ACCESSING THE CONNECTOR:
+          The connector is accessible within the OpenShift cluster.
+          The service endpoint will be available through the FlightService operator.
+
+          UPDATING THE DEPLOYMENT:
+          To update your connector:
+          1. Make code changes
+          2. Rebuild: ./gradlew build
+          3. Regenerate Flight app: ./gradlew generateFlightApp
+          4. Rebuild image: ./gradlew dockerBuild
+          5. Push updated image: ./gradlew dockerPush
+          6. Restart deployment: oc rollout restart deployment rest-connector
+
+          For more details, refer to guide.md #flight-operator section.
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
+    </step_6_handle_openshift_deployment_developer>
+  </phase_5_deployment_option_selection>
+
+  <phase_6_cp4d_registration>
+    <title>Cloud Pak for Data Registration</title>
+    <description>
+      After successful deployment, register the connector(s) with Cloud Pak for Data.
+      The registration process differs based on the deployment type chosen in Phase 0.
+    </description>
+
+    <step_1_ask_registration_preference>
+      <title>Ask Registration Preference</title>
+      <when>ONLY after successful deployment completion AND user confirmation</when>
+
+      <critical_workflow_note>
+        IMPORTANT: This step should ONLY be reached if:
+        1. The deployment step completed successfully
+        2. User explicitly confirmed the deployment succeeded
+        3. No errors were reported
+        
+        If deployment failed or user reported issues, DO NOT ask about registration.
+        Instead, focus on troubleshooting the deployment failure.
+      </critical_workflow_note>
+
+      <context_to_provide>
+        Before asking the question, provide context:
+        - Confirm what was just deployed (deployment type, location)
+        - Explain that registration makes the connector available in CP4D
+        - Note that registration can be done later if preferred
+      </context_to_provide>
+
+      <question>
+        Your connector(s) have been successfully deployed.
+        
+        Would you like to register them with Cloud Pak for Data now?
+        
+        Registration will:
+        - Make the connector(s) available in your CP4D environment
+        - Allow users to create connections using these connectors
+        - Enable data discovery and access through CP4D
+      </question>
+
+      <options>
+        <option name="yes">
+          <label>Yes, register now</label>
+          <action>Proceed to registration process based on deployment type</action>
+        </option>
+
+        <option name="no">
+          <label>No, I'll register later</label>
+          <action>Skip registration and complete the workflow</action>
+          <note>User can run registration scripts manually later</note>
+        </option>
+
+        <option name="help">
+          <label>Help - I need more information about registration</label>
+          <action>Explain registration process and requirements</action>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly with context:
+        1. Yes - Register connector(s) with CP4D now
+        2. No - Skip registration (can be done later manually)
+        3. Help - Learn more about the registration process
+      </presentation_format>
+    </step_1_ask_registration_preference>
+
+    <step_2_developer_registration>
+      <title>Developer Option Registration</title>
+      <when>User chooses registration AND developer deployment type was selected in Phase 0</when>
+
+      <sub_step_1_verify_properties_file>
+        <title>Verify Properties File Creation</title>
+        
+        <important_note>
+          Before registration, you need to create a properties file with your CP4D environment configuration.
+          This file is not visible to me (it's in .bobignore), so you need to create it manually.
+        </important_note>
+
+        <instructions>
+          <step priority="1">
+            <name>Create Properties File</name>
+            <description>
+              Create a properties file in the following location:
+              sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
+              
+              Use a descriptive name like: myenv.properties, production.properties, or dev.properties
+              
+              Base your file on the template at:
+              sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
+            </description>
+          </step>
+
+          <step priority="2">
+            <name>Configure Required Properties</name>
+            <description>
+              Your properties file must include:
+              - apikey: Your IBM Cloud API key
+              - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
+              - datasource_types_uri: Datasource types API endpoint
+              - flight_uri: URI of your deployed Flight service (grpc://host:port)
+              - ssl_certificate_path: Path to your Flight service certificate (optional)
+              - ssl_certificate_validation: Set to true/false
+            </description>
+            <example>
+              Example configuration:
+              apikey=your_ibm_cloud_api_key_here
+              auth_uri=https://iam.cloud.ibm.com/identity/token
+              datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
+              flight_uri=grpc://your-server:50051
+              ssl_certificate_validation=false
+            </example>
+          </step>
+        </instructions>
+
+        <confirmation_question>
+          Have you created the properties file with your CP4D environment configuration?
+          Please provide the name of your properties file (without .properties extension).
+        </confirmation_question>
+      </sub_step_1_verify_properties_file>
+
+      <sub_step_2_ask_execution_preference>
+        <title>Ask Execution Preference</title>
+        <when>After user confirms properties file is created</when>
+
+        <question>
+          Would you like me to execute the registration, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute registration for me</label>
+            <description>I will run the Gradle register task with your environment configuration</description>
+          </option>
+
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with instructions to run the registration</description>
+          </option>
+        </options>
+      </sub_step_2_ask_execution_preference>
+
+      <sub_step_3a_automatic_registration>
+        <title>Automatic Registration (Developer)</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen</name>
+            <command>cd sdk-gen</command>
+            <note>Gradle task must be run from sdk-gen directory</note>
+          </action>
+
+          <action priority="2">
+            <name>Run Registration Task</name>
+            <command>./gradlew register -Penv={env_name}</command>
+            <description>
+              Registers the connector(s) with Cloud Pak for Data using the specified environment configuration.
+              Replace {env_name} with the properties file name provided by the user.
+            </description>
+            <working_directory>sdk-gen</working_directory>
+            <note>The env_name should match the properties file name without .properties extension</note>
+          </action>
+
+          <action priority="3">
+            <name>Verify Registration</name>
+            <description>
+              Confirm that the registration completed successfully by checking the task output.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Registration complete!
+              
+              Your REST API connector(s) have been registered with Cloud Pak for Data.
+              The connector(s) are now available for use in your CP4D environment.
+              
+              You can now create connections and access your REST API data through CP4D.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_registration_fails>
+            <action>Report the error details from Gradle output</action>
+            <action>Verify the properties file exists and contains correct values</action>
+            <action>Check network connectivity to CP4D endpoints</action>
+            <action>Verify API key has proper permissions</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_registration_fails>
+        </error_handling>
+      </sub_step_3a_automatic_registration>
+
+      <sub_step_3b_manual_registration>
+        <title>Manual Registration Instructions (Developer)</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To register your REST API connector(s) with Cloud Pak for Data:
+
+          1. Ensure you have created your properties file in:
+             sdk-gen/subprojects/flight/src/dist/resources/payload/envs/{your_env_name}.properties
+
+          2. Navigate to the sdk-gen directory:
+             cd sdk-gen
+
+          3. Run the registration task with your environment name:
+             ./gradlew register -Penv={your_env_name}
+             
+             Replace {your_env_name} with your properties file name (without .properties extension)
+             For example, if your file is myenv.properties, use: -Penv=myenv
+
+          The registration task will:
+          - Authenticate with IBM Cloud using your API key
+          - Register the connector datasource type with CP4D
+          - Configure the Flight service endpoint
+          - Make the connector(s) available in your CP4D environment
+
+          Prerequisites:
+          - Valid IBM Cloud API key with proper permissions
+          - Network connectivity to CP4D endpoints
+          - Deployed and accessible Flight service
+
+          Let me know once you've completed the registration or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the registration
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_3b_manual_registration>
+    </step_2_developer_registration>
+
+    <step_3_codeless_registration>
+      <title>Codeless Option Registration</title>
+      <when>User chooses registration AND codeless deployment type was selected in Phase 0</when>
+
+      <sub_step_1_verify_properties_file>
+        <title>Create Properties File from Template</title>
+        
+        <important_note>
+          Before registration, you need to create a properties file based on the provided template.
+          This file is not visible to me (it's in .bobignore), so you need to create it manually.
+        </important_note>
+
+        <instructions>
+          <step priority="1">
+            <name>Review Template File</name>
+            <description>
+              A template file is provided at:
+              connectors-forge/codeless/register-envs.properties.template
+              
+              This template shows the required configuration structure with placeholder values.
+            </description>
+          </step>
+
+          <step priority="2">
+            <name>Create Properties File</name>
+            <description>
+              Copy the template file to create your configuration:
+              
+              From: connectors-forge/codeless/register-envs.properties.template
+              To: connectors-forge/codeless/register-envs.properties
+              
+              You can do this with:
+              - Unix/Linux/macOS: cp connectors-forge/codeless/register-envs.properties.template connectors-forge/codeless/register-envs.properties
+              - Windows: copy connectors-forge\codeless\register-envs.properties.template connectors-forge\codeless\register-envs.properties
+            </description>
+          </step>
+
+          <step priority="3">
+            <name>Configure Required Properties</name>
+            <description>
+              Edit register-envs.properties and replace all placeholder values (marked with <angle brackets>):
+              
+              AUTHENTICATION (choose ONE method):
+              
+              Option 1: IBM Cloud API Key (for IBM Cloud deployments)
+              - apikey: Replace <your-api-key> with your IBM Cloud API key
+              - Keep username and password commented out
+              
+              Option 2: Username/Password (for on-premises CP4D deployments)
+              - Comment out the apikey line
+              - Uncomment username and password lines
+              - username: Replace <your-username> with your CP4D username
+              - password: Replace <your-password> with your CP4D password
+              
+              FLIGHT SERVICE (required):
+              - flight_hostname: Replace <your-flight-hostname> with your deployed Flight service hostname
+              - flight_port: Replace <your-flight-port> with your Flight service port number
+              
+              ENDPOINTS (update for on-premises if needed):
+              - auth_uri: Authentication endpoint
+                * IBM Cloud: https://iam.cloud.ibm.com/identity/token (default)
+                * On-premises: https://<your-cpd-host>/icp4d-api/v1/authorize
+              - datasource_types_uri: Datasource types API endpoint
+                * IBM Cloud: https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types (default)
+                * On-premises: https://<your-cpd-host>/v2/datasource_types
+              
+              OPTIONAL properties:
+              - origin_country: Origin country/region for connector registration (default: us)
+              - ssl_certificate_path: Path to SSL certificate (commented out by default)
+              - ssl_certificate_validation: Enable/disable SSL validation (default: false)
+            </description>
+            <example>
+              Example for IBM Cloud deployment:
+              apikey=your_actual_ibm_cloud_api_key_here
+              #username=<your-username>
+              #password=<your-password>
+              auth_uri=https://iam.cloud.ibm.com/identity/token
+              datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
+              flight_hostname=my-server.example.com
+              flight_port=50051
+              origin_country=us
+              ssl_certificate_validation=false
+            </example>
+            <example>
+              Example for on-premises CP4D deployment:
+              #apikey=<your-api-key>
+              username=admin
+              password=your_cpd_password
+              auth_uri=https://cpd-cluster.example.com/icp4d-api/v1/authorize
+              datasource_types_uri=https://cpd-cluster.example.com/v2/datasource_types
+              flight_hostname=my-server.example.com
+              flight_port=50051
+              origin_country=us
+              ssl_certificate_validation=false
+            </example>
+          </step>
+        </instructions>
+
+        <confirmation_question>
+          Have you created register-envs.properties from the template and configured all required values?
+          
+          Required configuration:
+          - Authentication: Either apikey OR username+password
+          - Flight service: flight_hostname and flight_port
+          - Endpoints: auth_uri and datasource_types_uri (update for on-premises if needed)
+        </confirmation_question>
+      </sub_step_1_verify_properties_file>
+
+      <sub_step_2_ask_execution_preference>
+        <title>Ask Execution Preference</title>
+        <when>After user confirms properties file is configured</when>
+
+        <question>
+          Would you like me to execute the registration, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute registration for me</label>
+            <description>I will run the registration script with your configuration</description>
+          </option>
+
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with instructions to run the script</description>
+          </option>
+        </options>
+      </sub_step_2_ask_execution_preference>
+
+      <sub_step_3a_automatic_registration>
+        <title>Automatic Registration (Codeless)</title>
+        <when>User chooses automatic execution</when>
+
+        <actions>
+          <action priority="1">
+            <name>Execute Registration Script</name>
+            <command_unix>connectors-forge/codeless/register-connector.sh</command_unix>
+            <command_windows>connectors-forge\codeless\register-connector.ps1</command_windows>
+            <description>
+              Runs the OS-specific registration script that handles:
+              - Reading configuration from register-envs.properties
+              - Authenticating with IBM Cloud (API key) or on-premises CP4D (username/password)
+              - Obtaining bearer token for API access
+              - Registering the connector with CP4D
+              - Configuring the Flight service endpoint
+              
+              The script automatically detects which authentication method to use based on
+              which credentials are provided in the properties file.
+            </description>
+            <note>
+              The script selection is based on the operating system:
+              - Unix/Linux/macOS: register-connector.sh (requires execute permissions: chmod +x)
+              - Windows: register-connector.ps1 (PowerShell script)
+            </note>
+          </action>
+
+          <action priority="2">
+            <name>Monitor Registration</name>
+            <description>
+              Monitor the script output for successful registration confirmation.
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Verify Registration</name>
+            <description>
+              Confirm that the connector(s) are registered and available in CP4D.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Registration complete!
+              
+              Your REST API connector(s) have been registered with Cloud Pak for Data.
+              The connector(s) are now available for use in your CP4D environment.
+              
+              You can now create connections and access your REST API data through CP4D.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_script_fails>
+            <action>Report the error details from script output</action>
+            <action>Verify the properties file is configured correctly</action>
+            <action>Check network connectivity to CP4D endpoints</action>
+            <action>Verify API key has proper permissions</action>
+            <action>Offer to provide manual instructions instead</action>
+          </if_script_fails>
+        </error_handling>
+      </sub_step_3a_automatic_registration>
+
+      <sub_step_3b_manual_registration>
+        <title>Manual Registration Instructions (Codeless)</title>
+        <when>User chooses manual execution</when>
+
+        <instructions>
+          To register your REST API connector(s) with Cloud Pak for Data:
+
+          1. Ensure you have configured the properties file at:
+             connectors-forge/codeless/register-envs.properties
+
+          For Unix/Linux/macOS:
+          2. Ensure the script has execute permissions:
+             chmod +x connectors-forge/codeless/register-connector.sh
+
+          3. Run the registration script:
+             connectors-forge/codeless/register-connector.sh
+
+          For Windows:
+          2. Run the PowerShell registration script:
+             .\connectors-forge\codeless\register-connector.ps1
+
+          The registration script will:
+          - Read your configuration from register-envs.properties
+          - Authenticate with IBM Cloud using your API key
+          - Register the connector datasource type with CP4D
+          - Configure the Flight service endpoint
+          - Make the connector(s) available in your CP4D environment
+
+          Prerequisites:
+          - Valid IBM Cloud API key with proper permissions
+          - Network connectivity to CP4D endpoints
+          - Deployed and accessible Flight service
+          - Properly configured register-envs.properties file
+          - Windows: PowerShell 5.1 or later
+
+          Let me know once you've completed the registration or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the registration
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_3b_manual_registration>
+    </step_3_codeless_registration>
+  </phase_6_cp4d_registration>
+
+  <phase_7_registration_validation>
+    <title>Registration Validation & Testing</title>
+    <description>
+      After successful registration, validate that the connector(s) are properly registered
+      and accessible in Cloud Pak for Data by running discovery tests.
+    </description>
+    <when>After Phase 6 registration is completed (either automatic or manual)</when>
+
+    <step_1_ask_validation_preference>
+      <title>Ask About Validation Testing</title>
+      <when>ONLY after successful registration AND user confirmation</when>
+      
+      <critical_workflow_note>
+        IMPORTANT: This step should ONLY be reached if:
+        1. The registration step completed successfully
+        2. User explicitly confirmed the registration succeeded
+        3. No errors were reported during registration
+        
+        If registration failed or user reported issues, DO NOT ask about validation.
+        Instead, focus on troubleshooting the registration failure.
+      </critical_workflow_note>
+
+      <context_to_provide>
+        Before asking the question, provide context:
+        - Confirm that registration completed successfully
+        - Explain that validation tests verify the connector works in CP4D
+        - Note that validation is optional but recommended
+        - Mention that tests can be run manually later if preferred
+      </context_to_provide>
+
+      <question>
+        Your connector(s) have been successfully registered with Cloud Pak for Data.
+        
+        Would you like to validate the registration by testing connector discovery?
+        
+        Validation will verify that:
+        - The connector(s) are properly registered in CP4D
+        - The Flight service is accessible from CP4D
+        - Discovery queries return expected results
+        - Connection properties are correctly configured
+        
+        This is optional but recommended to ensure everything works correctly.
+      </question>
+
+      <options>
+        <option name="yes">
+          <label>Yes, validate the registration</label>
+          <description>I will guide you through creating a test configuration and running validation tests</description>
+        </option>
+
+        <option name="no">
+          <label>No, skip validation</label>
+          <description>Skip validation testing and complete the workflow</description>
+          <action>Proceed directly to completion phase</action>
+          <note>User can run test scripts manually later</note>
+        </option>
+
+        <option name="help">
+          <label>Help - I need more information about validation</label>
+          <action>Explain validation process and what it tests</action>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly with context:
+        1. Yes - Validate registration with discovery tests (recommended)
+        2. No - Skip validation (can be done later manually)
+        3. Help - Learn more about the validation process
+      </presentation_format>
+    </step_1_ask_validation_preference>
+
+    <step_2_prepare_test_configuration>
+      <title>Prepare Test Configuration</title>
+      <when>User chooses to validate registration</when>
+
+      <workflow_control>
+        CRITICAL: This step involves user action outside the mode's control.
+        - Wait for explicit user confirmation that the file was created
+        - Do NOT proceed to test execution without confirmation
+        - If user reports issues creating the file, provide troubleshooting help
+        - Offer to re-explain the configuration if needed
+      </workflow_control>
+
+      <important_note>
+        The test configuration file (test-discovery.properties) is not visible to me as it's in .bobignore.
+        I will suggest the content based on the connector information from this session, but you need to
+        create the file manually with your actual credentials.
+      </important_note>
+
+      <sub_step_1_suggest_configuration>
+        <title>Suggest Test Configuration Content</title>
+        
+        <action>
+          Based on the connector(s) created in this session, suggest the content for test-discovery.properties file.
+          
+          IMPORTANT: The purpose of test-discovery is to verify that connector registration was successful.
+          For each connector, suggest ONLY ONE table/endpoint - just enough to confirm the connector works.
+          
+          The suggestion should include:
+          1. Template location reference
+          2. CPD_URL placeholder (user must provide their CP4D instance URL)
+          3. Authentication credentials (APIKEY or USERNAME/PASSWORD)
+          4. AUTH_URI (authentication endpoint)
+          5. DATASOURCE_TYPES - comma-separated list of datasource type IDs (one per connector)
+          6. DISCOVERY_PATHS - comma-separated list with ONE discovery path per connector
+          7. CONNECTION_PROPERTIES - pipe-separated JSON objects with connection properties for each connector
+          
+          IMPORTANT: How to extract values from the connector configuration file:
+          
+          - DATASOURCE_TYPES: Use the exact value from $connector_name field in the config file
+            Example: If $connector_name is "github-api-connector", then DATASOURCE_TYPES=github-api-connector
+          
+          - DISCOVERY_PATHS: Select ANY ONE key from $tables object and prefix it with forward slash
+            Example: If $tables has "REPOSITORIES", "ISSUES", "PULL_REQUESTS" - choose just ONE: /REPOSITORIES
+            For multiple connectors, select one table from each: /REPOSITORIES,/PROJECTS
+          
+          For each connector, extract:
+          - Datasource type ID: exact value from $connector_name field (do NOT convert to lowercase or add underscores)
+          - Discovery path: ANY ONE key from $tables object, prefixed with forward slash (typically the first one)
+          - Authentication type and required properties from $authentication field
+          - Base URL from $hostname field
+        </action>
+
+        <example_suggestion_format>
+          Based on your connector configuration, here's the suggested content for test-discovery.properties:
+
+          ```properties
+          # Copy from connectors-forge/codeless/test-discovery.properties.template
+          # and fill in your actual values
+
+          # CPD Configuration
+          CPD_URL=https://your-cpd-instance.cloud.ibm.com
+          
+          # Authentication (choose ONE method):
+          # Option 1: IBM Cloud API Key
+          APIKEY=your-api-key-here
+          # Option 2: Username/Password (for on-premises CP4D)
+          #USERNAME=your-username
+          #PASSWORD=your-password
+          
+          # Authentication endpoint
+          # IBM Cloud: https://iam.cloud.ibm.com/identity/token
+          # On-premises: https://your-cpd-host/icp4d-api/v1/authorize
+          AUTH_URI=https://iam.cloud.ibm.com/identity/token
+
+          # Connector Configuration (based on your connectors)
+          # DATASOURCE_TYPES: Use exact $connector_name value(s) from config file
+          # DISCOVERY_PATHS: Select ONE table per connector (for registration verification only)
+          DATASOURCE_TYPES=github-api-connector
+          DISCOVERY_PATHS=/REPOSITORIES
+          CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"YOUR_GITHUB_TOKEN"}
+          ```
+
+          Example with multiple connectors (one table per connector):
+          ```properties
+          DATASOURCE_TYPES=github-api-connector,jira-rest-api
+          DISCOVERY_PATHS=/REPOSITORIES,/PROJECTS
+          CONNECTION_PROPERTIES={"base_url":"https://api.github.com","api_key":"TOKEN1"}|{"base_url":"https://jira.example.com","username":"user","password":"pass"}
+          ```
+          
+          Note: We test only ONE table per connector to verify registration was successful.
+          If you need to test all tables, you can run discovery tests separately for each table later.
+
+          Replace:
+          - CPD_URL with your Cloud Pak for Data instance URL
+          - APIKEY with your IBM Cloud API key (or use USERNAME/PASSWORD for on-premises)
+          - AUTH_URI with the correct authentication endpoint for your deployment
+          - YOUR_GITHUB_TOKEN and other credentials in CONNECTION_PROPERTIES with actual values
+          
+          Note: The scripts will automatically obtain a bearer token using your credentials,
+          so you no longer need to provide a pre-acquired token.
+        </example_suggestion_format>
+
+        <instructions>
+          1. Create a file named test-discovery.properties in the connectors-forge/codeless/ directory
+          
+          2. Use the template at connectors-forge/codeless/test-discovery.properties.template as a reference
+          
+          3. Copy the suggested configuration above and replace placeholders with your actual values:
+             - CPD_URL: Your Cloud Pak for Data instance URL
+             - Authentication: Choose either APIKEY (IBM Cloud) OR USERNAME+PASSWORD (on-premises)
+             - AUTH_URI: Authentication endpoint (update for on-premises if needed)
+             - API keys, passwords, and other credentials in CONNECTION_PROPERTIES
+          
+          4. Ensure the file is saved in the correct location: connectors-forge/codeless/test-discovery.properties
+          
+          Note: The test scripts will automatically obtain a bearer token from your credentials,
+          so you don't need to manually acquire a token beforehand.
+        </instructions>
+
+        <confirmation_question>
+          Have you created the test-discovery.properties file with your configuration?
+        </confirmation_question>
+      </sub_step_1_suggest_configuration>
+    </step_2_prepare_test_configuration>
+
+    <step_3_execute_validation_tests>
+      <title>Execute Validation Tests</title>
+      <when>User confirms test configuration file is created</when>
+
+      <workflow_control>
+        CRITICAL: Test execution requires careful monitoring and user confirmation.
+        - Execute the test script and wait for completion
+        - Ask user to confirm the test results (success/failure)
+        - Do NOT assume success - wait for explicit confirmation
+        - If tests fail, provide troubleshooting guidance
+        - Only show success messages if user confirms tests passed
+      </workflow_control>
+
+      <sub_step_1_run_test_script>
+        <title>Run Discovery Test Script</title>
+        
+        <actions>
+          <action priority="1">
+            <name>Execute Test Script</name>
+            <command_unix>connectors-forge/codeless/test-discovery.sh</command_unix>
+            <command_windows>connectors-forge\codeless\test-discovery.ps1</command_windows>
+            <description>
+              Runs the OS-specific test script that:
+              - Reads configuration from test-discovery.properties
+              - Calls CP4D Connection Service API for each connector
+              - Tests discovery without creating saved connections
+              - Reports success/failure for each connector
+              - Counts discovered assets
+            </description>
+            <note>
+              The script selection is based on the operating system:
+              - Unix/Linux/macOS: test-discovery.sh (requires execute permissions: chmod +x)
+              - Windows: test-discovery.ps1 (PowerShell script)
+            </note>
+          </action>
+
+          <action priority="2">
+            <name>Monitor Test Results</name>
+            <description>
+              Monitor the script output for:
+              - HTTP status codes (200-299 = success)
+              - Number of assets discovered per connector
+              - Any error messages or failures
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Analyze Results</name>
+            <description>
+              The script will provide:
+              - Summary of successful vs failed tests
+              - Detailed results for each connector
+              - Asset counts for successful discoveries
+              - Error messages for failures
+            </description>
+          </action>
+        </actions>
+
+        <success_criteria>
+          <criterion>All connectors return HTTP 200-299 status codes</criterion>
+          <criterion>Discovery returns expected assets for each connector</criterion>
+          <criterion>No authentication or connection errors</criterion>
+        </success_criteria>
+
+        <error_handling>
+          <if_tests_fail>
+            <action>Review error messages from script output</action>
+            <action>Verify CPD_URL and CPD_TOKEN are correct</action>
+            <action>Check that DATASOURCE_TYPES match registered connector IDs</action>
+            <action>Verify CONNECTION_PROPERTIES have correct credentials</action>
+            <action>Ensure Flight service is deployed and accessible</action>
+            <action>Check network connectivity to CP4D and Flight service</action>
+            <action>Offer to re-run tests after fixes</action>
+          </if_tests_fail>
+        </error_handling>
+      </sub_step_1_run_test_script>
+
+      <sub_step_2_interpret_results>
+        <title>Interpret Test Results</title>
+        
+        <workflow_control>
+          CRITICAL: Result interpretation must be based on actual test output.
+          - Ask user to confirm what the test results show
+          - Only display success_message if user confirms all tests passed
+          - Display partial_success_message if user reports mixed results
+          - Display failure_message if user reports all tests failed
+          - Provide appropriate troubleshooting based on actual results
+          - Do NOT assume or guess the test outcome
+        </workflow_control>
+
+        <confirmation_question>
+          What were the results of the validation tests?
+          1. All tests passed successfully
+          2. Some tests passed, some failed
+          3. All tests failed
+          4. I need help interpreting the results
+        </confirmation_question>
+
+        <success_message>
+          <when>User confirms all tests pass</when>
+          <message>
+            ✓ Registration validation successful!
+            
+            All connector(s) are properly registered and accessible in Cloud Pak for Data.
+            Discovery tests completed successfully with assets returned for each connector.
+            
+            Your connectors are ready to use in CP4D.
+          </message>
+        </success_message>
+
+        <partial_success_message>
+          <when>Some tests pass, some fail</when>
+          <message>
+            ⚠ Partial validation success
+            
+            Some connectors passed validation while others failed.
+            Review the detailed results above to identify issues with specific connectors.
+            
+            Successful connectors are ready to use.
+            Failed connectors need troubleshooting before they can be used.
+          </message>
+        </partial_success_message>
+
+        <failure_message>
+          <when>All tests fail</when>
+          <message>
+            ✗ Registration validation failed
+            
+            None of the connectors passed validation tests.
+            This typically indicates:
+            - Registration did not complete successfully
+            - Flight service is not accessible
+            - Configuration errors in test-discovery.properties
+            - Network connectivity issues
+            
+            Please review the error messages and troubleshooting tips above.
+          </message>
+        </failure_message>
+      </sub_step_2_interpret_results>
+    </step_3_execute_validation_tests>
+
+    <manual_validation_option>
+      <title>Manual Validation Instructions</title>
+      <when>User prefers to run validation manually</when>
+
+      <instructions>
+        To manually validate your connector registration:
+
+        1. Create test-discovery.properties file:
+           - Location: connectors-forge/codeless/test-discovery.properties
+           - Template: connectors-forge/codeless/test-discovery.properties.template
+           - Fill in your CPD_URL, CPD_TOKEN, and connector configurations
+
+        2. Run the test script:
+           
+           For Unix/Linux/macOS:
+           chmod +x connectors-forge/codeless/test-discovery.sh
+           connectors-forge/codeless/test-discovery.sh
+
+           For Windows:
+           .\connectors-forge\codeless\test-discovery.ps1
+
+        3. Review the test results:
+           - Green checkmarks (✓) indicate successful discovery
+           - Red X marks (✗) indicate failures
+           - The script will show asset counts and error messages
+
+        4. Troubleshoot any failures using the tips provided by the script
+
+        Let me know the results or if you need help interpreting them.
+      </instructions>
+    </manual_validation_option>
+  </phase_7_registration_validation>
+
+  <completion>
+    <title>Workflow Complete</title>
+    <description>
+      After successful deployment, optional registration, and optional validation, provide summary and next steps.
+    </description>
+
+    <summary_information>
+      <include>
+        <item>Number of connectors created</item>
+        <item>Deployment type used (Codeless or Developer)</item>
+        <item>Deployment option used (Local, Self-Hosted, etc.)</item>
+        <item>Registration status (Registered or Skipped)</item>
+        <item>Service endpoint URL (if applicable)</item>
+        <item>How to access and test the connector(s)</item>
+        <item>How to stop/manage the deployment</item>
+      </include>
+    </summary_information>
+
+    <next_steps>
+      <step>Test the connector(s) by making API calls through the Flight service</step>
+      <step>If registered with CP4D: Create connections in CP4D UI</step>
+      <step>Monitor logs for any issues</step>
+      <step>Configure client applications to use the connector endpoint</step>
+    </next_steps>
+  </completion>
+
+  <behavioral_rules>
+    <rule>Always ask about additional connectors after completing each configuration</rule>
+    <rule>Present all four deployment options clearly, indicating placeholders</rule>
+    <rule>For implemented options (Local, Self-Hosted), offer automatic or manual execution</rule>
+    <rule>For placeholder options (Serverless, OpenShift), explain future functionality</rule>
+    <rule>Execute Gradle tasks sequentially, waiting for each to complete</rule>
+    <rule>All Gradle tasks must be run from the sdk-gen directory</rule>
+    <rule>Provide clear error messages and recovery options</rule>
+    <rule>Confirm successful deployment before completing</rule>
+  </behavioral_rules>
+
+  <important_notes>
+    <note>
+      Multiple connectors can be created and deployed together in a single container.
+      All DSL files in the resources directory will be included.
+    </note>
+    <note>
+      Local deployment requires Docker to be installed and running on the user's machine.
+    </note>
+    <note>
+      Self-hosted deployment requires proper server credentials and network access.
+    </note>
+    <note>
+      Serverless and OpenShift deployments are placeholders for future implementation.
+    </note>
+    <note>
+      The deployment script (deploy-container.sh) must have execute permissions.
+    </note>
+  </important_notes>
+</deployment_execution_phase>
+
+<!-- Made with Bob -->

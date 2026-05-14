@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<deployment_setup_phase>
+  <overview>
+    This phase handles the initial deployment option selection and project setup.
+    It must be completed BEFORE proceeding to API discovery and configuration generation.
+  </overview>
+
+  <phase_0_deployment_selection>
+    <title>Deployment Option Selection & Setup</title>
+    <description>
+      Before creating REST API connector configuration files, determine the deployment approach
+      and set up the necessary project structure.
+    </description>
+
+    <step_1_ask_deployment_option>
+      <title>Ask User for Deployment Preference</title>
+      <description>
+        Present the user with two deployment options and gather their preference.
+      </description>
+      
+      <question>
+        Which deployment option would you like to use for this REST API connector?
+      </question>
+
+      <options>
+        <option name="codeless">
+          <label>Codeless Option</label>
+          <description>
+            Download a pre-built Docker image from the repository.
+            Quick setup with no code generation required.
+            Best for: Standard use cases without customization needs.
+          </description>
+        </option>
+        
+        <option name="developer">
+          <label>Developer Option</label>
+          <description>
+            Generate connector code that you can modify and customize.
+            Build your own Docker image from the generated code.
+            Best for: Custom implementations and advanced use cases.
+          </description>
+        </option>
+      </options>
+
+      <presentation_format>
+        Present options clearly with numbered choices:
+        1. Codeless Option - Download pre-built Docker image
+        2. Developer Option - Generate and customize connector code
+      </presentation_format>
+    </step_1_ask_deployment_option>
+
+    <step_2_handle_codeless_option>
+      <title>Handle Codeless Option</title>
+      <when>User selects codeless option</when>
+      
+      <actions>
+        <action priority="1">
+          <name>Create Project Structure</name>
+          <description>
+            Create the necessary directory structure for storing DSL configuration files.
+          </description>
+          <directories_to_create>
+            <directory>sdk-gen/subprojects/connectors_forge_rest</directory>
+            <directory>sdk-gen/subprojects/connectors_forge_rest/src</directory>
+            <directory>sdk-gen/subprojects/connectors_forge_rest/src/main</directory>
+            <directory>sdk-gen/subprojects/connectors_forge_rest/src/main/resources</directory>
+          </directories_to_create>
+          <note>
+            This structure will hold the DSL configuration files (JSON connector descriptors)
+            that will be created in subsequent phases.
+          </note>
+        </action>
+
+        <action priority="2">
+          <name>Inform User About Codeless Option</name>
+          <message>
+            The codeless option will use a pre-built Docker image from Docker Hub.
+            
+            Docker Image: ghcr.io/marek-zuwala/connectors-forge:1.0.2
+            
+            This pre-built image contains all necessary components to run your REST API connectors.
+            When you proceed to deployment (Phase 5), you will use this image instead of building your own.
+            
+            The project structure has been created at:
+            sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+            
+            Your DSL configuration files will be stored in this location and will be used
+            with the pre-built Docker image during deployment.
+          </message>
+        </action>
+
+        <action priority="3">
+          <name>Proceed to Configuration</name>
+          <description>
+            After informing the user, proceed to Phase 1 (API Discovery & Analysis)
+            to gather API information and create configuration files.
+          </description>
+        </action>
+      </actions>
+    </step_2_handle_codeless_option>
+
+    <step_3_handle_developer_option>
+      <title>Handle Developer Option</title>
+      <when>User selects developer option</when>
+
+      <sub_step_1_ask_generation_preference>
+        <title>Ask Code Generation Preference</title>
+        <question>
+          Would you like me to generate the connector code for you, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto_generate">
+            <label>Generate Code Automatically</label>
+            <description>
+              I will run the Gradle task to generate all necessary connector code and project structure.
+            </description>
+          </option>
+
+          <option name="manual_setup">
+            <label>Manual Setup</label>
+            <description>
+              I will provide you with instructions to generate the code yourself.
+            </description>
+          </option>
+        </options>
+
+        <presentation_format>
+          Present options clearly:
+          1. Generate code automatically (I'll run the Gradle task)
+          2. Manual setup (You'll run the Gradle task yourself)
+        </presentation_format>
+      </sub_step_1_ask_generation_preference>
+
+      <sub_step_2a_auto_generate>
+        <title>Automatic Code Generation</title>
+        <when>User chooses automatic generation</when>
+
+        <actions>
+          <action priority="1">
+            <name>Navigate to sdk-gen Directory</name>
+            <command>cd sdk-gen</command>
+            <note>Must change to sdk-gen directory before running Gradle task</note>
+          </action>
+
+          <action priority="2">
+            <name>Run Gradle Task</name>
+            <command>./gradlew generateJavaConnectorsForgeRest</command>
+            <description>
+              This Gradle task will:
+              - Create the subproject: sdk-gen/subprojects/connectors_forge_rest
+              - Generate all necessary Java source files
+              - Set up the complete project structure
+              - Create the resources directory at: sdk-gen/subprojects/connectors_forge_rest/src/main/resources
+            </description>
+            <working_directory>sdk-gen</working_directory>
+          </action>
+
+          <action priority="3">
+            <name>Verify Generation</name>
+            <description>
+              Confirm that the following structure was created:
+              - sdk-gen/subprojects/connectors_forge_rest/
+              - sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Inform User</name>
+            <message>
+              Connector code has been generated successfully.
+              
+              Project location: sdk-gen/subprojects/connectors_forge_rest/
+              DSL files will be stored in: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+              
+              You can now modify the generated code if needed.
+              Your DSL configuration files will be created in the resources directory.
+            </message>
+          </action>
+
+          <action priority="5">
+            <name>Proceed to Configuration</name>
+            <description>
+              Proceed to Phase 1 (API Discovery & Analysis) to gather API information
+              and create configuration files.
+            </description>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_gradle_fails>
+            <action>Report the error to the user</action>
+            <action>Ask if they want to try manual setup instead</action>
+          </if_gradle_fails>
+        </error_handling>
+      </sub_step_2a_auto_generate>
+
+      <sub_step_2b_manual_setup>
+        <title>Manual Setup Instructions</title>
+        <when>User chooses manual setup</when>
+
+        <actions>
+          <action priority="1">
+            <name>Provide Instructions</name>
+            <instructions>
+              To generate the connector code manually, follow these steps:
+
+              1. Navigate to the sdk-gen directory:
+                 cd sdk-gen
+
+              2. Run the Gradle task to generate the connector code:
+                 ./gradlew generateJavaConnectorsForgeRest
+
+              3. This will create the following structure:
+                 - sdk-gen/subprojects/connectors_forge_rest/
+                 - sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+
+              4. Once generated, you can modify the code as needed.
+
+              5. Your DSL configuration files will be stored in:
+                 sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+
+              After running these commands, let me know and I'll proceed with creating
+              the REST API connector configuration files.
+            </instructions>
+          </action>
+
+          <action priority="2">
+            <name>Wait for User Confirmation</name>
+            <description>
+              Wait for the user to confirm they have completed the manual setup
+              before proceeding to Phase 1.
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Proceed to Configuration</name>
+            <when>User confirms completion</when>
+            <description>
+              Proceed to Phase 1 (API Discovery & Analysis) to gather API information
+              and create configuration files.
+            </description>
+          </action>
+        </actions>
+      </sub_step_2b_manual_setup>
+    </step_3_handle_developer_option>
+
+    <dsl_file_location>
+      <title>DSL Configuration File Storage</title>
+      <description>
+        Regardless of the deployment option chosen, all DSL configuration files
+        (JSON connector descriptors) will be stored in the same location.
+      </description>
+      
+      <location>
+        <path>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</path>
+        <note>
+          This is where all JSON configuration files created in subsequent phases
+          will be written.
+        </note>
+      </location>
+
+      <file_naming>
+        <pattern>[connector-name].json</pattern>
+        <example>spacex-api.json</example>
+        <example>github-api.json</example>
+      </file_naming>
+    </dsl_file_location>
+
+    <transition_to_next_phase>
+      <title>Transition to Phase 1</title>
+      <description>
+        After completing deployment setup, transition to Phase 1 (API Discovery & Analysis).
+      </description>
+
+      <prerequisites>
+        <prerequisite>Deployment option selected (codeless or developer)</prerequisite>
+        <prerequisite>Project structure created</prerequisite>
+        <prerequisite>
+          For developer option with auto-generation: Code generated successfully
+        </prerequisite>
+        <prerequisite>
+          For developer option with manual setup: User confirmed completion
+        </prerequisite>
+      </prerequisites>
+
+      <next_phase>
+        <phase_number>1</phase_number>
+        <phase_name>API Discovery & Analysis</phase_name>
+        <file>1_workflow.xml</file>
+        <description>
+          Gather API information (base URL, authentication, endpoints, responses)
+          and create JSON configuration files.
+        </description>
+      </next_phase>
+    </transition_to_next_phase>
+  </phase_0_deployment_selection>
+
+  <behavioral_rules>
+    <rule>This phase MUST be completed before any API configuration work begins</rule>
+    <rule>Do not skip deployment option selection</rule>
+    <rule>Always create the project structure before proceeding</rule>
+    <rule>For codeless option, inform user about pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.2)</rule>
+    <rule>For developer option, respect user's choice between auto and manual generation</rule>
+    <rule>All DSL files go to: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</rule>
+    <rule>After setup is complete, proceed immediately to Phase 1</rule>
+  </behavioral_rules>
+
+  <important_notes>
+    <note>
+      The codeless option uses a pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.2) from GitHub Container Registry.
+      This image will be used during deployment instead of building a custom image.
+    </note>
+    <note>
+      The Gradle task 'generateJavaConnectorsForgeRest' must be run from the sdk-gen directory.
+    </note>
+    <note>
+      Both deployment options result in the same DSL file storage location.
+    </note>
+    <note>
+      This phase is independent of the API configuration process - it only sets up the deployment infrastructure.
+    </note>
+  </important_notes>
+</deployment_setup_phase>
+
+<!-- Made with Bob -->
