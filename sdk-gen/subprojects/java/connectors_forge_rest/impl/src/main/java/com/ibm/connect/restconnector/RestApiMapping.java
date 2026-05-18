@@ -21,6 +21,7 @@ public class RestApiMapping
     private final String baseUrl;
     private final AuthenticationType authenticationType;
     private final Map<String, RestTableDefinition> tables;
+    private final Map<String, String> metadata;
 
     /**
      * Creates an API mapping.
@@ -37,9 +38,12 @@ public class RestApiMapping
      *            the authentication type: "none", "api_key", "oauth2", or "basic" (from "$authentication")
      * @param tables
      *            a map of table name to table definition
+     * @param metadata
+     *            metadata from "$metadata" section (connector_source, target_service, etc.)
      */
     public RestApiMapping(String connectorName, String connectorLabel, String connectorDescription,
-            String baseUrl, AuthenticationType authenticationType, Map<String, RestTableDefinition> tables)
+            String baseUrl, AuthenticationType authenticationType, Map<String, RestTableDefinition> tables,
+            Map<String, String> metadata)
     {
         this.connectorName = connectorName;
         this.connectorLabel = connectorLabel;
@@ -47,6 +51,7 @@ public class RestApiMapping
         this.baseUrl = baseUrl;
         this.authenticationType = authenticationType != null ? authenticationType : AuthenticationType.NONE;
         this.tables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
+        this.metadata = metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Collections.emptyMap();
     }
 
     /**
@@ -140,11 +145,22 @@ public class RestApiMapping
         return tables.get(tableName.toUpperCase(java.util.Locale.ENGLISH));
     }
 
+    /**
+     * Returns the metadata map from the "$metadata" section of the connector configuration.
+     *
+     * @return an unmodifiable map of metadata (connector_source, target_service, connector_type, etc.)
+     */
+    public Map<String, String> getMetadata()
+    {
+        return metadata;
+    }
+
     @Override
     public String toString()
     {
         return "RestApiMapping{connectorName='" + connectorName + "', baseUrl='" + baseUrl
-                + "', authenticationType='" + authenticationType.getValue() + "', tables=" + tables.keySet() + "}";
+                + "', authenticationType='" + authenticationType.getValue() + "', tables=" + tables.keySet()
+                + ", metadata=" + metadata + "}";
     }
 }
 
