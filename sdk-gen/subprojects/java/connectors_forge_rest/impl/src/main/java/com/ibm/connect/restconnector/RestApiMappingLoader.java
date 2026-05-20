@@ -54,6 +54,7 @@ public class RestApiMappingLoader
     private static final String CONNECTOR_NAME_KEY = "$connector_name";
     private static final String CONNECTOR_LABEL_KEY = "$connector_label";
     private static final String CONNECTOR_DESCRIPTION_KEY = "$connector_description";
+    private static final String METADATA_KEY = "$metadata";
     private static final String HOSTNAME_KEY = "$hostname";
     private static final String AUTHENTICATION_KEY = "$authentication";
     private static final String TABLES_KEY = "$tables";
@@ -107,11 +108,12 @@ public class RestApiMappingLoader
         final String baseUrl = parseBaseUrl(root);
         final AuthenticationType authenticationType = parseAuthenticationType(root);
         final Map<String, RestTableDefinition> tables = parseTables(root);
+        final Map<String, String> metadataMap = parseMetadata(root);
 
-        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables",
-                metadata.connectorName, authenticationType.getValue(), tables.size());
+        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables, metadata={}",
+                metadata.connectorName, authenticationType.getValue(), tables.size(), metadataMap.isEmpty() ? "none" : metadataMap.keySet());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authenticationType, tables);
+                baseUrl, authenticationType, tables, metadataMap);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
@@ -120,6 +122,37 @@ public class RestApiMappingLoader
         final String connectorLabel = getTextOrDefault(root, CONNECTOR_LABEL_KEY, "REST Connector");
         final String connectorDescription = getTextOrDefault(root, CONNECTOR_DESCRIPTION_KEY, "REST API Connector");
         return new ConnectorMetadata(connectorName, connectorLabel, connectorDescription);
+    }
+
+    /**
+     * Parses the $metadata section from the JSON configuration.
+     *
+     * @param root
+     *            the root JSON node
+     * @return a map of metadata key-value pairs, or an empty map if no metadata is present
+     */
+    private static Map<String, String> parseMetadata(JsonNode root)
+    {
+        final Map<String, String> metadata = new LinkedHashMap<>();
+        final JsonNode metadataNode = root.get(METADATA_KEY);
+        
+        if (metadataNode != null && metadataNode.isObject()) {
+            final Iterator<Map.Entry<String, JsonNode>> fields = metadataNode.fields();
+            while (fields.hasNext()) {
+                final Map.Entry<String, JsonNode> field = fields.next();
+                final String key = field.getKey();
+                final JsonNode value = field.getValue();
+                
+                if (value != null && !value.isNull()) {
+                    metadata.put(key, value.asText());
+                }
+            }
+            LOGGER.debug("Parsed metadata: {}", metadata);
+        } else {
+            LOGGER.debug("No $metadata section found in configuration");
+        }
+        
+        return metadata;
     }
 
     private static String parseBaseUrl(JsonNode root) throws IOException
