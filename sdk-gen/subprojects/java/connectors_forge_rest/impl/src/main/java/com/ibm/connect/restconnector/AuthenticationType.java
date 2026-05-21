@@ -34,7 +34,8 @@ public enum AuthenticationType
     public static AuthenticationType fromValue(String value)
     {
         if (value == null) {
-            return NONE;
+            throw new IllegalArgumentException(
+                "Authentication type cannot be null. Valid values are: " + validValues());
         }
 
         final String normalizedValue = value.toLowerCase(Locale.ENGLISH);
@@ -43,7 +44,8 @@ public enum AuthenticationType
                 return type;
             }
         }
-        return NONE;
+        throw new IllegalArgumentException(
+            "Invalid authentication type: '" + value + "'. Valid values are: " + validValues());
     }
 
     public static String validValues()

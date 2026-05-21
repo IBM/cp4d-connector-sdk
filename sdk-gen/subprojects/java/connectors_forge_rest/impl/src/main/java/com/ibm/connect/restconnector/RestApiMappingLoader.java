@@ -164,16 +164,14 @@ public class RestApiMappingLoader
         return hostnameNode.asText();
     }
 
-    private static AuthenticationType parseAuthenticationType(JsonNode root)
+    private static AuthenticationType parseAuthenticationType(JsonNode root) throws IOException
     {
         final String rawAuthenticationType = getTextOrDefault(root, AUTHENTICATION_KEY, AuthenticationType.NONE.getValue());
-        final AuthenticationType authenticationType = AuthenticationType.fromValue(rawAuthenticationType);
-        if (authenticationType == AuthenticationType.NONE
-                && !AuthenticationType.NONE.getValue().equals(rawAuthenticationType.toLowerCase(java.util.Locale.ENGLISH))) {
-            LOGGER.warn("Invalid authentication type '{}', defaulting to '{}'. Valid values: {}",
-                    rawAuthenticationType, AuthenticationType.NONE.getValue(), AuthenticationType.validValues());
+        try {
+            return AuthenticationType.fromValue(rawAuthenticationType);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid authentication type in configuration: " + e.getMessage(), e);
         }
-        return authenticationType;
     }
 
     private static Map<String, RestTableDefinition> parseTables(JsonNode root) throws IOException
