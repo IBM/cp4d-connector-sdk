@@ -79,6 +79,7 @@ configurations{
   arrowConnector
   basicConnector
   jdbcImplConnector
+  connectorsForgeRestConnector
   basicFlight
 }
 
@@ -86,6 +87,7 @@ dependencies {
   arrowConnector project(path: ':wdp-connect-sdk-gen-java-arrow-impl', configuration: 'templateZip')
   basicConnector project(path: ':wdp-connect-sdk-gen-java-basic', configuration: 'templateZip')
   jdbcImplConnector project(path: ':wdp-connect-sdk-gen-java-jdbc-impl', configuration: 'templateZip')
+  connectorsForgeRestConnector project(path: ':wdp-connect-sdk-gen-java-connectors_forge_rest-impl', configuration: 'templateZip')
   basicFlight project(path: isStandaloneFlight() ? ':wdp-connect-sdk-gen-java-flight-svc' : ':wdp-connect-sdk-gen-java-flight-app', configuration: 'templateZip')
 }
 
@@ -512,6 +514,30 @@ tasks.register('generateJavaJdbc'){
   description = 'Generate a JDBC Java connector project'
   doLast{
     generateConnectorProject('JDBC', 'jdbcImplConnector', ':wdp-connect-sdk-gen-java-jdbc-impl', 'com.ibm.connect.sdk.jdbc.impl')
+  }
+}
+
+tasks.register('generateJavaConnectorsForgeRest'){
+  dependsOn configurations.connectorsForgeRestConnector
+  description = 'Generate a Connectors Forge REST Java connector project'
+  doLast{
+    println "Generating Connectors Forge REST Java connector project"
+
+    def connectorName = 'connectors_forge_rest'
+    def srcJavaPackage = 'com.ibm.connect.restconnector'
+
+    // Only ask for Java package customization
+    String defaultJavaPackage = "com.yourorganizationname.connect.restconnector"
+    ant.input(message: "Java package for the connector:", addproperty: 'connectorJavaPackage', defaultvalue: defaultJavaPackage)
+
+    FileTree connTree = zipTree(configurations.connectorsForgeRestConnector.singleFile)
+    copy{
+      from connTree
+      into "${project.rootDir}/subprojects/${connectorName}"
+      eachFile{ path = path.replace(srcJavaPackage.replace('.','/'), ant.connectorJavaPackage.replace('.','/')) }
+      filter{line -> line.replace srcJavaPackage, ant.connectorJavaPackage }
+      filter{line -> line.replace'  isTemplate = true', '' }
+    }
   }
 }
 

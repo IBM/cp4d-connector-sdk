@@ -1,0 +1,132 @@
+{
+  "$connector_name": "api-name-connector",
+  "$connector_label": "Display Label",
+  "$connector_description": "Description of what this connector provides access to",
+  "$metadata": {
+    "connector_source": "connector_forge",
+    "target_service": "Example Service",
+    "connector_type": "rest_api",
+    "created_at": "2026-05-06T12:00:00Z",
+    "created_by": "user_12345",
+    "forge_version": "1.0.0"
+  },
+  "$hostname": "https://api.example.com",
+  "$authentication": "api_key",
+  "$tables": {
+    "SIMPLE_TABLE": {
+      "$path": ["/api/users"],
+      "id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "email": "VARCHAR",
+      "created_at": "TIMESTAMP"
+    },
+    "TABLE_WITH_DATA_PATH": {
+      "$path": ["/api/wrapped-data"],
+      "$data_path": "result.users",
+      "user_id": "INTEGER,$key",
+      "username": "VARCHAR",
+      "is_active": "BOOLEAN"
+    },
+    "TABLE_WITH_NESTED_OBJECT": {
+      "$path": ["/api/profiles"],
+      "id": "VARCHAR,$key",
+      "name": "VARCHAR",
+      "address[]": {
+        "street": "VARCHAR",
+        "city": "VARCHAR",
+        "country": "VARCHAR",
+        "postal_code": "VARCHAR"
+      },
+      "contact[]": {
+        "email": "VARCHAR",
+        "phone": "VARCHAR"
+      }
+    },
+    "TABLE_WITH_NESTED_ARRAY": {
+      "$path": ["/api/posts"],
+      "post_id": "INTEGER,$key",
+      "title": "VARCHAR",
+      "content": "VARCHAR",
+      "tags": "VARCHAR",
+      "comments": "VARCHAR"
+    },
+    "TABLE_WITH_OFFSET_PAGINATION": {
+      "$path": ["/api/paginated/offset"],
+      "$pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "initial_offset": 0
+      },
+      "id": "INTEGER,$key",
+      "data": "VARCHAR"
+    },
+    "TABLE_WITH_PAGE_PAGINATION": {
+      "$path": ["/api/paginated/page"],
+      "$pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 50,
+        "initial_page": 1
+      },
+      "id": "INTEGER,$key",
+      "value": "VARCHAR"
+    },
+    "TABLE_WITH_CURSOR_PAGINATION": {
+      "$path": ["/api/paginated/cursor"],
+      "$pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "next_cursor_path": "pagination.next_cursor",
+        "page_size": 100
+      },
+      "id": "INTEGER,$key",
+      "content": "VARCHAR"
+    },
+    "TABLE_WITH_LINK_HEADER_PAGINATION": {
+      "$path": ["/api/paginated/link"],
+      "$pagination": {
+        "type": "link_header",
+        "page_size": 100
+      },
+      "id": "INTEGER,$key",
+      "name": "VARCHAR"
+    },
+    "TABLE_WITH_NEXT_URL_PAGINATION": {
+      "$path": ["/api/paginated/next-url"],
+      "$pagination": {
+        "type": "next_url",
+        "next_url_path": "pagination.next",
+        "page_size": 100
+      },
+      "id": "INTEGER,$key",
+      "description": "VARCHAR"
+    },
+    "COMBINED_EXAMPLE": {
+      "$path": ["/api/complex"],
+      "$data_path": "data.items",
+      "$pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100
+      },
+      "id": "INTEGER,$key",
+      "title": "VARCHAR",
+      "metadata[]": {
+        "author": "VARCHAR",
+        "created": "TIMESTAMP",
+        "version": "INTEGER"
+      },
+      "tags": "VARCHAR",
+      "stats[]": {
+        "views": "INTEGER",
+        "likes": "INTEGER",
+        "shares": "INTEGER"
+      },
+      "comments": "VARCHAR"
+    }
+  }
+}

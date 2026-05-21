@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data_type_mapping_guide>
+  <overview>
+    This guide provides detailed rules for mapping JSON data types to SQL data types
+    in REST connector configuration files.
+  </overview>
+
+  <core_principle>
+    <rule>Infer types strictly from JSON values and API documentation</rule>
+    <rule>Choose the smallest correct type that safely represents the data</rule>
+    <rule>When in doubt, use VARCHAR</rule>
+    <rule>ALL nested objects MUST be described with "[]" syntax</rule>
+    <rule>ALL nested arrays MUST be VARCHAR</rule>
+  </core_principle>
+
+  <type_mappings>
+    <mapping>
+      <json_type>string</json_type>
+      <sql_types>
+        <primary>VARCHAR</primary>
+        <alternatives>
+          <type>CHAR - for fixed-length strings</type>
+          <type>DATE - if string represents date (YYYY-MM-DD)</type>
+          <type>TIME - if string represents time (HH:MM:SS)</type>
+          <type>TIMESTAMP - if string represents date-time (ISO 8601)</type>
+        </alternatives>
+      </sql_types>
+      <examples>
+        <example>
+          <json>"name": "Falcon 9"</json>
+          <mapping>name: "VARCHAR"</mapping>
+        </example>
+        <example>
+          <json>"first_flight": "2010-06-04"</json>
+          <mapping>first_flight: "DATE"</mapping>
+        </example>
+        <example>
+          <json>"launch_time": "2023-01-15T10:30:00Z"</json>
+          <mapping>launch_time: "TIMESTAMP"</mapping>
+        </example>
+      </examples>
+    </mapping>
+
+    <mapping>
+      <json_type>number (integer)</json_type>
+      <sql_types>
+        <guidelines>
+          <guideline>Use TINYINT for values -128 to 127</guideline>
+          <guideline>Use SMALLINT for values -32,768 to 32,767</guideline>
+          <guideline>Use INTEGER for values -2,147,483,648 to 2,147,483,647</guideline>
+          <guideline>Use BIGINT for larger values</guideline>
+        </guidelines>
+      </sql_types>
+      <examples>
+        <example>
+          <json>"count": 5</json>
+          <mapping>count: "INTEGER"</mapping>
+        </example>
+        <example>
+          <json>"id": 12345</json>
+          <mapping>id: "INTEGER"</mapping>
+        </example>
+        <example>
+          <json>"timestamp": 1609459200</json>
+          <mapping>timestamp: "BIGINT"</mapping>
+        </example>
+      </examples>
+    </mapping>
+
+    <mapping>
+      <json_type>number (decimal/float)</json_type>
+      <sql_types>
+        <primary>DOUBLE</primary>
+        <alternatives>
+          <type>FLOAT - for single precision</type>
+          <type>DECIMAL - for exact decimal representation (financial data)</type>
+        </alternatives>
+      </sql_types>
+      <examples>
+        <example>
+          <json>"latitude": 28.5618571</json>
+          <mapping>latitude: "DOUBLE"</mapping>
+        </example>
+        <example>
+          <json>"price": 99.99</json>
+          <mapping>price: "DECIMAL"</mapping>
+          <note>Use DECIMAL for monetary values to avoid rounding errors</note>
+        </example>
+      </examples>
+    </mapping>
+
+    <mapping>
+      <json_type>boolean</json_type>
+      <sql_types>
+        <primary>BOOLEAN</primary>
+      </sql_types>
+      <examples>
+        <example>
+          <json>"active": true</json>
+          <mapping>active: "BOOLEAN"</mapping>
+        </example>
+        <example>
+          <json>"success": false</json>
+          <mapping>success: "BOOLEAN"</mapping>
+        </example>
+      </examples>
+    </mapping>
+
+    <mapping>
+      <json_type>null</json_type>
+      <handling>
+        <rule>If field can be null, infer type from non-null examples</rule>
+        <rule>If always null in examples, use VARCHAR as safe default</rule>
+        <rule>Ask user for clarification if type is unclear</rule>
+      </handling>
+    </mapping>
+
+    <mapping>
+      <json_type>object (nested)</json_type>
+      <sql_types>
+        <option1>
+          <name>Flattened Object (with [] suffix)</name>
+          <when>Object has known, fixed structure with simple fields</when>
+          <syntax>field_name[]: { "subfield": "TYPE", ... }</syntax>
+          <result>Creates separate columns with dot notation: field_name.subfield</result>
+        </option1>
+        <option2>
+          <name>JSON String (VARCHAR)</name>
+          <when>Object structure varies, contains arrays, or is deeply nested</when>
+          <syntax>field_name: "VARCHAR"</syntax>
+          <result>Stores entire object as JSON string</result>
+        </option2>
+      </sql_types>
+      <decision_criteria>
+        <use_flattening_when>
+          <criterion>Object structure is consistent across all responses</criterion>
+          <criterion>All nested fields are simple types OR other nested [] objects</criterion>
+          <criterion>You want to query nested fields individually</criterion>
+          <criterion>Multi-level nesting is fully supported (any depth)</criterion>
+        </use_flattening_when>
+        <use_varchar_when>
+          <criterion>Object structure varies between responses</criterion>
+          <criterion>Object contains nested arrays</criterion>
+          <criterion>You don't need to query nested fields individually</criterion>
+        </use_varchar_when>
+      </decision_criteria>
+      <examples>
+        <example>
+          <title>Flattened Object - Fixed Structure</title>
+          <json>
+            "headquarters": {
+              "address": "Rocket Road",
+              "city": "Hawthorne",
+              "state": "California"
+            }
+          </json>
+          <mapping>headquarters[]: {"address":"VARCHAR", "city":"VARCHAR", "state":"VARCHAR"}</mapping>
+          <result_columns>headquarters.address, headquarters.city, headquarters.state</result_columns>
+        </example>
+        <example>
+          <title>Flattened Object - Numeric Fields</title>
+          <json>
+            "dimensions": {
+              "height": 70,
+              "diameter": 3.7
+            }
+          </json>
+          <mapping>dimensions[]: {"height":"INTEGER", "diameter":"DOUBLE"}</mapping>
+          <result_columns>dimensions.height, dimensions.diameter</result_columns>
+        </example>
+        <example>
+          <title>VARCHAR - Object with Array</title>
+          <json>
+            "metadata": {
+              "tags": ["tag1", "tag2"],
+              "category": "electronics"
+            }
+          </json>
+          <mapping>metadata: "VARCHAR"</mapping>
+          <reason>Contains array - cannot flatten</reason>
+        </example>
+        <example>
+          <title>Multi-Level Flattening - Fully Supported</title>
+          <json>
+            "location": {
+              "address": {
+                "street": "123 Main St",
+                "city": "Boston"
+              },
+              "coordinates": {
+                "lat": 42.3601,
+                "lon": -71.0589
+              }
+            }
+          </json>
+          <mapping>
+            location[]: {
+              "address[]": {
+                "street": "VARCHAR",
+                "city": "VARCHAR"
+              },
+              "coordinates[]": {
+                "lat": "DOUBLE",
+                "lon": "DOUBLE"
+              }
+            }
+          </mapping>
+          <result_columns>location.address.street, location.address.city, location.coordinates.lat, location.coordinates.lon</result_columns>
+          <note>Multi-level nesting is fully supported - any depth works</note>
+        </example>
+      </examples>
+    </mapping>
+
+    <mapping>
+      <json_type>array</json_type>
+      <sql_types>
+        <required>VARCHAR</required>
+        <important>ALWAYS map arrays as VARCHAR</important>
+        <rationale>Connector stores arrays as JSON strings</rationale>
+      </sql_types>
+      <examples>
+        <example>
+          <json>"images": ["url1.jpg", "url2.jpg", "url3.jpg"]</json>
+          <mapping>images: "VARCHAR"</mapping>
+        </example>
+        <example>
+          <json>
+            "launches": [
+              {"id": "1", "name": "Mission 1"},
+              {"id": "2", "name": "Mission 2"}
+            ]
+          </json>
+          <mapping>launches: "VARCHAR"</mapping>
+          <wrong>Do NOT try to flatten or create separate table</wrong>
+        </example>
+        <example>
+          <json>"tags": ["tag1", "tag2", "tag3"]</json>
+          <mapping>tags: "VARCHAR"</mapping>
+        </example>
+      </examples>
+    </mapping>
+  </type_mappings>
+
+  <special_cases>
+    <case name="unix_timestamps">
+      <description>Unix timestamps (seconds since epoch)</description>
+      <json_example>"date_unix": 1609459200</json_example>
+      <mapping>date_unix: "BIGINT"</mapping>
+      <note>Store as BIGINT, not TIMESTAMP</note>
+    </case>
+
+    <case name="iso_date_strings">
+      <description>ISO 8601 date-time strings</description>
+      <json_example>"created_at": "2023-01-15T10:30:00Z"</json_example>
+      <mapping>created_at: "TIMESTAMP"</mapping>
+    </case>
+
+    <case name="date_only_strings">
+      <description>Date-only strings</description>
+      <json_example>"birth_date": "1990-05-15"</json_example>
+      <mapping>birth_date: "DATE"</mapping>
+    </case>
+
+    <case name="enum_strings">
+      <description>String fields with limited set of values</description>
+      <json_example>"status": "active"</json_example>
+      <mapping>status: "VARCHAR"</mapping>
+      <note>Still use VARCHAR even if values are limited</note>
+    </case>
+
+    <case name="id_fields">
+      <description>Identifier fields</description>
+      <guidelines>
+        <guideline>If numeric, use INTEGER or BIGINT</guideline>
+        <guideline>If string (UUID, etc.), use VARCHAR</guideline>
+        <guideline>Mark with ,$key if it's the primary identifier</guideline>
+      </guidelines>
+      <examples>
+        <example>
+          <json>"id": 12345</json>
+          <mapping>id: "INTEGER,$key"</mapping>
+        </example>
+        <example>
+          <json>"uuid": "550e8400-e29b-41d4-a716-446655440000"</json>
+          <mapping>uuid: "VARCHAR,$key"</mapping>
+        </example>
+      </examples>
+    </case>
+
+    <case name="missing_natural_key">
+      <description>When no natural unique identifier exists</description>
+      <solution>Add synthetic ROWID field</solution>
+      <mapping>ROWID: "VARCHAR,$key"</mapping>
+      <note>This creates a unique identifier for each row</note>
+    </case>
+  </special_cases>
+
+  <decision_tree>
+    <title>Type Selection Decision Tree</title>
+    <steps>
+      <step number="1">
+        <question>Is it a nested object?</question>
+        <if_yes>
+          <sub_question>Does it have fixed structure with simple fields only?</sub_question>
+          <if_fixed_yes>Use [] syntax: field[]: {"sub": "TYPE"}</if_fixed_yes>
+          <if_fixed_no>Use VARCHAR</if_fixed_no>
+        </if_yes>
+        <if_no>Continue to step 2</if_no>
+      </step>
+      <step number="2">
+        <question>Is it a nested array?</question>
+        <if_yes>Use VARCHAR (ALWAYS)</if_yes>
+        <if_no>Continue to step 3</if_no>
+      </step>
+      
+      <step number="3">
+        <question>Is it a boolean (true/false)?</question>
+        <if_yes>Use BOOLEAN</if_yes>
+        <if_no>Continue to step 4</if_no>
+      </step>
+      
+      <step number="4">
+        <question>Is it a number?</question>
+        <if_yes>
+          <sub_question>Does it have decimal places?</sub_question>
+          <if_decimal_yes>Use DOUBLE or DECIMAL (for money)</if_decimal_yes>
+          <if_decimal_no>
+            <sub_question>What's the value range?</sub_question>
+            <ranges>
+              <range>-128 to 127: TINYINT</range>
+              <range>-32,768 to 32,767: SMALLINT</range>
+              <range>-2B to 2B: INTEGER</range>
+              <range>Larger: BIGINT</range>
+            </ranges>
+          </if_decimal_no>
+        </if_yes>
+        <if_no>Continue to step 5</if_no>
+      </step>
+      
+      <step number="5">
+        <question>Is it a string?</question>
+        <if_yes>
+          <sub_question>Does it represent a date/time?</sub_question>
+          <if_datetime_yes>
+            <options>
+              <option>Date only (YYYY-MM-DD): DATE</option>
+              <option>Time only (HH:MM:SS): TIME</option>
+              <option>Date and time (ISO 8601): TIMESTAMP</option>
+            </options>
+          </if_datetime_yes>
+          <if_datetime_no>Use VARCHAR</if_datetime_no>
+        </if_yes>
+        <if_no>Use VARCHAR as safe default</if_no>
+      </step>
+    </steps>
+  </decision_tree>
+
+  <common_mistakes>
+    <mistake>
+      <error>Creating separate tables for array elements</error>
+      <correct>Map entire array as VARCHAR</correct>
+      <example>
+        <wrong>Create separate LAUNCHES table for launches array</wrong>
+        <right>launches: "VARCHAR"</right>
+      </example>
+    </mistake>
+
+    <mistake>
+      <error>Using TIMESTAMP for Unix timestamps</error>
+      <correct>Use BIGINT for Unix timestamps (seconds since epoch)</correct>
+    </mistake>
+
+    <mistake>
+      <error>Using VARCHAR for clearly numeric fields</error>
+      <correct>Use appropriate numeric type (INTEGER, DOUBLE, etc.)</correct>
+    </mistake>
+
+    <mistake>
+      <error>Not marking any field as primary key</error>
+      <correct>Always mark at least one field with ,$key (or add ROWID)</correct>
+    </mistake>
+  </common_mistakes>
+
+  <when_uncertain>
+    <guideline>If you're unsure about the data type, use VARCHAR</guideline>
+    <guideline>VARCHAR is always safe but may not be optimal</guideline>
+    <guideline>Ask the user for clarification if the type is critical</guideline>
+    <guideline>Review API documentation for type hints</guideline>
+  </when_uncertain>
+</data_type_mapping_guide>

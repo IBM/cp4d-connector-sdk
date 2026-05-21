@@ -1,0 +1,798 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rest_connector_workflow>
+  <mode_overview>
+    This mode guides you through creating JSON configuration files (connector descriptors) for REST APIs
+    to be used with the CP4D REST Connector SDK. The configuration maps REST API endpoints to relational
+    table schemas that can be queried using SQL.
+    
+    IMPORTANT: The workflow begins with Phase 0 (Deployment Setup) which MUST be completed first.
+    See 0_deployment_setup.xml for deployment option selection and project structure setup.
+  </mode_overview>
+
+  <workflow_phases>
+    <phase number="0">
+      <name>Deployment Setup</name>
+      <file>0_deployment_setup.xml</file>
+      <description>
+        Select deployment option (codeless or developer) and set up project structure.
+        This phase MUST be completed before proceeding to API discovery.
+      </description>
+      <required>true</required>
+    </phase>
+    
+    <phase number="1">
+      <name>API Discovery and Analysis</name>
+      <file>1_workflow.xml (this file)</file>
+      <description>
+        Gather API information and analyze endpoint structures.
+      </description>
+    </phase>
+    
+    <phase number="2">
+      <name>Configuration Generation</name>
+      <file>1_workflow.xml (this file)</file>
+      <description>
+        Generate JSON configuration files based on API analysis.
+      </description>
+    </phase>
+    
+    <phase number="3">
+      <name>Presentation and Confirmation</name>
+      <file>1_workflow.xml (this file)</file>
+      <description>
+        Present configuration and gather user feedback.
+      </description>
+    </phase>
+    
+    <phase number="4">
+      <name>Multiple Connectors Check</name>
+      <file>6_deployment_execution.xml</file>
+      <description>
+        Ask if user wants to create additional connectors.
+        If yes, return to Phase 1. If no, proceed to Phase 5.
+      </description>
+      <loop>Can repeat Phases 1-3 for multiple connectors</loop>
+    </phase>
+    
+    <phase number="5">
+      <name>Deployment Execution</name>
+      <file>6_deployment_execution.xml</file>
+      <description>
+        Select and execute deployment option: Local Docker, Serverless, Self-Hosted, or OpenShift.
+        Build and deploy the connector(s) to the chosen environment.
+      </description>
+      <required>true</required>
+    </phase>
+    
+    <phase number="6">
+      <name>Cloud Pak for Data Registration</name>
+      <file>6_deployment_execution.xml</file>
+      <description>
+        Register the deployed connector(s) with Cloud Pak for Data.
+        Process differs based on deployment type (codeless vs developer).
+      </description>
+      <optional>true</optional>
+      <note>User can choose to skip registration and do it later</note>
+    </phase>
+    
+    <phase number="7">
+      <name>Registration Validation and Testing</name>
+      <file>6_deployment_execution.xml</file>
+      <description>
+        Validate connector registration by running discovery tests.
+        Mode suggests test configuration based on connector information.
+        Executes OS-specific test scripts to verify registration success.
+      </description>
+      <optional>true</optional>
+      <note>Only available after Phase 6 registration is completed</note>
+    </phase>
+  </workflow_phases>
+
+  <phase_1_discovery>
+    <title>API Discovery and Analysis</title>
+    <description>
+      Before generating any JSON configuration file, you MUST gather required information.
+      Never proceed without complete information.
+    </description>
+    
+    <required_information>
+      <item priority="critical">
+        <name>API Base URL</name>
+        <description>The complete base URL including protocol and hostname</description>
+        <example>https://api.spacexdata.com</example>
+        <ask_if_missing>What is the base URL of the REST API?</ask_if_missing>
+      </item>
+      
+      <item priority="critical">
+        <name>Authentication Type</name>
+        <description>How the API authenticates requests</description>
+        <valid_values>
+          <value>none</value>
+          <value>api_key</value>
+          <value>oauth2</value>
+          <value>basic</value>
+        </valid_values>
+        <ask_if_missing>What authentication method does this API use?</ask_if_missing>
+      </item>
+      
+      <item priority="critical">
+        <name>Endpoints to Map</name>
+        <description>List of specific endpoints the user wants to map</description>
+        <important>Only map endpoints explicitly requested by the user</important>
+        <ask_if_missing>Which specific endpoints do you want to map to tables?</ask_if_missing>
+      </item>
+    </required_information>
+
+    <response_discovery_method>
+      <title>Determine How to Obtain API Response Information</title>
+      <description>
+        After gathering basic API information, determine the method for obtaining JSON response structures.
+        This is critical for understanding the data schema and creating accurate table mappings.
+      </description>
+
+      <step_1_ask_discovery_method>
+        <question>
+          How would you like me to obtain information about the JSON responses for each endpoint?
+        </question>
+
+        <options>
+          <option name="documentation">
+            <label>Use API Documentation</label>
+            <description>
+              I will read and analyze the API documentation to understand response structures.
+              Best for: Well-documented APIs with clear response schemas.
+            </description>
+            <requires>URL or path to API documentation</requires>
+          </option>
+
+          <option name="sample_responses">
+            <label>You Provide Sample Responses</label>
+            <description>
+              You will provide example JSON responses for each endpoint.
+              Best for: When you have sample data readily available or prefer manual control.
+            </description>
+            <requires>JSON response examples for each endpoint</requires>
+          </option>
+
+          <option name="live_api">
+            <label>Make Live API Calls</label>
+            <description>
+              I will make actual HTTP requests to the API endpoints to retrieve response data.
+              Best for: Testing with real data, but requires authentication credentials.
+            </description>
+            <requires>Authentication credentials (if API requires auth)</requires>
+            <security_note>
+              This option requires sharing authentication credentials with the mode.
+              Only use if you're comfortable providing API keys or tokens.
+            </security_note>
+          </option>
+        </options>
+
+        <presentation_format>
+          Present options clearly with numbered choices:
+          1. Use API Documentation - I'll analyze the docs
+          2. You Provide Sample Responses - You'll give me JSON examples
+          3. Make Live API Calls - I'll fetch data directly (requires auth if needed)
+        </presentation_format>
+      </step_1_ask_discovery_method>
+
+      <step_2a_handle_documentation>
+        <title>Handle Documentation-Based Discovery</title>
+        <when>User selects documentation option</when>
+
+        <actions>
+          <action priority="1">
+            <name>Request Documentation Location</name>
+            <question>
+              Please provide the URL or path to the API documentation.
+              If it's a well-known API (e.g., GitHub, Stripe, SpaceX), I may already be familiar with it.
+            </question>
+          </action>
+
+          <action priority="2">
+            <name>Check if Known API</name>
+            <description>
+              If the API is well-known and you have access to its documentation through browser tools,
+              offer to fetch and analyze it automatically.
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Analyze Documentation</name>
+            <description>
+              Read the documentation to extract:
+              - Response schemas for each endpoint
+              - Field names and data types
+              - Nested object structures
+              - Array fields
+              - Pagination information
+            </description>
+          </action>
+        </actions>
+      </step_2a_handle_documentation>
+
+      <step_2b_handle_sample_responses>
+        <title>Handle Sample Response Provision</title>
+        <when>User selects sample responses option</when>
+
+        <actions>
+          <action priority="1">
+            <name>Request Sample Responses</name>
+            <question>
+              Please provide example JSON responses for each endpoint you want to map.
+              
+              Format:
+              Endpoint: /api/endpoint/path
+              Response:
+              ```json
+              {
+                "field1": "value",
+                "field2": 123
+              }
+              ```
+            </question>
+          </action>
+
+          <action priority="2">
+            <name>Validate Responses</name>
+            <description>
+              Verify that:
+              - JSON is valid and parseable
+              - Response structure is clear
+              - All necessary fields are present
+            </description>
+          </action>
+
+          <action priority="3">
+            <name>Analyze Response Structure</name>
+            <description>
+              Extract schema information from the provided samples to create table mappings.
+            </description>
+          </action>
+        </actions>
+      </step_2b_handle_sample_responses>
+
+      <step_2c_handle_live_api>
+        <title>Handle Live API Calls</title>
+        <when>User selects live API calls option</when>
+
+        <security_warning>
+          <message>
+            Making live API calls requires authentication credentials if the API is protected.
+            These credentials will be used only for this session and only to fetch response schemas.
+            
+            Security considerations:
+            - Credentials are not stored permanently
+            - Only read operations will be performed
+            - You can revoke credentials after the session
+            
+            Do you want to proceed with live API calls?
+          </message>
+        </security_warning>
+
+        <actions>
+          <action priority="1">
+            <name>Request Authentication Details</name>
+            <when>API requires authentication</when>
+            <question>
+              Please provide the authentication credentials needed to access the API:
+              
+              For API Key authentication:
+              - API Key value
+              - Header name (e.g., "X-API-Key", "Authorization")
+              
+              For OAuth2:
+              - Access token
+              
+              For Basic Auth:
+              - Username
+              - Password
+            </question>
+          </action>
+
+          <action priority="2">
+            <name>Make Test API Calls</name>
+            <description>
+              For each endpoint:
+              - Construct the full URL
+              - Add authentication headers if needed
+              - Make HTTP GET request
+              - Capture the JSON response
+              - Handle errors gracefully
+            </description>
+            <note>Use browser tool to make HTTP requests</note>
+          </action>
+
+          <action priority="3">
+            <name>Analyze Live Responses</name>
+            <description>
+              Extract schema information from the live API responses to create table mappings.
+            </description>
+          </action>
+
+          <action priority="4">
+            <name>Confirm Success</name>
+            <message>
+              Successfully retrieved response data from the API.
+              Proceeding with schema analysis and table mapping.
+            </message>
+          </action>
+        </actions>
+
+        <error_handling>
+          <if_api_call_fails>
+            <action>Report the error details (status code, error message)</action>
+            <action>Verify authentication credentials are correct</action>
+            <action>Check if endpoint URL is correct</action>
+            <action>Offer to switch to sample responses method instead</action>
+          </if_api_call_fails>
+        </error_handling>
+      </step_2c_handle_live_api>
+    </response_discovery_method>
+
+    <analysis_steps>
+      <step number="1">
+        <action>Analyze endpoint paths and parameters</action>
+        <details>
+          - Identify path parameters (e.g., /api/users/{id})
+          - Note query parameters if relevant
+          - Understand endpoint semantics (collection vs single item)
+        </details>
+      </step>
+      
+      <step number="2">
+        <action>Examine JSON response structure</action>
+        <details>
+          - Identify top-level fields
+          - Note nested objects (will be flattered and marked with special syntax)
+          - Note arrays (will be mapped as VARCHAR)
+          - Identify natural unique identifiers
+        </details>
+      </step>
+      
+      <step number="3">
+        <action>Classify endpoints</action>
+        <categories>
+          <category>Entity-returning (single object)</category>
+          <category>Collection-returning (array of objects)</category>
+          <category>Parameterized access paths</category>
+        </categories>
+      </step>
+    </analysis_steps>
+  </phase_1_discovery>
+
+  <phase_2_configuration_generation>
+    <title>JSON Configuration File Generation</title>
+    <description>
+      Generate the connector descriptor JSON file following the template.json structure
+    </description>
+
+    <prerequisite>
+      <action>Read template.json file</action>
+      <path>template.json</path>
+      <why>This is the ONLY allowed structural reference</why>
+    </prerequisite>
+
+    <metadata_generation>
+      <title>Automatic Metadata Population</title>
+      <description>
+        All Forge-created connectors MUST include metadata section with auto-populated fields.
+        This metadata enables tracking, filtering, and analytics of Connector Forge usage.
+      </description>
+      
+      <auto_populated_fields>
+        <field name="connector_source">
+          <value>connector_forge</value>
+          <rule>Always hardcoded to "connector_forge"</rule>
+        </field>
+        
+        <field name="connector_type">
+          <value>rest_api</value>
+          <rule>Always hardcoded to "rest_api" for REST connectors</rule>
+        </field>
+        
+        <field name="created_at">
+          <format>ISO 8601 UTC timestamp</format>
+          <example>2026-05-06T12:00:00Z</example>
+          <rule>Auto-generate current timestamp when creating configuration</rule>
+        </field>
+        
+        <field name="forge_version">
+          <value>1.0.0</value>
+          <format>Semantic versioning</format>
+          <rule>Use current Connector Forge version</rule>
+        </field>
+        
+        <field name="created_by">
+          <description>User ID of the person creating the connector</description>
+          <rule>Extract from environment/context if available, otherwise use "unknown"</rule>
+          <default>unknown</default>
+        </field>
+      </auto_populated_fields>
+      
+      <user_confirmed_fields>
+        <field name="target_service">
+          <description>Name of the service/API being connected to</description>
+          <inference_process>
+            <step>1. Analyze the API hostname (e.g., api.salesforce.com → "Salesforce")</step>
+            <step>2. Extract service name from domain or API documentation</step>
+            <step>3. Present inference to user for confirmation</step>
+            <step>4. Allow user to override/customize if needed</step>
+          </inference_process>
+          <examples>
+            <example>
+              <hostname>https://api.spacexdata.com</hostname>
+              <inferred>SpaceX API</inferred>
+              <prompt>Based on the hostname 'api.spacexdata.com', I've identified this as "SpaceX API". Is this correct?</prompt>
+            </example>
+            <example>
+              <hostname>https://api.github.com</hostname>
+              <inferred>GitHub</inferred>
+              <prompt>Based on the hostname 'api.github.com', I've identified this as "GitHub". Is this correct?</prompt>
+            </example>
+            <example>
+              <hostname>https://login.salesforce.com</hostname>
+              <inferred>Salesforce</inferred>
+              <prompt>Based on the hostname 'login.salesforce.com', I've identified this as "Salesforce". Is this correct?</prompt>
+            </example>
+          </examples>
+          <user_interaction>
+            <question>I've identified the target service as "{inferred_name}". Is this correct?</question>
+            <options>
+              <option>Yes, that's correct</option>
+              <option>No, let me provide the correct name</option>
+            </options>
+          </user_interaction>
+        </field>
+      </user_confirmed_fields>
+      
+      <metadata_placement>
+        <rule>Metadata section must appear after $connector_description and before $hostname</rule>
+        <structure>
+          <![CDATA[
+{
+  "$connector_name": "...",
+  "$connector_label": "...",
+  "$connector_description": "...",
+  "$metadata": {
+    "connector_source": "connector_forge",
+    "target_service": "Service Name",
+    "connector_type": "rest_api",
+    "created_at": "2026-05-06T12:00:00Z",
+    "created_by": "user_12345",
+    "forge_version": "1.0.0"
+  },
+  "$hostname": "...",
+  "$authentication": "...",
+  "$tables": { ... }
+}
+          ]]>
+        </structure>
+      </metadata_placement>
+    </metadata_generation>
+
+    <structure>
+      <root_fields>
+        <field name="$connector_name" required="true">
+          <description>Internal name for the connector</description>
+          <format>kebab-case format (lowercase with hyphens)</format>
+          <example>spacex-api-connector</example>
+        </field>
+        
+        <field name="$connector_label" required="true">
+          <description>Display label shown in UI</description>
+          <format>Short, user-friendly name (Title Case)</format>
+          <example>SpaceX API</example>
+        </field>
+        
+        <field name="$connector_description" required="true">
+          <description>Brief description of what the connector provides</description>
+          <example>Connector for SpaceX public REST API - provides access to rockets, launches, and more</example>
+          <note>Use clear, descriptive sentences</note>
+        </field>
+        
+        <field name="$metadata" required="true">
+          <description>Metadata about the connector for tracking and analytics</description>
+          <auto_generated>true</auto_generated>
+          <fields>
+            <field name="connector_source">
+              <value>Always "connector_forge"</value>
+              <auto_populated>true</auto_populated>
+            </field>
+            <field name="target_service">
+              <description>Name of the service/API (e.g., "Salesforce", "GitHub", "SpaceX API")</description>
+              <inference>Inferred from hostname, confirmed with user</inference>
+              <example>SpaceX API</example>
+            </field>
+            <field name="connector_type">
+              <value>Always "rest_api"</value>
+              <auto_populated>true</auto_populated>
+            </field>
+            <field name="created_at">
+              <description>ISO 8601 timestamp of creation</description>
+              <auto_generated>true</auto_generated>
+              <example>2026-05-06T12:00:00Z</example>
+            </field>
+            <field name="created_by">
+              <description>User ID of creator</description>
+              <default>unknown</default>
+              <note>Extract from environment if available</note>
+            </field>
+            <field name="forge_version">
+              <description>Version of Connector Forge</description>
+              <format>Semantic versioning</format>
+              <example>1.0.0</example>
+            </field>
+          </fields>
+        </field>
+        
+        <field name="$hostname" required="true">
+          <description>Base URL of the API</description>
+          <format>Full URL including protocol</format>
+          <example>https://api.spacexdata.com</example>
+        </field>
+        
+        <field name="$authentication" required="true">
+          <description>Authentication method</description>
+          <valid_values>none, api_key, oauth2, basic</valid_values>
+          <default>none</default>
+        </field>
+        
+        <field name="$tables" required="true">
+          <description>Object containing table definitions</description>
+          <structure>Each key is a table name, value is table definition</structure>
+        </field>
+      </root_fields>
+
+      <optional_features>
+        <feature name="$data_path">
+          <description>Navigate to nested data array in API response</description>
+          <when_to_use>API wraps data in parent objects (e.g., {"result": {"users": [...]}})</when_to_use>
+          <example>"$data_path": "result.users"</example>
+        </feature>
+        <feature name="$pagination">
+          <description>Configure pagination for APIs that return data across multiple pages</description>
+          <when_to_use>API returns large datasets split across multiple pages</when_to_use>
+          <types>offset, page, cursor, link_header, next_url</types>
+          <see_also>Refer to 5_pagination_guide.xml for detailed documentation</see_also>
+        </feature>
+      </optional_features>
+
+      <table_definition>
+        <field name="$path" required="true">
+          <description>Array with single endpoint path</description>
+          <format>["endpoint_path"]</format>
+          <important>Only ONE path per table - no multiple paths supported</important>
+          <example>["v4/rockets"]</example>
+        </field>
+        
+        <field name="columns" required="true">
+          <description>Field definitions as key-value pairs</description>
+          <format>field_name: "DATA_TYPE" or "DATA_TYPE,$key"</format>
+          <key_marker>
+            <description>Add ,$key suffix to mark primary key field</description>
+            <example>id: "VARCHAR,$key"</example>
+          </key_marker>
+        </field>
+      </table_definition>
+    </structure>
+
+    <mapping_rules>
+      <rule name="endpoint_to_table">
+        <principle>One JSON structure = one table</principle>
+        <details>
+          - Each unique endpoint with distinct JSON structure gets its own table
+          - Identical JSON structures should use same table
+          - Different JSON structures require separate tables
+        </details>
+      </rule>
+
+      <rule name="column_naming">
+        <principle>Use exact JSON field names</principle>
+        <details>
+          - Never invent column names
+          - Use the exact field name from JSON response
+          - If field name is SQL reserved keyword, keep it as-is (connector handles it)
+        </details>
+      </rule>
+
+      <rule name="primary_keys">
+        <when_natural_key_exists>
+          <action>Mark the natural unique identifier with ,$key suffix</action>
+          <example>id: "VARCHAR,$key"</example>
+        </when_natural_key_exists>
+        
+        <when_no_natural_key>
+          <action>Add ROWID field as synthetic key</action>
+          <example>ROWID: "VARCHAR,$key"</example>
+        </when_no_natural_key>
+      </rule>
+
+      <rule name="nested_objects">
+        <principle>Nested objects with known, fixed structure MUST be described with [] suffix syntax for flattening</principle>
+        <rationale>
+          The connector automatically flattens nested objects marked with [] suffix into separate columns.
+          Each nested field becomes a column with dot-separated naming (e.g., object.field).
+          This allows querying nested data as regular columns.
+          Multi-level nesting is fully supported (e.g., object.subobject.field).
+        </rationale>
+        <when_to_use>
+          <use>Object has a known, fixed structure (same fields in all responses)</use>
+          <use>Object fields are simple types OR other nested [] objects</use>
+          <use>You want to query nested fields as separate columns</use>
+          <use>Works with any depth of nesting (2, 3, or more levels)</use>
+        </when_to_use>
+        <when_not_to_use>
+          <dont_use>Object structure varies between responses</dont_use>
+          <dont_use>Object contains nested arrays</dont_use>
+          <alternative>Use VARCHAR to store entire object as JSON string</alternative>
+        </when_not_to_use>
+        <syntax>
+          <format>field_name[]: { "subfield1": "TYPE", "subfield2": "TYPE" }</format>
+          <result>Creates columns: field_name.subfield1, field_name.subfield2</result>
+        </syntax>
+        <examples>
+          <example>
+            <json_field>
+              "dimensions": {
+                "width": 10,
+                "height": 5,
+                "depth": 3
+              }
+            </json_field>
+            <mapping>dimensions[]: {"width": "INTEGER", "height": "INTEGER", "depth": "INTEGER"}</mapping>
+            <result_columns>dimensions.width, dimensions.height, dimensions.depth</result_columns>
+          </example>
+          <example>
+            <json_field>
+              "address": {
+                "street": "123 Main St",
+                "city": "Boston",
+                "state": "MA",
+                "zip": "02101"
+              }
+            </json_field>
+            <mapping>address[]: {"street": "VARCHAR", "city": "VARCHAR", "state": "VARCHAR", "zip": "VARCHAR"}</mapping>
+            <result_columns>address.street, address.city, address.state, address.zip</result_columns>
+          </example>
+        </examples>
+      </rule>
+
+      <rule name="nested_arrays">
+        <principle>ALL nested arrays MUST be mapped as VARCHAR</principle>
+        <important>Do NOT attempt to flatten or extract fields from nested arrays</important>
+        <rationale>The connector stores complex structures as JSON strings</rationale>
+        <examples>
+          <example>
+            <json_field>items: [{ id: 1, name: "..." }, ...]</json_field>
+            <mapping>items: "VARCHAR"</mapping>
+          </example>
+        </examples>
+      </rule>
+
+      <rule name="data_type_mapping">
+        <principle>Infer types strictly from JSON values</principle>
+        <supported_types>
+          <type>INTEGER - for whole numbers</type>
+          <type>BIGINT - for large whole numbers</type>
+          <type>SMALLINT - for small whole numbers</type>
+          <type>TINYINT - for very small whole numbers</type>
+          <type>BOOLEAN - for true/false values</type>
+          <type>DOUBLE - for floating point numbers</type>
+          <type>FLOAT - for floating point numbers</type>
+          <type>DECIMAL - for precise decimal numbers (requires precision/scale)</type>
+          <type>DATE - for date values</type>
+          <type>TIME - for time values</type>
+          <type>TIMESTAMP - for date-time values</type>
+          <type>VARCHAR - for strings (default for unknown types)</type>
+          <type>CHAR - for fixed-length strings</type>
+        </supported_types>
+        
+        <guidelines>
+          <guideline>Choose the smallest correct type that safely represents the data</guideline>
+          <guideline>When in doubt, use VARCHAR</guideline>
+          <guideline>For nested arrays, always use VARCHAR</guideline>
+        </guidelines>
+      </rule>
+
+      <rule name="no_multiple_paths">
+        <principle>Each table has exactly ONE endpoint path</principle>
+        <important>Multiple paths per table are NOT supported</important>
+        <if_similar_endpoints>
+          <action>Create separate tables for each endpoint</action>
+          <rationale>Ensures clear, predictable table semantics</rationale>
+        </if_similar_endpoints>
+      </rule>
+    </mapping_rules>
+  </phase_2_configuration_generation>
+
+  <phase_3_presentation>
+    <title>Presentation and Confirmation</title>
+    
+    <file_storage_location>
+      <description>
+        All generated JSON configuration files must be stored in the location
+        determined during Phase 0 (Deployment Setup).
+      </description>
+      <path>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</path>
+      <note>
+        This location is the same regardless of deployment option chosen
+        (codeless or developer).
+      </note>
+    </file_storage_location>
+    
+    <steps>
+      <step number="1">
+        <action>Present the complete JSON configuration file</action>
+        <format>Full, valid JSON with proper formatting</format>
+      </step>
+      
+      <step number="2">
+        <action>Explain the mapping decisions</action>
+        <include>
+          <item>Endpoint to table mapping rationale</item>
+          <item>Data type choices for each field</item>
+          <item>Primary key selection reasoning</item>
+          <item>How nested structures were handled</item>
+        </include>
+      </step>
+      
+      <step number="3">
+        <action>Ask for confirmation</action>
+        <question>Does this configuration correctly represent the API structure you want to map?</question>
+      </step>
+      
+      <step number="4">
+        <action>Apply requested changes precisely</action>
+        <important>Do not reinterpret requirements - make exact changes requested</important>
+      </step>
+      
+      <step number="5">
+        <action>Save configuration file to correct location</action>
+        <path>sdk-gen/subprojects/connectors_forge_rest/src/main/resources/[connector-name].json</path>
+        <note>Use kebab-case filename based on API name (e.g., spacex-api.json, github-api.json)</note>
+      </step>
+      
+      <step number="6">
+        <action>Proceed to Phase 4 (Multiple Connectors Check)</action>
+        <file>6_deployment_execution.xml</file>
+        <description>
+          After successfully saving the configuration file, proceed to Phase 4 to ask
+          if the user wants to create additional connectors or proceed to deployment.
+        </description>
+      </step>
+    </steps>
+  </phase_3_presentation>
+
+  <validation_checklist>
+    <title>Before Final Output</title>
+    <checks>
+      <check>$metadata section is present with all required fields</check>
+      <check>connector_source is set to "connector_forge"</check>
+      <check>target_service is populated and confirmed with user</check>
+      <check>connector_type is set to "rest_api"</check>
+      <check>created_at is valid ISO 8601 timestamp</check>
+      <check>created_by is populated (or "unknown")</check>
+      <check>forge_version follows semantic versioning</check>
+      <check>Each table has exactly one $path entry (array with single element)</check>
+      <check>All nested objects are mapped with "[]" syntax</check>
+      <check>All nested arrays are mapped as VARCHAR</check>
+      <check>At least one field is marked with ,$key</check>
+      <check>All field names match exact JSON field names</check>
+      <check>Data types are valid and appropriate</check>
+      <check>$authentication field is set to valid value</check>
+      <check>$hostname includes protocol (https:// or http://)</check>
+      <check>JSON is valid and properly formatted</check>
+    </checks>
+  </validation_checklist>
+
+  <behavioral_constraints>
+    <constraint>Do not refactor unless explicitly asked</constraint>
+    <constraint>Do not optimize unless requested</constraint>
+    <constraint>Do not invent additional tables beyond requested endpoints</constraint>
+    <constraint>Do not collapse tables for convenience</constraint>
+    <constraint>Do not assume SQL semantics beyond connector rules</constraint>
+    <constraint>Never map the same endpoint to multiple tables</constraint>
+    <constraint>Always follow connectors-forge/template.json structure exactly</constraint>
+  </behavioral_constraints>
+</rest_connector_workflow>
