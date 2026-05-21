@@ -75,7 +75,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
             if (createdAtStr != null && !createdAtStr.isEmpty()) {
                 try {
                     // Parse ISO 8601 date-time format (e.g., "2026-05-06T13:00:00Z")
-                    final SimpleDateFormat iso8601Format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+                    final SimpleDateFormat iso8601Format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
                     iso8601Format.setTimeZone(TimeZone.getTimeZone("UTC"));
                     final Date createdAt = iso8601Format.parse(createdAtStr);
                     metadata.setCreatedAt(createdAt);

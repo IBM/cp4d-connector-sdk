@@ -325,7 +325,7 @@ public class RestApiMappingLoader
         String result = rawType;
         
         // Remove each modifier in all possible positions
-        for (String modifier : ALL_MODIFIERS) {
+        for (final String modifier : ALL_MODIFIERS) {
             result = result.replace("," + modifier, "");  // Remove ",modifier"
             result = result.replace(modifier + ",", "");  // Remove "modifier,"
             result = result.replace(modifier, "");        // Remove standalone "modifier"
