@@ -1925,7 +1925,7 @@
             <name>Review Template File</name>
             <description>
               A template file is provided at:
-              connectors-forge/codeless/register-envs.properties.template
+              connectors-forge/scripts/register-envs.properties.template
               
               This template shows the required configuration structure with placeholder values.
             </description>
@@ -1936,12 +1936,12 @@
             <description>
               Copy the template file to create your configuration:
               
-              From: connectors-forge/codeless/register-envs.properties.template
-              To: connectors-forge/codeless/register-envs.properties
+              From: connectors-forge/scripts/register-envs.properties.template
+              To: connectors-forge/scripts/register-envs.properties
               
               You can do this with:
-              - Unix/Linux/macOS: cp connectors-forge/codeless/register-envs.properties.template connectors-forge/codeless/register-envs.properties
-              - Windows: copy connectors-forge\codeless\register-envs.properties.template connectors-forge\codeless\register-envs.properties
+              - Unix/Linux/macOS: cp connectors-forge/scripts/register-envs.properties.template connectors-forge/scripts/register-envs.properties
+              - Windows: copy connectors-forge\scripts\register-envs.properties.template connectors-forge\scripts\register-envs.properties
             </description>
           </step>
 
@@ -2044,8 +2044,8 @@
         <actions>
           <action priority="1">
             <name>Execute Registration Script</name>
-            <command_unix>connectors-forge/codeless/register-connector.sh</command_unix>
-            <command_windows>connectors-forge\codeless\register-connector.ps1</command_windows>
+            <command_unix>connectors-forge/scripts/register-connector.sh</command_unix>
+            <command_windows>connectors-forge\scripts\register-connector.ps1</command_windows>
             <description>
               Runs the OS-specific registration script that handles:
               - Reading configuration from register-envs.properties
@@ -2110,18 +2110,18 @@
           To register your REST API connector(s) with Cloud Pak for Data:
 
           1. Ensure you have configured the properties file at:
-             connectors-forge/codeless/register-envs.properties
+             connectors-forge/scripts/register-envs.properties
 
           For Unix/Linux/macOS:
           2. Ensure the script has execute permissions:
-             chmod +x connectors-forge/codeless/register-connector.sh
+             chmod +x connectors-forge/scripts/register-connector.sh
 
           3. Run the registration script:
-             connectors-forge/codeless/register-connector.sh
+             connectors-forge/scripts/register-connector.sh
 
           For Windows:
           2. Run the PowerShell registration script:
-             .\connectors-forge\codeless\register-connector.ps1
+             .\connectors-forge\scripts\register-connector.ps1
 
           The registration script will:
           - Read your configuration from register-envs.properties
@@ -2277,7 +2277,7 @@
           Based on your connector configuration, here's the suggested content for test-discovery.properties:
 
           ```properties
-          # Copy from connectors-forge/codeless/test-discovery.properties.template
+          # Copy from connectors-forge/scripts/test-discovery.properties.template
           # and fill in your actual values
 
           # CPD Configuration
@@ -2326,7 +2326,7 @@
         <instructions>
           1. Create a file named test-discovery.properties in the connectors-forge/codeless/ directory
           
-          2. Use the template at connectors-forge/codeless/test-discovery.properties.template as a reference
+          2. Use the template at connectors-forge/scripts/test-discovery.properties.template as a reference
           
           3. Copy the suggested configuration above and replace placeholders with your actual values:
              - CPD_URL: Your Cloud Pak for Data instance URL
@@ -2334,7 +2334,7 @@
              - AUTH_URI: Authentication endpoint (update for on-premises if needed)
              - API keys, passwords, and other credentials in CONNECTION_PROPERTIES
           
-          4. Ensure the file is saved in the correct location: connectors-forge/codeless/test-discovery.properties
+          4. Ensure the file is saved in the correct location: connectors-forge/scripts/test-discovery.properties
           
           Note: The test scripts will automatically obtain a bearer token from your credentials,
           so you don't need to manually acquire a token beforehand.
@@ -2365,8 +2365,8 @@
         <actions>
           <action priority="1">
             <name>Execute Test Script</name>
-            <command_unix>connectors-forge/codeless/test-discovery.sh</command_unix>
-            <command_windows>connectors-forge\codeless\test-discovery.ps1</command_windows>
+            <command_unix>connectors-forge/scripts/test-discovery.sh</command_unix>
+            <command_windows>connectors-forge\scripts\test-discovery.ps1</command_windows>
             <description>
               Runs the OS-specific test script that:
               - Reads configuration from test-discovery.properties
@@ -2495,18 +2495,18 @@
         To manually validate your connector registration:
 
         1. Create test-discovery.properties file:
-           - Location: connectors-forge/codeless/test-discovery.properties
-           - Template: connectors-forge/codeless/test-discovery.properties.template
+           - Location: connectors-forge/scripts/test-discovery.properties
+           - Template: connectors-forge/scripts/test-discovery.properties.template
            - Fill in your CPD_URL, CPD_TOKEN, and connector configurations
 
         2. Run the test script:
            
            For Unix/Linux/macOS:
-           chmod +x connectors-forge/codeless/test-discovery.sh
-           connectors-forge/codeless/test-discovery.sh
+           chmod +x connectors-forge/scripts/test-discovery.sh
+           connectors-forge/scripts/test-discovery.sh
 
            For Windows:
-           .\connectors-forge\codeless\test-discovery.ps1
+           .\connectors-forge\scripts\test-discovery.ps1
 
         3. Review the test results:
            - Green checkmarks (✓) indicate successful discovery
