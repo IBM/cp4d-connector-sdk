@@ -1,9 +1,19 @@
 <jdbc_connector_workflow>
   <overview>
     This workflow guides you through creating a custom JDBC connector for any database
-    using the IBM Watson Data Platform Connect SDK. The process involves creating a DSL
-    configuration, generating connector code, customizing it, generating tests, and building
-    the final connector.
+    using the IBM Watson Data Platform Connect SDK. You can choose between two approaches:
+    
+    1. Codeless Mode: Quick setup using a pre-built Docker image (gloria2000/wdp-connect-sdk-gen-flight:latest)
+       - Best for standard JDBC connector use cases
+       - No code generation or build process required
+       - Faster deployment
+    
+    2. Developer Mode: Full customizable connector code generation
+       - Complete control over connector implementation
+       - Includes code generation, customization, testing, and building
+       - Best for custom implementations
+    
+    Both modes end with deployment to AWS ECS Fargate.
   </overview>
 
   <prerequisites>
@@ -15,6 +25,89 @@
   </prerequisites>
 
   <workflow_phases>
+    <phase number="0" name="deployment_approach_selection">
+      <title>Choose Deployment Approach</title>
+      <description>
+        Select between Codeless mode (using pre-built Docker image) or Developer mode
+        (generating customizable connector code). This choice determines the workflow path.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Ask user to choose deployment approach</action>
+          <tool>ask_followup_question</tool>
+          <question>Choose your deployment approach for the JDBC connector:</question>
+          <suggestions>
+            <suggest>Codeless - Use pre-built Docker image (quick setup, standard use cases)</suggest>
+            <suggest>Developer - Generate customizable connector code (custom implementations)</suggest>
+          </suggestions>
+        </step>
+        <step number="2">
+          <action>Process user selection and set workflow path</action>
+          <conditional_paths>
+            <path name="codeless">
+              <condition>User selected Codeless mode</condition>
+              <actions>
+                <action>Inform user about pre-built Docker image usage</action>
+                <action>Create directory structure for DSL file</action>
+                <action>Skip code generation phases (2-9)</action>
+                <action>Proceed directly to Phase 10 (Flight App) with pre-built image</action>
+              </actions>
+            </path>
+            <path name="developer">
+              <condition>User selected Developer mode</condition>
+              <actions>
+                <action>Inform user about custom code generation</action>
+                <action>Proceed to Phase 1 (Information Gathering)</action>
+                <action>Follow complete workflow through all phases</action>
+              </actions>
+            </path>
+          </conditional_paths>
+        </step>
+      </steps>
+      <codeless_mode_details>
+        <overview>
+          Codeless mode uses the pre-built Docker image: gloria2000/wdp-connect-sdk-gen-flight:latest
+        </overview>
+        <benefits>
+          <benefit>Quick setup without code generation</benefit>
+          <benefit>No build process required</benefit>
+          <benefit>Best for standard JDBC connector use cases</benefit>
+          <benefit>Faster deployment to AWS</benefit>
+        </benefits>
+        <directory_structure>
+          <create>sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</create>
+          <purpose>Store DSL configuration file for the connector</purpose>
+        </directory_structure>
+        <workflow_impact>
+          <skip>Phase 2: DSL Creation (partial - only create DSL, no code gen)</skip>
+          <skip>Phase 3: Label Confirmation</skip>
+          <skip>Phase 4: Code Generation</skip>
+          <skip>Phase 5: DSL Relocation</skip>
+          <skip>Phase 6: Connector Customization</skip>
+          <skip>Phase 7: Test Generation</skip>
+          <skip>Phase 8: Code Formatting</skip>
+          <skip>Phase 9: Build</skip>
+          <execute>Phase 1: Information Gathering (for DSL creation)</execute>
+          <execute>Phase 10: Flight App Generation (using pre-built image)</execute>
+          <execute>Phase 11: AWS Deployment</execute>
+        </workflow_impact>
+      </codeless_mode_details>
+      <developer_mode_details>
+        <overview>
+          Developer mode generates full customizable connector code from scratch
+        </overview>
+        <benefits>
+          <benefit>Full control over connector implementation</benefit>
+          <benefit>Ability to customize connector behavior</benefit>
+          <benefit>Best for custom JDBC implementations</benefit>
+          <benefit>Complete test suite generation</benefit>
+        </benefits>
+        <workflow_impact>
+          <execute>All phases (1-11) in sequence</execute>
+        </workflow_impact>
+      </developer_mode_details>
+    </phase>
+
     <phase number="1" name="information_gathering">
       <title>Gather Database Information</title>
       <description>
@@ -302,27 +395,146 @@
         <connector_dependency>runtimeOnly project(path: ':wdp-connect-sdk-gen-jdbc_{database}')</connector_dependency>
       </output>
     </phase>
+
+    <phase number="11" name="aws_deployment">
+      <title>AWS Deployment</title>
+      <description>
+        Deploy the connector to AWS ECS Fargate. This phase guides the user
+        through configuring AWS deployment properties and running the deployment script.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Inform user about AWS deployment requirement</action>
+          <message>
+            The connector will now be deployed to AWS ECS Fargate. You need to configure
+            your AWS deployment settings in the aws-deployment.properties file.
+          </message>
+        </step>
+        <step number="2">
+          <action>Guide user to configure AWS properties</action>
+          <instructions>
+            The deployment requires AWS configuration. You need to:
+            1. Copy aws-deployment.properties.template to aws-deployment.properties
+            2. Fill in your AWS details in aws-deployment.properties
+            3. Run the deployment script
+          </instructions>
+        </step>
+        <step number="3">
+          <action>Instruct user to configure aws-deployment.properties</action>
+          <message>
+            Please fill in the following required fields in aws-deployment.properties:
+            - AWS_ACCOUNT_ID: Your 12-digit AWS account ID
+            - AWS_REGION: AWS region (e.g., us-east-1)
+            - VPC_ID: Your VPC ID (e.g., vpc-xxxxxxxxxxxxxxxxx)
+            - SUBNET_ID: Your subnet ID (e.g., subnet-xxxxxxxxxxxxxxxxx)
+            - ECR_IMAGE_URI: ECR image URI (format: account-id.dkr.ecr.region.amazonaws.com/repository-name:tag)
+            - ECS_CLUSTER: ECS cluster name (will be created if it doesn't exist)
+            
+            Optional: You can also configure AWS credentials in the file, or use AWS CLI configured credentials.
+          </message>
+        </step>
+        <step number="4">
+          <action>Wait for user confirmation that properties are configured</action>
+          <tool>ask_followup_question</tool>
+          <question>Have you filled in all the required AWS configuration details in aws-deployment.properties?</question>
+          <suggestions>
+            <suggest>Yes, configuration is complete and ready to deploy</suggest>
+            <suggest>No, I need more time to configure</suggest>
+          </suggestions>
+        </step>
+        <step number="5">
+          <action>Run the AWS deployment script</action>
+          <command>cd sdk-gen && ./deploy-to-aws.sh</command>
+          <working_directory>sdk-gen/</working_directory>
+          <note>The script will build the Docker image, push it to ECR, and deploy to ECS Fargate</note>
+        </step>
+        <step number="6">
+          <action>Monitor deployment progress</action>
+          <success_indicators>
+            <indicator>Docker image built successfully</indicator>
+            <indicator>Image pushed to ECR</indicator>
+            <indicator>Security group created</indicator>
+            <indicator>CloudWatch log group created</indicator>
+            <indicator>IAM role created</indicator>
+            <indicator>Task definition registered</indicator>
+            <indicator>ECS service deployed</indicator>
+            <indicator>Public IP retrieved</indicator>
+            <indicator>Deployment summary displayed</indicator>
+          </success_indicators>
+        </step>
+      </steps>
+      <what_it_does>
+        <action>Builds Docker image for linux/amd64 (AWS ECS Fargate compatible)</action>
+        <action>Creates ECR repository if it doesn't exist</action>
+        <action>Pushes Docker image to ECR</action>
+        <action>Creates security group for the connector</action>
+        <action>Creates CloudWatch log group for logging</action>
+        <action>Creates IAM execution role for ECS tasks</action>
+        <action>Registers ECS task definition</action>
+        <action>Deploys ECS service on Fargate</action>
+        <action>Retrieves public IP address for the connector</action>
+        <action>Verifies deployment and displays connection details</action>
+      </what_it_does>
+      <output>
+        <deployment_summary>
+          <item>AWS Region</item>
+          <item>ECS Cluster name</item>
+          <item>ECS Service name</item>
+          <item>Task Definition family</item>
+          <item>Security Group ID</item>
+          <item>Public IP address</item>
+          <item>gRPC endpoint (IP:port)</item>
+          <item>CloudWatch log group name</item>
+        </deployment_summary>
+      </output>
+      <prerequisites>
+        <requirement>AWS CLI installed and configured</requirement>
+        <requirement>Docker installed and running</requirement>
+        <requirement>Valid AWS credentials with appropriate permissions</requirement>
+        <requirement>Existing VPC and subnet in AWS</requirement>
+        <requirement>Connector built successfully (previous phases completed)</requirement>
+      </prerequisites>
+    </phase>
   </workflow_phases>
 
   <completion_criteria>
+    <criterion>Deployment approach selected (Codeless or Developer)</criterion>
     <criterion>DSL configuration file created and validated</criterion>
-    <criterion>Connector code generated successfully</criterion>
-    <criterion>DSL moved to connector resources directory</criterion>
-    <criterion>Connector customization completed</criterion>
-    <criterion>Test suite generated</criterion>
-    <criterion>Code formatted with spotlessApply</criterion>
-    <criterion>Connector builds successfully</criterion>
+    <criterion_conditional mode="developer">
+      <criterion>Connector code generated successfully</criterion>
+      <criterion>DSL moved to connector resources directory</criterion>
+      <criterion>Connector customization completed</criterion>
+      <criterion>Test suite generated</criterion>
+      <criterion>Code formatted with spotlessApply</criterion>
+      <criterion>Connector builds successfully</criterion>
+    </criterion_conditional>
+    <criterion_conditional mode="codeless">
+      <criterion>Directory structure created for DSL file</criterion>
+      <criterion>Pre-built Docker image identified</criterion>
+    </criterion_conditional>
     <criterion>Flight app generated with connector integrated</criterion>
+    <criterion>AWS deployment completed successfully</criterion>
   </completion_criteria>
 
   <next_steps_for_user>
-    <step>Review generated connector code in subprojects/jdbc_{database}/</step>
-    <step>Review generated flight app in subprojects/flight/</step>
-    <step>Update test credentials in TestPropertyValidation.java</step>
-    <step>Run connector tests: ./gradlew :wdp-connect-sdk-gen-jdbc_{database}:test</step>
-    <step>Build flight app: ./gradlew :wdp-connect-sdk-gen-flight:build</step>
-    <step>Build Docker image: ./gradlew dockerBuild</step>
-    <step>Deploy to Cloud Pak for Data (see deployment documentation)</step>
+    <developer_mode>
+      <step>Review generated connector code in subprojects/jdbc_{database}/</step>
+      <step>Review generated flight app in subprojects/flight/</step>
+      <step>Update test credentials in TestPropertyValidation.java</step>
+      <step>Run connector tests: ./gradlew :wdp-connect-sdk-gen-jdbc_{database}:test</step>
+      <step>Build flight app: ./gradlew :wdp-connect-sdk-gen-flight:build</step>
+      <step>Build Docker image: ./gradlew dockerBuild</step>
+    </developer_mode>
+    <codeless_mode>
+      <step>Review DSL configuration in sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</step>
+      <step>Verify pre-built Docker image: gloria2000/wdp-connect-sdk-gen-flight:latest</step>
+    </codeless_mode>
+    <common_steps>
+      <step>AWS deployment completed automatically</step>
+      <step>Test connectivity: telnet [PUBLIC_IP] 3443</step>
+      <step>View logs: aws logs tail [LOG_GROUP_NAME] --follow</step>
+      <step>Configure connector in Cloud Pak for Data using the gRPC endpoint</step>
+    </common_steps>
   </next_steps_for_user>
 
   <error_handling>
@@ -341,6 +553,14 @@
       <action>Check for compilation errors in generated code</action>
       <action>Verify JDBC driver dependency is correct</action>
       <action>Run ./gradlew clean and retry</action>
+    </error>
+    <error type="aws_deployment_failure">
+      <action>Check AWS CLI is installed and configured</action>
+      <action>Verify AWS credentials have appropriate permissions</action>
+      <action>Ensure VPC_ID and SUBNET_ID are valid and accessible</action>
+      <action>Check Docker is running</action>
+      <action>Review deployment script output for specific errors</action>
+      <action>Verify ECR_IMAGE_URI format is correct</action>
     </error>
   </error_handling>
 </jdbc_connector_workflow>
