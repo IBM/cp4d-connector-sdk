@@ -1,0 +1,34 @@
+# IBM Code Engine Deployment Configuration Template
+# Copy this file to deploy-codeengine.properties and fill in your values
+# DO NOT commit the actual deploy-codeengine.properties file with sensitive information
+
+# IBM Cloud Authentication
+# IBM Cloud API key for Code Engine access
+APIKEY=
+
+# Code Engine Region
+# Region where your Code Engine project is located (e.g., us-south, eu-de, eu-gb, jp-tok)
+REGION=
+
+# Code Engine Project Configuration
+# The Code Engine project name where the connector will be deployed
+# If the project doesn't exist, it will be created automatically
+# Default: ce-connectors-forge
+CODE_ENGINE_PROJECT=ce-connectors-forge
+
+# Resource Group ID (optional)
+# The IBM Cloud resource group ID for project creation
+# If not specified, the default resource group of your account will be used
+# Only used when creating a new project
+RESOURCE_GROUP_ID=
+
+# Application Configuration
+# The name of the Code Engine application
+APP_NAME=connectors-forge-app
+
+# Scaling Configuration
+# Minimum number of instances (0 for scale-to-zero)
+MIN_SCALE=0
+
+# Maximum number of instances
+MAX_SCALE=2
