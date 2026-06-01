@@ -54,7 +54,6 @@ log_step() {
 
 # Extract a JSON field value from a JSON string
 # Usage: extract_json_field "json_string" "field_name"
-# Example: extract_json_field "$response" "id"
 extract_json_field() {
     local json="$1"
     local field="$2"
@@ -380,43 +379,63 @@ create_project() {
 get_project_id() {
     log_step "4/8" "Looking up Code Engine project ID..."
     
-    local api_url="https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects?version=${API_VERSION}"
+    local api_url="https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects?version=${API_VERSION}&limit=1"
+    local next_start=""
     
-    local response=$(curl -k -s -w "\n%{http_code}" -X GET "$api_url" \
-        -H "Authorization: Bearer ${BEARER_TOKEN}")
-    
-    local http_code=$(echo "$response" | tail -n1)
-    local response_body=$(echo "$response" | sed '$d')
-    
-    if [ "$http_code" != "200" ]; then
-        log_error "Failed to list projects (HTTP $http_code)"
-        log_error "Response: $response_body"
-        exit 1
-    fi
-    
-    # Extract project ID by matching project name using robust JSON parsing
-    # This approach finds the project object and extracts the id field from it
-    PROJECT_ID=$(echo "$response_body" | awk -v project="$CODE_ENGINE_PROJECT" '
-        BEGIN { RS="{"; FS="\""; found=0 }
-        /"name"/ && /"id"/ {
-            name=""; id=""
-            for (i=1; i<=NF; i++) {
-                if ($i == "name") name=$(i+2)
-                if ($i == "id")   id=$(i+2)
+    # Loop through all pages until project is found or no more pages
+    while true; do
+        local request_url="$api_url"
+        if [ -n "$next_start" ]; then
+            request_url="${api_url}&start=${next_start}"
+        fi
+        
+        local response=$(curl -k -s -w "\n%{http_code}" -X GET "$request_url" \
+            -H "Authorization: Bearer ${BEARER_TOKEN}")
+        
+        local http_code=$(echo "$response" | tail -n1)
+        local response_body=$(echo "$response" | sed '$d')
+        
+        if [ "$http_code" != "200" ]; then
+            log_error "Failed to list projects (HTTP $http_code)"
+            log_error "Response: $response_body"
+            exit 1
+        fi
+        
+        # Extract project ID by matching project name
+        # This approach finds the project object and extracts the id field from it
+        PROJECT_ID=$(echo "$response_body" | awk -v project="$CODE_ENGINE_PROJECT" '
+            BEGIN { RS="{"; FS="\""; found=0 }
+            /"name"/ && /"id"/ {
+                name=""; id=""
+                for (i=1; i<=NF; i++) {
+                    if ($i == "name") name=$(i+2)
+                    if ($i == "id")   id=$(i+2)
+                }
+                if (name == project && id != "") {
+                    print id
+                    exit
+                }
             }
-            if (name == project && id != "") {
-                print id
-                exit
-            }
-        }
-    ')
+        ')
+        
+        if [ -n "$PROJECT_ID" ]; then
+            log "Project ID: $PROJECT_ID"
+            return 0
+        fi
+        
+        # Check if there's a next page by extracting the "start" token from "next" object
+        next_start=$(echo "$response_body" | grep -o '"next"[[:space:]]*:[[:space:]]*{[^}]*"start"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"start"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+        
+        # If no next page, break out of loop
+        if [ -z "$next_start" ]; then
+            break
+        fi
+        
+    done
     
-    if [ -z "$PROJECT_ID" ]; then
-        # Project not found - create it
-        create_project
-    else
-        log "Project ID: $PROJECT_ID"
-    fi
+    # Project not found in any page - create it
+    log "Project '${CODE_ENGINE_PROJECT}' not found"
+    create_project
 }
 
 # ============================================
