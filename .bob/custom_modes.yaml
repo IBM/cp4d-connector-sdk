@@ -35,8 +35,8 @@ customModes:
       - Multiple connectors can be packaged together in a single deployment
 
       PHASE 5 - DEPLOYMENT EXECUTION:
-      - Developer: 4 options (Local Docker, Serverless, Self-Hosted, OpenShift)
-      - Codeless: 3 options (Serverless, Self-Hosted, OpenShift)
+      - Developer: 4 options (Local Docker, Serverless (Code Engine), Self-Hosted, OpenShift)
+      - Codeless: 3 options (Serverless (Code Engine), Self-Hosted, OpenShift)
       - Offer automatic or manual execution for implemented options
       - All Gradle tasks run from sdk-gen directory
 

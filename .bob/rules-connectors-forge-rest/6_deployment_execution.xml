@@ -170,13 +170,13 @@
 
         <option name="serverless">
           <number>2</number>
-          <label>Serverless Deployment</label>
+          <label>Serverless Deployment (IBM Cloud Code Engine)</label>
           <description>
-            Deploy Docker container to a serverless platform.
+            Deploy Docker container to IBM Cloud Code Engine serverless platform.
             Best for: As-a-service solutions with automatic scaling.
           </description>
-          <use_case>Cloud-native, as-a-service deployments</use_case>
-          <status>Placeholder - Not yet implemented</status>
+          <use_case>Cloud-native, as-a-service deployments with scale-to-zero capability</use_case>
+          <status>Implemented</status>
         </option>
 
         <option name="self_hosted">
@@ -206,13 +206,13 @@
         
         <option name="serverless">
           <number>1</number>
-          <label>Serverless Deployment</label>
+          <label>Serverless Deployment (IBM Cloud Code Engine)</label>
           <description>
-            Deploy pre-built Docker container to a serverless platform.
+            Deploy pre-built Docker container to IBM Cloud Code Engine serverless platform.
             Best for: As-a-service solutions with automatic scaling.
           </description>
-          <use_case>Cloud-native, as-a-service deployments</use_case>
-          <status>Placeholder - Not yet implemented</status>
+          <use_case>Cloud-native, as-a-service deployments with scale-to-zero capability</use_case>
+          <status>Implemented</status>
         </option>
 
         <option name="self_hosted">
@@ -394,36 +394,483 @@
     </step_2_handle_local_deployment>
 
     <step_3_handle_serverless_deployment>
-      <title>Serverless Deployment</title>
+      <title>Serverless Deployment (IBM Cloud Code Engine)</title>
       <when>User selects option 2 (Serverless)</when>
 
-      <placeholder_notice>
-        <message>
-          Serverless deployment is not yet implemented.
-          
-          This is a placeholder for future functionality. When implemented, this option will:
-          - Build the Docker image with your connector(s)
-          - Deploy the image to a serverless platform (e.g., AWS Lambda, Google Cloud Run, Azure Functions)
-          - Configure automatic scaling and endpoint management
-          - Provide the service URL for accessing your connector(s)
-          
-          For now, please choose one of the other deployment options:
-          - Option 1: Local Docker Deployment (for testing)
-          - Option 3: Self-Hosted Server Deployment (for production)
-          - Option 4: Openshift deployment (for production)
-        </message>
-      </placeholder_notice>
+      <important_note>
+        This deployment option uses IBM Cloud Code Engine for serverless container deployment.
+        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.3) from GitHub Container Registry.
+        Code Engine provides serverless container deployment with automatic scaling and built-in HTTPS endpoints.
+      </important_note>
 
-      <future_implementation>
-        <description>
-          When implemented, this section will include:
-          - Cloud provider selection 
-          - Authentication and credentials configuration
-          - Serverless platform-specific deployment commands
-          - Endpoint URL generation and configuration
-          - Monitoring and logging setup
-        </description>
-      </future_implementation>
+      <sub_step_1_ask_execution_preference>
+        <question>
+          Would you like me to execute the Code Engine deployment commands, or would you prefer to do it yourself?
+        </question>
+
+        <options>
+          <option name="auto">
+            <label>Automatic - Execute commands for me</label>
+            <description>I will run the deployment script to deploy your connector(s) to IBM Cloud Code Engine</description>
+          </option>
+          
+          <option name="manual">
+            <label>Manual - I'll do it myself</label>
+            <description>I will provide you with step-by-step instructions</description>
+          </option>
+        </options>
+      </sub_step_1_ask_execution_preference>
+
+      <sub_step_2a_automatic_deployment>
+        <title>Automatic Code Engine Deployment</title>
+        <when>User chooses automatic execution</when>
+
+        <security_and_privacy_policy>
+          NEVER ask the user directly for sensitive credentials like:
+          - IBM Cloud API keys
+          - Authentication tokens
+          - Passwords
+          
+          Instead, guide them to create a properties file based on the template with placeholder values.
+          The deployment script will read credentials from the properties file.
+        </security_and_privacy_policy>
+
+        <prerequisites>
+          <requirement>IBM Cloud account with Code Engine access</requirement>
+          <requirement>IBM Cloud API key with appropriate permissions</requirement>
+        </prerequisites>
+
+        <workflow_control>
+          CRITICAL: Deployment execution requires careful monitoring and confirmation.
+          - Execute the deployment script and monitor its progress through all 8 steps
+          - Wait for script completion before asking for confirmation
+          - Ask user to confirm deployment succeeded (application running, all 8 steps completed)
+          - Do NOT show success message unless user confirms deployment worked
+          - If deployment fails at any step, provide troubleshooting based on the specific step and error
+          - Only proceed to registration if deployment is confirmed successful
+        </workflow_control>
+
+        <sub_step_1_verify_properties_file>
+          <title>Create Properties File from Template</title>
+          
+          <important_note>
+            Before deployment, you need to create a properties file based on the provided template.
+            This file is not visible to me (it's in .bobignore), so you need to create it manually.
+          </important_note>
+
+          <instructions>
+            <step priority="1">
+              <name>Review Template File</name>
+              <description>
+                A template file is provided at:
+                connectors-forge/codeless/deploy-codeengine.properties.template
+                
+                This template shows the required configuration structure with placeholder values.
+              </description>
+            </step>
+
+            <step priority="2">
+              <name>Create Properties File</name>
+              <description>
+                Copy the template file to create your configuration:
+                
+                From: connectors-forge/codeless/deploy-codeengine.properties.template
+                To: connectors-forge/codeless/deploy-codeengine.properties
+                
+                You can do this with:
+                - Unix/Linux/macOS: cp connectors-forge/codeless/deploy-codeengine.properties.template connectors-forge/codeless/deploy-codeengine.properties
+                - Windows: copy connectors-forge\codeless\deploy-codeengine.properties.template connectors-forge\codeless\deploy-codeengine.properties
+              </description>
+            </step>
+
+            <step priority="3">
+              <name>Configure Required Properties</name>
+              <description>
+                Edit deploy-codeengine.properties and fill in all required values:
+                
+                REQUIRED SETTINGS:
+                - APIKEY: Your IBM Cloud API key
+                  Get from: https://cloud.ibm.com/iam/apikeys
+                  Must have Code Engine permissions
+                
+                - REGION: Code Engine region where you want to deploy
+                  Examples: us-south, eu-de, eu-gb, jp-tok
+                  See: https://cloud.ibm.com/docs/codeengine?topic=codeengine-regions
+                
+                OPTIONAL SETTINGS (with defaults):
+                - CODE_ENGINE_PROJECT: Project name (default: ce-connectors-forge)
+                  Will be created if it doesn't exist
+                
+                - RESOURCE_GROUP_ID: IBM Cloud resource group ID
+                  Only needed when creating a new project
+                  If not specified, uses your account's default resource group
+                
+                - APP_NAME: Application name (default: connectors-forge-app)
+                
+                - MIN_SCALE: Minimum instances (default: 0 for scale-to-zero)
+                  Set to 0 to enable scale-to-zero when idle
+                
+                - MAX_SCALE: Maximum instances (default: 2)
+                  Controls maximum concurrent instances
+              </description>
+              <example>
+                Example configuration:
+                APIKEY=your-ibm-cloud-api-key-here
+                REGION=us-south
+                CODE_ENGINE_PROJECT=ce-connectors-forge
+                RESOURCE_GROUP_ID=
+                APP_NAME=connectors-forge-app
+                MIN_SCALE=0
+                MAX_SCALE=2
+              </example>
+            </step>
+          </instructions>
+
+          <confirmation_question>
+            Have you created deploy-codeengine.properties from the template and configured all required values?
+            
+            Required configuration:
+            - IBM Cloud API key (APIKEY)
+            - Code Engine region (REGION)
+            
+            Optional configuration (will use defaults if not specified):
+            - Project name, resource group, app name, scaling settings
+          </confirmation_question>
+        </sub_step_1_verify_properties_file>
+
+        <sub_step_2_gather_connector_files>
+          <title>Identify Connector Files to Deploy</title>
+          <when>After user confirms properties file is configured</when>
+          
+          <description>
+            List available connector configuration files and ask which ones to deploy.
+            
+            IMPORTANT: Before asking, list the available connector configuration files
+            from sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+            and explain which connector each file represents to help non-technical users.
+          </description>
+          
+          <steps>
+            <step>List all .json files in sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</step>
+            <step>For each file, read the "$connector_name" field to identify the connector name</step>
+            <step>Present the list to the user in a clear format showing: filename → connector name</step>
+            <step>Ask which files to deploy</step>
+          </steps>
+          
+          <question_format>
+            I found the following connector configuration files:
+            
+            Available connectors:
+            - filename1.json → Connector Name 1
+            - filename2.json → Connector Name 2
+            
+            Which configuration files would you like to deploy to Code Engine?
+            You can deploy one or multiple connectors together.
+          </question_format>
+          
+          <suggested_answers>
+            <suggest>Deploy: [connector-name.json]</suggest>
+            <suggest>Deploy: [connector1.json connector2.json]</suggest>
+            <suggest>Deploy all connectors</suggest>
+          </suggested_answers>
+          
+          <note>
+            Parse the response to extract the list of files to deploy.
+            If user says "all", include all .json files found.
+          </note>
+        </sub_step_2_gather_connector_files>
+
+        <sub_step_3_execute_deployment>
+          <title>Execute Deployment Script</title>
+          <when>After user specifies which connector files to deploy</when>
+
+          <actions>
+            <action priority="1">
+              <name>Execute Deployment Script</name>
+              <command_unix>
+                ./connectors-forge/codeless/deploy-codeengine.sh --files {file1} {file2} ...
+              </command_unix>
+              <command_windows>
+                .\connectors-forge\codeless\deploy-codeengine.ps1 -Files {file1},{file2},...
+              </command_windows>
+              <description>
+                Deploys connector(s) to IBM Cloud Code Engine using REST API.
+                The script performs 8 steps:
+                1. Loading configuration from properties file
+                2. Validating configuration (API key, region, files)
+                3. Obtaining IAM bearer token
+                4. Looking up Code Engine project ID (creates if doesn't exist)
+                5. Managing ConfigMap (creates or merges connector files)
+                6. Checking for existing application
+                7. Deploying application (creates new or updates existing)
+                8. Verifying application status (waits for ready state)
+              </description>
+              <working_directory>Project root</working_directory>
+              <note>
+                The script selection is based on the operating system:
+                - Unix/Linux/macOS: deploy-codeengine.sh (requires execute permissions: chmod +x)
+                - Windows: deploy-codeengine.ps1 (PowerShell script)
+                
+                Files must be specified with full paths relative to project root.
+                Example: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/api.json
+              </note>
+            </action>
+
+            <action priority="2">
+              <name>Monitor Deployment Progress</name>
+              <description>
+                Watch the script output for progress through all 8 steps.
+                The script will display:
+                - Step numbers and descriptions
+                - Success/failure status for each step
+                - Final deployment information including application URL
+              </description>
+            </action>
+
+            <action priority="3">
+              <name>Wait for Completion</name>
+              <description>
+                Wait for the script to complete all 8 steps.
+                Do NOT proceed until the script finishes or reports an error.
+              </description>
+            </action>
+          </actions>
+
+          <success_indicators>
+            <indicator>All 8 steps complete successfully</indicator>
+            <indicator>Script displays "Deployment Successful!" message</indicator>
+            <indicator>Application URL is provided</indicator>
+            <indicator>gRPC endpoint is displayed</indicator>
+          </success_indicators>
+
+          <after_execution>
+            <description>
+              After the script completes, analyze the output to determine success or failure:
+              
+              SUCCESS INDICATORS:
+              - Script exits with code 0
+              - Output contains "Deployment Successful!" message
+              - Output shows "Application URL:" with a valid URL
+              - All 8 steps completed without error messages
+              
+              FAILURE INDICATORS:
+              - Script exits with non-zero code
+              - Output contains "ERROR:" messages
+              - Output shows "Failed to..." messages
+              - Script stops before completing all 8 steps
+              
+              Based on the script output, automatically proceed with the appropriate action:
+              - If successful: Display success message and ask about CP4D registration
+              - If failed: Provide troubleshooting based on which step failed and the error message
+            </description>
+          </after_execution>
+        </sub_step_3_execute_deployment>
+
+        <error_handling>
+          <error_scenario name="authentication_failure">
+            <symptoms>
+              - Step 3 fails (Obtaining IAM bearer token)
+              - HTTP 401 or 403 errors
+              - "Failed to obtain bearer token" message
+            </symptoms>
+            <troubleshooting>
+              <step>Verify your IBM Cloud API key is correct in deploy-codeengine.properties</step>
+              <step>Check that the API key has Code Engine permissions</step>
+              <step>Ensure the API key hasn't expired</step>
+              <step>Try creating a new API key at: https://cloud.ibm.com/iam/apikeys</step>
+            </troubleshooting>
+          </error_scenario>
+
+          <error_scenario name="project_creation_failure">
+            <symptoms>
+              - Step 4 fails (Looking up Code Engine project ID)
+              - "Failed to create project" message
+              - HTTP 400 or 403 errors
+            </symptoms>
+            <troubleshooting>
+              <step>Verify the REGION is correct and supported</step>
+              <step>Check if RESOURCE_GROUP_ID is valid (if specified)</step>
+              <step>Ensure you have permissions to create projects in the region</step>
+              <step>Try specifying a different project name</step>
+            </troubleshooting>
+          </error_scenario>
+
+          <error_scenario name="file_not_found">
+            <symptoms>
+              - Step 2 fails (Validating configuration)
+              - "File not found" error messages
+            </symptoms>
+            <troubleshooting>
+              <step>Verify the connector files exist at the specified paths</step>
+              <step>Check file paths are relative to project root</step>
+              <step>Ensure files are in: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</step>
+            </troubleshooting>
+          </error_scenario>
+
+          <error_scenario name="configmap_update_failure">
+            <symptoms>
+              - Step 5 fails (Managing ConfigMap)
+              - "Failed to create/update ConfigMap" message
+            </symptoms>
+            <troubleshooting>
+              <step>Check if there are any invalid characters in filenames</step>
+              <step>Verify JSON files are valid (not corrupted)</step>
+              <step>Try with a single file first to isolate the issue</step>
+            </troubleshooting>
+          </error_scenario>
+
+          <error_scenario name="application_not_ready">
+            <symptoms>
+              - Step 8 fails (Verifying application status)
+              - "Application did not become ready" message
+              - Timeout after 120 seconds
+            </symptoms>
+            <troubleshooting>
+              <step>Check Code Engine console for application logs</step>
+              <step>Verify the Docker image is accessible (ghcr.io/marek-zuwala/connectors-forge:1.0.3)</step>
+              <step>Check if there are resource quota issues in your project</step>
+              <step>Try increasing timeout or checking application status manually</step>
+            </troubleshooting>
+          </error_scenario>
+
+          <general_troubleshooting>
+            <step>Review the complete error output from the script</step>
+            <step>Check IBM Cloud status page for any service issues</step>
+            <step>Verify network connectivity to IBM Cloud</step>
+            <step>Try running the script again (it's idempotent)</step>
+            <step>Check Code Engine console for more details: https://cloud.ibm.com/codeengine/projects</step>
+          </general_troubleshooting>
+        </error_handling>
+
+        <success_message>
+          <when>User confirms successful deployment</when>
+          <message>
+            Code Engine deployment completed successfully!
+            
+            Your REST API connector(s) are now running on IBM Cloud Code Engine.
+            The application is accessible via the provided URL and will automatically scale based on demand.
+            
+            Key features:
+            - Automatic scaling (min: {MIN_SCALE}, max: {MAX_SCALE})
+            - Built-in HTTPS endpoint
+            - ConfigMap-based configuration (files can be updated by re-running the script)
+            - Application restarts automatically when ConfigMap is updated
+            
+            To update connector files:
+            1. Modify or add JSON files in sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+            2. Run the deployment script again with --files parameter
+            3. Files will be merged into the ConfigMap (existing files updated, new files added)
+            4. Application will restart automatically with new configuration
+            
+            Note: Files are never removed automatically. To remove files, use the Code Engine UI.
+          </message>
+        </success_message>
+      </sub_step_2a_automatic_deployment>
+
+      <sub_step_2b_manual_deployment>
+        <title>Manual Code Engine Deployment Instructions</title>
+        <when>User chooses manual execution</when>
+
+        <prerequisites>
+          <title>Prerequisites</title>
+          <requirement>IBM Cloud account with Code Engine access</requirement>
+          <requirement>IBM Cloud API key with appropriate permissions</requirement>
+          <requirement>curl command must be available</requirement>
+          <requirement>Properties file configured (see below)</requirement>
+        </prerequisites>
+
+        <instructions>
+          To deploy your REST API connector(s) to IBM Cloud Code Engine:
+
+          STEP 1: Create Properties File
+          
+          1. Copy the template file:
+             cp connectors-forge/codeless/deploy-codeengine.properties.template connectors-forge/codeless/deploy-codeengine.properties
+             
+             (Windows: copy connectors-forge\codeless\deploy-codeengine.properties.template connectors-forge\codeless\deploy-codeengine.properties)
+
+          2. Edit deploy-codeengine.properties and configure:
+             
+             REQUIRED:
+             - APIKEY: Your IBM Cloud API key (get from https://cloud.ibm.com/iam/apikeys)
+             - REGION: Code Engine region (e.g., us-south, eu-de, eu-gb, jp-tok)
+             
+             OPTIONAL (with defaults):
+             - CODE_ENGINE_PROJECT: Project name (default: ce-connectors-forge)
+             - RESOURCE_GROUP_ID: Resource group ID (optional, uses default if not specified)
+             - APP_NAME: Application name (default: connectors-forge-app)
+             - MIN_SCALE: Minimum instances (default: 0)
+             - MAX_SCALE: Maximum instances (default: 2)
+
+          STEP 2: Identify Connector Files
+          
+          List your connector configuration files in:
+          sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+          
+          Note the full paths of the files you want to deploy.
+
+          STEP 3: Run Deployment Script
+          
+          Execute the deployment script with the --files parameter:
+          
+          ./connectors-forge/codeless/deploy-codeengine.sh --files \
+            sdk-gen/subprojects/connectors_forge_rest/src/main/resources/connector1.json \
+            sdk-gen/subprojects/connectors_forge_rest/src/main/resources/connector2.json
+
+          You can specify one or multiple files. All specified files will be deployed together.
+
+          STEP 4: Monitor Deployment
+          
+          The script will perform 8 steps:
+          1. Loading configuration from properties file
+          2. Validating configuration
+          3. Obtaining IAM bearer token
+          4. Looking up Code Engine project ID (creates if doesn't exist)
+          5. Managing ConfigMap (creates or merges connector files)
+          6. Checking for existing application
+          7. Deploying application
+          8. Verifying application status
+
+          Watch for the "Deployment Successful!" message and note the application URL.
+
+          STEP 5: Verify Deployment
+          
+          The script will display:
+          - Application name and URL
+          - gRPC endpoint
+          - Project and region information
+          - Scaling configuration
+
+          ConfigMap Merge Behavior:
+          - When ConfigMap exists: Files are MERGED (not replaced)
+            * Matching filenames: Content is updated
+            * New filenames: Files are added
+            * Existing files not specified: Remain unchanged
+          - Files are never removed automatically (manage via Code Engine UI)
+          - Application restarts automatically after ConfigMap updates
+
+          To update connector files later:
+          - Modify or add JSON files
+          - Run the script again with --files parameter
+          - Files will be merged into the ConfigMap
+          - Application will restart automatically
+
+          Troubleshooting:
+          - If authentication fails: Check your API key in deploy-codeengine.properties
+          - If project creation fails: Verify region and resource group settings
+          - If files not found: Check file paths are relative to project root
+          - If application not ready: Check Code Engine console for logs
+
+          Let me know once you've completed the deployment or if you encounter any issues.
+        </instructions>
+
+        <wait_for_confirmation>
+          <description>
+            Wait for user to confirm they have completed the deployment
+            or report any issues encountered.
+          </description>
+        </wait_for_confirmation>
+      </sub_step_2b_manual_deployment>
     </step_3_handle_serverless_deployment>
 
     <step_4_handle_self_hosted_deployment>
