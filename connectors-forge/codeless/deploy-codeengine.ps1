@@ -108,17 +108,20 @@ function Invoke-HttpRequest {
         # Disable SSL validation for self-signed certificates (PowerShell 5.1 compatible)
         if ($PSVersionTable.PSVersion.Major -le 5) {
             # For PowerShell 5.1 and earlier
-            add-type @"
-                using System.Net;
-                using System.Security.Cryptography.X509Certificates;
-                public class TrustAllCertsPolicy : ICertificatePolicy {
-                    public bool CheckValidationResult(
-                        ServicePoint svcPoint, X509Certificate certificate,
-                        WebRequest request, int certificateProblem) {
-                        return true;
+            # Only add the type if it doesn't already exist
+            if (-not ([System.Management.Automation.PSTypeName]'TrustAllCertsPolicy').Type) {
+                add-type @"
+                    using System.Net;
+                    using System.Security.Cryptography.X509Certificates;
+                    public class TrustAllCertsPolicy : ICertificatePolicy {
+                        public bool CheckValidationResult(
+                            ServicePoint svcPoint, X509Certificate certificate,
+                            WebRequest request, int certificateProblem) {
+                            return true;
+                        }
                     }
-                }
 "@
+            }
             [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
             [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
         }
@@ -516,14 +519,6 @@ function Get-ProjectId {
 # JSON Helper Functions
 # ============================================
 
-function ConvertTo-EscapedJsonString {
-    param([string]$Input)
-    
-    # Escape backslashes first, then quotes, then newlines
-    $escaped = $Input -replace '\\', '\\' -replace '"', '\"' -replace "`r`n", '\n' -replace "`n", '\n' -replace "`r", '\n'
-    return $escaped
-}
-
 function Get-ExistingConfigMapData {
     $apiUrl = "https://api.$REGION.codeengine.cloud.ibm.com/v2/projects/$PROJECT_ID/config_maps/${CONFIGMAP_NAME}?version=$API_VERSION"
     
@@ -594,11 +589,16 @@ function Build-ConfigMapData {
             exit 1
         }
         
-        $content = Get-Content $file -Raw
-        $escaped = ConvertTo-EscapedJsonString -Input $content
+        # Read file content with proper encoding
+        $content = Get-Content $file -Raw -Encoding UTF8
         
-        # Add or update the entry
-        $dataHash[$filename] = $escaped
+        # Handle null or empty content
+        if ($null -eq $content) {
+            $content = ""
+        }
+        
+        # Add content directly - ConvertTo-Json will handle all escaping
+        $dataHash[$filename] = $content
     }
     
     # Convert hashtable to JSON object
@@ -660,12 +660,12 @@ function New-OrUpdateConfigMap {
     $headers = @{
         Authorization = "Bearer $BEARER_TOKEN"
     }
-    
     if ($CONFIGMAP_EXISTS) {
         # For updates, only send the data object
         $payload = @{
             data = $dataHash
         } | ConvertTo-Json -Compress -Depth 10
+        
         
         # Update existing ConfigMap with If-Match header
         Write-Log "Updating ConfigMap with ETag: $CONFIGMAP_ETAG"
