@@ -399,7 +399,7 @@
 
       <important_note>
         This deployment option uses IBM Cloud Code Engine for serverless container deployment.
-        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.2) from GitHub Container Registry.
+        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.3) from GitHub Container Registry.
         Code Engine provides serverless container deployment with automatic scaling and built-in HTTPS endpoints.
       </important_note>
 
@@ -727,7 +727,7 @@
             </symptoms>
             <troubleshooting>
               <step>Check Code Engine console for application logs</step>
-              <step>Verify the Docker image is accessible (ghcr.io/marek-zuwala/connectors-forge:1.0.2)</step>
+              <step>Verify the Docker image is accessible (ghcr.io/marek-zuwala/connectors-forge:1.0.3)</step>
               <step>Check if there are resource quota issues in your project</step>
               <step>Try increasing timeout or checking application status manually</step>
             </troubleshooting>
