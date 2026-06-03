@@ -587,9 +587,12 @@
           <actions>
             <action priority="1">
               <name>Execute Deployment Script</name>
-              <command>
+              <command_unix>
                 ./connectors-forge/codeless/deploy-codeengine.sh --files {file1} {file2} ...
-              </command>
+              </command_unix>
+              <command_windows>
+                .\connectors-forge\codeless\deploy-codeengine.ps1 -Files {file1},{file2},...
+              </command_windows>
               <description>
                 Deploys connector(s) to IBM Cloud Code Engine using REST API.
                 The script performs 8 steps:
@@ -604,6 +607,10 @@
               </description>
               <working_directory>Project root</working_directory>
               <note>
+                The script selection is based on the operating system:
+                - Unix/Linux/macOS: deploy-codeengine.sh (requires execute permissions: chmod +x)
+                - Windows: deploy-codeengine.ps1 (PowerShell script)
+                
                 Files must be specified with full paths relative to project root.
                 Example: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/api.json
               </note>
