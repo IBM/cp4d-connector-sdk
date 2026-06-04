@@ -76,10 +76,29 @@
         </benefits>
         <directory_structure>
           <create>sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</create>
-          <purpose>Store DSL configuration file for the connector</purpose>
+          <purpose>Store DSL configuration file and driver JAR for the connector</purpose>
+          <files>
+            <file>DSL-jdbc-{database}.json - Connector configuration</file>
+            <file>driver.jar - JDBC driver JAR file</file>
+          </files>
         </directory_structure>
+        <driver_handling>
+          <description>
+            In Codeless mode, the JDBC driver JAR must be provided and saved to
+            sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+          </description>
+          <automatic_download>
+            <condition>Driver is available from Maven Central or public repositories</condition>
+            <action>Bob will automatically download the driver JAR</action>
+            <supported_databases>PostgreSQL, MySQL, MariaDB, H2, Derby, SQLite</supported_databases>
+          </automatic_download>
+          <manual_provision>
+            <condition>Driver is proprietary or requires license</condition>
+            <action>Bob will prompt user for local driver JAR path</action>
+            <examples>Oracle, IBM Db2, Microsoft SQL Server (with license)</examples>
+          </manual_provision>
+        </driver_handling>
         <workflow_impact>
-          <skip>Phase 2: DSL Creation (partial - only create DSL, no code gen)</skip>
           <skip>Phase 3: Label Confirmation</skip>
           <skip>Phase 4: Code Generation</skip>
           <skip>Phase 5: DSL Relocation</skip>
@@ -88,6 +107,7 @@
           <skip>Phase 8: Code Formatting</skip>
           <skip>Phase 9: Build</skip>
           <execute>Phase 1: Information Gathering (for DSL creation)</execute>
+          <execute>Phase 2: DSL Creation (includes driver JAR handling)</execute>
           <execute>Phase 10: Flight App Generation (using pre-built image)</execute>
           <execute>Phase 11: AWS Deployment</execute>
         </workflow_impact>
@@ -134,6 +154,7 @@
       <description>
         Create a database-specific DSL configuration file based on DSL-jdbc.json template.
         This file defines all connector properties, driver information, and customizations.
+        For Codeless mode, this phase also handles driver JAR management.
       </description>
       <steps>
         <step number="1">
@@ -166,6 +187,101 @@
           <location>implementation_notes.dependencies[0].driver_dependencies</location>
           <format>["group:artifact:version"]</format>
           <example>["com.ibm.db2:jcc:11.5.8.0"]</example>
+        </step>
+        <step number="6" mode="codeless_only">
+          <action>Handle driver JAR for Codeless mode</action>
+          <description>
+            For Codeless mode deployments, the driver JAR must be saved to
+            sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+          </description>
+          <substeps>
+            <substep number="6.1">
+              <action>Create target directory structure</action>
+              <command>mkdir -p sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</command>
+              <note>This directory will store the DSL file and driver JAR for Codeless mode</note>
+            </substep>
+            <substep number="6.2">
+              <action>Determine driver availability</action>
+              <description>
+                Check if the JDBC driver is available from open-source repositories
+                (Maven Central, public repositories) or requires manual provision
+              </description>
+              <common_open_source_drivers>
+                <driver database="postgresql">org.postgresql:postgresql (Maven Central)</driver>
+                <driver database="mysql">com.mysql:mysql-connector-j (Maven Central)</driver>
+                <driver database="mariadb">org.mariadb.jdbc:mariadb-java-client (Maven Central)</driver>
+                <driver database="h2">com.h2database:h2 (Maven Central)</driver>
+                <driver database="derby">org.apache.derby:derby (Maven Central)</driver>
+                <driver database="sqlite">org.xerial:sqlite-jdbc (Maven Central)</driver>
+              </common_open_source_drivers>
+              <proprietary_drivers>
+                <driver database="oracle">Requires Oracle account and license</driver>
+                <driver database="db2">Requires IBM license</driver>
+                <driver database="sqlserver">Available from Microsoft but may require acceptance</driver>
+              </proprietary_drivers>
+            </substep>
+            <substep number="6.3">
+              <action>Download driver if available from open source</action>
+              <condition>Driver is available from Maven Central or public repository</condition>
+              <approach>
+                <option priority="1">
+                  <method>Use Gradle to download driver JAR</method>
+                  <command>
+                    cd sdk-gen && ./gradlew downloadDriver -PdriverCoordinates="{group}:{artifact}:{version}" -PoutputPath="subprojects/connectors_forge_jdbc/src/main/resources/driver.jar"
+                  </command>
+                  <note>This requires a custom Gradle task to download and save the driver</note>
+                </option>
+                <option priority="2">
+                  <method>Use curl/wget to download from Maven Central</method>
+                  <command_template>
+                    curl -L "https://repo1.maven.org/maven2/{group_path}/{artifact}/{version}/{artifact}-{version}.jar" -o sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+                  </command_template>
+                  <example>
+                    curl -L "https://repo1.maven.org/maven2/org/postgresql/postgresql/42.6.0/postgresql-42.6.0.jar" -o sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+                  </example>
+                </option>
+              </approach>
+            </substep>
+            <substep number="6.4">
+              <action>Request driver from user if not available from open source</action>
+              <condition>Driver is proprietary or not available from public repositories</condition>
+              <tool>ask_followup_question</tool>
+              <question_template>
+                The JDBC driver for {database} is not available from open-source repositories.
+                Please provide the path to the driver JAR file on your local system.
+                
+                The driver JAR should be the file containing the JDBC driver class: {driver_class_name}
+              </question_template>
+              <suggestions>
+                <suggest>~/Downloads/jdbc-driver.jar</suggest>
+                <suggest>/path/to/driver/{database}-jdbc.jar</suggest>
+                <suggest>I need help finding the driver</suggest>
+              </suggestions>
+            </substep>
+            <substep number="6.5">
+              <action>Copy user-provided driver to target location</action>
+              <condition>User provided local driver path</condition>
+              <command_template>
+                cp {user_provided_path} sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+              </command_template>
+              <validation>
+                <check>Verify file exists at source path</check>
+                <check>Verify file is a valid JAR file</check>
+                <check>Verify file was copied successfully to target location</check>
+              </validation>
+            </substep>
+            <substep number="6.6">
+              <action>Verify driver JAR is in place</action>
+              <validation>
+                <check>File exists at sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar</check>
+                <check>File size is greater than 0 bytes</check>
+                <check>File has .jar extension</check>
+              </validation>
+              <success_message>
+                ✅ Driver JAR successfully saved to sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+              </success_message>
+            </substep>
+          </substeps>
         </step>
       </steps>
       <validation>
@@ -396,104 +512,237 @@
       </output>
     </phase>
 
-    <phase number="11" name="aws_deployment">
-      <title>AWS Deployment</title>
+    <phase number="11" name="deployment">
+      <title>Deployment</title>
       <description>
-        Deploy the connector to AWS ECS Fargate. This phase guides the user
-        through configuring AWS deployment properties and running the deployment script.
+        Deploy the connector to your chosen platform. This phase first asks the user
+        to select their deployment type, then guides them through the appropriate
+        deployment process based on their selection and mode (Codeless vs Developer).
       </description>
       <steps>
         <step number="1">
-          <action>Inform user about AWS deployment requirement</action>
-          <message>
-            The connector will now be deployed to AWS ECS Fargate. You need to configure
-            your AWS deployment settings in the aws-deployment.properties file.
-          </message>
+          <action>Ask user to select deployment type</action>
+          <tool>ask_followup_question</tool>
+          <conditional_options>
+            <developer_mode>
+              <question>Choose your deployment type for the JDBC connector:</question>
+              <suggestions>
+                <suggest>Local Docker - Test on local machine</suggest>
+                <suggest>Serverless - Cloud deployment (placeholder)</suggest>
+                <suggest>Self-Hosted - Your own server</suggest>
+                <suggest>OpenShift - Enterprise platform</suggest>
+              </suggestions>
+            </developer_mode>
+            <codeless_mode>
+              <question>Choose your deployment type for the JDBC connector:</question>
+              <suggestions>
+                <suggest>Serverless - Cloud deployment (placeholder)</suggest>
+                <suggest>Self-Hosted - Your own server</suggest>
+                <suggest>OpenShift - Enterprise platform</suggest>
+              </suggestions>
+            </codeless_mode>
+          </conditional_options>
         </step>
         <step number="2">
-          <action>Guide user to configure AWS properties</action>
-          <instructions>
-            The deployment requires AWS configuration. You need to:
-            1. Copy aws-deployment.properties.template to aws-deployment.properties
-            2. Fill in your AWS details in aws-deployment.properties
-            3. Run the deployment script
-          </instructions>
-        </step>
-        <step number="3">
-          <action>Instruct user to configure aws-deployment.properties</action>
-          <message>
-            Please fill in the following required fields in aws-deployment.properties:
-            - AWS_ACCOUNT_ID: Your 12-digit AWS account ID
-            - AWS_REGION: AWS region (e.g., us-east-1)
-            - VPC_ID: Your VPC ID (e.g., vpc-xxxxxxxxxxxxxxxxx)
-            - SUBNET_ID: Your subnet ID (e.g., subnet-xxxxxxxxxxxxxxxxx)
-            - ECR_IMAGE_URI: ECR image URI (format: account-id.dkr.ecr.region.amazonaws.com/repository-name:tag)
-            - ECS_CLUSTER: ECS cluster name (will be created if it doesn't exist)
-            
-            Optional: You can also configure AWS credentials in the file, or use AWS CLI configured credentials.
-          </message>
-        </step>
-        <step number="4">
-          <action>Wait for user confirmation that properties are configured</action>
-          <tool>ask_followup_question</tool>
-          <question>Have you filled in all the required AWS configuration details in aws-deployment.properties?</question>
-          <suggestions>
-            <suggest>Yes, configuration is complete and ready to deploy</suggest>
-            <suggest>No, I need more time to configure</suggest>
-          </suggestions>
-        </step>
-        <step number="5">
-          <action>Run the AWS deployment script</action>
-          <command>cd sdk-gen && ./deploy-to-aws.sh</command>
-          <working_directory>sdk-gen/</working_directory>
-          <note>The script will build the Docker image, push it to ECR, and deploy to ECS Fargate</note>
-        </step>
-        <step number="6">
-          <action>Monitor deployment progress</action>
-          <success_indicators>
-            <indicator>Docker image built successfully</indicator>
-            <indicator>Image pushed to ECR</indicator>
-            <indicator>Security group created</indicator>
-            <indicator>CloudWatch log group created</indicator>
-            <indicator>IAM role created</indicator>
-            <indicator>Task definition registered</indicator>
-            <indicator>ECS service deployed</indicator>
-            <indicator>Public IP retrieved</indicator>
-            <indicator>Deployment summary displayed</indicator>
-          </success_indicators>
+          <action>Process deployment type selection and execute appropriate deployment workflow</action>
+          <deployment_paths>
+            <path name="local_docker" mode="developer_only">
+              <title>Local Docker Deployment</title>
+              <description>Build and run connector locally using Docker for testing</description>
+              <substeps>
+                <substep>Build Docker image locally</substep>
+                <substep>Run container with appropriate port mappings</substep>
+                <substep>Verify connector is accessible on localhost</substep>
+                <substep>Provide connection details for testing</substep>
+              </substeps>
+            </path>
+            <path name="serverless" mode="both">
+              <title>Serverless Deployment</title>
+              <description>Deploy to cloud serverless platform (AWS ECS Fargate, etc.)</description>
+              <substeps>
+                <substep>Inform user about serverless deployment</substep>
+                <substep>Guide user to configure cloud provider settings</substep>
+                <substep>Execute deployment script</substep>
+                <substep>Monitor deployment progress</substep>
+                <substep>Retrieve and display connection details</substep>
+              </substeps>
+              <aws_fargate_details>
+                <substep number="1">
+                  <action>Inform user about AWS ECS Fargate deployment</action>
+                  <message>
+                    The connector will be deployed to AWS ECS Fargate. You need to configure
+                    your AWS deployment settings in the aws-deployment.properties file.
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Guide user to configure AWS properties</action>
+                  <instructions>
+                    The deployment requires AWS configuration. You need to:
+                    1. Copy aws-deployment.properties.template to aws-deployment.properties
+                    2. Fill in your AWS details in aws-deployment.properties
+                    3. Run the deployment script
+                  </instructions>
+                </substep>
+                <substep number="3">
+                  <action>Instruct user to configure aws-deployment.properties</action>
+                  <message>
+                    Please fill in the following required fields in aws-deployment.properties:
+                    - AWS_ACCOUNT_ID: Your 12-digit AWS account ID
+                    - AWS_REGION: AWS region (e.g., us-east-1)
+                    - VPC_ID: Your VPC ID (e.g., vpc-xxxxxxxxxxxxxxxxx)
+                    - SUBNET_ID: Your subnet ID (e.g., subnet-xxxxxxxxxxxxxxxxx)
+                    - ECR_IMAGE_URI: ECR image URI (format: account-id.dkr.ecr.region.amazonaws.com/repository-name:tag)
+                    - ECS_CLUSTER: ECS cluster name (will be created if it doesn't exist)
+                    
+                    Optional: You can also configure AWS credentials in the file, or use AWS CLI configured credentials.
+                  </message>
+                </substep>
+                <substep number="4">
+                  <action>Wait for user confirmation that properties are configured</action>
+                  <tool>ask_followup_question</tool>
+                  <question>Have you filled in all the required AWS configuration details in aws-deployment.properties?</question>
+                  <suggestions>
+                    <suggest>Yes, configuration is complete and ready to deploy</suggest>
+                    <suggest>No, I need more time to configure</suggest>
+                  </suggestions>
+                </substep>
+                <substep number="5">
+                  <action>Run the appropriate AWS deployment script based on mode</action>
+                  <conditional_execution>
+                    <codeless_mode>
+                      <command>cd sdk-gen && ./deploy-to-aws-codeless.sh</command>
+                      <note>The script will pull the pre-built Docker image (gloria2000/wdp-connect-sdk-gen-flight:latest), push it to ECR, and deploy to ECS Fargate with connector configuration from connector-config.env</note>
+                    </codeless_mode>
+                    <developer_mode>
+                      <command>cd sdk-gen && ./deploy-to-aws.sh</command>
+                      <note>The script will build the Docker image from your custom connector code, push it to ECR, and deploy to ECS Fargate</note>
+                    </developer_mode>
+                  </conditional_execution>
+                  <working_directory>sdk-gen/</working_directory>
+                </substep>
+                <substep number="6">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Docker image built successfully</indicator>
+                    <indicator>Image pushed to ECR</indicator>
+                    <indicator>Security group created</indicator>
+                    <indicator>CloudWatch log group created</indicator>
+                    <indicator>IAM role created</indicator>
+                    <indicator>Task definition registered</indicator>
+                    <indicator>ECS service deployed</indicator>
+                    <indicator>Public IP retrieved</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+              </aws_fargate_details>
+              <prerequisites>
+                <requirement>Cloud provider CLI installed and configured</requirement>
+                <requirement>Docker installed and running</requirement>
+                <requirement>Valid cloud provider credentials with appropriate permissions</requirement>
+                <requirement>Network configuration (VPC, subnet, etc.) set up</requirement>
+                <requirement>Connector built successfully (previous phases completed)</requirement>
+              </prerequisites>
+            </path>
+            <path name="self_hosted" mode="both">
+              <title>Self-Hosted Deployment</title>
+              <description>Deploy to your own server infrastructure</description>
+              <substeps>
+                <substep>Build Docker image</substep>
+                <substep>Push image to your private registry</substep>
+                <substep>Provide deployment instructions for your server</substep>
+                <substep>Guide configuration of environment variables</substep>
+                <substep>Provide connection verification steps</substep>
+              </substeps>
+            </path>
+            <path name="openshift" mode="both">
+              <title>OpenShift Deployment</title>
+              <description>Deploy to Red Hat OpenShift platform</description>
+              <substeps>
+                <substep>Build container image for OpenShift</substep>
+                <substep>Create OpenShift deployment configuration</substep>
+                <substep>Deploy to OpenShift cluster</substep>
+                <substep>Configure routes and services</substep>
+                <substep>Verify deployment and provide access details</substep>
+              </substeps>
+              <openshift_deployment_details>
+                <substep number="1">
+                  <action>Inform user about OpenShift deployment</action>
+                  <message>
+                    The connector will be deployed to Red Hat OpenShift. You need to configure
+                    your OpenShift deployment settings in the openshift-deployment.properties file.
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Guide user to configure OpenShift properties</action>
+                  <instructions>
+                    The deployment requires OpenShift configuration. You need to:
+                    1. Ensure you have access to an OpenShift cluster
+                    2. Configure openshift-deployment.properties with your cluster details
+                    3. Run the deployment script
+                  </instructions>
+                </substep>
+                <substep number="3">
+                  <action>Instruct user to configure openshift-deployment.properties</action>
+                  <message>
+                    Please fill in the following required fields in openshift-deployment.properties:
+                    - OPENSHIFT_SERVER: OpenShift API server URL
+                    - OPENSHIFT_TOKEN: Authentication token for OpenShift
+                    - OPENSHIFT_PROJECT: Project/namespace name
+                    - IMAGE_REGISTRY: Container image registry URL
+                    - APP_NAME: Application name for the connector
+                    
+                    Optional: Additional configuration for routes, resource limits, etc.
+                  </message>
+                </substep>
+                <substep number="4">
+                  <action>Wait for user confirmation that properties are configured</action>
+                  <tool>ask_followup_question</tool>
+                  <question>Have you filled in all the required OpenShift configuration details in openshift-deployment.properties?</question>
+                  <suggestions>
+                    <suggest>Yes, configuration is complete and ready to deploy</suggest>
+                    <suggest>No, I need more time to configure</suggest>
+                  </suggestions>
+                </substep>
+                <substep number="5">
+                  <action>Run the OpenShift deployment script</action>
+                  <command>cd sdk-gen && ./deploy-to-openshift.sh</command>
+                  <working_directory>sdk-gen/</working_directory>
+                  <note>The script will build the container image, push it to the registry, and deploy to OpenShift</note>
+                </substep>
+                <substep number="6">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Container image built successfully</indicator>
+                    <indicator>Image pushed to registry</indicator>
+                    <indicator>OpenShift project created/verified</indicator>
+                    <indicator>Deployment configuration created</indicator>
+                    <indicator>Service created</indicator>
+                    <indicator>Route created</indicator>
+                    <indicator>Pods running successfully</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+              </openshift_deployment_details>
+              <prerequisites>
+                <requirement>OpenShift CLI (oc) installed and configured</requirement>
+                <requirement>Docker or Podman installed and running</requirement>
+                <requirement>Valid OpenShift cluster access with appropriate permissions</requirement>
+                <requirement>Container image registry access</requirement>
+                <requirement>Connector built successfully (previous phases completed)</requirement>
+              </prerequisites>
+            </path>
+          </deployment_paths>
         </step>
       </steps>
-      <what_it_does>
-        <action>Builds Docker image for linux/amd64 (AWS ECS Fargate compatible)</action>
-        <action>Creates ECR repository if it doesn't exist</action>
-        <action>Pushes Docker image to ECR</action>
-        <action>Creates security group for the connector</action>
-        <action>Creates CloudWatch log group for logging</action>
-        <action>Creates IAM execution role for ECS tasks</action>
-        <action>Registers ECS task definition</action>
-        <action>Deploys ECS service on Fargate</action>
-        <action>Retrieves public IP address for the connector</action>
-        <action>Verifies deployment and displays connection details</action>
-      </what_it_does>
       <output>
         <deployment_summary>
-          <item>AWS Region</item>
-          <item>ECS Cluster name</item>
-          <item>ECS Service name</item>
-          <item>Task Definition family</item>
-          <item>Security Group ID</item>
-          <item>Public IP address</item>
-          <item>gRPC endpoint (IP:port)</item>
-          <item>CloudWatch log group name</item>
+          <item>Deployment type selected</item>
+          <item>Deployment platform details</item>
+          <item>Connection endpoint (IP/hostname:port)</item>
+          <item>Access credentials (if applicable)</item>
+          <item>Monitoring/logging information</item>
         </deployment_summary>
       </output>
-      <prerequisites>
-        <requirement>AWS CLI installed and configured</requirement>
-        <requirement>Docker installed and running</requirement>
-        <requirement>Valid AWS credentials with appropriate permissions</requirement>
-        <requirement>Existing VPC and subnet in AWS</requirement>
-        <requirement>Connector built successfully (previous phases completed)</requirement>
-      </prerequisites>
     </phase>
   </workflow_phases>
 
@@ -509,7 +758,9 @@
       <criterion>Connector builds successfully</criterion>
     </criterion_conditional>
     <criterion_conditional mode="codeless">
-      <criterion>Directory structure created for DSL file</criterion>
+      <criterion>Directory structure created for DSL file and driver JAR</criterion>
+      <criterion>Driver JAR obtained (downloaded or copied from local)</criterion>
+      <criterion>Driver JAR saved to sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar</criterion>
       <criterion>Pre-built Docker image identified</criterion>
     </criterion_conditional>
     <criterion>Flight app generated with connector integrated</criterion>
@@ -549,18 +800,70 @@
       <action>Check Maven Central for driver coordinates</action>
       <action>Refer to DSL-jdbc.json examples section</action>
     </error>
+    <error type="driver_download_failure">
+      <description>Driver JAR could not be downloaded from Maven Central (Codeless mode)</description>
+      <actions>
+        <action>Verify driver coordinates are correct (group:artifact:version)</action>
+        <action>Check internet connectivity</action>
+        <action>Verify Maven Central is accessible (https://repo1.maven.org/maven2/)</action>
+        <action>Try alternative download method (curl/wget directly)</action>
+        <action>Check if driver requires authentication or license acceptance</action>
+        <action>If driver is proprietary, request local path from user</action>
+      </actions>
+      <fallback>Ask user to provide driver JAR from local system</fallback>
+    </error>
+    <error type="driver_copy_failure">
+      <description>Driver JAR could not be copied to target location (Codeless mode)</description>
+      <actions>
+        <action>Verify source file path exists and is accessible</action>
+        <action>Check file is a valid JAR file (not corrupted)</action>
+        <action>Verify target directory exists: sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</action>
+        <action>Create target directory if missing: mkdir -p sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</action>
+        <action>Check file permissions for read/write access</action>
+        <action>Verify sufficient disk space available</action>
+        <action>Try copying with explicit permissions: cp -f source destination</action>
+      </actions>
+    </error>
+    <error type="missing_driver_jar">
+      <description>Driver JAR not found at expected location for Codeless mode deployment</description>
+      <actions>
+        <action>Verify driver.jar exists at: sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar</action>
+        <action>Check if driver download/copy step completed successfully</action>
+        <action>Review previous step outputs for errors</action>
+        <action>Re-run driver provisioning step (Phase 2, Step 6)</action>
+        <action>Verify file was not accidentally deleted or moved</action>
+        <action>Check file permissions and ownership</action>
+      </actions>
+    </error>
+    <error type="invalid_driver_jar">
+      <description>Provided driver JAR is invalid, corrupted, or incompatible (Codeless mode)</description>
+      <actions>
+        <action>Verify file is a valid JAR file (check file extension is .jar)</action>
+        <action>Check file size is greater than 0 bytes</action>
+        <action>Try extracting JAR contents to verify integrity: jar -tf driver.jar</action>
+        <action>Verify JAR contains expected JDBC driver class</action>
+        <action>Check if JAR is compatible with Java version being used</action>
+        <action>Request user to provide a different driver JAR from official source</action>
+        <action>Download driver from official vendor website if available</action>
+      </actions>
+    </error>
     <error type="build_failure">
       <action>Check for compilation errors in generated code</action>
       <action>Verify JDBC driver dependency is correct</action>
       <action>Run ./gradlew clean and retry</action>
     </error>
-    <error type="aws_deployment_failure">
-      <action>Check AWS CLI is installed and configured</action>
-      <action>Verify AWS credentials have appropriate permissions</action>
-      <action>Ensure VPC_ID and SUBNET_ID are valid and accessible</action>
-      <action>Check Docker is running</action>
-      <action>Review deployment script output for specific errors</action>
-      <action>Verify ECR_IMAGE_URI format is correct</action>
+    <error type="deployment_failure">
+      <description>Deployment to selected platform failed</description>
+      <actions>
+        <action>Verify deployment platform CLI/tools are installed and configured</action>
+        <action>Check credentials and permissions for the selected platform</action>
+        <action>Ensure network configuration is correct (VPC, subnet, firewall rules, etc.)</action>
+        <action>Verify Docker is running (if applicable)</action>
+        <action>Review deployment script/command output for specific errors</action>
+        <action>Check image registry access and URI format</action>
+        <action>Verify resource quotas and limits on the platform</action>
+        <action>Consult platform-specific documentation for troubleshooting</action>
+      </actions>
     </error>
   </error_handling>
 </jdbc_connector_workflow>
