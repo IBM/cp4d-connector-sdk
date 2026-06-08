@@ -106,10 +106,10 @@
           <skip>Phase 7: Test Generation</skip>
           <skip>Phase 8: Code Formatting</skip>
           <skip>Phase 9: Build</skip>
+          <skip>Phase 10: Flight App Generation (uses pre-built Docker image instead)</skip>
           <execute>Phase 1: Information Gathering (for DSL creation)</execute>
           <execute>Phase 2: DSL Creation (includes driver JAR handling)</execute>
-          <execute>Phase 10: Flight App Generation (using pre-built image)</execute>
-          <execute>Phase 11: AWS Deployment</execute>
+          <execute>Phase 11: Deployment (using pre-built Docker image)</execute>
         </workflow_impact>
       </codeless_mode_details>
       <developer_mode_details>
@@ -475,7 +475,12 @@
       <description>
         Automatically generate a Flight app project that includes the newly created connector.
         This creates a deployable application with the connector integrated.
+        
+        NOTE: This phase is ONLY executed in Developer mode. In Codeless mode, the pre-built
+        Docker image (gloria2000/wdp-connect-sdk-gen-flight:latest) is used instead, so this
+        phase is skipped.
       </description>
+      <mode_applicability>developer_only</mode_applicability>
       <steps>
         <step number="1">
           <action>Run autoGenerateFlightApp task</action>
@@ -756,15 +761,15 @@
       <criterion>Test suite generated</criterion>
       <criterion>Code formatted with spotlessApply</criterion>
       <criterion>Connector builds successfully</criterion>
+      <criterion>Flight app generated with connector integrated</criterion>
     </criterion_conditional>
     <criterion_conditional mode="codeless">
       <criterion>Directory structure created for DSL file and driver JAR</criterion>
       <criterion>Driver JAR obtained (downloaded or copied from local)</criterion>
       <criterion>Driver JAR saved to sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar</criterion>
-      <criterion>Pre-built Docker image identified</criterion>
+      <criterion>Pre-built Docker image identified (gloria2000/wdp-connect-sdk-gen-flight:latest)</criterion>
     </criterion_conditional>
-    <criterion>Flight app generated with connector integrated</criterion>
-    <criterion>AWS deployment completed successfully</criterion>
+    <criterion>Deployment completed successfully</criterion>
   </completion_criteria>
 
   <next_steps_for_user>
