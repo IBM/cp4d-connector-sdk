@@ -1,8 +1,15 @@
 ################################################################################
 # AWS ECS Deployment Configuration Template
-# 
+#
 # Copy this file to aws-deployment.properties and fill in your values
 # Usage: ./deploy-to-aws.sh [path-to-properties-file]
+#
+# IMPORTANT: Also create connector-config.properties in the same directory with:
+#   CONNECTOR_DATASOURCE_TYPE=your-datasource-type
+#   CONNECTOR_LABEL=Your Connector Label
+#   CONNECTOR_DESCRIPTION=Your connector description
+#   JDBC_DRIVER_CLASS=com.example.Driver
+#   JDBC_DRIVER_PATH=/path/to/driver.jar
 ################################################################################
 
 # ============================================================================
@@ -18,7 +25,7 @@
 # AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentials
 
 # ============================================================================
-# Required AWS Configuration
+# Required AWS Configuration (Only 4 parameters needed!)
 # ============================================================================
 # Your AWS Account ID (12-digit number)
 AWS_ACCOUNT_ID=123456789012
@@ -32,15 +39,16 @@ VPC_ID=vpc-xxxxxxxxxxxxxxxxx
 # Existing Subnet ID within the VPC (must have internet access)
 SUBNET_ID=subnet-xxxxxxxxxxxxxxxxx
 
-# ECR Image URI (format: account-id.dkr.ecr.region.amazonaws.com/repository-name:tag)
-ECR_IMAGE_URI=123456789012.dkr.ecr.us-east-1.amazonaws.com/jdbc-connector:latest
-
-# ECS Cluster name (will be created if it doesn't exist)
-ECS_CLUSTER=jdbc-connector-cluster
-
 # ============================================================================
-# Optional Configuration (defaults provided)
+# Optional Configuration (smart defaults provided)
 # ============================================================================
+# ECR Image URI - Auto-generated if not provided
+# Default: {AWS_ACCOUNT_ID}.dkr.ecr.{AWS_REGION}.amazonaws.com/jdbc-connector:latest
+# ECR_IMAGE_URI=123456789012.dkr.ecr.us-east-1.amazonaws.com/jdbc-connector:latest
+
+# ECS Cluster name - Default: jdbc-connector-cluster
+# ECS_CLUSTER=jdbc-connector-cluster
+
 # Security Group name for the connector
 SECURITY_GROUP_NAME=jdbc-connector-sg
 

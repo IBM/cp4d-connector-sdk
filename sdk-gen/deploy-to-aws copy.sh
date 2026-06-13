@@ -2,10 +2,9 @@
 
 ################################################################################
 # AWS ECS Deployment Script for JDBC Custom Connector
-#
+# 
 # This script automates the deployment of a JDBC connector to AWS ECS Fargate
-# by pulling a pre-built Docker image from GitHub Container Registry (GHCR)
-# and deploying it to AWS ECS.
+# based on the guide-for-aws.md documentation.
 #
 # Usage: ./deploy-to-aws.sh [path-to-properties-file]
 # Default properties file: ./aws-deployment.properties
@@ -89,6 +88,8 @@ validate_parameters() {
     [[ -z "$AWS_REGION" ]] && missing_params+=("AWS_REGION")
     [[ -z "$VPC_ID" ]] && missing_params+=("VPC_ID")
     [[ -z "$SUBNET_ID" ]] && missing_params+=("SUBNET_ID")
+    [[ -z "$ECR_IMAGE_URI" ]] && missing_params+=("ECR_IMAGE_URI")
+    [[ -z "$ECS_CLUSTER" ]] && missing_params+=("ECS_CLUSTER")
     
     if [[ ${#missing_params[@]} -gt 0 ]]; then
         log_error "Missing required parameters:"
@@ -96,19 +97,6 @@ validate_parameters() {
             echo "  - $param"
         done
         exit 1
-    fi
-    
-    # Set default values for optional parameters
-    if [[ -z "$ECS_CLUSTER" ]]; then
-        ECS_CLUSTER="jdbc-connector-cluster"
-        log_info "Using default ECS_CLUSTER: $ECS_CLUSTER"
-    fi
-    
-    if [[ -z "$ECR_IMAGE_URI" ]]; then
-        # Auto-generate ECR image URI based on account and region
-        ECR_REPOSITORY_NAME="jdbc-connector"
-        ECR_IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY_NAME}:latest"
-        log_info "Using auto-generated ECR_IMAGE_URI: $ECR_IMAGE_URI"
     fi
     
     log_success "All required parameters are present"
@@ -173,6 +161,13 @@ check_prerequisites() {
     fi
     log_success "Docker daemon is running"
     
+    # Check if gradlew exists
+    if [[ ! -f "${SCRIPT_DIR}/gradlew" ]]; then
+        log_error "gradlew not found in ${SCRIPT_DIR}"
+        exit 1
+    fi
+    log_success "gradlew found"
+    
     # Check if jq is installed (optional but recommended)
     if ! command -v jq &> /dev/null; then
         log_warning "jq is not installed. JSON output will be less readable."
@@ -183,32 +178,52 @@ check_prerequisites() {
 # Deployment Functions
 ################################################################################
 
-# Step 0a: Pull Docker Image from GHCR
-pull_docker_image() {
-    log_step "Step 0a: Pulling Docker Image from GitHub Container Registry"
+# Step 0a: Build Docker Image
+build_docker_image() {
+    log_step "Step 0a: Building Docker Image with Gradle"
     
-    # Define the source image from GHCR
-    GHCR_IMAGE="ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest"
+    log_info "Building Docker image for linux/amd64 platform (AWS ECS Fargate compatible)..."
+    cd "${SCRIPT_DIR}"
     
-    log_info "Pulling image from GHCR: ${GHCR_IMAGE}"
-    
-    # Pull the image
-    if docker pull "${GHCR_IMAGE}"; then
-        log_success "Docker image pulled successfully from GHCR"
+    # Run gradlew dockerBuild with platform specification for AWS ECS Fargate
+    # AWS ECS Fargate requires linux/amd64 architecture
+    if ./gradlew dockerBuild -Pdocker.platform=linux/amd64 --no-daemon; then
+        log_success "Docker image built successfully for linux/amd64"
     else
-        log_error "Failed to pull Docker image from GHCR"
-        log_error "Please verify:"
-        log_error "  1. The image exists at: ${GHCR_IMAGE}"
-        log_error "  2. You have access to the repository (may need: docker login ghcr.io)"
-        log_error "  3. Your internet connection is working"
+        log_error "Failed to build Docker image"
         exit 1
     fi
     
-    # Set local image variables for use in subsequent steps
-    LOCAL_IMAGE_NAME="${GHCR_IMAGE}"
+    # Extract the image name from the build
+    # The Gradle build creates an image with the project name (e.g., "flight")
+    # We need to find the actual image name that was built
     LOCAL_IMAGE_TAG="latest"
     
-    log_success "Image ready: ${LOCAL_IMAGE_NAME}"
+    # Try to find the image by listing recent Docker images
+    log_info "Searching for built Docker image..."
+    
+    # First, try common project names
+    for possible_name in "flight" "${TASK_FAMILY}" "wdp-connect-sdk-gen-flight"; do
+        if docker images "${possible_name}:${LOCAL_IMAGE_TAG}" --format "{{.Repository}}:{{.Tag}}" | grep -q "${possible_name}:${LOCAL_IMAGE_TAG}"; then
+            LOCAL_IMAGE_NAME="${possible_name}"
+            log_success "Found Docker image: ${LOCAL_IMAGE_NAME}:${LOCAL_IMAGE_TAG}"
+            return 0
+        fi
+    done
+    
+    # If not found, list all images with 'latest' tag created in the last 5 minutes
+    log_warning "Could not find image with expected names. Listing recent images..."
+    RECENT_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" --filter "since=5m" | grep ":latest" | head -1)
+    
+    if [[ -n "$RECENT_IMAGE" ]]; then
+        LOCAL_IMAGE_NAME=$(echo "$RECENT_IMAGE" | cut -d':' -f1)
+        log_warning "Using recently built image: ${LOCAL_IMAGE_NAME}:${LOCAL_IMAGE_TAG}"
+        log_warning "If this is incorrect, please check your Gradle build configuration"
+    else
+        log_error "Docker image not found after build"
+        log_error "Please verify the image was built successfully with: docker images"
+        exit 1
+    fi
 }
 
 # Step 0b: Create ECR Repository
@@ -254,8 +269,8 @@ push_image_to_ecr() {
     fi
     
     # Tag the local image for ECR
-    log_info "Tagging image for ECR: ${LOCAL_IMAGE_NAME} -> ${ECR_IMAGE_URI}"
-    docker tag "${LOCAL_IMAGE_NAME}" "${ECR_IMAGE_URI}"
+    log_info "Tagging image for ECR: ${LOCAL_IMAGE_NAME}:${LOCAL_IMAGE_TAG} -> ${ECR_IMAGE_URI}"
+    docker tag "${LOCAL_IMAGE_NAME}:${LOCAL_IMAGE_TAG}" "${ECR_IMAGE_URI}"
     
     if [[ $? -eq 0 ]]; then
         log_success "Image tagged successfully"
@@ -400,64 +415,6 @@ register_task_definition() {
     
     log_info "Creating task definition: $TASK_FAMILY"
     
-    # Load connector configuration from connector-config.properties if it exists
-    CONNECTOR_CONFIG_FILE="${SCRIPT_DIR}/connector-config.properties"
-    if [[ -f "$CONNECTOR_CONFIG_FILE" ]]; then
-        log_info "Loading connector configuration from: $CONNECTOR_CONFIG_FILE"
-        
-        # Read environment variables from the properties file
-        while IFS='=' read -r key value; do
-            # Skip comments and empty lines
-            [[ "$key" =~ ^#.*$ ]] && continue
-            [[ -z "$key" ]] && continue
-            
-            # Remove leading/trailing whitespace
-            key=$(echo "$key" | xargs)
-            value=$(echo "$value" | xargs)
-            
-            # Store in associative array
-            case "$key" in
-                CONNECTOR_DATASOURCE_TYPE) CONNECTOR_DATASOURCE_TYPE="$value" ;;
-                CONNECTOR_LABEL) CONNECTOR_LABEL="$value" ;;
-                CONNECTOR_DESCRIPTION) CONNECTOR_DESCRIPTION="$value" ;;
-                JDBC_DRIVER_CLASS) JDBC_DRIVER_CLASS="$value" ;;
-                JDBC_DRIVER_PATH) JDBC_DRIVER_PATH="$value" ;;
-            esac
-        done < "$CONNECTOR_CONFIG_FILE"
-        
-        log_success "Connector configuration loaded"
-    else
-        log_warning "connector-config.properties not found at: $CONNECTOR_CONFIG_FILE"
-        log_warning "Container will start without connector-specific environment variables"
-    fi
-    
-    # Build environment variables JSON array
-    ENV_VARS=""
-    if [[ -n "$CONNECTOR_DATASOURCE_TYPE" ]]; then
-        ENV_VARS="$ENV_VARS{\"name\": \"CONNECTOR_DATASOURCE_TYPE\", \"value\": \"$CONNECTOR_DATASOURCE_TYPE\"},"
-    fi
-    if [[ -n "$CONNECTOR_LABEL" ]]; then
-        ENV_VARS="$ENV_VARS{\"name\": \"CONNECTOR_LABEL\", \"value\": \"$CONNECTOR_LABEL\"},"
-    fi
-    if [[ -n "$CONNECTOR_DESCRIPTION" ]]; then
-        ENV_VARS="$ENV_VARS{\"name\": \"CONNECTOR_DESCRIPTION\", \"value\": \"$CONNECTOR_DESCRIPTION\"},"
-    fi
-    if [[ -n "$JDBC_DRIVER_CLASS" ]]; then
-        ENV_VARS="$ENV_VARS{\"name\": \"JDBC_DRIVER_CLASS\", \"value\": \"$JDBC_DRIVER_CLASS\"},"
-    fi
-    if [[ -n "$JDBC_DRIVER_PATH" ]]; then
-        ENV_VARS="$ENV_VARS{\"name\": \"JDBC_DRIVER_PATH\", \"value\": \"$JDBC_DRIVER_PATH\"},"
-    fi
-    
-    # Remove trailing comma if ENV_VARS is not empty
-    if [[ -n "$ENV_VARS" ]]; then
-        ENV_VARS="${ENV_VARS%,}"
-        ENV_SECTION="\"environment\": [$ENV_VARS],"
-        log_info "Adding ${ENV_VARS//,/ } environment variables to container"
-    else
-        ENV_SECTION=""
-    fi
-    
     # Create task definition JSON
     cat > /tmp/task-definition.json << EOF
 {
@@ -470,7 +427,6 @@ register_task_definition() {
   "containerDefinitions": [{
     "name": "jdbc-connector",
     "image": "$ECR_IMAGE_URI",
-    $ENV_SECTION
     "portMappings": [{
       "containerPort": $CONTAINER_PORT,
       "protocol": "tcp"
@@ -717,8 +673,8 @@ main() {
     validate_parameters
     check_prerequisites
     
-    # Execute deployment steps (including image pull and push)
-    pull_docker_image
+    # Execute deployment steps (including image build and push)
+    build_docker_image
     create_ecr_repository
     push_image_to_ecr
     create_security_group
