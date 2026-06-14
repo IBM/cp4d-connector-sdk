@@ -1,15 +1,14 @@
 #!/bin/bash
 
 ################################################################################
-# AWS ECS Deployment Script for Pre-built JDBC Custom Connector
-# 
-# This script automates the deployment of a pre-built JDBC connector to AWS ECS
-# Fargate. It pulls the image from Docker Hub and uses connector-config.env
-# for configuration.
+# AWS ECS Deployment Script for JDBC Custom Connector
 #
-# Usage: ./deploy-to-aws-prebuilt.sh [path-to-properties-file] [path-to-env-file]
+# This script automates the deployment of a JDBC connector to AWS ECS Fargate
+# by pulling a pre-built Docker image from GitHub Container Registry (GHCR)
+# and deploying it to AWS ECS.
+#
+# Usage: ./deploy-to-aws.sh [path-to-properties-file]
 # Default properties file: ./aws-deployment.properties
-# Default env file: ./subprojects/java/jdbc/generic/connector-config.env
 ################################################################################
 
 set -e  # Exit on error
@@ -27,12 +26,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default properties file
 PROPERTIES_FILE="${1:-${SCRIPT_DIR}/aws-deployment.properties}"
-
-# Default connector config env file
-CONNECTOR_ENV_FILE="${2:-${SCRIPT_DIR}/subprojects/java/jdbc/generic/connector-config.env}"
-
-# Docker image to pull
-DOCKER_IMAGE="gloria2000/wdp-connect-sdk-gen-flight:latest"
 
 ################################################################################
 # Helper Functions
@@ -85,37 +78,6 @@ load_properties() {
     log_success "Configuration loaded successfully"
 }
 
-# Load connector environment variables
-load_connector_env() {
-    if [[ ! -f "$CONNECTOR_ENV_FILE" ]]; then
-        log_error "Connector environment file not found: $CONNECTOR_ENV_FILE"
-        log_info "Please create the connector-config.env file or specify the path as the second argument."
-        exit 1
-    fi
-    
-    log_info "Loading connector configuration from: $CONNECTOR_ENV_FILE"
-    
-    # Read the env file and store variables for later use in task definition
-    CONNECTOR_ENV_VARS=""
-    while IFS='=' read -r key value; do
-        # Skip comments and empty lines
-        [[ "$key" =~ ^#.*$ ]] && continue
-        [[ -z "$key" ]] && continue
-        
-        # Remove leading/trailing whitespace
-        key=$(echo "$key" | xargs)
-        value=$(echo "$value" | xargs)
-        
-        # Add to environment variables list for task definition
-        if [[ -n "$CONNECTOR_ENV_VARS" ]]; then
-            CONNECTOR_ENV_VARS="${CONNECTOR_ENV_VARS},"
-        fi
-        CONNECTOR_ENV_VARS="${CONNECTOR_ENV_VARS}{\"name\":\"${key}\",\"value\":\"${value}\"}"
-    done < "$CONNECTOR_ENV_FILE"
-    
-    log_success "Connector configuration loaded successfully"
-}
-
 # Validate required parameters
 validate_parameters() {
     log_step "Validating configuration parameters"
@@ -127,8 +89,6 @@ validate_parameters() {
     [[ -z "$AWS_REGION" ]] && missing_params+=("AWS_REGION")
     [[ -z "$VPC_ID" ]] && missing_params+=("VPC_ID")
     [[ -z "$SUBNET_ID" ]] && missing_params+=("SUBNET_ID")
-    [[ -z "$ECR_IMAGE_URI" ]] && missing_params+=("ECR_IMAGE_URI")
-    [[ -z "$ECS_CLUSTER" ]] && missing_params+=("ECS_CLUSTER")
     
     if [[ ${#missing_params[@]} -gt 0 ]]; then
         log_error "Missing required parameters:"
@@ -136,6 +96,77 @@ validate_parameters() {
             echo "  - $param"
         done
         exit 1
+    fi
+    
+    # Set default values for optional parameters
+    if [[ -z "$ECS_CLUSTER" ]]; then
+        ECS_CLUSTER="jdbc-connector-cluster"
+        log_info "Using default ECS_CLUSTER: $ECS_CLUSTER"
+    fi
+    
+    if [[ -z "$ECR_IMAGE_URI" ]]; then
+        # Auto-generate ECR image URI based on account and region
+        ECR_REPOSITORY_NAME="jdbc-connector"
+        ECR_IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY_NAME}:latest"
+        log_info "Using auto-generated ECR_IMAGE_URI: $ECR_IMAGE_URI"
+    fi
+    
+    # Set default values for EFS if not provided
+    if [[ -z "$ENABLE_EFS" ]]; then
+        ENABLE_EFS="false"
+    fi
+    
+    if [[ "$ENABLE_EFS" == "true" ]]; then
+        if [[ -z "$EFS_NAME" ]]; then
+            EFS_NAME="jdbc-connector-efs"
+            log_info "Using default EFS_NAME: $EFS_NAME"
+        fi
+    fi
+    
+    # Set default values for other optional parameters
+    if [[ -z "$SECURITY_GROUP_NAME" ]]; then
+        SECURITY_GROUP_NAME="jdbc-connector-sg"
+        log_info "Using default SECURITY_GROUP_NAME: $SECURITY_GROUP_NAME"
+    fi
+    
+    if [[ -z "$LOG_GROUP_NAME" ]]; then
+        LOG_GROUP_NAME="/ecs/jdbc-connector"
+        log_info "Using default LOG_GROUP_NAME: $LOG_GROUP_NAME"
+    fi
+    
+    if [[ -z "$IAM_ROLE_NAME" ]]; then
+        IAM_ROLE_NAME="ecsTaskExecutionRole-jdbc-connector"
+        log_info "Using default IAM_ROLE_NAME: $IAM_ROLE_NAME"
+    fi
+    
+    if [[ -z "$TASK_FAMILY" ]]; then
+        TASK_FAMILY="jdbc-connector-task"
+        log_info "Using default TASK_FAMILY: $TASK_FAMILY"
+    fi
+    
+    if [[ -z "$SERVICE_NAME" ]]; then
+        SERVICE_NAME="jdbc-connector-service"
+        log_info "Using default SERVICE_NAME: $SERVICE_NAME"
+    fi
+    
+    if [[ -z "$CONTAINER_PORT" ]]; then
+        CONTAINER_PORT="3443"
+        log_info "Using default CONTAINER_PORT: $CONTAINER_PORT"
+    fi
+    
+    if [[ -z "$TASK_CPU" ]]; then
+        TASK_CPU="256"
+        log_info "Using default TASK_CPU: $TASK_CPU"
+    fi
+    
+    if [[ -z "$TASK_MEMORY" ]]; then
+        TASK_MEMORY="512"
+        log_info "Using default TASK_MEMORY: $TASK_MEMORY"
+    fi
+    
+    if [[ -z "$DESIRED_COUNT" ]]; then
+        DESIRED_COUNT="1"
+        log_info "Using default DESIRED_COUNT: $DESIRED_COUNT"
     fi
     
     log_success "All required parameters are present"
@@ -210,30 +241,32 @@ check_prerequisites() {
 # Deployment Functions
 ################################################################################
 
-# Step 0a: Pull Docker Image from Docker Hub
+# Step 0a: Pull Docker Image from GHCR
 pull_docker_image() {
-    log_step "Step 0a: Pulling Docker Image from Docker Hub"
+    log_step "Step 0a: Pulling Docker Image from GitHub Container Registry"
     
-    log_info "Pulling image: $DOCKER_IMAGE"
+    # Define the source image from GHCR
+    GHCR_IMAGE="ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest"
     
-    if docker pull "$DOCKER_IMAGE"; then
-        log_success "Docker image pulled successfully"
+    log_info "Pulling image from GHCR: ${GHCR_IMAGE}"
+    
+    # Pull the image
+    if docker pull "${GHCR_IMAGE}"; then
+        log_success "Docker image pulled successfully from GHCR"
     else
-        log_error "Failed to pull Docker image: $DOCKER_IMAGE"
-        log_error "Please verify the image exists and you have access to it"
+        log_error "Failed to pull Docker image from GHCR"
+        log_error "Please verify:"
+        log_error "  1. The image exists at: ${GHCR_IMAGE}"
+        log_error "  2. You have access to the repository (may need: docker login ghcr.io)"
+        log_error "  3. Your internet connection is working"
         exit 1
     fi
     
-    # Verify the image was pulled
-    if docker images "$DOCKER_IMAGE" --format "{{.Repository}}:{{.Tag}}" | grep -q "$DOCKER_IMAGE"; then
-        log_success "Image verified locally: $DOCKER_IMAGE"
-    else
-        log_error "Image not found after pull"
-        exit 1
-    fi
+    # Set local image variables for use in subsequent steps
+    LOCAL_IMAGE_NAME="${GHCR_IMAGE}"
+    LOCAL_IMAGE_TAG="latest"
     
-    # Set local image name for tagging
-    LOCAL_IMAGE_NAME="$DOCKER_IMAGE"
+    log_success "Image ready: ${LOCAL_IMAGE_NAME}"
 }
 
 # Step 0b: Create ECR Repository
@@ -348,6 +381,299 @@ create_security_group() {
         --cidr 0.0.0.0/0 2>/dev/null || log_warning "Ingress rule may already exist"
     
     log_success "Security group configured: $SECURITY_GROUP_ID"
+
+# Step 1b: Create EFS File System (Optional - for JDBC driver)
+create_efs_filesystem() {
+    # Check if EFS is enabled
+    if [[ "$ENABLE_EFS" != "true" ]]; then
+        log_info "EFS support is disabled. Skipping EFS creation."
+        return 0
+    fi
+    
+    # Ensure EFS_NAME has a default value
+    if [[ -z "$EFS_NAME" ]]; then
+        EFS_NAME="jdbc-connector-efs"
+        log_warning "EFS_NAME not set, using default: $EFS_NAME"
+    fi
+    
+    log_step "Step 1b: Creating EFS File System for JDBC Driver"
+    
+    # Check if EFS file system already exists
+    EFS_FILE_SYSTEM_ID=$(aws efs describe-file-systems \
+        --region "$AWS_REGION" \
+        --query "FileSystems[?Name=='$EFS_NAME'].FileSystemId" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$EFS_FILE_SYSTEM_ID" && "$EFS_FILE_SYSTEM_ID" != "None" ]]; then
+        log_warning "EFS file system '$EFS_NAME' already exists with ID: $EFS_FILE_SYSTEM_ID"
+    else
+        log_info "Creating EFS file system: $EFS_NAME"
+        EFS_FILE_SYSTEM_ID=$(aws efs create-file-system \
+            --region "$AWS_REGION" \
+            --performance-mode generalPurpose \
+            --throughput-mode bursting \
+            --encrypted \
+            --tags Key=Name,Value="$EFS_NAME" \
+            --query 'FileSystemId' \
+            --output text)
+        
+        log_success "EFS file system created: $EFS_FILE_SYSTEM_ID"
+        
+        # Wait for EFS to become available
+        log_info "Waiting for EFS file system to become available..."
+        aws efs wait file-system-available \
+            --region "$AWS_REGION" \
+            --file-system-id "$EFS_FILE_SYSTEM_ID"
+        log_success "EFS file system is available"
+    fi
+    
+    # Create mount target in the subnet
+    log_info "Creating EFS mount target in subnet: $SUBNET_ID"
+    
+    # Check if mount target already exists
+    MOUNT_TARGET_ID=$(aws efs describe-mount-targets \
+        --region "$AWS_REGION" \
+        --file-system-id "$EFS_FILE_SYSTEM_ID" \
+        --query "MountTargets[?SubnetId=='$SUBNET_ID'].MountTargetId" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$MOUNT_TARGET_ID" && "$MOUNT_TARGET_ID" != "None" ]]; then
+        log_warning "EFS mount target already exists in subnet: $MOUNT_TARGET_ID"
+    else
+        # Create security group for EFS if it doesn't exist
+        EFS_SG_ID=$(aws ec2 describe-security-groups \
+            --region "$AWS_REGION" \
+            --filters "Name=group-name,Values=${EFS_NAME}-sg" "Name=vpc-id,Values=$VPC_ID" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text 2>/dev/null || echo "")
+        
+        if [[ -z "$EFS_SG_ID" || "$EFS_SG_ID" == "None" ]]; then
+            log_info "Creating security group for EFS"
+            EFS_SG_ID=$(aws ec2 create-security-group \
+                --group-name "${EFS_NAME}-sg" \
+                --description "Security group for EFS mount targets" \
+                --vpc-id "$VPC_ID" \
+                --region "$AWS_REGION" \
+                --query 'GroupId' \
+                --output text)
+            
+            # Allow NFS traffic from the connector security group
+            aws ec2 authorize-security-group-ingress \
+                --region "$AWS_REGION" \
+                --group-id "$EFS_SG_ID" \
+                --protocol tcp \
+                --port 2049 \
+                --source-group "$SECURITY_GROUP_ID" 2>/dev/null || true
+            
+            log_success "EFS security group created: $EFS_SG_ID"
+        fi
+        
+        MOUNT_TARGET_ID=$(aws efs create-mount-target \
+            --region "$AWS_REGION" \
+            --file-system-id "$EFS_FILE_SYSTEM_ID" \
+            --subnet-id "$SUBNET_ID" \
+            --security-groups "$EFS_SG_ID" \
+            --query 'MountTargetId' \
+            --output text)
+        
+        log_success "EFS mount target created: $MOUNT_TARGET_ID"
+        
+        # Wait for mount target to become available
+        log_info "Waiting for EFS mount target to become available..."
+        sleep 30  # EFS mount targets take time to become available
+    fi
+    
+    # Create access point for the JDBC driver
+    log_info "Creating EFS access point for JDBC driver"
+    
+    EFS_ACCESS_POINT_ID=$(aws efs describe-access-points \
+        --region "$AWS_REGION" \
+        --file-system-id "$EFS_FILE_SYSTEM_ID" \
+        --query "AccessPoints[?Name=='jdbc-driver'].AccessPointId" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$EFS_ACCESS_POINT_ID" && "$EFS_ACCESS_POINT_ID" != "None" ]]; then
+        log_warning "EFS access point already exists: $EFS_ACCESS_POINT_ID"
+    else
+        EFS_ACCESS_POINT_ID=$(aws efs create-access-point \
+            --region "$AWS_REGION" \
+            --file-system-id "$EFS_FILE_SYSTEM_ID" \
+            --posix-user Uid=1000,Gid=1000 \
+            --root-directory "Path=/jdbc-drivers,CreationInfo={OwnerUid=1000,OwnerGid=1000,Permissions=755}" \
+            --tags Key=Name,Value=jdbc-driver \
+            --query 'AccessPointId' \
+            --output text)
+        
+        log_success "EFS access point created: $EFS_ACCESS_POINT_ID"
+    fi
+    
+    log_success "EFS file system configured: $EFS_FILE_SYSTEM_ID"
+}
+
+# Step 1c: Upload JDBC Driver to EFS (Automated via S3 and DataSync)
+upload_driver_to_efs() {
+    if [[ "$ENABLE_EFS" != "true" ]]; then
+        return 0
+    fi
+    
+    log_step "Step 1c: Uploading JDBC Driver to EFS (Automated)"
+    
+    # Check if driver file exists
+    DRIVER_FILE="${SCRIPT_DIR}/../connectors-forge/codeless/lib/driver.jar"
+    if [[ ! -f "$DRIVER_FILE" ]]; then
+        log_error "JDBC driver not found at: $DRIVER_FILE"
+        log_error "Please place your JDBC driver JAR file at this location"
+        exit 1
+    fi
+    
+    log_info "Found JDBC driver: $DRIVER_FILE"
+    
+    # Create S3 bucket for driver upload (temporary)
+    S3_BUCKET_NAME="jdbc-driver-upload-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+    log_info "Creating temporary S3 bucket: $S3_BUCKET_NAME"
+    
+    if aws s3 ls "s3://${S3_BUCKET_NAME}" 2>/dev/null; then
+        log_warning "S3 bucket already exists: $S3_BUCKET_NAME"
+    else
+        aws s3 mb "s3://${S3_BUCKET_NAME}" --region "$AWS_REGION"
+        log_success "S3 bucket created: $S3_BUCKET_NAME"
+    fi
+    
+    # Upload driver to S3
+    log_info "Uploading driver to S3..."
+    aws s3 cp "$DRIVER_FILE" "s3://${S3_BUCKET_NAME}/driver.jar" --region "$AWS_REGION"
+    log_success "Driver uploaded to S3"
+    
+    # Create IAM role for DataSync if it doesn't exist
+    DATASYNC_ROLE_NAME="DataSyncEFSRole-${EFS_NAME}"
+    log_info "Creating IAM role for DataSync..."
+    
+    if aws iam get-role --role-name "$DATASYNC_ROLE_NAME" &>/dev/null; then
+        log_warning "DataSync IAM role already exists"
+        DATASYNC_ROLE_ARN=$(aws iam get-role --role-name "$DATASYNC_ROLE_NAME" --query 'Role.Arn' --output text)
+    else
+        # Create trust policy for DataSync
+        cat > /tmp/datasync-trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Service": "datasync.amazonaws.com"},
+    "Action": "sts:AssumeRole"
+  }]
+}
+EOF
+        
+        DATASYNC_ROLE_ARN=$(aws iam create-role \
+            --role-name "$DATASYNC_ROLE_NAME" \
+            --assume-role-policy-document file:///tmp/datasync-trust-policy.json \
+            --query 'Role.Arn' \
+            --output text)
+        
+        # Attach policies for S3 and EFS access
+        aws iam attach-role-policy \
+            --role-name "$DATASYNC_ROLE_NAME" \
+            --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        
+        aws iam attach-role-policy \
+            --role-name "$DATASYNC_ROLE_NAME" \
+            --policy-arn arn:aws:iam::aws:policy/AmazonElasticFileSystemClientFullAccess
+        
+        sleep 10  # Wait for role propagation
+        rm -f /tmp/datasync-trust-policy.json
+        log_success "DataSync IAM role created"
+    fi
+    
+    # Create DataSync locations
+    log_info "Creating DataSync source location (S3)..."
+    S3_LOCATION_ARN=$(aws datasync create-location-s3 \
+        --region "$AWS_REGION" \
+        --s3-bucket-arn "arn:aws:s3:::${S3_BUCKET_NAME}" \
+        --s3-config "BucketAccessRoleArn=${DATASYNC_ROLE_ARN}" \
+        --query 'LocationArn' \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -z "$S3_LOCATION_ARN" ]]; then
+        # Location might already exist, try to find it
+        S3_LOCATION_ARN=$(aws datasync list-locations \
+            --region "$AWS_REGION" \
+            --query "Locations[?LocationUri=='s3://${S3_BUCKET_NAME}/'].LocationArn" \
+            --output text | head -1)
+    fi
+    log_success "S3 location ready: $S3_LOCATION_ARN"
+    
+    log_info "Creating DataSync destination location (EFS)..."
+    EFS_LOCATION_ARN=$(aws datasync create-location-efs \
+        --region "$AWS_REGION" \
+        --efs-filesystem-arn "arn:aws:elasticfilesystem:${AWS_REGION}:${AWS_ACCOUNT_ID}:file-system/${EFS_FILE_SYSTEM_ID}" \
+        --ec2-config "SubnetArn=arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:subnet/${SUBNET_ID},SecurityGroupArns=[arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:security-group/${EFS_SG_ID}]" \
+        --subdirectory "/jdbc-drivers" \
+        --query 'LocationArn' \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -z "$EFS_LOCATION_ARN" ]]; then
+        # Location might already exist
+        EFS_LOCATION_ARN=$(aws datasync list-locations \
+            --region "$AWS_REGION" \
+            --query "Locations[?contains(LocationUri, '${EFS_FILE_SYSTEM_ID}')].LocationArn" \
+            --output text | head -1)
+    fi
+    log_success "EFS location ready: $EFS_LOCATION_ARN"
+    
+    # Create and run DataSync task
+    log_info "Creating DataSync task..."
+    TASK_ARN=$(aws datasync create-task \
+        --region "$AWS_REGION" \
+        --source-location-arn "$S3_LOCATION_ARN" \
+        --destination-location-arn "$EFS_LOCATION_ARN" \
+        --name "jdbc-driver-upload-${EFS_NAME}" \
+        --query 'TaskArn' \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -z "$TASK_ARN" ]]; then
+        # Task might already exist
+        TASK_ARN=$(aws datasync list-tasks \
+            --region "$AWS_REGION" \
+            --query "Tasks[?Name=='jdbc-driver-upload-${EFS_NAME}'].TaskArn" \
+            --output text | head -1)
+    fi
+    log_success "DataSync task ready: $TASK_ARN"
+    
+    # Start the task
+    log_info "Starting DataSync task to copy driver to EFS..."
+    TASK_EXECUTION_ARN=$(aws datasync start-task-execution \
+        --region "$AWS_REGION" \
+        --task-arn "$TASK_ARN" \
+        --query 'TaskExecutionArn' \
+        --output text)
+    
+    log_info "Waiting for DataSync task to complete..."
+    while true; do
+        STATUS=$(aws datasync describe-task-execution \
+            --region "$AWS_REGION" \
+            --task-execution-arn "$TASK_EXECUTION_ARN" \
+            --query 'Status' \
+            --output text)
+        
+        if [[ "$STATUS" == "SUCCESS" ]]; then
+            log_success "Driver successfully copied to EFS!"
+            break
+        elif [[ "$STATUS" == "ERROR" ]]; then
+            log_error "DataSync task failed"
+            exit 1
+        else
+            log_info "DataSync status: $STATUS (waiting...)"
+            sleep 10
+        fi
+    done
+    
+    # Clean up S3 bucket (optional)
+    log_info "Cleaning up temporary S3 bucket..."
+    aws s3 rm "s3://${S3_BUCKET_NAME}/driver.jar" --region "$AWS_REGION" 2>/dev/null || true
+    aws s3 rb "s3://${S3_BUCKET_NAME}" --region "$AWS_REGION" 2>/dev/null || true
+    
+    log_success "JDBC driver is now available in EFS at /jdbc-drivers/driver.jar"
+}
 }
 
 # Step 2: Create CloudWatch Log Group
@@ -425,10 +751,72 @@ register_task_definition() {
     
     log_info "Creating task definition: $TASK_FAMILY"
     
+    # Load connector configuration from connector-config.properties if it exists
+    CONNECTOR_CONFIG_FILE="${SCRIPT_DIR}/connector-config.properties"
+    if [[ -f "$CONNECTOR_CONFIG_FILE" ]]; then
+        log_info "Loading connector configuration from: $CONNECTOR_CONFIG_FILE"
+        
+        # Read environment variables from the properties file
+        while IFS='=' read -r key value; do
+            # Skip comments and empty lines
+            [[ "$key" =~ ^#.*$ ]] && continue
+            [[ -z "$key" ]] && continue
+            
+            # Remove leading/trailing whitespace
+            key=$(echo "$key" | xargs)
+            value=$(echo "$value" | xargs)
+            
+            # Store in associative array
+            case "$key" in
+                CONNECTOR_DATASOURCE_TYPE) CONNECTOR_DATASOURCE_TYPE="$value" ;;
+                CONNECTOR_LABEL) CONNECTOR_LABEL="$value" ;;
+                CONNECTOR_DESCRIPTION) CONNECTOR_DESCRIPTION="$value" ;;
+                JDBC_DRIVER_CLASS) JDBC_DRIVER_CLASS="$value" ;;
+                JDBC_DRIVER_PATH) JDBC_DRIVER_PATH="$value" ;;
+            esac
+        done < "$CONNECTOR_CONFIG_FILE"
+        
+        log_success "Connector configuration loaded"
+    else
+        log_warning "connector-config.properties not found at: $CONNECTOR_CONFIG_FILE"
+        log_warning "Container will start without connector-specific environment variables"
+    fi
+    
     # Build environment variables JSON array
-    ENV_VARS_JSON="[]"
-    if [[ -n "$CONNECTOR_ENV_VARS" ]]; then
-        ENV_VARS_JSON="[${CONNECTOR_ENV_VARS}]"
+    ENV_VARS=""
+    if [[ -n "$CONNECTOR_DATASOURCE_TYPE" ]]; then
+        ENV_VARS="$ENV_VARS{\"name\": \"CONNECTOR_DATASOURCE_TYPE\", \"value\": \"$CONNECTOR_DATASOURCE_TYPE\"},"
+    fi
+    if [[ -n "$CONNECTOR_LABEL" ]]; then
+        ENV_VARS="$ENV_VARS{\"name\": \"CONNECTOR_LABEL\", \"value\": \"$CONNECTOR_LABEL\"},"
+    fi
+    if [[ -n "$CONNECTOR_DESCRIPTION" ]]; then
+        ENV_VARS="$ENV_VARS{\"name\": \"CONNECTOR_DESCRIPTION\", \"value\": \"$CONNECTOR_DESCRIPTION\"},"
+    fi
+    if [[ -n "$JDBC_DRIVER_CLASS" ]]; then
+        ENV_VARS="$ENV_VARS{\"name\": \"JDBC_DRIVER_CLASS\", \"value\": \"$JDBC_DRIVER_CLASS\"},"
+    fi
+    if [[ -n "$JDBC_DRIVER_PATH" ]]; then
+        ENV_VARS="$ENV_VARS{\"name\": \"JDBC_DRIVER_PATH\", \"value\": \"$JDBC_DRIVER_PATH\"},"
+    fi
+    
+    # Remove trailing comma if ENV_VARS is not empty
+    if [[ -n "$ENV_VARS" ]]; then
+        ENV_VARS="${ENV_VARS%,}"
+        ENV_SECTION="\"environment\": [$ENV_VARS],"
+        log_info "Adding ${ENV_VARS//,/ } environment variables to container"
+    else
+        ENV_SECTION=""
+    fi
+    
+    # Build EFS volume configuration if enabled
+    if [[ "$ENABLE_EFS" == "true" ]]; then
+        MOUNT_POINTS_SECTION="\"mountPoints\": [{\"sourceVolume\": \"jdbc-driver-volume\",\"containerPath\": \"/mnt/efs\",\"readOnly\": false}],"
+        VOLUMES_SECTION=",\"volumes\": [{\"name\": \"jdbc-driver-volume\",\"efsVolumeConfiguration\": {\"fileSystemId\": \"$EFS_FILE_SYSTEM_ID\",\"transitEncryption\": \"ENABLED\",\"authorizationConfig\": {\"accessPointId\": \"$EFS_ACCESS_POINT_ID\",\"iam\": \"DISABLED\"}}}]"
+        log_info "Adding EFS volume configuration to task definition"
+    else
+        MOUNT_POINTS_SECTION=""
+        VOLUMES_SECTION=""
     fi
     
     # Create task definition JSON
@@ -443,12 +831,13 @@ register_task_definition() {
   "containerDefinitions": [{
     "name": "jdbc-connector",
     "image": "$ECR_IMAGE_URI",
+    $ENV_SECTION
+    $MOUNT_POINTS_SECTION
     "portMappings": [{
       "containerPort": $CONTAINER_PORT,
       "protocol": "tcp"
     }],
     "essential": true,
-    "environment": $ENV_VARS_JSON,
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {
@@ -457,7 +846,7 @@ register_task_definition() {
         "awslogs-stream-prefix": "ecs"
       }
     }
-  }]
+  }]$VOLUMES_SECTION
 }
 EOF
     
@@ -474,9 +863,39 @@ EOF
     rm -f /tmp/task-definition.json
 }
 
-# Step 5: Deploy ECS Service
+# Step 5: Create ECS Cluster
+create_ecs_cluster() {
+    log_step "Step 5: Creating ECS Cluster"
+    
+    # Check if ECS service-linked role exists, create if not
+    log_info "Checking ECS service-linked role..."
+    if ! aws iam get-role --role-name AWSServiceRoleForECS &>/dev/null; then
+        log_info "Creating ECS service-linked role..."
+        aws iam create-service-linked-role --aws-service-name ecs.amazonaws.com 2>/dev/null || \
+            log_warning "Service-linked role may already exist or creation failed (this is usually okay)"
+    fi
+    
+    # Check if cluster already exists
+    if aws ecs describe-clusters \
+        --region "$AWS_REGION" \
+        --clusters "$ECS_CLUSTER" \
+        --query 'clusters[0].status' \
+        --output text 2>/dev/null | grep -q "ACTIVE"; then
+        log_warning "ECS cluster '$ECS_CLUSTER' already exists"
+    else
+        log_info "Creating ECS cluster: $ECS_CLUSTER"
+        aws ecs create-cluster \
+            --region "$AWS_REGION" \
+            --cluster-name "$ECS_CLUSTER" \
+            > /dev/null
+        
+        log_success "ECS cluster created: $ECS_CLUSTER"
+    fi
+}
+
+# Step 6: Deploy ECS Service
 deploy_service() {
-    log_step "Step 5: Deploying ECS Service"
+    log_step "Step 6: Deploying ECS Service"
     
     # Check if service already exists
     if aws ecs describe-services \
@@ -521,9 +940,9 @@ deploy_service() {
         --services "$SERVICE_NAME" || log_warning "Service may still be starting up"
 }
 
-# Step 6: Get Public IP
+# Step 7: Get Public IP
 get_public_ip() {
-    log_step "Step 6: Retrieving Public IP Address"
+    log_step "Step 7: Retrieving Public IP Address"
     
     log_info "Getting task ARN..."
     TASK_ARN=$(aws ecs list-tasks \
@@ -681,24 +1100,26 @@ cleanup_resources() {
 main() {
     echo -e "${BLUE}"
     echo "╔════════════════════════════════════════════════════════════════╗"
-    echo "║   AWS ECS Deployment Script - Pre-built JDBC Connector        ║"
+    echo "║   AWS ECS Deployment Script - JDBC Custom Connector           ║"
     echo "╚════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     
     # Load and validate configuration
     load_properties
-    load_connector_env
     validate_parameters
     check_prerequisites
     
-    # Execute deployment steps (pull pre-built image instead of building)
+    # Execute deployment steps (including image pull and push)
     pull_docker_image
     create_ecr_repository
     push_image_to_ecr
     create_security_group
+    create_efs_filesystem
+    upload_driver_to_efs
     create_log_group
     create_iam_role
     register_task_definition
+    create_ecs_cluster
     deploy_service
     get_public_ip
     verify_deployment
@@ -708,8 +1129,6 @@ main() {
     echo -e "\n${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║                  DEPLOYMENT SUMMARY                            ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo -e "${BLUE}Docker Image:${NC}        $DOCKER_IMAGE"
-    echo -e "${BLUE}Connector Config:${NC}    $CONNECTOR_ENV_FILE"
     echo -e "${BLUE}Region:${NC}              $AWS_REGION"
     echo -e "${BLUE}Cluster:${NC}             $ECS_CLUSTER"
     echo -e "${BLUE}Service:${NC}             $SERVICE_NAME"
