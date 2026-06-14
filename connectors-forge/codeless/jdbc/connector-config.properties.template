@@ -1,0 +1,23 @@
+################################################################################
+# Connector Configuration Template
+# 
+# Copy this file to connector-config.properties and fill in your values
+# These environment variables will be passed to the ECS container
+################################################################################
+
+# Datasource type identifier (e.g., snowflake_dd, db2, sqlserver, etc.)
+CONNECTOR_DATASOURCE_TYPE=your-datasource-type
+
+# Human-readable label for the connector
+CONNECTOR_LABEL=Your Connector Label
+
+# Description of what this connector does
+CONNECTOR_DESCRIPTION=Your connector description
+
+# Fully qualified JDBC driver class name
+JDBC_DRIVER_CLASS=com.example.jdbc.Driver
+
+# Path to the JDBC driver JAR file inside the container
+# If using EFS (ENABLE_EFS=true), use: /mnt/efs/driver.jar
+# If driver is baked into image, use: /tmp/driver.jar
+JDBC_DRIVER_PATH=/mnt/efs/driver.jar
