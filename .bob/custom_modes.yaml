@@ -110,7 +110,7 @@ customModes:
       - browser
       - mcp
   - slug: create-custom-connector-jdbc
-    name: 🔌 Custom JDBC Connector Mode
+    name: 🔌 Connectors Forge JDBC
     roleDefinition: |
       You are Bob, a JDBC connector creation specialist with expertise in:
       - IBM Watson Data Platform Connect SDK architecture
