@@ -3,7 +3,7 @@
     This workflow guides you through creating a custom JDBC connector for any database
     using the IBM Watson Data Platform Connect SDK. You can choose between two approaches:
     
-    1. Codeless Mode: Quick setup using a pre-built Docker image (gloria2000/wdp-connect-sdk-gen-flight:latest)
+    1. Codeless Mode: Quick setup using a pre-built Docker image (ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest)
        - Best for standard JDBC connector use cases
        - No code generation or build process required
        - Faster deployment
@@ -66,7 +66,7 @@
       </steps>
       <codeless_mode_details>
         <overview>
-          Codeless mode uses the pre-built Docker image: gloria2000/wdp-connect-sdk-gen-flight:latest
+          Codeless mode uses the pre-built Docker image: ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
         </overview>
         <benefits>
           <benefit>Quick setup without code generation</benefit>
@@ -75,17 +75,16 @@
           <benefit>Faster deployment to AWS</benefit>
         </benefits>
         <directory_structure>
-          <create>sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</create>
-          <purpose>Store DSL configuration file and driver JAR for the connector</purpose>
+          <create>connectors-forge/codeless/lib/</create>
+          <purpose>Store JDBC driver JAR for the connector</purpose>
           <files>
-            <file>DSL-jdbc-{database}.json - Connector configuration</file>
             <file>driver.jar - JDBC driver JAR file</file>
           </files>
         </directory_structure>
         <driver_handling>
           <description>
             In Codeless mode, the JDBC driver JAR must be provided and saved to
-            sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+            connectors-forge/codeless/lib/driver.jar
           </description>
           <automatic_download>
             <condition>Driver is available from Maven Central or public repositories</condition>
@@ -132,21 +131,73 @@
       <title>Gather Database Information</title>
       <description>
         Collect all necessary information about the target database before starting
-        the connector creation process.
+        the connector creation process. For Codeless mode, also determine driver availability.
       </description>
       <required_information>
-        <item>Database name (e.g., db2, mysql, postgresql, oracle)</item>
-        <item>JDBC driver class name (e.g., com.ibm.db2.jcc.DB2Driver)</item>
-        <item>JDBC URL template (e.g., jdbc:db2://{host}:{port}/{database})</item>
-        <item>JDBC driver Maven coordinates (group:artifact:version)</item>
+        <item>Connector name (e.g., mysql, postgresql, oracle)</item>
+        <item>Connector label (e.g., MySQL, PostgreSQL, Oracle Database)</item>
+        <item>JDBC driver class name (e.g., com.mysql.cj.jdbc.Driver)</item>
+        <item>JDBC URL template (e.g., jdbc:mysql://{host}:{port}/{database})</item>
+        <item>JDBC driver Maven coordinates (group:artifact:version) - for automatic download</item>
         <item>Default port number for the database</item>
         <item>Whether database supports schemas, catalogs, or both</item>
       </required_information>
-      <actions>
-        <action>Ask user for the database name they want to create a connector for</action>
-        <action>Determine if user has JDBC driver information or needs help finding it</action>
-        <action>Validate that we have all required information before proceeding</action>
-      </actions>
+      <steps>
+        <step number="1">
+          <action>Ask user for connector name and label</action>
+          <tool>ask_followup_question</tool>
+          <question>What is the name of the database you want to create a connector for?</question>
+          <suggestions>
+            <suggest>MySQL</suggest>
+            <suggest>PostgreSQL</suggest>
+            <suggest>Oracle</suggest>
+            <suggest>Microsoft SQL Server</suggest>
+          </suggestions>
+        </step>
+        <step number="2" mode="codeless_only">
+          <action>Ask about driver availability</action>
+          <tool>ask_followup_question</tool>
+          <question>Do you have the JDBC driver JAR file available on your system, or would you like it to be automatically downloaded?</question>
+          <suggestions>
+            <suggest>I have the driver JAR at a local path</suggest>
+            <suggest>Automatically download the driver (for open-source databases)</suggest>
+          </suggestions>
+          <note>This determines whether to copy from local path or download from Maven Central</note>
+        </step>
+        <step number="3" mode="codeless_only">
+          <action>Handle driver based on user selection</action>
+          <conditional_handling>
+            <path name="local_driver">
+              <condition>User has driver at local path</condition>
+              <substeps>
+                <substep>Ask user for the full path to the driver JAR file</substep>
+                <substep>Create directory: mkdir -p connectors-forge/codeless/lib/</substep>
+                <substep>Copy driver: cp {user_path} connectors-forge/codeless/lib/driver.jar</substep>
+                <substep>Verify file was copied successfully</substep>
+              </substeps>
+            </path>
+            <path name="auto_download">
+              <condition>User wants automatic download</condition>
+              <substeps>
+                <substep>Ask user for driver Maven coordinates (group:artifact:version)</substep>
+                <substep>Create directory: mkdir -p connectors-forge/codeless/lib/</substep>
+                <substep>Download driver using curl from Maven Central</substep>
+                <substep>Save to: connectors-forge/codeless/lib/driver.jar</substep>
+                <substep>Verify download was successful</substep>
+              </substeps>
+            </path>
+          </conditional_handling>
+        </step>
+        <step number="4">
+          <action>Gather remaining database information</action>
+          <information_to_collect>
+            <item>JDBC driver class name</item>
+            <item>JDBC URL template</item>
+            <item>Default port number</item>
+            <item>Schema/catalog support</item>
+          </information_to_collect>
+        </step>
+      </steps>
     </phase>
 
     <phase number="2" name="dsl_creation">
@@ -154,31 +205,32 @@
       <description>
         Create a database-specific DSL configuration file based on DSL-jdbc.json template.
         This file defines all connector properties, driver information, and customizations.
-        For Codeless mode, this phase also handles driver JAR management.
+        Driver JAR handling is now done in Phase 1 for Codeless mode.
       </description>
       <steps>
         <step number="1">
           <action>Read the DSL-jdbc.json template file</action>
           <tool>read_file</tool>
-          <file>DSL-jdbc.json</file>
+          <file>connectors-forge/codeless/jdbc/DSL-jdbc.json</file>
         </step>
         <step number="2">
-          <action>Create new DSL file named DSL-jdbc-{database}.json</action>
+          <action>Create new DSL file in connectors-forge/codeless/jdbc/ directory</action>
           <tool>write_to_file</tool>
-          <naming_convention>DSL-jdbc-{database}.json (e.g., DSL-jdbc-db2.json)</naming_convention>
+          <path>connectors-forge/codeless/jdbc/DSL-jdbc-{connector_name}.json</path>
+          <naming_convention>DSL-jdbc-{connector_name}.json (e.g., DSL-jdbc-mysql.json)</naming_convention>
         </step>
         <step number="3">
-          <action>Fill in connector metadata</action>
+          <action>Fill in connector metadata using information from Phase 1</action>
           <fields>
-            <field>connector_name: jdbc_{database} (e.g., jdbc_db2)</field>
-            <field>connector_label: {Database Name} (e.g., IBM Db2)</field>
+            <field>connector_name: {connector_name} (e.g., mysql, postgresql)</field>
+            <field>connector_label: {connector_label} (e.g., MySQL, PostgreSQL)</field>
             <field>connector_description: Brief description of the connector</field>
           </fields>
         </step>
         <step number="4">
           <action>Configure JDBC driver information</action>
           <fields>
-            <field>driver_class_name: Fully qualified driver class</field>
+            <field>driver_class_name: Fully qualified driver class from Phase 1</field>
             <field>jdbc_url: JDBC URL template with {placeholders}</field>
           </fields>
         </step>
@@ -186,102 +238,103 @@
           <action>Add driver dependencies</action>
           <location>implementation_notes.dependencies[0].driver_dependencies</location>
           <format>["group:artifact:version"]</format>
-          <example>["com.ibm.db2:jcc:11.5.8.0"]</example>
+          <example>["com.mysql:mysql-connector-j:8.0.33"]</example>
+          <note>This is for reference only in Codeless mode; actual driver is in connectors-forge/codeless/lib/</note>
+    <phase number="2.5" name="deployment_preparation" mode="codeless_only">
+      <title>Prepare for Deployment (Codeless Mode Only)</title>
+      <description>
+        After DSL creation, prepare for deployment by selecting deployment type and
+        creating the connector-config.properties file with values from the DSL.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Ask user to select deployment type</action>
+          <tool>ask_followup_question</tool>
+          <question>Choose your deployment type for the JDBC connector:</question>
+          <suggestions>
+            <suggest>AWS - Deploy to AWS ECS Fargate</suggest>
+            <suggest>OpenShift - Deploy to Red Hat OpenShift</suggest>
+          </suggestions>
         </step>
-        <step number="6" mode="codeless_only">
-          <action>Handle driver JAR for Codeless mode</action>
+        <step number="2">
+          <action>Create connector-config.properties from template</action>
           <description>
-            For Codeless mode deployments, the driver JAR must be saved to
-            sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+            Copy connector-config.properties.template to connector-config.properties
+            and populate it with values from the DSL file created in Phase 2.
           </description>
           <substeps>
-            <substep number="6.1">
-              <action>Create target directory structure</action>
-              <command>mkdir -p sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</command>
-              <note>This directory will store the DSL file and driver JAR for Codeless mode</note>
+            <substep number="2.1">
+              <action>Read the connector-config.properties.template file</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/connector-config.properties.template</file>
             </substep>
-            <substep number="6.2">
-              <action>Determine driver availability</action>
-              <description>
-                Check if the JDBC driver is available from open-source repositories
-                (Maven Central, public repositories) or requires manual provision
-              </description>
-              <common_open_source_drivers>
-                <driver database="postgresql">org.postgresql:postgresql (Maven Central)</driver>
-                <driver database="mysql">com.mysql:mysql-connector-j (Maven Central)</driver>
-                <driver database="mariadb">org.mariadb.jdbc:mariadb-java-client (Maven Central)</driver>
-                <driver database="h2">com.h2database:h2 (Maven Central)</driver>
-                <driver database="derby">org.apache.derby:derby (Maven Central)</driver>
-                <driver database="sqlite">org.xerial:sqlite-jdbc (Maven Central)</driver>
-              </common_open_source_drivers>
-              <proprietary_drivers>
-                <driver database="oracle">Requires Oracle account and license</driver>
-                <driver database="db2">Requires IBM license</driver>
-                <driver database="sqlserver">Available from Microsoft but may require acceptance</driver>
-              </proprietary_drivers>
+            <substep number="2.2">
+              <action>Read the DSL file to extract connector information</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/DSL-jdbc-{connector_name}.json</file>
+              <note>Extract connector_name, connector_label, connector_description, and driver_class_name</note>
             </substep>
-            <substep number="6.3">
-              <action>Download driver if available from open source</action>
-              <condition>Driver is available from Maven Central or public repository</condition>
-              <approach>
-                <option priority="1">
-                  <method>Use Gradle to download driver JAR</method>
-                  <command>
-                    cd sdk-gen && ./gradlew downloadDriver -PdriverCoordinates="{group}:{artifact}:{version}" -PoutputPath="subprojects/connectors_forge_jdbc/src/main/resources/driver.jar"
-                  </command>
-                  <note>This requires a custom Gradle task to download and save the driver</note>
-                </option>
-                <option priority="2">
-                  <method>Use curl/wget to download from Maven Central</method>
-                  <command_template>
-                    curl -L "https://repo1.maven.org/maven2/{group_path}/{artifact}/{version}/{artifact}-{version}.jar" -o sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
-                  </command_template>
-                  <example>
-                    curl -L "https://repo1.maven.org/maven2/org/postgresql/postgresql/42.6.0/postgresql-42.6.0.jar" -o sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
-                  </example>
-                </option>
-              </approach>
+            <substep number="2.3">
+              <action>Create connector-config.properties with populated values</action>
+              <tool>write_to_file</tool>
+              <file>connectors-forge/codeless/jdbc/connector-config.properties</file>
+              <field_mappings>
+                <mapping>
+                  <property>CONNECTOR_DATASOURCE_TYPE</property>
+                  <source>DSL: connector_name (e.g., mysql, postgresql)</source>
+                </mapping>
+                <mapping>
+                  <property>CONNECTOR_LABEL</property>
+                  <source>DSL: connector_label (e.g., MySQL, PostgreSQL)</source>
+                </mapping>
+                <mapping>
+                  <property>CONNECTOR_DESCRIPTION</property>
+                  <source>DSL: connector_description</source>
+                </mapping>
+                <mapping>
+                  <property>JDBC_DRIVER_CLASS</property>
+                  <source>DSL: driver_class_name (e.g., com.mysql.cj.jdbc.Driver)</source>
+                </mapping>
+                <mapping>
+                  <property>JDBC_DRIVER_PATH</property>
+                  <source>Set based on deployment type:
+                    - AWS: /mnt/efs/driver.jar
+                    - OpenShift: /drivers/driver.jar
+                  </source>
+                </mapping>
+              </field_mappings>
             </substep>
-            <substep number="6.4">
-              <action>Request driver from user if not available from open source</action>
-              <condition>Driver is proprietary or not available from public repositories</condition>
-              <tool>ask_followup_question</tool>
-              <question_template>
-                The JDBC driver for {database} is not available from open-source repositories.
-                Please provide the path to the driver JAR file on your local system.
-                
-                The driver JAR should be the file containing the JDBC driver class: {driver_class_name}
-              </question_template>
-              <suggestions>
-                <suggest>~/Downloads/jdbc-driver.jar</suggest>
-                <suggest>/path/to/driver/{database}-jdbc.jar</suggest>
-                <suggest>I need help finding the driver</suggest>
-              </suggestions>
-            </substep>
-            <substep number="6.5">
-              <action>Copy user-provided driver to target location</action>
-              <condition>User provided local driver path</condition>
-              <command_template>
-                cp {user_provided_path} sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
-              </command_template>
+            <substep number="2.4">
+              <action>Verify connector-config.properties was created successfully</action>
               <validation>
-                <check>Verify file exists at source path</check>
-                <check>Verify file is a valid JAR file</check>
-                <check>Verify file was copied successfully to target location</check>
-              </validation>
-            </substep>
-            <substep number="6.6">
-              <action>Verify driver JAR is in place</action>
-              <validation>
-                <check>File exists at sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar</check>
-                <check>File size is greater than 0 bytes</check>
-                <check>File has .jar extension</check>
+                <check>File exists at connectors-forge/codeless/jdbc/connector-config.properties</check>
+                <check>All required properties are populated</check>
+                <check>JDBC_DRIVER_PATH matches deployment type</check>
               </validation>
               <success_message>
-                ✅ Driver JAR successfully saved to sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar
+                ✅ connector-config.properties created successfully with values from DSL
               </success_message>
             </substep>
           </substeps>
+        </step>
+      </steps>
+      <output>
+        <deployment_type>Selected deployment type (AWS or OpenShift)</deployment_type>
+        <config_file>connectors-forge/codeless/jdbc/connector-config.properties</config_file>
+      </output>
+    </phase>
+
+        </step>
+        <step number="6" mode="codeless_only">
+          <action>Verify driver JAR is in place from Phase 1</action>
+          <validation>
+            <check>File exists at connectors-forge/codeless/lib/driver.jar</check>
+            <check>File size is greater than 0 bytes</check>
+            <check>File has .jar extension</check>
+          </validation>
+          <success_message>
+            ✅ Driver JAR verified at connectors-forge/codeless/lib/driver.jar
+          </success_message>
         </step>
       </steps>
       <validation>
@@ -289,6 +342,7 @@
         <check>Ensure driver_class_name is correct for the database</check>
         <check>Confirm jdbc_url template uses correct syntax</check>
         <check>Validate driver_dependencies array is properly formatted</check>
+        <check>Confirm DSL file is saved in connectors-forge/codeless/jdbc/ directory</check>
       </validation>
     </phase>
 
@@ -525,30 +579,112 @@
         deployment process based on their selection and mode (Codeless vs Developer).
       </description>
       <steps>
-        <step number="1">
+        <step number="1" mode="codeless_only">
+          <action>Execute deployment based on selection from Phase 2.5</action>
+          <description>
+            For Codeless mode, deployment type was already selected in Phase 2.5.
+            Now execute the appropriate deployment script.
+          </description>
+          <conditional_execution>
+            <aws_deployment>
+              <condition>User selected AWS deployment in Phase 2.5</condition>
+              <substeps>
+                <substep number="1">
+                  <action>Inform user about AWS deployment execution</action>
+                  <message>
+                    Executing AWS deployment using the pre-built Docker image:
+                    ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
+                    
+                    The deployment script will:
+                    1. Pull the pre-built Docker image
+                    2. Push it to your AWS ECR
+                    3. Deploy to ECS Fargate with your connector configuration
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Execute AWS deployment script</action>
+                  <tool>execute_command</tool>
+                  <command>bash connectors-forge/codeless/jdbc/deploy-to-aws.sh</command>
+                  <working_directory>Project root</working_directory>
+                  <note>
+                    The script uses:
+                    - connector-config.properties for connector configuration
+                    - aws-deployment.properties for AWS settings
+                    - driver.jar from connectors-forge/codeless/lib/
+                  </note>
+                </substep>
+                <substep number="3">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Docker image pulled successfully</indicator>
+                    <indicator>Image pushed to ECR</indicator>
+                    <indicator>Security group created</indicator>
+                    <indicator>CloudWatch log group created</indicator>
+                    <indicator>IAM role created</indicator>
+                    <indicator>Task definition registered</indicator>
+                    <indicator>ECS service deployed</indicator>
+                    <indicator>Public IP retrieved</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+              </substeps>
+            </aws_deployment>
+            <openshift_deployment>
+              <condition>User selected OpenShift deployment in Phase 2.5</condition>
+              <substeps>
+                <substep number="1">
+                  <action>Inform user about OpenShift deployment execution</action>
+                  <message>
+                    Executing OpenShift deployment using the pre-built Docker image:
+                    ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
+                    
+                    The deployment script will:
+                    1. Pull the pre-built Docker image
+                    2. Push it to your OpenShift registry
+                    3. Deploy to OpenShift with your connector configuration
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Execute OpenShift deployment script</action>
+                  <tool>execute_command</tool>
+                  <command>bash connectors-forge/codeless/jdbc/deploy-to-openshift.sh</command>
+                  <working_directory>Project root</working_directory>
+                  <note>
+                    The script uses:
+                    - connector-config.properties for connector configuration
+                    - openshift-deployment.properties for OpenShift settings
+                    - driver.jar from connectors-forge/codeless/lib/
+                  </note>
+                </substep>
+                <substep number="3">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Docker image pulled successfully</indicator>
+                    <indicator>Image pushed to OpenShift registry</indicator>
+                    <indicator>OpenShift project created/verified</indicator>
+                    <indicator>Deployment configuration created</indicator>
+                    <indicator>Service created</indicator>
+                    <indicator>Route created</indicator>
+                    <indicator>Pods running successfully</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+              </substeps>
+            </openshift_deployment>
+          </conditional_execution>
+        </step>
+        <step number="1" mode="developer_only">
           <action>Ask user to select deployment type</action>
           <tool>ask_followup_question</tool>
-          <conditional_options>
-            <developer_mode>
-              <question>Choose your deployment type for the JDBC connector:</question>
-              <suggestions>
-                <suggest>Local Docker - Test on local machine</suggest>
-                <suggest>Serverless - Cloud deployment (placeholder)</suggest>
-                <suggest>Self-Hosted - Your own server</suggest>
-                <suggest>OpenShift - Enterprise platform</suggest>
-              </suggestions>
-            </developer_mode>
-            <codeless_mode>
-              <question>Choose your deployment type for the JDBC connector:</question>
-              <suggestions>
-                <suggest>Serverless - Cloud deployment (placeholder)</suggest>
-                <suggest>Self-Hosted - Your own server</suggest>
-                <suggest>OpenShift - Enterprise platform</suggest>
-              </suggestions>
-            </codeless_mode>
-          </conditional_options>
+          <question>Choose your deployment type for the JDBC connector:</question>
+          <suggestions>
+            <suggest>Local Docker - Test on local machine</suggest>
+            <suggest>Serverless - Cloud deployment (placeholder)</suggest>
+            <suggest>Self-Hosted - Your own server</suggest>
+            <suggest>OpenShift - Enterprise platform</suggest>
+          </suggestions>
         </step>
-        <step number="2">
+        <step number="2" mode="developer_only">
           <action>Process deployment type selection and execute appropriate deployment workflow</action>
           <deployment_paths>
             <path name="local_docker" mode="developer_only">
