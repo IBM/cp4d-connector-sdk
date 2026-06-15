@@ -75,7 +75,7 @@
           <benefit>Faster deployment to AWS</benefit>
         </benefits>
         <directory_structure>
-          <create>connectors-forge/codeless/lib/</create>
+          <create>connectors-forge/codeless/jdbc/driver/</create>
           <purpose>Store JDBC driver JAR for the connector</purpose>
           <files>
             <file>driver.jar - JDBC driver JAR file</file>
@@ -84,7 +84,7 @@
         <driver_handling>
           <description>
             In Codeless mode, the JDBC driver JAR must be provided and saved to
-            connectors-forge/codeless/lib/driver.jar
+            connectors-forge/codeless/jdbc/driver/driver.jar
           </description>
           <automatic_download>
             <condition>Driver is available from Maven Central or public repositories</condition>
@@ -154,8 +154,38 @@
             <suggest>Microsoft SQL Server</suggest>
           </suggestions>
         </step>
-        <step number="2" mode="codeless_only">
-          <action>Ask about driver availability</action>
+        <step number="2">
+          <action>Gather JDBC driver information</action>
+          <description>
+            Collect JDBC driver details needed for DSL creation. This step applies to both
+            Codeless and Developer modes, ensuring driver information is available before
+            DSL generation.
+          </description>
+          <information_to_collect>
+            <item>JDBC driver class name (e.g., com.mysql.cj.jdbc.Driver)</item>
+            <item>JDBC driver Maven coordinates (group:artifact:version) for dependency management</item>
+          </information_to_collect>
+          <tool>ask_followup_question</tool>
+          <question>What is the JDBC driver class name for {database}?</question>
+          <note>This information is required for both Codeless and Developer modes</note>
+        </step>
+        <step number="3">
+          <action>Gather JDBC driver Maven coordinates</action>
+          <tool>ask_followup_question</tool>
+          <question>What are the Maven coordinates for the JDBC driver (format: group:artifact:version)?</question>
+          <examples>
+            <example database="MySQL">com.mysql:mysql-connector-j:8.0.33</example>
+            <example database="PostgreSQL">org.postgresql:postgresql:42.6.0</example>
+            <example database="Oracle">com.oracle.database.jdbc:ojdbc8:21.9.0.0</example>
+          </examples>
+          <note>This will be used in the DSL file for dependency management</note>
+        </step>
+        <step number="4" mode="codeless_only">
+          <action>Handle driver JAR file for Codeless mode</action>
+          <description>
+            For Codeless mode only, obtain the actual driver JAR file that will be
+            bundled with the pre-built Docker image.
+          </description>
           <tool>ask_followup_question</tool>
           <question>Do you have the JDBC driver JAR file available on your system, or would you like it to be automatically downloaded?</question>
           <suggestions>
@@ -164,38 +194,38 @@
           </suggestions>
           <note>This determines whether to copy from local path or download from Maven Central</note>
         </step>
-        <step number="3" mode="codeless_only">
-          <action>Handle driver based on user selection</action>
+        <step number="5" mode="codeless_only">
+          <action>Obtain driver JAR file based on user selection</action>
           <conditional_handling>
             <path name="local_driver">
               <condition>User has driver at local path</condition>
               <substeps>
                 <substep>Ask user for the full path to the driver JAR file</substep>
-                <substep>Create directory: mkdir -p connectors-forge/codeless/lib/</substep>
-                <substep>Copy driver: cp {user_path} connectors-forge/codeless/lib/driver.jar</substep>
+                <substep>Create directory: mkdir -p connectors-forge/codeless/jdbc/driver/</substep>
+                <substep>Copy driver: cp {user_path} connectors-forge/codeless/jdbc/driver/driver.jar</substep>
                 <substep>Verify file was copied successfully</substep>
               </substeps>
             </path>
             <path name="auto_download">
               <condition>User wants automatic download</condition>
               <substeps>
-                <substep>Ask user for driver Maven coordinates (group:artifact:version)</substep>
-                <substep>Create directory: mkdir -p connectors-forge/codeless/lib/</substep>
+                <substep>Use Maven coordinates from Step 3</substep>
+                <substep>Create directory: mkdir -p connectors-forge/codeless/jdbc/driver/</substep>
                 <substep>Download driver using curl from Maven Central</substep>
-                <substep>Save to: connectors-forge/codeless/lib/driver.jar</substep>
+                <substep>Save to: connectors-forge/codeless/jdbc/driver/driver.jar</substep>
                 <substep>Verify download was successful</substep>
               </substeps>
             </path>
           </conditional_handling>
         </step>
-        <step number="4">
-          <action>Gather remaining database information</action>
+        <step number="6">
+          <action>Gather remaining database connection information</action>
           <information_to_collect>
-            <item>JDBC driver class name</item>
-            <item>JDBC URL template</item>
-            <item>Default port number</item>
-            <item>Schema/catalog support</item>
+            <item>JDBC URL template (e.g., jdbc:mysql://{host}:{port}/{database})</item>
+            <item>Default port number for the database</item>
+            <item>Whether database supports schemas, catalogs, or both</item>
           </information_to_collect>
+          <note>Driver class name and Maven coordinates were already collected in Steps 2-3</note>
         </step>
       </steps>
     </phase>
@@ -205,7 +235,8 @@
       <description>
         Create a database-specific DSL configuration file based on DSL-jdbc.json template.
         This file defines all connector properties, driver information, and customizations.
-        Driver JAR handling is now done in Phase 1 for Codeless mode.
+        All driver information (class name, Maven coordinates, and JAR file for Codeless mode)
+        has been collected in Phase 1, ensuring the DSL can be created with complete information.
       </description>
       <steps>
         <step number="1">
@@ -228,23 +259,26 @@
           </fields>
         </step>
         <step number="4">
-          <action>Configure JDBC driver information</action>
+          <action>Configure JDBC driver information using data from Phase 1</action>
           <fields>
-            <field>driver_class_name: Fully qualified driver class from Phase 1</field>
-            <field>jdbc_url: JDBC URL template with {placeholders}</field>
+            <field>driver_class_name: Use the driver class name collected in Phase 1, Step 2</field>
+            <field>jdbc_url: Use the JDBC URL template collected in Phase 1, Step 6</field>
           </fields>
+          <note>All driver information was gathered before DSL creation to ensure completeness</note>
         </step>
         <step number="5">
-          <action>Add driver dependencies</action>
+          <action>Add driver dependencies using Maven coordinates from Phase 1</action>
           <location>implementation_notes.dependencies[0].driver_dependencies</location>
           <format>["group:artifact:version"]</format>
+          <source>Use Maven coordinates collected in Phase 1, Step 3</source>
           <example>["com.mysql:mysql-connector-j:8.0.33"]</example>
-          <note>This is for reference only in Codeless mode; actual driver is in connectors-forge/codeless/lib/</note>
+          <note>For Codeless mode: This is for reference; actual driver JAR is in connectors-forge/codeless/jdbc/driver/</note>
+          <note>For Developer mode: This will be used by Gradle to download the driver during build</note>
     <phase number="2.5" name="deployment_preparation" mode="codeless_only">
       <title>Prepare for Deployment (Codeless Mode Only)</title>
       <description>
         After DSL creation, prepare for deployment by selecting deployment type and
-        creating the connector-config.properties file with values from the DSL.
+        creating the connector-config.env file with values from the DSL.
       </description>
       <steps>
         <step number="1">
@@ -257,16 +291,16 @@
           </suggestions>
         </step>
         <step number="2">
-          <action>Create connector-config.properties from template</action>
+          <action>Create connector-config.env from template</action>
           <description>
-            Copy connector-config.properties.template to connector-config.properties
+            Copy connector-config.env.template to connector-config.env
             and populate it with values from the DSL file created in Phase 2.
           </description>
           <substeps>
             <substep number="2.1">
-              <action>Read the connector-config.properties.template file</action>
+              <action>Read the connector-config.env.template file</action>
               <tool>read_file</tool>
-              <file>connectors-forge/codeless/jdbc/connector-config.properties.template</file>
+              <file>connectors-forge/codeless/jdbc/connector-config.env.template</file>
             </substep>
             <substep number="2.2">
               <action>Read the DSL file to extract connector information</action>
@@ -275,9 +309,9 @@
               <note>Extract connector_name, connector_label, connector_description, and driver_class_name</note>
             </substep>
             <substep number="2.3">
-              <action>Create connector-config.properties with populated values</action>
+              <action>Create connector-config.env with populated values</action>
               <tool>write_to_file</tool>
-              <file>connectors-forge/codeless/jdbc/connector-config.properties</file>
+              <file>connectors-forge/codeless/jdbc/connector-config.env</file>
               <field_mappings>
                 <mapping>
                   <property>CONNECTOR_DATASOURCE_TYPE</property>
@@ -305,14 +339,159 @@
               </field_mappings>
             </substep>
             <substep number="2.4">
-              <action>Verify connector-config.properties was created successfully</action>
+              <action>Verify connector-config.env was created successfully</action>
               <validation>
-                <check>File exists at connectors-forge/codeless/jdbc/connector-config.properties</check>
+                <check>File exists at connectors-forge/codeless/jdbc/connector-config.env</check>
                 <check>All required properties are populated</check>
                 <check>JDBC_DRIVER_PATH matches deployment type</check>
               </validation>
               <success_message>
-                ✅ connector-config.properties created successfully with values from DSL
+                ✅ connector-config.env created successfully with values from DSL
+              </success_message>
+            </substep>
+          </substeps>
+        </step>
+        <step number="3">
+          <action>Confirm connector configuration with user</action>
+          <description>
+            Display the connector-config.env contents to the user and ask for confirmation
+            that the connector name (CONNECTOR_LABEL) that will be displayed in the UI is acceptable.
+          </description>
+          <substeps>
+            <substep number="3.1">
+              <action>Read the created connector-config.env file</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/connector-config.env</file>
+            </substep>
+            <substep number="3.2">
+              <action>Display contents and ask for confirmation</action>
+              <tool>ask_followup_question</tool>
+              <question>
+                I've created the connector-config.env file with the following configuration:
+                
+                [Display file contents here]
+                
+                The connector will be displayed in the Cloud Pak for Data UI as: "{CONNECTOR_LABEL}"
+                
+                Are you satisfied with this configuration, especially the connector name that will appear in the UI?
+              </question>
+              <suggestions>
+                <suggest>Yes, the configuration looks good</suggest>
+                <suggest>No, I want to change the connector label (CONNECTOR_LABEL)</suggest>
+                <suggest>No, I want to modify other properties</suggest>
+              </suggestions>
+            </substep>
+            <substep number="3.3">
+              <action>Handle user response</action>
+              <conditional_handling>
+                <path name="approved">
+                  <condition>User approves the configuration</condition>
+                  <action>Proceed to next phase</action>
+                </path>
+                <path name="change_label">
+                  <condition>User wants to change connector label</condition>
+                  <actions>
+                    <action>Ask user for new connector label</action>
+                    <action>Update CONNECTOR_LABEL in connector-config.env</action>
+                    <action>Update connector_label in DSL file for consistency</action>
+                    <action>Show updated configuration and confirm again</action>
+                  </actions>
+                </path>
+                <path name="modify_properties">
+                  <condition>User wants to modify other properties</condition>
+                  <actions>
+                    <action>Ask which property to modify</action>
+                    <action>Update the specified property in connector-config.env</action>
+                    <action>If driver-related, also update DSL file</action>
+                    <action>Show updated configuration and confirm again</action>
+                  </actions>
+                </path>
+              </conditional_handling>
+            </substep>
+          </substeps>
+        </step>
+        <step number="4" deployment_type="openshift">
+          <action>Create and review deploy.env for OpenShift deployment</action>
+          <description>
+            For OpenShift deployment only, generate deploy.env from deploy.env.template
+            with OpenShift-specific configuration, then ask user to review and update the values.
+          </description>
+          <condition>Only execute if user selected OpenShift deployment in Step 1</condition>
+          <substeps>
+            <substep number="4.1">
+              <action>Read the deploy.env.template file</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/deploy.env.template</file>
+            </substep>
+            <substep number="4.2">
+              <action>Create deploy.env from template</action>
+              <tool>write_to_file</tool>
+              <file>connectors-forge/codeless/jdbc/deploy.env</file>
+              <note>Copy template content as-is initially, user will update values for their OpenShift environment</note>
+            </substep>
+            <substep number="4.3">
+              <action>Display deploy.env and ask user to review</action>
+              <tool>ask_followup_question</tool>
+              <question>
+                I've created the deploy.env file from the template for OpenShift deployment.
+                This file contains OpenShift-specific deployment configuration.
+                
+                [Display deploy.env contents here]
+                
+                Please review the following key OpenShift settings:
+                - OPENSHIFT_PROJECT: OpenShift project/namespace name
+                - OPENSHIFT_REGISTRY: OpenShift container registry URL
+                - IMAGE_NAME: Container image name
+                - IMAGE_TAG: Container image tag
+                - REPLICAS: Number of pod replicas
+                - MEMORY_LIMIT: Memory limit for pods
+                - CPU_LIMIT: CPU limit for pods
+                
+                Do you need to update any values in deploy.env for your OpenShift environment?
+              </question>
+              <suggestions>
+                <suggest>Yes, I need to update OpenShift configuration values</suggest>
+                <suggest>No, the default values are fine (for testing only)</suggest>
+                <suggest>Let me update the file manually and continue</suggest>
+              </suggestions>
+            </substep>
+            <substep number="4.4">
+              <action>Handle user response</action>
+              <conditional_handling>
+                <path name="update_values">
+                  <condition>User wants to update values</condition>
+                  <actions>
+                    <action>Ask which property to update</action>
+                    <action>Ask for new value</action>
+                    <action>Update the property in deploy.env</action>
+                    <action>Show updated file and ask if more changes needed</action>
+                    <action>Repeat until user is satisfied</action>
+                  </actions>
+                </path>
+                <path name="manual_update">
+                  <condition>User will update manually</condition>
+                  <actions>
+                    <action>Inform user: "The file is located at connectors-forge/codeless/jdbc/deploy.env"</action>
+                    <action>Wait for user confirmation that updates are complete</action>
+                    <action>Read and display updated file for verification</action>
+                  </actions>
+                </path>
+                <path name="use_defaults">
+                  <condition>User accepts defaults</condition>
+                  <action>Proceed with current values</action>
+                  <warning>Warn user if using defaults for production deployment</warning>
+                </path>
+              </conditional_handling>
+            </substep>
+            <substep number="4.5">
+              <action>Verify deploy.env is ready</action>
+              <validation>
+                <check>File exists at connectors-forge/codeless/jdbc/deploy.env</check>
+                <check>Required OpenShift properties are present</check>
+                <check>OPENSHIFT_PROJECT is not empty</check>
+              </validation>
+              <success_message>
+                ✅ deploy.env configured and ready for OpenShift deployment
               </success_message>
             </substep>
           </substeps>
@@ -320,7 +499,9 @@
       </steps>
       <output>
         <deployment_type>Selected deployment type (AWS or OpenShift)</deployment_type>
-        <config_file>connectors-forge/codeless/jdbc/connector-config.properties</config_file>
+        <config_file>connectors-forge/codeless/jdbc/connector-config.env</config_file>
+        <deploy_config_openshift>connectors-forge/codeless/jdbc/deploy.env (if OpenShift selected)</deploy_config_openshift>
+        <user_confirmed>Configuration confirmed by user</user_confirmed>
       </output>
     </phase>
 
@@ -328,12 +509,12 @@
         <step number="6" mode="codeless_only">
           <action>Verify driver JAR is in place from Phase 1</action>
           <validation>
-            <check>File exists at connectors-forge/codeless/lib/driver.jar</check>
+            <check>File exists at connectors-forge/codeless/jdbc/driver/driver.jar</check>
             <check>File size is greater than 0 bytes</check>
             <check>File has .jar extension</check>
           </validation>
           <success_message>
-            ✅ Driver JAR verified at connectors-forge/codeless/lib/driver.jar
+            ✅ Driver JAR verified at connectors-forge/codeless/jdbc/driver/driver.jar
           </success_message>
         </step>
       </steps>
@@ -647,7 +828,7 @@
                 <substep number="2">
                   <action>Execute OpenShift deployment script</action>
                   <tool>execute_command</tool>
-                  <command>bash connectors-forge/codeless/jdbc/deploy-to-openshift.sh</command>
+                  <command>bash connectors-forge/codeless/jdbc/deploy-openshift.sh</command>
                   <working_directory>Project root</working_directory>
                   <note>
                     The script uses:
@@ -883,6 +1064,266 @@
           <item>Access credentials (if applicable)</item>
           <item>Monitoring/logging information</item>
         </deployment_summary>
+      </output>
+    </phase>
+
+    <phase number="12" name="cp4d_registration">
+      <title>Cloud Pak for Data Registration (Optional)</title>
+      <description>
+        After successful deployment, optionally register the JDBC connector with Cloud Pak for Data.
+        This makes the connector available for use in the CP4D environment.
+      </description>
+      
+      <step number="1">
+        <action>Ask if user wants to register connector with CP4D</action>
+        <description>
+          After deployment completes successfully, ask the user if they want to proceed
+          with registering the connector in Cloud Pak for Data.
+        </description>
+        <tool>ask_followup_question</tool>
+        <question>
+          Your JDBC connector has been successfully deployed.
+          
+          Would you like to register it with Cloud Pak for Data now?
+          
+          Registration will:
+          - Make the connector available in your CP4D environment
+          - Allow users to create database connections using this connector
+          - Enable data discovery and access through CP4D
+        </question>
+        <suggestions>
+          <suggest>Yes, register the connector with CP4D now</suggest>
+          <suggest>No, I'll register it later manually</suggest>
+          <suggest>Help - I need more information about registration</suggest>
+        </suggestions>
+      </step>
+      
+      <step number="2" condition="user_chooses_yes">
+        <action>Determine registration approach based on deployment mode</action>
+        <conditional_paths>
+          <path name="developer_mode">
+            <condition>Developer mode was selected in Phase 0</condition>
+            <substeps>
+              <substep number="2.1">
+                <action>Verify properties file creation</action>
+                <description>
+                  Before registration, you need to create a properties file with your CP4D environment configuration.
+                  This file is not visible to me (it's in .bobignore), so you need to create it manually.
+                </description>
+                <instructions>
+                  Create a properties file in: sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
+                  
+                  Use a descriptive name like: myenv.properties, production.properties, or dev.properties
+                  
+                  Base your file on the template at:
+                  sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
+                  
+                  Required properties:
+                  - apikey: Your IBM Cloud API key
+                  - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
+                  - datasource_types_uri: Datasource types API endpoint
+                  - flight_uri: URI of your deployed Flight service (grpc://host:port)
+                  - ssl_certificate_validation: Set to true/false
+                </instructions>
+                <confirmation_question>
+                  Have you created the properties file with your CP4D environment configuration?
+                  Please provide the name of your properties file (without .properties extension).
+                </confirmation_question>
+              </substep>
+              
+              <substep number="2.2">
+                <action>Ask execution preference</action>
+                <tool>ask_followup_question</tool>
+                <question>Would you like me to execute the registration, or would you prefer to do it yourself?</question>
+                <suggestions>
+                  <suggest>Automatic - Execute registration for me</suggest>
+                  <suggest>Manual - I'll do it myself with instructions</suggest>
+                </suggestions>
+              </substep>
+              
+              <substep number="2.3a" condition="automatic">
+                <action>Execute registration task</action>
+                <command>cd sdk-gen && ./gradlew register -Penv={env_name}</command>
+                <working_directory>sdk-gen/</working_directory>
+                <note>Replace {env_name} with the properties file name provided by user</note>
+                <success_message>
+                  ✅ Registration complete!
+                  
+                  Your JDBC connector has been registered with Cloud Pak for Data.
+                  The connector is now available for use in your CP4D environment.
+                </success_message>
+              </substep>
+              
+              <substep number="2.3b" condition="manual">
+                <action>Provide manual registration instructions</action>
+                <instructions>
+                  To register your JDBC connector with Cloud Pak for Data:
+                  
+                  1. Ensure you have created your properties file in:
+                     sdk-gen/subprojects/flight/src/dist/resources/payload/envs/{your_env_name}.properties
+                  
+                  2. Navigate to the sdk-gen directory:
+                     cd sdk-gen
+                  
+                  3. Run the registration task with your environment name:
+                     ./gradlew register -Penv={your_env_name}
+                     
+                     Replace {your_env_name} with your properties file name (without .properties extension)
+                     For example, if your file is myenv.properties, use: -Penv=myenv
+                  
+                  The registration task will:
+                  - Authenticate with IBM Cloud using your API key
+                  - Register the connector datasource type with CP4D
+                  - Configure the Flight service endpoint
+                  - Make the connector available in your CP4D environment
+                  
+                  Let me know once you've completed the registration or if you encounter any issues.
+                </instructions>
+              </substep>
+            </substeps>
+          </path>
+          
+          <path name="codeless_mode">
+            <condition>Codeless mode was selected in Phase 0</condition>
+            <substeps>
+              <substep number="2.1">
+                <action>Create properties file from template</action>
+                <description>
+                  Before registration, you need to create a properties file based on the provided template.
+                  This file is not visible to me (it's in .bobignore), so you need to create it manually.
+                </description>
+                <openshift_deployment_note deployment_type="openshift">
+                  <important>
+                    If you deployed to OpenShift (Phase 11), the deploy-openshift.sh script displayed
+                    the Flight hostname in the deployment details output. You'll need this for the
+                    flight_hostname configuration below.
+                    
+                    Look for the "Flight Hostname" in the deployment output from deploy-openshift.sh.
+                    Use this hostname value (without grpc:// or grpc+tls:// prefix) for flight_hostname.
+                  </important>
+                </openshift_deployment_note>
+                <instructions>
+                  1. Review the template file at:
+                     connectors-forge/scripts/register-envs.properties.template
+                  
+                  2. Copy the template to create your configuration:
+                     cp connectors-forge/scripts/register-envs.properties.template connectors-forge/scripts/register-envs.properties
+                  
+                  3. Edit register-envs.properties and configure:
+                     
+                     AUTHENTICATION (choose ONE):
+                     - Option 1: IBM Cloud API Key
+                       apikey=your_ibm_cloud_api_key_here
+                     - Option 2: Username/Password (on-premises)
+                       username=your_username
+                       password=your_password
+                     
+                     FLIGHT SERVICE (required):
+                     - flight_hostname=your-flight-hostname (just the hostname, no grpc:// or grpc+tls:// prefix)
+                     - flight_port=your-flight-port
+                     
+                     NOTE FOR OPENSHIFT DEPLOYMENT:
+                     If you deployed to OpenShift, use the Flight hostname from the deployment output.
+                     The deploy-openshift.sh script displayed this in the deployment details.
+                     
+                     ENDPOINTS:
+                     - auth_uri=https://iam.cloud.ibm.com/identity/token (or your CP4D auth endpoint)
+                     - datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types (or your CP4D endpoint)
+                </instructions>
+                <confirmation_question>
+                  Have you created register-envs.properties from the template and configured all required values?
+                </confirmation_question>
+              </substep>
+              
+              <substep number="2.2">
+                <action>Ask execution preference</action>
+                <tool>ask_followup_question</tool>
+                <question>Would you like me to execute the registration, or would you prefer to do it yourself?</question>
+                <suggestions>
+                  <suggest>Automatic - Execute registration for me</suggest>
+                  <suggest>Manual - I'll do it myself with instructions</suggest>
+                </suggestions>
+              </substep>
+              
+              <substep number="2.3a" condition="automatic">
+                <action>Execute registration script</action>
+                <command_unix>connectors-forge/scripts/register-connector.sh</command_unix>
+                <command_windows>connectors-forge\scripts\register-connector.ps1</command_windows>
+                <description>
+                  Runs the OS-specific registration script that handles authentication,
+                  connector registration, and Flight service configuration.
+                </description>
+                <success_message>
+                  ✅ Registration complete!
+                  
+                  Your JDBC connector has been registered with Cloud Pak for Data.
+                  The connector is now available for use in your CP4D environment.
+                </success_message>
+              </substep>
+              
+              <substep number="2.3b" condition="manual">
+                <action>Provide manual registration instructions</action>
+                <instructions>
+                  To register your JDBC connector with Cloud Pak for Data:
+                  
+                  1. Ensure you have configured the properties file at:
+                     connectors-forge/scripts/register-envs.properties
+                  
+                  For Unix/Linux/macOS:
+                  2. Ensure the script has execute permissions:
+                     chmod +x connectors-forge/scripts/register-connector.sh
+                  
+                  3. Run the registration script:
+                     connectors-forge/scripts/register-connector.sh
+                  
+                  For Windows:
+                  2. Run the PowerShell registration script:
+                     .\connectors-forge\scripts\register-connector.ps1
+                  
+                  The registration script will:
+                  - Read your configuration from register-envs.properties
+                  - Authenticate with IBM Cloud or CP4D
+                  - Register the connector datasource type
+                  - Configure the Flight service endpoint
+                  - Make the connector available in your CP4D environment
+                  
+                  Let me know once you've completed the registration or if you encounter any issues.
+                </instructions>
+              </substep>
+            </substeps>
+          </path>
+        </conditional_paths>
+      </step>
+      
+      <step number="3" condition="user_chooses_help">
+        <action>Provide registration information</action>
+        <information>
+          Registration Process Overview:
+          
+          Registration makes your JDBC connector available in Cloud Pak for Data by:
+          1. Registering the connector as a datasource type in CP4D
+          2. Configuring the connection to your deployed Flight service
+          3. Making the connector discoverable to CP4D users
+          
+          After registration, users can:
+          - Create database connections using your connector
+          - Browse database schemas and tables
+          - Query data through CP4D
+          - Use the connector in data integration workflows
+          
+          Requirements:
+          - Successfully deployed Flight service (from Phase 11)
+          - CP4D environment access (IBM Cloud or on-premises)
+          - Valid credentials (API key or username/password)
+          - Network connectivity between CP4D and your Flight service
+          
+          You can register now or later. The registration scripts can be run manually at any time.
+        </information>
+      </step>
+      
+      <output>
+        <registration_status>Completed, Skipped, or Deferred</registration_status>
+        <connector_availability>Available in CP4D (if registered)</connector_availability>
       </output>
     </phase>
   </workflow_phases>
