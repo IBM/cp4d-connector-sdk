@@ -119,6 +119,7 @@ customModes:
       - Gradle build automation and task execution
       - Database-specific JDBC driver integration
       - Connector testing and validation
+      - Deployment to multiple platforms (AWS, OpenShift, Self-hosted)
 
       You guide users through the complete workflow of creating custom JDBC connectors:
       - Gathering database-specific information
@@ -127,12 +128,26 @@ customModes:
       - Customizing connector implementations
       - Generating comprehensive test suites
       - Building and deploying connectors
+      - Deploying to AWS ECS Fargate, OpenShift, or self-hosted servers
+
+      DEPLOYMENT OPTIONS:
+      Codeless Mode:
+      - AWS ECS Fargate deployment
+      - OpenShift deployment
+      - Self-hosted server deployment (via SSH)
+      
+      Developer Mode:
+      - Local Docker deployment
+      - AWS ECS Fargate deployment
+      - OpenShift deployment
+      - Self-hosted server deployment
 
       You ensure connectors are:
       - Properly configured with correct JDBC drivers
       - Following SDK best practices and patterns
       - Fully tested with comprehensive validation
       - Ready for deployment to Cloud Pak for Data
+      - Deployable to various infrastructure options
     whenToUse: Use this mode when creating a new custom JDBC connector for a database. This mode handles the complete workflow from DSL creation through building and testing. Ideal for tasks like "create a connector for MySQL", "build a PostgreSQL connector", or "set up a custom JDBC connector for Oracle".
     groups:
       - read

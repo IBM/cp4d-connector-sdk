@@ -288,6 +288,7 @@
           <suggestions>
             <suggest>AWS - Deploy to AWS ECS Fargate</suggest>
             <suggest>OpenShift - Deploy to Red Hat OpenShift</suggest>
+            <suggest>Self hosted - Deploy to your own server via SSH</suggest>
           </suggestions>
         </step>
         <step number="2">
@@ -852,6 +853,297 @@
                 </substep>
               </substeps>
             </openshift_deployment>
+            <self_hosted_deployment>
+              <condition>User selected Self hosted deployment in Phase 2.5</condition>
+              <substeps>
+                <substep number="1">
+                  <action>Inform user about Self hosted deployment execution</action>
+                  <message>
+                    Executing Self hosted deployment using the pre-built Docker image:
+                    ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
+                    
+                    The deployment script will:
+                    1. Connect to your remote server via SSH
+                    2. Pull the pre-built Docker image on the remote server
+                    3. Create and start a container with your connector configuration
+                    4. Upload the JDBC driver and connector configuration files
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Create deploy-container.env from template</action>
+                  <description>
+                    Guide user to create the deploy-container.env file from the template.
+                    This file contains SSH connection details and deployment configuration.
+                  </description>
+                  <substeps>
+                    <substep number="2.1">
+                      <action>Read the deploy-container.env.template file</action>
+                      <tool>read_file</tool>
+                      <file>connectors-forge/codeless/jdbc/deploy-container.env.template</file>
+                    </substep>
+                    <substep number="2.2">
+                      <action>Ask user for SSH connection details</action>
+                      <tool>ask_followup_question</tool>
+                      <question>
+                        To deploy to your self-hosted server, I need the following information:
+                        
+                        1. SSH Host (remote server hostname or IP)
+                        2. SSH User (username for SSH connection)
+                        3. SSH Port (default: 22)
+                        4. Port to expose the connector (e.g., 9443)
+                        
+                        Would you like me to create the deploy-container.env file with these values?
+                      </question>
+                      <suggestions>
+                        <suggest>Yes, I'll provide the SSH connection details</suggest>
+                        <suggest>No, I'll create the file manually</suggest>
+                      </suggestions>
+                    </substep>
+                    <substep number="2.3">
+                      <action>Create deploy-container.env file</action>
+                      <conditional_handling>
+                        <path name="automatic">
+                          <condition>User wants automatic creation</condition>
+                          <actions>
+                            <action>Ask for SSH_HOST value</action>
+                            <action>Ask for SSH_USER value</action>
+                            <action>Ask for SSH_PORT value (default: 22)</action>
+                            <action>Ask for PORT value (default: 9443)</action>
+                            <action>Create deploy-container.env with provided values</action>
+                            <action>Set IMAGE to ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest</action>
+                            <action>Set ENV_FILE to ./connector-config.env</action>
+                            <action>Set DRIVER_DIR to ./driver</action>
+                            <action>Set REPLACE to false</action>
+                          </actions>
+                        </path>
+                        <path name="manual">
+                          <condition>User wants manual creation</condition>
+                          <actions>
+                            <action>Provide instructions to copy template to deploy-container.env</action>
+                            <action>List required fields to fill in</action>
+                            <action>Wait for user confirmation that file is ready</action>
+                          </actions>
+                        </path>
+                      </conditional_handling>
+                      <tool>write_to_file</tool>
+                      <file>connectors-forge/codeless/jdbc/deploy-container.env</file>
+                      <field_mappings>
+                        <mapping>
+                          <property>SSH_HOST</property>
+                          <source>User-provided remote server hostname or IP</source>
+                          <example>remote.example.com or 192.168.1.100</example>
+                        </mapping>
+                        <mapping>
+                          <property>SSH_USER</property>
+                          <source>User-provided SSH username</source>
+                          <example>ubuntu, ec2-user, admin</example>
+                        </mapping>
+                        <mapping>
+                          <property>SSH_PORT</property>
+                          <source>User-provided SSH port (default: 22)</source>
+                          <example>22</example>
+                        </mapping>
+                        <mapping>
+                          <property>PORT</property>
+                          <source>User-provided port to expose connector</source>
+                          <example>9443</example>
+                        </mapping>
+                        <mapping>
+                          <property>IMAGE</property>
+                          <source>Pre-built Docker image for codeless mode</source>
+                          <value>ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest</value>
+                        </mapping>
+                        <mapping>
+                          <property>ENV_FILE</property>
+                          <source>Path to connector configuration file</source>
+                          <value>./connector-config.env</value>
+                        </mapping>
+                        <mapping>
+                          <property>DRIVER_DIR</property>
+                          <source>Directory containing JDBC driver JAR</source>
+                          <value>./driver</value>
+                        </mapping>
+                        <mapping>
+                          <property>REPLACE</property>
+                          <source>Whether to replace existing container</source>
+                          <value>false</value>
+                        </mapping>
+                      </field_mappings>
+                    </substep>
+                    <substep number="2.4">
+                      <action>Verify deploy-container.env was created successfully</action>
+                      <validation>
+                        <check>File exists at connectors-forge/codeless/jdbc/deploy-container.env</check>
+                        <check>All required SSH properties are populated</check>
+                        <check>IMAGE points to pre-built Docker image</check>
+                        <check>ENV_FILE and DRIVER_DIR paths are correct</check>
+                      </validation>
+                      <success_message>
+                        ✅ deploy-container.env created successfully with SSH connection details
+                      </success_message>
+                    </substep>
+                  </substeps>
+                </substep>
+                <substep number="3">
+                  <action>Verify SSH connectivity with private key authentication</action>
+                  <description>
+                    Before deployment, verify that SSH connection to the remote server works using private key authentication.
+                  </description>
+                  <important_requirement>
+                    ⚠️ CRITICAL: You MUST be logged into your SSH server using private key authentication before running the deployment script.
+                    
+                    The deployment script requires:
+                    - SSH private key authentication (password authentication is NOT supported)
+                    - Private key must be loaded in ssh-agent OR available at default locations (~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.)
+                    - No password prompts during SSH connection
+                    
+                    If you haven't set up SSH key authentication yet, you must do so before proceeding.
+                  </important_requirement>
+                  <note>
+                    SSH authentication uses default SSH keys (~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.)
+                    or keys loaded in ssh-agent. Ensure SSH keys are properly configured.
+                  </note>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    ⚠️ IMPORTANT: Before deploying, you MUST ensure you are logged into your SSH server using private key authentication.
+                    
+                    Please verify:
+                    1. You have SSH private key authentication configured (NOT password-based)
+                    2. You can SSH to the remote server without password prompts: ssh -p {SSH_PORT} {SSH_USER}@{SSH_HOST}
+                    3. Docker is installed and running on the remote server
+                    4. Your SSH user has permissions to run Docker commands
+                    
+                    Have you verified SSH private key authentication is working and Docker is available?
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, I'm logged in with SSH private key authentication and Docker is ready</suggest>
+                    <suggest>No, I need help setting up SSH private key authentication</suggest>
+                    <suggest>No, I need to install Docker on the remote server</suggest>
+                  </suggestions>
+                </substep>
+                <substep number="4">
+                  <action>Execute Self hosted deployment script</action>
+                  <tool>execute_command</tool>
+                  <command>bash connectors-forge/codeless/deploy-container.sh</command>
+                  <working_directory>Project root</working_directory>
+                  <note>
+                    The script uses:
+                    - deploy-container.env for SSH connection and deployment settings
+                    - connector-config.env for connector configuration
+                    - driver/driver.jar for JDBC driver
+                    
+                    The script will automatically load deploy-container.env on startup.
+                  </note>
+                </substep>
+                <substep number="5">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>SSH connection established</indicator>
+                    <indicator>Docker image pulled on remote server</indicator>
+                    <indicator>Container created successfully</indicator>
+                    <indicator>Configuration files uploaded</indicator>
+                    <indicator>JDBC driver uploaded</indicator>
+                    <indicator>Container started successfully</indicator>
+                    <indicator>Container is running</indicator>
+                    <indicator>Port mapping configured</indicator>
+                    <indicator>Deployment summary displayed with connection details</indicator>
+                  </success_indicators>
+                  <error_handling>
+                    <error type="ssh_connection_failed">
+                      <description>Cannot connect to remote server via SSH</description>
+                      <troubleshooting>
+                        <step>⚠️ CRITICAL: Ensure you are logged into your SSH server using private key authentication (NOT password-based)</step>
+                        <step>Verify SSH_HOST, SSH_USER, and SSH_PORT in deploy-container.env</step>
+                        <step>Check SSH private key authentication is configured and working</step>
+                        <step>Ensure your SSH private key is loaded in ssh-agent or available at default locations (~/.ssh/id_rsa, ~/.ssh/id_ed25519)</step>
+                        <step>Verify you can connect without password prompts: ssh -p {SSH_PORT} {SSH_USER}@{SSH_HOST}</step>
+                        <step>Ensure remote server is accessible from your network</step>
+                        <step>If using ssh-agent, verify keys are loaded: ssh-add -l</step>
+                      </troubleshooting>
+                    </error>
+                    <error type="docker_not_available">
+                      <description>Docker is not installed or not running on remote server</description>
+                      <troubleshooting>
+                        <step>SSH to remote server and check Docker: docker version</step>
+                        <step>Install Docker if not present</step>
+                        <step>Start Docker service if not running</step>
+                        <step>Ensure SSH user has Docker permissions (add to docker group)</step>
+                      </troubleshooting>
+                    </error>
+                    <error type="port_already_in_use">
+                      <description>The specified port is already in use by another container</description>
+                      <troubleshooting>
+                        <step>Check which container is using the port on remote server</step>
+                        <step>Either stop the existing container or choose a different port</step>
+                        <step>Set REPLACE=true in deploy-container.env to replace existing container</step>
+                        <step>Or pass --replace flag when running the script</step>
+                      </troubleshooting>
+                    </error>
+                    <error type="file_upload_failed">
+                      <description>Failed to upload configuration files or driver to remote server</description>
+                      <troubleshooting>
+                        <step>Verify connector-config.env exists in connectors-forge/codeless/jdbc/</step>
+                        <step>Verify driver.jar exists in connectors-forge/codeless/jdbc/driver/</step>
+                        <step>Check SSH connection stability</step>
+                        <step>Ensure remote server has sufficient disk space</step>
+                      </troubleshooting>
+                    </error>
+                  </error_handling>
+                </substep>
+                <substep number="6">
+                  <action>Display deployment summary</action>
+                  <information_to_display>
+                    <item>Container ID and name</item>
+                    <item>Remote server hostname/IP</item>
+                    <item>Port mapping (remote port → container port 9443)</item>
+                    <item>Connection URL for CP4D registration</item>
+                    <item>Instructions for verifying deployment</item>
+                  </information_to_display>
+                  <example_output>
+                    ==========================================
+                    Deployment Successful!
+                    ==========================================
+                    Container ID:   abc123def456
+                    Container Name: connector-20260622-062500
+                    Remote Server:  remote.example.com
+                    Port Mapping:   9443:9443
+                    
+                    Connection URL: https://remote.example.com:9443
+                    
+                    Next Steps:
+                    1. Verify connector is accessible: curl https://remote.example.com:9443/health
+                    2. Register with CP4D using the connection URL above
+                    ==========================================
+                  </example_output>
+                </substep>
+                <substep number="7">
+                  <action>Ask if user wants to proceed to registration</action>
+                  <description>
+                    After successful self-hosted deployment, ask the user if they want to
+                    register the connector with Cloud Pak for Data.
+                  </description>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    Your JDBC connector has been successfully deployed to your self-hosted server.
+                    
+                    Would you like to register it with Cloud Pak for Data now?
+                    
+                    Registration will:
+                    - Make the connector available in your CP4D environment
+                    - Allow users to create database connections using this connector
+                    - Enable data discovery and access through CP4D
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, register the connector with CP4D now</suggest>
+                    <suggest>No, I'll register it later manually</suggest>
+                  </suggestions>
+                  <next_phase>
+                    <if_yes>Proceed to Phase 12 (CP4D Registration)</if_yes>
+                    <if_no>Complete workflow with attempt_completion</if_no>
+                  </next_phase>
+                </substep>
+              </substeps>
+            </self_hosted_deployment>
           </conditional_execution>
         </step>
         <step number="1" mode="developer_only">
@@ -956,6 +1248,32 @@
                     <indicator>Deployment summary displayed</indicator>
                   </success_indicators>
                 </substep>
+                <substep number="7">
+                  <action>Ask if user wants to proceed to registration</action>
+                  <description>
+                    After successful AWS deployment, ask the user if they want to
+                    register the connector with Cloud Pak for Data.
+                  </description>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    Your JDBC connector has been successfully deployed to AWS ECS Fargate.
+                    
+                    Would you like to register it with Cloud Pak for Data now?
+                    
+                    Registration will:
+                    - Make the connector available in your CP4D environment
+                    - Allow users to create database connections using this connector
+                    - Enable data discovery and access through CP4D
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, register the connector with CP4D now</suggest>
+                    <suggest>No, I'll register it later manually</suggest>
+                  </suggestions>
+                  <next_phase>
+                    <if_yes>Proceed to Phase 12 (CP4D Registration)</if_yes>
+                    <if_no>Complete workflow with attempt_completion</if_no>
+                  </next_phase>
+                </substep>
               </aws_fargate_details>
               <prerequisites>
                 <requirement>Cloud provider CLI installed and configured</requirement>
@@ -1043,6 +1361,32 @@
                     <indicator>Pods running successfully</indicator>
                     <indicator>Deployment summary displayed</indicator>
                   </success_indicators>
+                </substep>
+                <substep number="7">
+                  <action>Ask if user wants to proceed to registration</action>
+                  <description>
+                    After successful OpenShift deployment, ask the user if they want to
+                    register the connector with Cloud Pak for Data.
+                  </description>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    Your JDBC connector has been successfully deployed to OpenShift.
+                    
+                    Would you like to register it with Cloud Pak for Data now?
+                    
+                    Registration will:
+                    - Make the connector available in your CP4D environment
+                    - Allow users to create database connections using this connector
+                    - Enable data discovery and access through CP4D
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, register the connector with CP4D now</suggest>
+                    <suggest>No, I'll register it later manually</suggest>
+                  </suggestions>
+                  <next_phase>
+                    <if_yes>Proceed to Phase 12 (CP4D Registration)</if_yes>
+                    <if_no>Complete workflow with attempt_completion</if_no>
+                  </next_phase>
                 </substep>
               </openshift_deployment_details>
               <prerequisites>
