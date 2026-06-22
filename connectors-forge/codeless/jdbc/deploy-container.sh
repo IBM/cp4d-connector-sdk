@@ -22,6 +22,9 @@ CONTAINER_NAME=""
 TEMP_DIR=""
 REMOTE_DRIVER_DIR="/drivers"
 
+# Default deploy env file location
+DEPLOY_ENV_FILE="${SCRIPT_DIR}/deploy-container.env"
+
 log() {
     echo "$1"
 }
@@ -50,13 +53,39 @@ ssh_exec_pipe() {
         "${SSH_USER}@${SSH_HOST}" "$command"
 }
 
+# Function to load deploy environment file
+load_env() {
+    if [ ! -f "$DEPLOY_ENV_FILE" ]; then
+        return
+    fi
+
+    log "Loading configuration from: $DEPLOY_ENV_FILE"
+    # shellcheck disable=SC1090
+    source "$DEPLOY_ENV_FILE"
+
+    # Map env file variables to script variables (only if not already set via CLI)
+    SSH_HOST="${SSH_HOST:-}"
+    SSH_USER="${SSH_USER:-}"
+    SSH_PORT="${SSH_PORT:-22}"
+    PORT="${PORT:-}"
+    IMAGE="${IMAGE:-ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest}"
+    ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/connector-config.env}"
+    DRIVER_DIR="${DRIVER_DIR:-${SCRIPT_DIR}/driver}"
+    if [ "${REPLACE:-false}" = "true" ]; then
+        REPLACE_MODE=true
+    fi
+}
+
 usage() {
     cat << EOF
-Usage: $SCRIPT_NAME --host HOST --ssh-user USER --port PORT [OPTIONS]
+Usage: $SCRIPT_NAME [OPTIONS]
 
 Deploy a JDBC connector container to a remote Docker server via SSH.
 
-Required Arguments:
+Configuration is loaded from deploy-container.env (copy from deploy-container.env.template).
+CLI arguments take precedence over values in the env file.
+
+Required (via env file or CLI):
   --host HOST              Remote server hostname or IP
   --ssh-user USER          SSH username
   --port PORT              Port to expose locally on remote Docker host
@@ -107,10 +136,6 @@ error_exit() {
 }
 
 parse_arguments() {
-    if [ $# -eq 0 ]; then
-        usage
-    fi
-
     while [ $# -gt 0 ]; do
         case "$1" in
             --host)
@@ -155,9 +180,9 @@ parse_arguments() {
         esac
     done
 
-    if [ -z "$SSH_HOST" ]; then log_error "Missing required argument: --host"; usage; fi
-    if [ -z "$SSH_USER" ]; then log_error "Missing required argument: --ssh-user"; usage; fi
-    if [ -z "$PORT" ]; then log_error "Missing required argument: --port"; usage; fi
+    if [ -z "$SSH_HOST" ]; then log_error "Missing required: --host (or SSH_HOST in deploy-container.env)"; usage; fi
+    if [ -z "$SSH_USER" ]; then log_error "Missing required: --ssh-user (or SSH_USER in deploy-container.env)"; usage; fi
+    if [ -z "$PORT" ]; then log_error "Missing required: --port (or PORT in deploy-container.env)"; usage; fi
 
     return 0
 }
@@ -348,6 +373,7 @@ main() {
     show_container_details
 }
 
+load_env
 parse_arguments "$@"
 
 echo "=========================================="
