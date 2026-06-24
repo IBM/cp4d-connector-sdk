@@ -516,7 +516,6 @@ get_existing_configmap_data() {
             }
         }
         }'
-        ``
     else
         echo ""
     fi
@@ -542,7 +541,8 @@ build_configmap_data() {
             exit 1
         fi
         
-        local content=$(cat "$file")
+        # Strip newlines, carriage returns, and tabs to compact the JSON before embedding
+        local content=$(tr -d '\n\r\t' < "$file")
         local escaped=$(escape_json_string "$content")
         
         # Check if this filename already exists in the data
