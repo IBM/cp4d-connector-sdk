@@ -10,10 +10,13 @@ import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
+import com.ibm.wdp.connect.sdk.connector.forge.AuthenticationType;
+import com.ibm.wdp.connect.sdk.connector.forge.RestApiMapping;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty.TypeEnum;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypeProperties;
@@ -33,7 +36,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathSegment;
  * <p>Each instance of RestDatasourceType represents one connector defined by one JSON configuration file.
  * Multiple instances can be created from multiple configuration files in the /config/mappings directory.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
 public class RestDatasourceType extends CustomFlightDatasourceType
 {
     private final String configFilePath;
@@ -75,7 +77,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
             if (createdAtStr != null && !createdAtStr.isEmpty()) {
                 try {
                     // Parse ISO 8601 date-time format (e.g., "2026-05-06T13:00:00Z")
-                    final SimpleDateFormat iso8601Format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
+                    final SimpleDateFormat iso8601Format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
                     iso8601Format.setTimeZone(TimeZone.getTimeZone("UTC"));
                     final Date createdAt = iso8601Format.parse(createdAtStr);
                     metadata.setCreatedAt(createdAt);

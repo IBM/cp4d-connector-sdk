@@ -8,25 +8,33 @@ package com.ibm.connect.restconnector;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.slf4j.Logger;
 
-import com.ibm.connect.sdk.api.Connector;
-import com.ibm.connect.sdk.api.PooledConnectorFactory;
-import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
-import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
+import com.ibm.wdp.connect.sdk.connector.ConnectionProperties;
+import com.ibm.wdp.connect.sdk.connector.SdkConnector;
+import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
+import com.ibm.wdp.connect.sdk.connector.SdkDatasourceTypes;
+import com.ibm.wdp.connect.sdk.connector.forge.RestApiMapping;
+import com.ibm.wdp.connect.sdk.connector.forge.RestApiMappingLoader;
 
 /**
  * A factory for creating REST connectors.
- * 
- * <p>This factory supports multiple REST connectors, each defined by a separate JSON configuration file
- * in the /config/mappings directory. Each configuration file defines a unique connector with its own
- * name, label, description, and API endpoints.
+ *
+ * <p>Implements {@link SdkConnectorFactory} for the Arrow-native path through
+ * {@link RestFlightProducer}.
+ *
+ * <p>This factory supports multiple REST connectors, each defined by a separate JSON configuration
+ * file in the /config/mappings directory. Each configuration file defines a unique connector with
+ * its own name, label, description, and API endpoints.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
-public class RestConnectorFactory extends PooledConnectorFactory
+public class RestConnectorFactory implements SdkConnectorFactory
 {
     private static final Logger LOGGER = getLogger(RestConnectorFactory.class);
     private static final RestConnectorFactory INSTANCE = new RestConnectorFactory();
@@ -45,7 +53,6 @@ public class RestConnectorFactory extends PooledConnectorFactory
      */
     private RestConnectorFactory()
     {
-        super();
         loadAllConfigurations();
     }
 
@@ -70,7 +77,7 @@ public class RestConnectorFactory extends PooledConnectorFactory
             return;
         }
 
-        final File[] jsonFiles = configDir.listFiles((dir, name) -> name.toLowerCase(java.util.Locale.ENGLISH).endsWith(".json"));
+        final File[] jsonFiles = configDir.listFiles((dir, name) -> name.toLowerCase(Locale.ENGLISH).endsWith(".json"));
         if (jsonFiles == null || jsonFiles.length == 0) {
             LOGGER.warn("No .json configuration files found in '{}'. No REST connectors will be available.", CONFIG_DIRECTORY);
             return;
@@ -84,12 +91,11 @@ public class RestConnectorFactory extends PooledConnectorFactory
                 final RestApiMapping mapping = RestApiMappingLoader.load(filePath);
                 final String connectorName = mapping.getConnectorName();
 
-                // Cache the mapping and create datasource type
                 configCache.put(connectorName, mapping);
                 datasourceTypeCache.put(connectorName, new RestDatasourceType(mapping, filePath));
 
                 LOGGER.info("Loaded REST connector '{}' from file: {}", connectorName, configFile.getName());
-            } catch (java.io.IOException e) {
+            } catch (IOException e) {
                 LOGGER.error("I/O error loading configuration from file '{}': {}", configFile.getName(), e.getMessage(), e);
             } catch (IllegalArgumentException e) {
                 LOGGER.error("Invalid configuration in file '{}': {}", configFile.getName(), e.getMessage(), e);
@@ -113,32 +119,36 @@ public class RestConnectorFactory extends PooledConnectorFactory
         return configCache.get(datasourceTypeName);
     }
 
+    // ---- SdkConnectorFactory interface ----
+
     /**
      * {@inheritDoc}
      */
     @Override
-    protected Connector<?, ?> createNewConnector(String datasourceTypeName, ConnectionProperties properties)
+    public SdkDatasourceTypes getDatasourceTypes()
     {
+        final List<String> typeNames = new ArrayList<>(configCache.keySet());
+        if (typeNames.isEmpty()) {
+            typeNames.add("__rest__");
+        }
+        return new SdkDatasourceTypes(typeNames);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SdkConnector<?, ?, ?> createConnector(String datasourceTypeName,
+            ConnectionProperties properties) {
         if (configCache.containsKey(datasourceTypeName)) {
-            return new RestConnector(datasourceTypeName, properties);
+            // Wrap SDK ConnectionProperties into the model ConnectionProperties
+            final com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties modelProps
+                    = new com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties();
+            if (properties != null) {
+                modelProps.putAll(properties.asMap());
+            }
+            return new RestConnector(datasourceTypeName, modelProps);
         }
         throw new UnsupportedOperationException(RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }
-
-    /**
-     * {@inheritDoc}
-     * 
-     * <p>Returns all datasource types loaded from JSON configuration files.
-     */
-    @Override
-    public CustomFlightDatasourceTypes getDatasourceTypes()
-    {
-        final CustomFlightDatasourceTypes types = new CustomFlightDatasourceTypes();
-        for (final RestDatasourceType datasourceType : datasourceTypeCache.values()) {
-            types.addDatasourceTypesItem(datasourceType);
-        }
-        return types;
-    }
 }
-
-// Made with Bob

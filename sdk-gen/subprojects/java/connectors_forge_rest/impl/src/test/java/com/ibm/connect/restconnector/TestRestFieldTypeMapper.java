@@ -15,6 +15,7 @@ import java.util.List;
 import org.junit.Test;
 
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
+import com.ibm.wdp.connect.sdk.connector.forge.RestFieldDefinition;
 
 /**
  * Tests for {@link RestFieldTypeMapper}.

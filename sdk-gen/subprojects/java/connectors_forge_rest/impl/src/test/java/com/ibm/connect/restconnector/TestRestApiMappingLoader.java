@@ -15,6 +15,11 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.ibm.wdp.connect.sdk.connector.forge.RestApiMapping;
+import com.ibm.wdp.connect.sdk.connector.forge.RestApiMappingLoader;
+import com.ibm.wdp.connect.sdk.connector.forge.RestFieldDefinition;
+import com.ibm.wdp.connect.sdk.connector.forge.RestTableDefinition;
+
 /**
  * Tests for {@link RestApiMappingLoader}.
  */

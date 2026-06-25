@@ -89,11 +89,11 @@ public final class ColumnarArrowBatchWriter implements ColumnarWriter, AutoClose
     /**
      * Returns an iterator over all completed batches.
      * <p>
-     * <b>Package-private</b> — for use by the Flight layer only.
+     * For use by the Flight layer.
      *
      * @return an iterator over {@link VectorSchemaRoot} batches
      */
-    Iterator<VectorSchemaRoot> batches()
+    public Iterator<VectorSchemaRoot> batches()
     {
         if (currentBatchRows > 0) {
             flushBatch();
@@ -104,11 +104,11 @@ public final class ColumnarArrowBatchWriter implements ColumnarWriter, AutoClose
     /**
      * Returns the Arrow schema.
      * <p>
-     * <b>Package-private</b> — for use by the Flight layer only.
+     * For use by the Flight layer.
      *
      * @return the schema
      */
-    Schema getSchema()
+    public Schema getSchema()
     {
         return schema;
     }

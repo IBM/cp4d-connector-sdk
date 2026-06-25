@@ -103,12 +103,11 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
     /**
      * Returns an iterator over all completed batches plus any remaining partial batch.
      * <p>
-     * <b>Package-private</b> — for use by the Flight layer only. Called after the connector's
-     * {@code stream(RowWriter)} method returns.
+     * For use by the Flight layer after the connector's {@code stream(RowWriter)} method returns.
      *
      * @return an iterator over {@link VectorSchemaRoot} batches; caller must not close the roots
      */
-    Iterator<VectorSchemaRoot> batches()
+    public Iterator<VectorSchemaRoot> batches()
     {
         if (currentRow > 0) {
             flushCurrentBatch();
@@ -119,11 +118,11 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
     /**
      * Returns the Arrow schema.
      * <p>
-     * <b>Package-private</b> — for use by the Flight layer only.
+     * For use by the Flight layer.
      *
      * @return the schema
      */
-    Schema getSchema()
+    public Schema getSchema()
     {
         return schema;
     }
