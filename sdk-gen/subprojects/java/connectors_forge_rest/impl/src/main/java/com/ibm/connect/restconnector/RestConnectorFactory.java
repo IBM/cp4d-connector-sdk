@@ -119,6 +119,27 @@ public class RestConnectorFactory implements SdkConnectorFactory
         return configCache.get(datasourceTypeName);
     }
 
+    /**
+     * Registers a pre-loaded {@link RestApiMapping} in the factory's cache.
+     *
+     * <p>This allows alternative loading strategies (e.g. classpath-based factories) to
+     * make their mappings available to {@link RestConnector} instances without requiring
+     * the configurations to reside on the filesystem at {@value #CONFIG_DIRECTORY}.
+     *
+     * <p>If a mapping with the same connector name is already registered, it will be
+     * replaced.
+     *
+     * @param mapping
+     *            the REST API mapping to register; must not be null
+     */
+    public void register(RestApiMapping mapping)
+    {
+        final String connectorName = mapping.getConnectorName();
+        configCache.put(connectorName, mapping);
+        datasourceTypeCache.put(connectorName, new RestDatasourceType(mapping, "<classpath>"));
+        LOGGER.info("Registered REST connector '{}' from external source", connectorName);
+    }
+
     // ---- SdkConnectorFactory interface ----
 
     /**

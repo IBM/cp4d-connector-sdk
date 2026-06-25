@@ -125,7 +125,13 @@ public class RestApiMapping
     }
 
     /**
-     * Returns the table definition for the given table name (case-insensitive lookup).
+     * Returns the table definition for the given table name.
+     *
+     * <p>Lookup order:
+     * <ol>
+     *   <li>Exact match (preserves the original case from the JSON DSL key)</li>
+     *   <li>Case-insensitive linear scan (supports callers that normalise to upper/lower case)</li>
+     * </ol>
      *
      * @param tableName
      *            the table name to look up
@@ -136,11 +142,18 @@ public class RestApiMapping
         if (tableName == null) {
             return null;
         }
-        final RestTableDefinition def = tables.get(tableName);
-        if (def != null) {
-            return def;
+        // 1. Exact match — fast path, works for DSL-loaded tables where the name is preserved as-is
+        final RestTableDefinition exact = tables.get(tableName);
+        if (exact != null) {
+            return exact;
         }
-        return tables.get(tableName.toUpperCase(java.util.Locale.ENGLISH));
+        // 2. Case-insensitive scan — supports callers that normalise names to upper/lower case
+        for (final Map.Entry<String, RestTableDefinition> entry : tables.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(tableName)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     /**

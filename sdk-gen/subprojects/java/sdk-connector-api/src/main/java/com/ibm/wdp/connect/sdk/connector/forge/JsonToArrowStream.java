@@ -271,8 +271,19 @@ public class JsonToArrowStream implements Closeable
         JsonToken firstToken = jsonParser.nextToken();
 
         if (dataPath != null && !dataPath.isEmpty()) {
+            if (firstToken == JsonToken.START_ARRAY) {
+                // Root is an array (e.g. NBP API returns [{...}]) — fall back to tree-mode
+                // so that extractJsonPath can handle numeric index segments like "0.rates".
+                // JsonParser is already positioned AT START_ARRAY so readTree reads the full array.
+                final JsonNode rootNode = objectMapper.readTree(jsonParser);
+                final JsonNode dataNode = extractJsonPath(rootNode, dataPath);
+                if (dataNode == null) {
+                    throw new IOException("Data path '" + dataPath + "' not found in JSON response");
+                }
+                return streamNodeToWriter(dataNode, writer);
+            }
             if (firstToken != JsonToken.START_OBJECT) {
-                throw new IOException("Expected START_OBJECT at root when dataPath is specified, got: " + firstToken);
+                throw new IOException("Expected START_OBJECT or START_ARRAY at root when dataPath is specified, got: " + firstToken);
             }
             boolean found = false;
             while (jsonParser.nextToken() != JsonToken.END_OBJECT) {
@@ -537,7 +548,16 @@ public class JsonToArrowStream implements Closeable
             if (current == null || current.isNull()) {
                 return null;
             }
-            current = current.get(segment);
+            if (current.isArray()) {
+                // ArrayNode.get(String) returns null — must use get(int)
+                try {
+                    current = current.get(Integer.parseInt(segment));
+                } catch (NumberFormatException e) {
+                    return null; // non-numeric key on an array — path not found
+                }
+            } else {
+                current = current.get(segment);
+            }
         }
         return current;
     }
