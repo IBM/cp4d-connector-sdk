@@ -1,0 +1,47 @@
+/* *************************************************** */
+
+/* (C) Copyright IBM Corp. 2026                        */
+
+/* *************************************************** */
+
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+group = 'com.ibm.wdp.connect'
+archivesBaseName = 'wdp-connect-sdk-connector-api'
+
+//
+// Declare project dependencies
+//
+dependencies {
+    // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
+    api group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
+    runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']
+    runtimeOnly group: 'com.google.protobuf', name: 'protobuf-java', version: project['protobuf.version']
+    implementation group: 'org.apache.arrow', name: 'arrow-format', version: project['arrow.version']
+    implementation group: 'org.apache.arrow', name: 'arrow-memory-core', version: project['arrow.version']
+    implementation group: 'org.apache.arrow', name: 'arrow-vector', version: project['arrow.version']
+    runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version'], transitive: false
+    runtimeOnly group: 'io.netty', name: 'netty-buffer', version: project['netty.version']
+    runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
+    runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
+    // End of flight-core
+
+    // JSON processing for forge REST engine
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: project['jackson.version']
+
+    // Logging
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
+
+    // Test dependencies
+    testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+    testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
+    testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
+    testRuntimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version']
+    testRuntimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version']
+}
+
+// Made with Bob
