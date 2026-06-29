@@ -15,8 +15,6 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
-import com.ibm.wdp.connect.sdk.connector.forge.AuthenticationType;
-import com.ibm.wdp.connect.sdk.connector.forge.RestApiMapping;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty.TypeEnum;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypeProperties;

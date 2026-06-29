@@ -16,8 +16,6 @@ import org.slf4j.Logger;
 import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
 import com.ibm.wdp.connect.sdk.connector.DiscoveryCriteria;
 import com.ibm.wdp.connect.sdk.connector.SdkDiscoveryInteraction;
-import com.ibm.wdp.connect.sdk.connector.forge.RestApiMapping;
-import com.ibm.wdp.connect.sdk.connector.forge.RestTableDefinition;
 
 /**
  * Discovery interaction for a REST API connector.

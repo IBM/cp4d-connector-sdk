@@ -3,7 +3,7 @@
 /* (C) Copyright IBM Corp. 2026                        */
 
 /* *************************************************** */
-package com.ibm.wdp.connect.sdk.connector.forge;
+package com.ibm.connect.restconnector;
 
 /**
  * Configuration for REST API pagination.
@@ -70,115 +70,44 @@ public final class PaginationConfig
         this.nextUrlPath = nextUrlPath;
     }
 
-    /**
-     * Returns the pagination type string.
-     *
-     * @return the type string (e.g. "offset", "page"), or null if type is null
-     */
+    /** Returns the pagination type string. */
     public String getType()
     {
         return type != null ? type.getValue() : null;
     }
 
-    /**
-     * Returns the pagination type enum.
-     *
-     * @return the pagination type enum
-     */
+    /** Returns the pagination type enum. */
     public PaginationType getTypeEnum()
     {
         return type;
     }
 
-    /**
-     * Returns the query parameter name for offset.
-     *
-     * @return the offset parameter name (e.g., "offset", "skip")
-     */
-    public String getOffsetParam()
-    {
-        return offsetParam;
-    }
+    /** Returns the query parameter name for offset. */
+    public String getOffsetParam() { return offsetParam; }
 
-    /**
-     * Returns the query parameter name for page number.
-     *
-     * @return the page parameter name (e.g., "page", "page_number")
-     */
-    public String getPageParam()
-    {
-        return pageParam;
-    }
+    /** Returns the query parameter name for page number. */
+    public String getPageParam() { return pageParam; }
 
-    /**
-     * Returns the query parameter name for page size/limit.
-     *
-     * @return the limit parameter name (e.g., "limit", "per_page", "size")
-     */
-    public String getLimitParam()
-    {
-        return limitParam;
-    }
+    /** Returns the query parameter name for page size/limit. */
+    public String getLimitParam() { return limitParam; }
 
-    /**
-     * Returns the number of items per page.
-     *
-     * @return the page size
-     */
-    public int getPageSize()
-    {
-        return pageSize;
-    }
+    /** Returns the number of items per page. */
+    public int getPageSize() { return pageSize; }
 
-    /**
-     * Returns the initial offset value.
-     *
-     * @return the initial offset (typically 0)
-     */
-    public int getInitialOffset()
-    {
-        return initialOffset;
-    }
+    /** Returns the initial offset value. */
+    public int getInitialOffset() { return initialOffset; }
 
-    /**
-     * Returns the initial page number.
-     *
-     * @return the initial page (typically 1)
-     */
-    public int getInitialPage()
-    {
-        return initialPage;
-    }
+    /** Returns the initial page number. */
+    public int getInitialPage() { return initialPage; }
 
-    /**
-     * Returns the query parameter name for cursor.
-     *
-     * @return the cursor parameter name (e.g., "cursor", "next_token")
-     */
-    public String getCursorParam()
-    {
-        return cursorParam;
-    }
+    /** Returns the query parameter name for cursor. */
+    public String getCursorParam() { return cursorParam; }
 
-    /**
-     * Returns the JSON path to the next cursor in the response.
-     *
-     * @return the next cursor path (e.g., "pagination.next", "meta.next_token")
-     */
-    public String getNextCursorPath()
-    {
-        return nextCursorPath;
-    }
+    /** Returns the JSON path to the next cursor in the response. */
+    public String getNextCursorPath() { return nextCursorPath; }
 
-    /**
-     * Returns the JSON path to the next URL in the response.
-     *
-     * @return the next URL path (e.g., "pagination.next_url", "links.next")
-     */
-    public String getNextUrlPath()
-    {
-        return nextUrlPath;
-    }
+    /** Returns the JSON path to the next URL in the response. */
+    public String getNextUrlPath() { return nextUrlPath; }
 
     @Override
     public String toString()
@@ -190,5 +119,3 @@ public final class PaginationConfig
                 + "', nextCursorPath='" + nextCursorPath + "', nextUrlPath='" + nextUrlPath + "'}";
     }
 }
-
-// Made with Bob

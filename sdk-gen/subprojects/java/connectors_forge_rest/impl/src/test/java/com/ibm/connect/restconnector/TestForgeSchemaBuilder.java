@@ -3,7 +3,7 @@
 /* (C) Copyright IBM Corp. 2026                        */
 
 /* *************************************************** */
-package com.ibm.wdp.connect.sdk.connector.forge;
+package com.ibm.connect.restconnector;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -143,5 +143,3 @@ public class TestForgeSchemaBuilder
         throw new AssertionError("Field not found: " + name);
     }
 }
-
-// Made with Bob

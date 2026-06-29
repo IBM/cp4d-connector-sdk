@@ -30,9 +30,6 @@ dependencies {
     runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
     // End of flight-core
 
-    // JSON processing for forge REST engine
-    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: project['jackson.version']
-
     // Logging
     implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
 

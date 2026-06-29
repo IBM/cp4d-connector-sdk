@@ -3,7 +3,7 @@
 /* (C) Copyright IBM Corp. 2026                        */
 
 /* *************************************************** */
-package com.ibm.wdp.connect.sdk.connector.forge;
+package com.ibm.connect.restconnector;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -166,5 +166,3 @@ public class ForgeSchemaBuilder
         }
     }
 }
-
-// Made with Bob

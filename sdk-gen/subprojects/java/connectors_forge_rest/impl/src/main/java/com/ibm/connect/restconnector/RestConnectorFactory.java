@@ -21,8 +21,6 @@ import com.ibm.wdp.connect.sdk.connector.ConnectionProperties;
 import com.ibm.wdp.connect.sdk.connector.SdkConnector;
 import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
 import com.ibm.wdp.connect.sdk.connector.SdkDatasourceTypes;
-import com.ibm.wdp.connect.sdk.connector.forge.RestApiMapping;
-import com.ibm.wdp.connect.sdk.connector.forge.RestApiMappingLoader;
 
 /**
  * A factory for creating REST connectors.
@@ -162,7 +160,6 @@ public class RestConnectorFactory implements SdkConnectorFactory
     public SdkConnector<?, ?, ?> createConnector(String datasourceTypeName,
             ConnectionProperties properties) {
         if (configCache.containsKey(datasourceTypeName)) {
-            // Wrap SDK ConnectionProperties into the model ConnectionProperties
             final com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties modelProps
                     = new com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties();
             if (properties != null) {

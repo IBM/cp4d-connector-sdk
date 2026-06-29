@@ -12,7 +12,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
-import com.ibm.wdp.connect.sdk.connector.forge.RestFieldDefinition;
 
 /**
  * Maps .rest file type strings to {@link CustomFlightAssetField} instances.

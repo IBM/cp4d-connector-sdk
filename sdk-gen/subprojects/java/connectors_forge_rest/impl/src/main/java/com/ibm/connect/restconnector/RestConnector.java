@@ -26,8 +26,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetType;
 import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
 import com.ibm.wdp.connect.sdk.connector.DiscoveryCriteria;
 import com.ibm.wdp.connect.sdk.connector.SdkConnector;
-import com.ibm.wdp.connect.sdk.connector.forge.RestApiMapping;
-import com.ibm.wdp.connect.sdk.connector.forge.RestTableDefinition;
 
 /**
  * An Arrow-based connector for connecting to a REST API data source.
@@ -52,7 +50,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     private RestApiMapping apiMapping;
 
     /**
-     * Creates an Arrow-based REST connector.
+     * Creates an Arrow-based REST connector (legacy SCAPI path).
      *
      * @param datasourceTypeName
      *            the datasource type name (connector name)
