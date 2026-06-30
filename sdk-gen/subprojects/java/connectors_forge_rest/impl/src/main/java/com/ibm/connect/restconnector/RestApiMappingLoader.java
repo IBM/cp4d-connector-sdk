@@ -8,6 +8,8 @@ package com.ibm.connect.restconnector;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -65,12 +67,8 @@ public class RestApiMappingLoader
     private static final String KEY_MODIFIER = "$key";
     private static final String NOTNULL_MODIFIER = "$notnull";
     private static final String ARRAY_SUFFIX = "[]";
-    
-    // Array of all supported modifiers for easy extension
-    private static final String[] ALL_MODIFIERS = {
-        KEY_MODIFIER,
-        NOTNULL_MODIFIER
-    };
+
+    private static final String[] ALL_MODIFIERS = { KEY_MODIFIER, NOTNULL_MODIFIER };
 
     private RestApiMappingLoader()
     {
@@ -89,7 +87,31 @@ public class RestApiMappingLoader
     public static RestApiMapping load(String filePath) throws IOException
     {
         LOGGER.info("Loading REST API configuration from: {}", filePath);
-        final String content = new String(Files.readAllBytes(Paths.get(filePath)));
+        final String content = new String(Files.readAllBytes(Paths.get(filePath)), StandardCharsets.UTF_8);
+        return parse(content);
+    }
+
+    /**
+     * Loads and parses a JSON configuration from an {@link InputStream}.
+     *
+     * <p>This overload is intended for configs bundled as classpath resources, e.g.:
+     * <pre>
+     *   InputStream is = getClass().getResourceAsStream("/forge/mappings/my-connector.json");
+     *   RestApiMapping mapping = RestApiMappingLoader.load(is);
+     * </pre>
+     *
+     * <p>The caller is responsible for closing the stream.
+     *
+     * @param inputStream
+     *            the input stream to read the JSON configuration from; must not be null
+     * @return the parsed {@link RestApiMapping}
+     * @throws IOException
+     *             if the stream cannot be read or the JSON cannot be parsed
+     */
+    public static RestApiMapping load(InputStream inputStream) throws IOException
+    {
+        LOGGER.info("Loading REST API configuration from InputStream");
+        final String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         return parse(content);
     }
 
@@ -205,7 +227,6 @@ public class RestApiMappingLoader
         final List<RestFieldDefinition> fields = parseFields(tableNode, "");
 
         logParsedTable(tableName, dataPath, paginationConfig, fields.size());
-
         return new RestTableEntry(tableName, new RestTableDefinition(path, dataPath, paginationConfig, fields));
     }
 
@@ -219,7 +240,8 @@ public class RestApiMappingLoader
         return pathNode.get(0).asText();
     }
 
-    private static void logParsedTable(String tableName, String dataPath, PaginationConfig paginationConfig, int fieldCount)
+    private static void logParsedTable(String tableName, String dataPath, PaginationConfig paginationConfig,
+            int fieldCount)
     {
         if (paginationConfig != null && dataPath != null) {
             LOGGER.debug("Loaded table '{}' with data path '{}', pagination type '{}', and {} fields",
@@ -271,31 +293,22 @@ public class RestApiMappingLoader
             final String rawKey = fieldEntry.getKey();
             final JsonNode fieldValue = fieldEntry.getValue();
 
-            // Skip special keys that start with $
             if (rawKey.startsWith("$")) {
                 continue;
             }
 
-            // Check if this is a nested object field (key ends with [])
             final boolean isNestedObject = rawKey.endsWith(ARRAY_SUFFIX);
-            final String baseFieldName = isNestedObject ? rawKey.substring(0, rawKey.length() - ARRAY_SUFFIX.length()) : rawKey;
+            final String baseFieldName = isNestedObject
+                    ? rawKey.substring(0, rawKey.length() - ARRAY_SUFFIX.length()) : rawKey;
             final String fieldName = prefix + baseFieldName;
 
             if (isNestedObject && fieldValue.isObject()) {
-                // Nested object with [] — flatten its fields with dot separator
-                final List<RestFieldDefinition> nestedFields = parseFields(fieldValue, fieldName + ".");
-                fields.addAll(nestedFields);
+                fields.addAll(parseFields(fieldValue, fieldName + "."));
             } else {
-                // Simple field with type string like "VARCHAR,$key,$notnull" or "INTEGER"
                 final String rawType = fieldValue.asText();
-                
-                // Parse modifiers
                 final boolean isKey = rawType.contains(KEY_MODIFIER);
                 final boolean isNotNull = rawType.contains(NOTNULL_MODIFIER);
-                
-                // Remove all modifiers from the type string
                 final String typeString = removeModifiers(rawType);
-
                 fields.add(new RestFieldDefinition(fieldName, typeString, isKey, isNotNull));
             }
         }
@@ -303,36 +316,17 @@ public class RestApiMappingLoader
         return fields;
     }
 
-    /**
-     * Removes all known modifiers from a type string.
-     * <p>
-     * This method handles modifiers in any position (beginning, middle, or end)
-     * and with or without surrounding commas.
-     *
-     * @param rawType the raw type string with potential modifiers (e.g., "VARCHAR,$key,$notnull")
-     * @return the clean type string without modifiers (e.g., "VARCHAR")
-     */
     private static String removeModifiers(String rawType)
     {
         String result = rawType;
-        
-        // Remove each modifier in all possible positions
         for (final String modifier : ALL_MODIFIERS) {
-            result = result.replace("," + modifier, "");  // Remove ",modifier"
-            result = result.replace(modifier + ",", "");  // Remove "modifier,"
-            result = result.replace(modifier, "");        // Remove standalone "modifier"
+            result = result.replace("," + modifier, "");
+            result = result.replace(modifier + ",", "");
+            result = result.replace(modifier, "");
         }
-        
         return result.trim();
     }
 
-    /**
-     * Parses the pagination configuration from a table JSON node.
-     *
-     * @param tableNode
-     *            the JSON object representing a table
-     * @return the pagination configuration, or null if no pagination is configured
-     */
     private static PaginationConfig parsePaginationConfig(JsonNode tableNode)
     {
         final JsonNode paginationNode = tableNode.get(PAGINATION_KEY);
@@ -406,7 +400,8 @@ public class RestApiMappingLoader
         return paginationType;
     }
 
-    private static String parseRequiredPaginationField(JsonNode paginationNode, String fieldName, String warningMessage)
+    private static String parseRequiredPaginationField(JsonNode paginationNode, String fieldName,
+            String warningMessage)
     {
         final String fieldValue = parseOptionalText(paginationNode, fieldName);
         if (fieldValue == null) {
@@ -441,5 +436,3 @@ public class RestApiMappingLoader
         }
     }
 }
-
-// Made with Bob
