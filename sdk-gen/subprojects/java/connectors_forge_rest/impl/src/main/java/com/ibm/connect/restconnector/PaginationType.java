@@ -22,27 +22,15 @@ public enum PaginationType
 
     private final String value;
 
-    PaginationType(String value)
-    {
-        this.value = value;
-    }
-
-    public String getValue()
-    {
-        return value;
-    }
+    PaginationType(String value) { this.value = value; }
+    public String getValue() { return value; }
 
     public static PaginationType fromValue(String value)
     {
-        if (value == null) {
-            return null;
-        }
-
+        if (value == null) { return null; }
         final String normalizedValue = value.toLowerCase(Locale.ENGLISH);
         for (final PaginationType type : values()) {
-            if (type.value.equals(normalizedValue)) {
-                return type;
-            }
+            if (type.value.equals(normalizedValue)) { return type; }
         }
         return null;
     }
@@ -54,5 +42,3 @@ public enum PaginationType
                 .collect(Collectors.joining(", "));
     }
 }
-
-// Made with Bob

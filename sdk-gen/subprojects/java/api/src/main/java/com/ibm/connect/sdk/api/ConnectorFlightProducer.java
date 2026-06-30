@@ -9,6 +9,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,6 +50,20 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
+import com.ibm.wdp.connect.sdk.connector.ArrowBatchReader;
+import com.ibm.wdp.connect.sdk.connector.ArrowBatchWriter;
+import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
+import com.ibm.wdp.connect.sdk.connector.ColumnarArrowBatchReader;
+import com.ibm.wdp.connect.sdk.connector.ColumnarArrowBatchWriter;
+import com.ibm.wdp.connect.sdk.connector.ConnectionProperties;
+import com.ibm.wdp.connect.sdk.connector.DiscoveryCriteria;
+import com.ibm.wdp.connect.sdk.connector.SdkColumnarSourceInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkColumnarTargetInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkConnector;
+import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
+import com.ibm.wdp.connect.sdk.connector.SdkDiscoveryInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkSourceInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkTargetInteraction;
 
 /**
  * An abstract Flight producer for connectors.
@@ -58,6 +73,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     private static final Logger LOGGER = getLogger(ConnectorFlightProducer.class);
 
     private static final String UNKNOWN_VERSION = "unknown";
+    private static final int DEFAULT_BATCH_SIZE = 1000;
 
     /**
      * Action type to check the health of the service and return its version.
@@ -103,9 +119,14 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     private final CustomFlightDatasourceTypes datasourceTypes;
 
     /**
-     * A factory for creating connectors.
+     * A factory for creating connectors (old path).
      */
     private final ConnectorFactory connectorFactory;
+
+    /**
+     * A factory for creating SDK-style connectors (new path); null when not overridden.
+     */
+    private final SdkConnectorFactory sdkConnectorFactory;
 
     private final ModelMapper modelMapper;
     private final FlightDescriptorCache descriptorCache;
@@ -117,6 +138,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     public ConnectorFlightProducer()
     {
         connectorFactory = getConnectorFactory();
+        sdkConnectorFactory = getSdkConnectorFactory();
         datasourceTypes = connectorFactory.getDatasourceTypes();
         modelMapper = new ModelMapper();
         descriptorCache = new FlightDescriptorCache();
@@ -129,6 +151,21 @@ public abstract class ConnectorFlightProducer implements FlightProducer
      * @return a factory for creating connectors
      */
     abstract protected ConnectorFactory getConnectorFactory();
+
+    /**
+     * Returns a factory for creating SDK-style connectors, or null if not used.
+     *
+     * <p>Subclasses that want to use the SDK connector path should override this method
+     * to return their {@link SdkConnectorFactory}. When non-null, all Flight operations
+     * (getStream, getFlightInfo, acceptPut, listFlights) will use the SDK path instead of
+     * the legacy {@link ConnectorFactory} path.
+     *
+     * @return an {@link SdkConnectorFactory}, or null (default)
+     */
+    protected SdkConnectorFactory getSdkConnectorFactory()
+    {
+        return null;
+    }
 
     /**
      * {@inheritDoc}
@@ -145,6 +182,34 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 throw new IllegalArgumentException(ApiMsgs.NO_FLIGHT_DESCRIPTOR_FOR_TICKET.format());
             }
             final CustomFlightAssetDescriptor asset = modelMapper.fromBytes(descriptor.getCommand(), CustomFlightAssetDescriptor.class);
+
+            // --- SDK connector path ---
+            if (sdkConnectorFactory != null) {
+                final AssetDescriptor assetDescriptor = toAssetDescriptor(asset);
+                try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
+                        asset.getDatasourceTypeName(), toConnectionProperties(asset.getConnectionProperties()))) {
+                    connector.connect();
+                    try (SdkSourceInteraction interaction = connector.getSourceInteraction(assetDescriptor, ticket)) {
+                        final Schema schema = interaction.getSchema();
+                        if (interaction instanceof SdkColumnarSourceInteraction) {
+                            final int batchSize = getBatchSize(asset);
+                            try (ColumnarArrowBatchWriter writer = new ColumnarArrowBatchWriter(schema, rootAllocator, batchSize)) {
+                                ((SdkColumnarSourceInteraction) interaction).stream(writer);
+                                streamBatches(writer.batches(), schema, listener, bpStrategy);
+                            }
+                        } else {
+                            final int batchSize = getBatchSize(asset);
+                            try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, rootAllocator, batchSize)) {
+                                interaction.stream(writer);
+                                streamBatches(writer.batches(), schema, listener, bpStrategy);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
+            // --- Legacy connector path ---
             try (Connector<?, ?> connector
                     = connectorFactory.createConnector(asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
                 connector.connect();
@@ -201,6 +266,33 @@ public abstract class ConnectorFlightProducer implements FlightProducer
             }
             final CustomFlightAssetsCriteria assetsCriteria
                     = modelMapper.fromBytes(criteria.getExpression(), CustomFlightAssetsCriteria.class);
+
+            // --- SDK connector path ---
+            if (sdkConnectorFactory != null) {
+                final DiscoveryCriteria discoveryCriteria = toDiscoveryCriteria(assetsCriteria);
+                try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
+                        assetsCriteria.getDatasourceTypeName(), toConnectionProperties(assetsCriteria.getConnectionProperties()))) {
+                    connector.connect();
+                    try (SdkDiscoveryInteraction discovery = connector.getDiscoveryInteraction(discoveryCriteria)) {
+                        final List<AssetDescriptor> sdkAssets
+                                = discovery.discoverAssets(discoveryCriteria);
+                        for (final AssetDescriptor sdkAsset : sdkAssets) {
+                            final CustomFlightAssetDescriptor asset = fromAssetDescriptor(sdkAsset,
+                                    assetsCriteria.getDatasourceTypeName(),
+                                    assetsCriteria.getConnectionProperties());
+                            completeAsset(asset);
+                            final FlightDescriptor flightDescriptor = FlightDescriptor.command(modelMapper.toBytes(asset));
+                            final Schema schema = connector.getSchema(sdkAsset);
+                            final FlightInfo flightInfo = createFlightInfo(flightDescriptor, schema, Collections.emptyList());
+                            listener.onNext(flightInfo);
+                        }
+                    }
+                }
+                listener.onCompleted();
+                return;
+            }
+
+            // --- Legacy connector path ---
             try (Connector<?, ?> connector
                     = connectorFactory.createConnector(assetsCriteria.getDatasourceTypeName(), assetsCriteria.getConnectionProperties())) {
                 connector.connect();
@@ -245,6 +337,23 @@ public abstract class ConnectorFlightProducer implements FlightProducer
         try {
             ThreadLocale.setLocale(context);
             final CustomFlightAssetDescriptor asset = modelMapper.fromBytes(descriptor.getCommand(), CustomFlightAssetDescriptor.class);
+
+            // --- SDK connector path ---
+            if (sdkConnectorFactory != null) {
+                final AssetDescriptor assetDescriptor = toAssetDescriptor(asset);
+                try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
+                        asset.getDatasourceTypeName(), toConnectionProperties(asset.getConnectionProperties()))) {
+                    connector.connect();
+                    try (SdkSourceInteraction interaction = connector.getSourceInteraction(assetDescriptor, null)) {
+                        final Schema schema = interaction.getSchema();
+                        asset.setFields(Utils.getAssetFields(schema));
+                        final List<Ticket> tickets = interaction.getTickets();
+                        return createFlightInfo(FlightDescriptor.command(modelMapper.toBytes(asset)), schema, tickets);
+                    }
+                }
+            }
+
+            // --- Legacy connector path ---
             try (Connector<?, ?> connector
                     = connectorFactory.createConnector(asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
                 connector.connect();
@@ -289,6 +398,41 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                     throw new IllegalArgumentException(ApiMsgs.MISSING_PARTITION_INDEX.format());
                 }
                 asset.setFields(Utils.getAssetFields(flightStream.getSchema()));
+
+                // --- SDK connector path ---
+                if (sdkConnectorFactory != null) {
+                    final AssetDescriptor assetDescriptor = toAssetDescriptor(asset);
+                    try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
+                            asset.getDatasourceTypeName(), toConnectionProperties(asset.getConnectionProperties()))) {
+                        connector.connect();
+                        try (SdkTargetInteraction interaction = connector.getTargetInteraction(assetDescriptor)) {
+                            if (asset.getPartitionCount() == null || asset.getPartitionCount() == 1) {
+                                interaction.setup();
+                            }
+                            // Collect all incoming batches from the FlightStream
+                            final List<VectorSchemaRoot> batches = new ArrayList<>();
+                            while (flightStream.next()) {
+                                batches.add(flightStream.getRoot());
+                            }
+                            if (interaction instanceof SdkColumnarTargetInteraction) {
+                                try (ColumnarArrowBatchReader reader = new ColumnarArrowBatchReader(batches)) {
+                                    ((SdkColumnarTargetInteraction) interaction).consume(reader);
+                                }
+                            } else {
+                                try (ArrowBatchReader reader = new ArrowBatchReader(batches)) {
+                                    interaction.consume(reader);
+                                }
+                            }
+                            if (asset.getPartitionCount() == null || asset.getPartitionCount() == 1) {
+                                interaction.wrapup();
+                            }
+                        }
+                    }
+                    ackStream.onCompleted();
+                    return;
+                }
+
+                // --- Legacy connector path ---
                 try (Connector<?, ?> connector
                         = connectorFactory.createConnector(asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
                     connector.connect();
@@ -446,4 +590,98 @@ public abstract class ConnectorFlightProducer implements FlightProducer
         }
     }
 
+    // ---- private helpers ----
+
+    /**
+     * Streams batches from the given iterator to the Flight listener, handling backpressure.
+     */
+    private void streamBatches(Iterator<VectorSchemaRoot> batches, Schema schema,
+            ServerStreamListener listener, BackpressureStrategy bpStrategy) throws Exception
+    {
+        try (VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(schema, rootAllocator)) {
+            final VectorLoader loader = new VectorLoader(vectorSchemaRoot);
+            listener.start(vectorSchemaRoot);
+            while (batches.hasNext()) {
+                final VectorSchemaRoot batch = batches.next();
+                final VectorUnloader unloader = new VectorUnloader(batch);
+                loader.load(unloader.getRecordBatch());
+                WaitResult wr;
+                while ((wr = bpStrategy.waitForListener(5000)) == WaitResult.TIMEOUT) {
+                    LOGGER.info("Waiting for ready from client");
+                }
+                if (wr == WaitResult.CANCELLED) {
+                    break;
+                }
+                listener.putNext();
+                vectorSchemaRoot.clear();
+            }
+            if (listener.isCancelled()) {
+                LOGGER.info("Stream has been cancelled");
+                listener.error(CallStatus.CANCELLED.withDescription("Stream cancelled.").toRuntimeException());
+            } else {
+                listener.completed();
+            }
+        }
+    }
+
+    /**
+     * Translates a {@link CustomFlightAssetDescriptor} to an {@link AssetDescriptor}.
+     */
+    private static AssetDescriptor toAssetDescriptor(CustomFlightAssetDescriptor src)
+    {
+        final int batchSize = src.getBatchSize() != null ? src.getBatchSize() : DEFAULT_BATCH_SIZE;
+        return new AssetDescriptor(
+                src.getId(),
+                src.getName(),
+                src.getPath(),
+                src.getDatasourceTypeName(),
+                src.getConnectionProperties(), // ConnectionProperties extends HashMap<String,Object>
+                Boolean.TRUE.equals(src.isHasChildren()),
+                batchSize);
+    }
+
+    /**
+     * Translates a {@link CustomFlightAssetsCriteria} to a {@link DiscoveryCriteria}.
+     */
+    private static DiscoveryCriteria toDiscoveryCriteria(CustomFlightAssetsCriteria src)
+    {
+        final ConnectionProperties connProps = toConnectionProperties(src.getConnectionProperties());
+        return new DiscoveryCriteria(src.getPath(), src.getDatasourceTypeName(), connProps);
+    }
+
+    /**
+     * Translates a model SDK-API {@code ConnectionProperties} to the connector-SDK
+     * {@link ConnectionProperties}.
+     *
+     * <p>The model type extends {@code HashMap<String,Object>} and is passed directly as the
+     * backing map. The parameter must be fully-qualified because both packages expose a class
+     * named {@code ConnectionProperties}.
+     */
+    private static ConnectionProperties toConnectionProperties(
+            com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties src)
+    {
+        return new ConnectionProperties(src);
+    }
+
+    /**
+     * Translates an {@link AssetDescriptor} back to a {@link CustomFlightAssetDescriptor}.
+     */
+    private static CustomFlightAssetDescriptor fromAssetDescriptor(
+            AssetDescriptor src, String datasourceTypeName,
+            com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties connectionProperties)
+    {
+        final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
+        descriptor.setId(src.getId());
+        descriptor.setName(src.getName());
+        descriptor.setPath(src.getPath());
+        descriptor.setDatasourceTypeName(datasourceTypeName);
+        descriptor.setConnectionProperties(connectionProperties);
+        descriptor.setHasChildren(src.hasChildren());
+        return descriptor;
+    }
+
+    private static int getBatchSize(CustomFlightAssetDescriptor asset)
+    {
+        return (asset.getBatchSize() != null && asset.getBatchSize() > 0) ? asset.getBatchSize() : DEFAULT_BATCH_SIZE;
+    }
 }
