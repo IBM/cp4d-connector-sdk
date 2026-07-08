@@ -420,6 +420,24 @@ function New-CodeEngineProject {
         -Body $payloadJson
     
     if ($response.StatusCode -notin @(200, 201, 202)) {
+        # Check for resource group permission error
+        if ($response.StatusCode -eq 403) {
+            $errorCode = Get-JsonField -Json $response.Content -Field "errors[0].code"
+            if ($errorCode -like "*resource_group*") {
+                # Extract the actual error message from the API response
+                $errorMessage = Get-JsonField -Json $response.Content -Field "errors[0].message"
+                Write-LogError "Failed to create project: $errorMessage"
+                Write-LogError ""
+                Write-LogError "Potential resolution:"
+                Write-LogError "  1. Obtain your resource group ID from IBM Cloud console"
+                Write-LogError "  2. Add it to your properties file: RESOURCE_GROUP_ID=<your-resource-group-id>"
+                Write-LogError "  3. Re-run this script"
+                Write-LogError ""
+                Write-LogError "For more information, see: https://cloud.ibm.com/docs/account?topic=account-rgs"
+                exit 1
+            }
+        }
+        
         Write-LogError "Failed to create project (HTTP $($response.StatusCode))"
         Write-LogError "Response: $($response.Content)"
         exit 1
@@ -484,12 +502,14 @@ function Get-ProjectId {
         exit 1
     }
     
-    # Extract project ID by matching project name
+    # Extract project ID and region by matching project name
+    $projectRegion = $null
     try {
         $projects = ($response.Content | ConvertFrom-Json).projects
         foreach ($project in $projects) {
             if ($project.name -eq $CODE_ENGINE_PROJECT) {
                 $script:PROJECT_ID = $project.id
+                $projectRegion = $project.region_id
                 break
             }
         }
@@ -503,6 +523,9 @@ function Get-ProjectId {
             if ($searchArea -match "`"id`":\s*`"([^`"]+)`"") {
                 $script:PROJECT_ID = $matches[1]
             }
+            if ($searchArea -match "`"region_id`":\s*`"([^`"]+)`"") {
+                $projectRegion = $matches[1]
+            }
         }
     }
     
@@ -511,7 +534,21 @@ function Get-ProjectId {
         New-CodeEngineProject
     }
     else {
-        Write-Log "Project ID: $PROJECT_ID"
+        Write-Log "Found project '$CODE_ENGINE_PROJECT' with ID: $PROJECT_ID"
+        
+        # Validate region matches
+        if (-not [string]::IsNullOrWhiteSpace($projectRegion) -and $projectRegion -ne $REGION) {
+            Write-LogError "Project '$CODE_ENGINE_PROJECT' exists in region '$projectRegion' but you specified region '$REGION'"
+            Write-LogError ""
+            Write-LogError "Please choose one of the following options:"
+            Write-LogError "  1. Change the REGION in your properties file to: $projectRegion"
+            Write-LogError "  2. Change the CODE_ENGINE_PROJECT name to deploy to a different project in region: $REGION"
+            Write-LogError "     (A new project will be created automatically if it doesn't exist)"
+            Write-LogError ""
+            exit 1
+        }
+        
+        Write-Log "Project region validated: $REGION"
     }
 }
 

@@ -485,13 +485,21 @@
 
             <step priority="3">
               <name>Configure Required Properties</name>
+              <permissions_notice>
+                Your IBM Cloud API key must have sufficient permissions to deploy to Code Engine.
+                For details about required permissions, please visit the Connectors Forge documentation.
+              </permissions_notice>
+              <bob_instruction>
+                IMPORTANT: You MUST display the permissions_notice to the user prominently before providing
+                the configuration instructions. Format it as an important notice or warning that stands out.
+              </bob_instruction>
               <description>
                 Edit deploy-codeengine.properties and fill in all required values:
                 
                 REQUIRED SETTINGS:
                 - APIKEY: Your IBM Cloud API key
                   Get from: https://cloud.ibm.com/iam/apikeys
-                  Must have Code Engine permissions
+                  Must have Code Engine permissions (see documentation for details)
                 
                 - REGION: Code Engine region where you want to deploy
                   Examples: us-south, eu-de, eu-gb, jp-tok
@@ -2222,14 +2230,11 @@
               - ssl_certificate_path: Path to your Flight service certificate (optional)
               - ssl_certificate_validation: Set to true/false
             </description>
-            <example>
-              Example configuration:
-              apikey=your_ibm_cloud_api_key_here
-              auth_uri=https://iam.cloud.ibm.com/identity/token
-              datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types
-              flight_uri=grpc://your-server:50051
-              ssl_certificate_validation=false
-            </example>
+            <bob_instruction>
+              Provide an easy-to-copy example properties file content based on the deployment context.
+              Use the actual deployment details from earlier steps (e.g., flight service URL from deployment).
+              Format it as a complete, ready-to-use properties file that the user can copy directly.
+            </bob_instruction>
           </step>
         </instructions>
 
@@ -2425,6 +2430,17 @@
               - origin_country: Origin country/region for connector registration (default: us)
               - ssl_certificate_path: Path to SSL certificate (commented out by default)
               - ssl_certificate_validation: Enable/disable SSL validation (default: false)
+            </description>
+            <bob_instruction>
+              Read the template file at connectors-forge/scripts/register-envs.properties.template
+              and provide an easy-to-copy example properties file content based on:
+              1. The deployment context from earlier steps (e.g., Code Engine app URL, OpenShift route)
+              2. The template structure
+              3. Appropriate defaults for the deployment type
+              
+              Format it as a complete, ready-to-use properties file that the user can copy directly.
+              Include comments from the template to help users understand each setting.
+            </bob_instruction>
             </description>
             <example>
               Example for IBM Cloud deployment:
