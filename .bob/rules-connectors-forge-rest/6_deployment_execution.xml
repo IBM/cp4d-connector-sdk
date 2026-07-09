@@ -49,7 +49,7 @@
         After SUCCESSFUL completion of each major phase, explicitly ask the user
         if they want to proceed to the next phase:
         
-        - After Deployment → Ask: "Would you like to proceed with CP4D registration?"
+        - After Deployment → Ask: "Would you like to proceed with Cloud Pak for Data registration?"
         - After Registration → Ask: "Would you like to validate the registration with discovery tests?"
         
         DO NOT automatically proceed. Wait for user's explicit choice.
@@ -96,29 +96,12 @@
     <step_1_ask_additional_connectors>
       <title>Ask About Additional Connectors</title>
       <when>After successfully creating and confirming a connector configuration</when>
-      
-      <question>
-        Would you like to create another REST API connector configuration?
-      </question>
 
-      <options>
-        <option name="yes">
-          <label>Yes, create another connector</label>
-          <action>Return to Phase 1 (API Discovery & Analysis) to create another connector</action>
-          <note>All connectors will be stored in the same resources directory</note>
-        </option>
-        
-        <option name="no">
-          <label>No, proceed to deployment</label>
-          <action>Continue to Phase 5 (Deployment Option Selection)</action>
-        </option>
-      </options>
-
-      <presentation_format>
-        Present options clearly:
-        1. Yes - Create another connector (returns to Phase 1)
-        2. No - Proceed to deployment
-      </presentation_format>
+      <ask_followup_question>
+        <question>Would you like to create another REST API connector configuration?</question>
+        <suggest>Yes — create another connector (returns to Phase 1; all connectors will be stored in the same resources directory)</suggest>
+        <suggest>No — proceed to deployment (Phase 5)</suggest>
+      </ask_followup_question>
     </step_1_ask_additional_connectors>
 
     <loop_behavior>
@@ -142,107 +125,35 @@
 
     <step_1_present_deployment_options>
       <title>Present Deployment Options</title>
-      
-      <question>
-        How would you like to deploy your REST API connector(s)?
-      </question>
 
       <important_note>
         The deployment options presented depend on the deployment type chosen in Phase 0:
         - Developer option: Shows all 4 deployment options (Local, Serverless, Self-Hosted, OpenShift)
         - Codeless option: Shows only 3 deployment options (Serverless, Self-Hosted, OpenShift)
-          Local deployment is not available for codeless option as it requires building custom Docker image.
+          Local deployment is not available for codeless as it requires building a custom Docker image.
       </important_note>
 
-      <options_for_developer>
-        <title>Options when Developer deployment type was chosen in Phase 0</title>
-        
-        <option name="local">
-          <number>1</number>
-          <label>Local Docker Deployment</label>
-          <description>
-            Build and run Docker container on your local machine.
-            Best for: Testing and manual verification of connectors.
-          </description>
-          <use_case>Development, testing, local verification</use_case>
-          <available_for>Developer option only</available_for>
-        </option>
+      <ask_for_developer>
+        <when>Phase 0 deployment type is Developer</when>
+        <ask_followup_question>
+          <question>How would you like to deploy your REST API connector(s)?</question>
+          <suggest>1. Local Docker — build and run on my local machine (development/testing)</suggest>
+          <suggest>2. Serverless — IBM Cloud Code Engine with automatic scaling</suggest>
+          <suggest>3. Self-Hosted — deploy to my own server infrastructure</suggest>
+          <suggest>4. OpenShift — deploy using Flight Operator (on-premises enterprise)</suggest>
+        </ask_followup_question>
+      </ask_for_developer>
 
-        <option name="serverless">
-          <number>2</number>
-          <label>Serverless Deployment (IBM Cloud Code Engine)</label>
-          <description>
-            Deploy Docker container to IBM Cloud Code Engine serverless platform.
-            Best for: As-a-service solutions with automatic scaling.
-          </description>
-          <use_case>Cloud-native, as-a-service deployments with scale-to-zero capability</use_case>
-          <status>Implemented</status>
-        </option>
-
-        <option name="self_hosted">
-          <number>3</number>
-          <label>Self-Hosted Server Deployment</label>
-          <description>
-            Deploy Docker container to your own server infrastructure.
-            Best for: As-a-service solutions with full control.
-          </description>
-          <use_case>Custom infrastructure, as-a-service with control</use_case>
-        </option>
-
-        <option name="openshift">
-          <number>4</number>
-          <label>OpenShift Deployment</label>
-          <description>
-            Deploy container to OpenShift platform using Flight Operator.
-            Best for: On-premises enterprise deployments.
-          </description>
-          <use_case>Enterprise on-premises solutions</use_case>
-        </option>
-      </options_for_developer>
-
-      <options_for_codeless>
-        <title>Options when Codeless deployment type was chosen in Phase 0</title>
-        <note>Local Docker deployment is not available - codeless uses pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.3)</note>
-        
-        <option name="serverless">
-          <number>1</number>
-          <label>Serverless Deployment (IBM Cloud Code Engine)</label>
-          <description>
-            Deploy pre-built Docker container to IBM Cloud Code Engine serverless platform.
-            Best for: As-a-service solutions with automatic scaling.
-          </description>
-          <use_case>Cloud-native, as-a-service deployments with scale-to-zero capability</use_case>
-          <status>Implemented</status>
-        </option>
-
-        <option name="self_hosted">
-          <number>2</number>
-          <label>Self-Hosted Server Deployment</label>
-          <description>
-            Deploy pre-built Docker container to your own server infrastructure.
-            Best for: As-a-service solutions with full control.
-          </description>
-          <use_case>Custom infrastructure, as-a-service with control</use_case>
-        </option>
-
-        <option name="openshift">
-          <number>3</number>
-          <label>OpenShift Deployment</label>
-          <description>
-            Deploy pre-built container to OpenShift platform.
-            Best for: On-premises enterprise deployments.
-          </description>
-          <use_case>Enterprise on-premises solutions</use_case>
-        </option>
-      </options_for_codeless>
-
-      <presentation_format>
-        - For Developer option: Present all four deployment options with clear numbering
-        - For Codeless option: Present only three deployment options (exclude Local Docker)
-        - Renumber options for codeless (1-3 instead of 2-4)
-        - Indicate which options are placeholders (not yet implemented)
-        - Explain that codeless uses pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.3
-      </presentation_format>
+      <ask_for_codeless>
+        <when>Phase 0 deployment type is Codeless (pre-built image ghcr.io/marek-zuwala/connectors-forge:1.0.3)</when>
+        <note>Local Docker deployment is NOT available for codeless — do not show it as an option</note>
+        <ask_followup_question>
+          <question>How would you like to deploy your REST API connector(s)?</question>
+          <suggest>1. Serverless — IBM Cloud Code Engine with automatic scaling</suggest>
+          <suggest>2. Self-Hosted — deploy to my own server infrastructure</suggest>
+          <suggest>3. OpenShift — deploy using Flight Operator (on-premises enterprise)</suggest>
+        </ask_followup_question>
+      </ask_for_codeless>
     </step_1_present_deployment_options>
 
     <step_2_handle_local_deployment>
@@ -250,21 +161,11 @@
       <when>User selects option 1 (Local)</when>
 
       <sub_step_1_ask_execution_preference>
-        <question>
-          Would you like me to execute the deployment commands, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute commands for me</label>
-            <description>I will run all necessary Gradle tasks to build and start the Docker container</description>
-          </option>
-          
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with step-by-step instructions</description>
-          </option>
-        </options>
+        <ask_followup_question>
+          <question>Would you like me to execute the deployment commands, or would you prefer to do it yourself?</question>
+          <suggest>Automatic — run all Gradle tasks to build and start the Docker container for me</suggest>
+          <suggest>Manual — give me step-by-step instructions and I'll run them myself</suggest>
+        </ask_followup_question>
       </sub_step_1_ask_execution_preference>
 
       <sub_step_2a_automatic_deployment>
@@ -404,21 +305,11 @@
       </important_note>
 
       <sub_step_1_ask_execution_preference>
-        <question>
-          Would you like me to execute the Code Engine deployment commands, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute commands for me</label>
-            <description>I will run the deployment script to deploy your connector(s) to IBM Cloud Code Engine</description>
-          </option>
-          
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with step-by-step instructions</description>
-          </option>
-        </options>
+        <ask_followup_question>
+          <question>Would you like me to execute the IBM Cloud Code Engine deployment, or would you prefer to do it yourself?</question>
+          <suggest>Automatic — run the deployment script to Code Engine for me</suggest>
+          <suggest>Manual — give me step-by-step instructions and I'll run them myself</suggest>
+        </ask_followup_question>
       </sub_step_1_ask_execution_preference>
 
       <sub_step_2a_automatic_deployment>
@@ -534,16 +425,18 @@
             </step>
           </instructions>
 
-          <confirmation_question>
-            Have you created deploy-codeengine.properties from the template and configured all required values?
-            
-            Required configuration:
-            - IBM Cloud API key (APIKEY)
-            - Code Engine region (REGION)
-            
-            Optional configuration (will use defaults if not specified):
-            - Project name, resource group, app name, scaling settings
-          </confirmation_question>
+          <ask_followup_question>
+            <question>Have you created deploy-codeengine.properties from the template and configured all required values?
+
+Required configuration:
+- IBM Cloud API key (APIKEY)
+- Code Engine region (REGION)
+
+Optional configuration (will use defaults if not specified):
+- Project name, resource group, app name, scaling settings</question>
+            <suggest>Yes, the properties file is configured and ready</suggest>
+            <suggest>No, I need help filling in the properties file</suggest>
+          </ask_followup_question>
         </sub_step_1_verify_properties_file>
 
         <sub_step_2_gather_connector_files>
@@ -668,7 +561,7 @@
               - Script stops before completing all 8 steps
               
               Based on the script output, automatically proceed with the appropriate action:
-              - If successful: Display success message and ask about CP4D registration
+              - If successful: Display success message and ask about Cloud Pak for Data registration
               - If failed: Provide troubleshooting based on which step failed and the error message
             </description>
           </after_execution>
@@ -892,21 +785,11 @@
       </important_note>
 
       <sub_step_1_ask_execution_preference>
-        <question>
-          Would you like me to execute the deployment, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute for me</label>
-            <description>I will run the deployment commands/script to deploy to your server</description>
-          </option>
-          
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with instructions</description>
-          </option>
-        </options>
+        <ask_followup_question>
+          <question>Would you like me to execute the self-hosted deployment, or would you prefer to do it yourself?</question>
+          <suggest>Automatic — run the deployment commands/script to my server for me</suggest>
+          <suggest>Manual — give me step-by-step instructions and I'll run them myself</suggest>
+        </ask_followup_question>
       </sub_step_1_ask_execution_preference>
 
       <sub_step_2a_codeless_automatic>
@@ -1413,21 +1296,11 @@
       </important_note>
 
       <sub_step_1_ask_execution_preference>
-        <question>
-          Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute commands for me</label>
-            <description>I will run the OpenShift CLI commands to deploy your connector(s)</description>
-          </option>
-          
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with step-by-step instructions</description>
-          </option>
-        </options>
+        <ask_followup_question>
+          <question>Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?</question>
+          <suggest>Automatic — run the OpenShift CLI commands to deploy my connector(s) for me</suggest>
+          <suggest>Manual — give me step-by-step instructions and I'll run them myself</suggest>
+        </ask_followup_question>
       </sub_step_1_ask_execution_preference>
 
       <sub_step_2a_automatic_deployment>
@@ -1534,14 +1407,16 @@
             </step>
           </instructions>
 
-          <confirmation_question>
-            Have you created deploy-openshift.properties from the template and configured all required values?
-            
-            Required configuration:
-            - OpenShift cluster URL
-            - Authentication: Either username+password OR token
-            - Project/namespace name
-          </confirmation_question>
+          <ask_followup_question>
+            <question>Have you created deploy-openshift.properties from the template and configured all required values?
+
+Required configuration:
+- OpenShift cluster URL
+- Authentication: Either username+password OR token
+- Project/namespace name</question>
+            <suggest>Yes, the properties file is configured and ready</suggest>
+            <suggest>No, I need help filling in the properties file</suggest>
+          </ask_followup_question>
         </sub_step_1_verify_properties_file>
 
         <sub_step_2_execute_deployment>
@@ -1774,21 +1649,11 @@
       </important_note>
 
       <sub_step_1_ask_execution_preference>
-        <question>
-          Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute commands for me</label>
-            <description>I will run the build and deployment commands for OpenShift</description>
-          </option>
-          
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with step-by-step instructions</description>
-          </option>
-        </options>
+        <ask_followup_question>
+          <question>Would you like me to execute the OpenShift deployment commands, or would you prefer to do it yourself?</question>
+          <suggest>Automatic — run the build and deployment commands for OpenShift for me</suggest>
+          <suggest>Manual — give me step-by-step instructions and I'll run them myself</suggest>
+        </ask_followup_question>
       </sub_step_1_ask_execution_preference>
 
       <sub_step_2a_automatic_deployment>
@@ -2152,45 +2017,15 @@
       <context_to_provide>
         Before asking the question, provide context:
         - Confirm what was just deployed (deployment type, location)
-        - Explain that registration makes the connector available in CP4D
         - Note that registration can be done later if preferred
       </context_to_provide>
 
-      <question>
-        Your connector(s) have been successfully deployed.
-        
-        Would you like to register them with Cloud Pak for Data now?
-        
-        Registration will:
-        - Make the connector(s) available in your CP4D environment
-        - Allow users to create connections using these connectors
-        - Enable data discovery and access through CP4D
-      </question>
-
-      <options>
-        <option name="yes">
-          <label>Yes, register now</label>
-          <action>Proceed to registration process based on deployment type</action>
-        </option>
-
-        <option name="no">
-          <label>No, I'll register later</label>
-          <action>Skip registration and complete the workflow</action>
-          <note>User can run registration scripts manually later</note>
-        </option>
-
-        <option name="help">
-          <label>Help - I need more information about registration</label>
-          <action>Explain registration process and requirements</action>
-        </option>
-      </options>
-
-      <presentation_format>
-        Present options clearly with context:
-        1. Yes - Register connector(s) with CP4D now
-        2. No - Skip registration (can be done later manually)
-        3. Help - Learn more about the registration process
-      </presentation_format>
+      <ask_followup_question>
+        <question>Your connector(s) have been successfully deployed. Would you like to register them with Cloud Pak for Data now? Registration makes the connector(s) available in Cloud Pak for Data and allows users to create connections.</question>
+        <suggest>Yes — register with Cloud Pak for Data now</suggest>
+        <suggest>No — I'll register later (skip for now)</suggest>
+        <suggest>Help — tell me more about the registration process</suggest>
+      </ask_followup_question>
     </step_1_ask_registration_preference>
 
     <step_2_developer_registration>
@@ -2201,7 +2036,7 @@
         <title>Verify Properties File Creation</title>
         
         <important_note>
-          Before registration, you need to create a properties file with your CP4D environment configuration.
+          Before registration, you need to create a properties file with your Cloud Pak for Data environment configuration.
           This file is not visible to me (it's in .bobignore), so you need to create it manually.
         </important_note>
 
@@ -2238,31 +2073,22 @@
           </step>
         </instructions>
 
-        <confirmation_question>
-          Have you created the properties file with your CP4D environment configuration?
-          Please provide the name of your properties file (without .properties extension).
-        </confirmation_question>
+        <ask_followup_question>
+          <question>Have you created the properties file with your Cloud Pak for Data environment configuration? Please provide the name of your properties file (without .properties extension).</question>
+          <suggest>Yes, my properties file is ready — file name: [name]</suggest>
+          <suggest>No, I need help creating the properties file</suggest>
+        </ask_followup_question>
       </sub_step_1_verify_properties_file>
 
       <sub_step_2_ask_execution_preference>
         <title>Ask Execution Preference</title>
         <when>After user confirms properties file is created</when>
 
-        <question>
-          Would you like me to execute the registration, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute registration for me</label>
-            <description>I will run the Gradle register task with your environment configuration</description>
-          </option>
-
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with instructions to run the registration</description>
-          </option>
-        </options>
+        <ask_followup_question>
+          <question>Would you like me to execute the registration, or would you prefer to do it yourself?</question>
+          <suggest>Automatic — run the Gradle register task with my environment configuration for me</suggest>
+          <suggest>Manual — give me instructions and I'll run the registration myself</suggest>
+        </ask_followup_question>
       </sub_step_2_ask_execution_preference>
 
       <sub_step_3a_automatic_registration>
@@ -2300,9 +2126,9 @@
               Registration complete!
               
               Your REST API connector(s) have been registered with Cloud Pak for Data.
-              The connector(s) are now available for use in your CP4D environment.
+              The connector(s) are now available for use in your Cloud Pak for Data environment.
               
-              You can now create connections and access your REST API data through CP4D.
+              You can now create connections and access your REST API data through Cloud Pak for Data.
             </message>
           </action>
         </actions>
@@ -2311,7 +2137,7 @@
           <if_registration_fails>
             <action>Report the error details from Gradle output</action>
             <action>Verify the properties file exists and contains correct values</action>
-            <action>Check network connectivity to CP4D endpoints</action>
+            <action>Check network connectivity to Cloud Pak for Data endpoints</action>
             <action>Verify API key has proper permissions</action>
             <action>Offer to provide manual instructions instead</action>
           </if_registration_fails>
@@ -2339,13 +2165,13 @@
 
           The registration task will:
           - Authenticate with IBM Cloud using your API key
-          - Register the connector datasource type with CP4D
+          - Register the connector datasource type with Cloud Pak for Data
           - Configure the Flight service endpoint
-          - Make the connector(s) available in your CP4D environment
+          - Make the connector(s) available in your Cloud Pak for Data environment
 
           Prerequisites:
           - Valid IBM Cloud API key with proper permissions
-          - Network connectivity to CP4D endpoints
+          - Network connectivity to Cloud Pak for Data endpoints
           - Deployed and accessible Flight service
 
           Let me know once you've completed the registration or if you encounter any issues.
@@ -2408,11 +2234,11 @@
               - apikey: Replace <your-api-key> with your IBM Cloud API key
               - Keep username and password commented out
               
-              Option 2: Username/Password (for on-premises CP4D deployments)
+              Option 2: Username/Password (for on-premises Cloud Pak for Data deployments)
               - Comment out the apikey line
               - Uncomment username and password lines
-              - username: Replace <your-username> with your CP4D username
-              - password: Replace <your-password> with your CP4D password
+              - username: Replace <your-username> with your Cloud Pak for Data username
+              - password: Replace <your-password> with your Cloud Pak for Data password
               
               FLIGHT SERVICE (required):
               - flight_hostname: Replace <your-flight-hostname> with your deployed Flight service hostname
@@ -2455,7 +2281,7 @@
               ssl_certificate_validation=false
             </example>
             <example>
-              Example for on-premises CP4D deployment:
+              Example for on-premises Cloud Pak for Data deployment:
               #apikey=<your-api-key>
               username=admin
               password=your_cpd_password
@@ -2469,35 +2295,27 @@
           </step>
         </instructions>
 
-        <confirmation_question>
-          Have you created register-envs.properties from the template and configured all required values?
-          
-          Required configuration:
-          - Authentication: Either apikey OR username+password
-          - Flight service: flight_hostname and flight_port
-          - Endpoints: auth_uri and datasource_types_uri (update for on-premises if needed)
-        </confirmation_question>
+        <ask_followup_question>
+          <question>Have you created register-envs.properties from the template and configured all required values?
+
+Required configuration:
+- Authentication: Either apikey OR username+password
+- Flight service: flight_hostname and flight_port
+- Endpoints: auth_uri and datasource_types_uri (update for on-premises if needed)</question>
+          <suggest>Yes, the properties file is configured and ready</suggest>
+          <suggest>No, I need help filling in the properties file</suggest>
+        </ask_followup_question>
       </sub_step_1_verify_properties_file>
 
       <sub_step_2_ask_execution_preference>
         <title>Ask Execution Preference</title>
         <when>After user confirms properties file is configured</when>
 
-        <question>
-          Would you like me to execute the registration, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto">
-            <label>Automatic - Execute registration for me</label>
-            <description>I will run the registration script with your configuration</description>
-          </option>
-
-          <option name="manual">
-            <label>Manual - I'll do it myself</label>
-            <description>I will provide you with instructions to run the script</description>
-          </option>
-        </options>
+        <ask_followup_question>
+          <question>Would you like me to execute the registration, or would you prefer to do it yourself?</question>
+          <suggest>Automatic — run the registration script with my configuration for me</suggest>
+          <suggest>Manual — give me instructions and I'll run the script myself</suggest>
+        </ask_followup_question>
       </sub_step_2_ask_execution_preference>
 
       <sub_step_3a_automatic_registration>
@@ -2512,9 +2330,9 @@
             <description>
               Runs the OS-specific registration script that handles:
               - Reading configuration from register-envs.properties
-              - Authenticating with IBM Cloud (API key) or on-premises CP4D (username/password)
+              - Authenticating with IBM Cloud (API key) or on-premises Cloud Pak for Data (username/password)
               - Obtaining bearer token for API access
-              - Registering the connector with CP4D
+              - Registering the connector with Cloud Pak for Data
               - Configuring the Flight service endpoint
               
               The script automatically detects which authentication method to use based on
@@ -2537,7 +2355,7 @@
           <action priority="3">
             <name>Verify Registration</name>
             <description>
-              Confirm that the connector(s) are registered and available in CP4D.
+              Confirm that the connector(s) are registered and available in Cloud Pak for Data.
             </description>
           </action>
 
@@ -2547,9 +2365,9 @@
               Registration complete!
               
               Your REST API connector(s) have been registered with Cloud Pak for Data.
-              The connector(s) are now available for use in your CP4D environment.
+              The connector(s) are now available for use in your Cloud Pak for Data environment.
               
-              You can now create connections and access your REST API data through CP4D.
+              You can now create connections and access your REST API data through Cloud Pak for Data.
             </message>
           </action>
         </actions>
@@ -2558,7 +2376,7 @@
           <if_script_fails>
             <action>Report the error details from script output</action>
             <action>Verify the properties file is configured correctly</action>
-            <action>Check network connectivity to CP4D endpoints</action>
+            <action>Check network connectivity to Cloud Pak for Data endpoints</action>
             <action>Verify API key has proper permissions</action>
             <action>Offer to provide manual instructions instead</action>
           </if_script_fails>
@@ -2589,13 +2407,13 @@
           The registration script will:
           - Read your configuration from register-envs.properties
           - Authenticate with IBM Cloud using your API key
-          - Register the connector datasource type with CP4D
+          - Register the connector datasource type with Cloud Pak for Data
           - Configure the Flight service endpoint
-          - Make the connector(s) available in your CP4D environment
+          - Make the connector(s) available in your Cloud Pak for Data environment
 
           Prerequisites:
           - Valid IBM Cloud API key with proper permissions
-          - Network connectivity to CP4D endpoints
+          - Network connectivity to Cloud Pak for Data endpoints
           - Deployed and accessible Flight service
           - Properly configured register-envs.properties file
           - Windows: PowerShell 5.1 or later
@@ -2637,51 +2455,16 @@
 
       <context_to_provide>
         Before asking the question, provide context:
-        - Confirm that registration completed successfully
-        - Explain that validation tests verify the connector works in CP4D
-        - Note that validation is optional but recommended
+        - Explain that validation tests verify the connector works in Cloud Pak for Data
         - Mention that tests can be run manually later if preferred
       </context_to_provide>
 
-      <question>
-        Your connector(s) have been successfully registered with Cloud Pak for Data.
-        
-        Would you like to validate the registration by testing connector discovery?
-        
-        Validation will verify that:
-        - The connector(s) are properly registered in CP4D
-        - The Flight service is accessible from CP4D
-        - Discovery queries return expected results
-        - Connection properties are correctly configured
-        
-        This is optional but recommended to ensure everything works correctly.
-      </question>
-
-      <options>
-        <option name="yes">
-          <label>Yes, validate the registration</label>
-          <description>I will guide you through creating a test configuration and running validation tests</description>
-        </option>
-
-        <option name="no">
-          <label>No, skip validation</label>
-          <description>Skip validation testing and complete the workflow</description>
-          <action>Proceed directly to completion phase</action>
-          <note>User can run test scripts manually later</note>
-        </option>
-
-        <option name="help">
-          <label>Help - I need more information about validation</label>
-          <action>Explain validation process and what it tests</action>
-        </option>
-      </options>
-
-      <presentation_format>
-        Present options clearly with context:
-        1. Yes - Validate registration with discovery tests (recommended)
-        2. No - Skip validation (can be done later manually)
-        3. Help - Learn more about the validation process
-      </presentation_format>
+      <ask_followup_question>
+        <question>Your connector(s) have been successfully registered with Cloud Pak for Data. Would you like to validate the registration by running connector discovery tests? (optional but recommended)</question>
+        <suggest>Yes — validate the registration with discovery tests</suggest>
+        <suggest>No — skip validation (I can run tests manually later)</suggest>
+        <suggest>Help — tell me more about the validation process</suggest>
+      </ask_followup_question>
     </step_1_ask_validation_preference>
 
     <step_2_prepare_test_configuration>
@@ -2713,7 +2496,7 @@
           
           The suggestion should include:
           1. Template location reference
-          2. CPD_URL placeholder (user must provide their CP4D instance URL)
+          2. CPD_URL placeholder (user must provide their Cloud Pak for Data instance URL)
           3. Authentication credentials (APIKEY or USERNAME/PASSWORD)
           4. AUTH_URI (authentication endpoint)
           5. DATASOURCE_TYPES - comma-separated list of datasource type IDs (one per connector)
@@ -2749,7 +2532,7 @@
           # Authentication (choose ONE method):
           # Option 1: IBM Cloud API Key
           APIKEY=your-api-key-here
-          # Option 2: Username/Password (for on-premises CP4D)
+          # Option 2: Username/Password (for on-premises Cloud Pak for Data)
           #USERNAME=your-username
           #PASSWORD=your-password
           
@@ -2803,9 +2586,11 @@
           so you don't need to manually acquire a token beforehand.
         </instructions>
 
-        <confirmation_question>
-          Have you created the test-discovery.properties file with your configuration?
-        </confirmation_question>
+        <ask_followup_question>
+          <question>Have you created the test-discovery.properties file with your configuration?</question>
+          <suggest>Yes, the test-discovery.properties file is ready</suggest>
+          <suggest>No, I need help creating the test properties file</suggest>
+        </ask_followup_question>
       </sub_step_1_suggest_configuration>
     </step_2_prepare_test_configuration>
 
@@ -2833,7 +2618,7 @@
             <description>
               Runs the OS-specific test script that:
               - Reads configuration from test-discovery.properties
-              - Calls CP4D Connection Service API for each connector
+              - Calls Cloud Pak for Data Connection Service API for each connector
               - Tests discovery without creating saved connections
               - Reports success/failure for each connector
               - Counts discovered assets
@@ -2880,7 +2665,7 @@
             <action>Check that DATASOURCE_TYPES match registered connector IDs</action>
             <action>Verify CONNECTION_PROPERTIES have correct credentials</action>
             <action>Ensure Flight service is deployed and accessible</action>
-            <action>Check network connectivity to CP4D and Flight service</action>
+            <action>Check network connectivity to Cloud Pak for Data and Flight service</action>
             <action>Offer to re-run tests after fixes</action>
           </if_tests_fail>
         </error_handling>
@@ -2899,13 +2684,13 @@
           - Do NOT assume or guess the test outcome
         </workflow_control>
 
-        <confirmation_question>
-          What were the results of the validation tests?
-          1. All tests passed successfully
-          2. Some tests passed, some failed
-          3. All tests failed
-          4. I need help interpreting the results
-        </confirmation_question>
+        <ask_followup_question>
+          <question>What were the results of the validation tests?</question>
+          <suggest>All tests passed successfully</suggest>
+          <suggest>Some tests passed, some failed</suggest>
+          <suggest>All tests failed</suggest>
+          <suggest>I need help interpreting the results</suggest>
+        </ask_followup_question>
 
         <success_message>
           <when>User confirms all tests pass</when>
@@ -2915,7 +2700,7 @@
             All connector(s) are properly registered and accessible in Cloud Pak for Data.
             Discovery tests completed successfully with assets returned for each connector.
             
-            Your connectors are ready to use in CP4D.
+            Your connectors are ready to use in Cloud Pak for Data.
           </message>
         </success_message>
 
@@ -3003,7 +2788,7 @@
 
     <next_steps>
       <step>Test the connector(s) by making API calls through the Flight service</step>
-      <step>If registered with CP4D: Create connections in CP4D UI</step>
+      <step>If registered with Cloud Pak for Data: Create connections in Cloud Pak for Data UI</step>
       <step>Monitor logs for any issues</step>
       <step>Configure client applications to use the connector endpoint</step>
     </next_steps>
@@ -3011,9 +2796,8 @@
 
   <behavioral_rules>
     <rule>Always ask about additional connectors after completing each configuration</rule>
-    <rule>Present all four deployment options clearly, indicating placeholders</rule>
-    <rule>For implemented options (Local, Self-Hosted), offer automatic or manual execution</rule>
-    <rule>For placeholder options (Serverless, OpenShift), explain future functionality</rule>
+    <rule>Present deployment options based on Phase 0 choice (Developer: 4 options; Codeless: 3 options, excluding Local)</rule>
+    <rule>For all options (Local, Serverless, Self-Hosted, OpenShift), offer automatic or manual execution</rule>
     <rule>Execute Gradle tasks sequentially, waiting for each to complete</rule>
     <rule>All Gradle tasks must be run from the sdk-gen directory</rule>
     <rule>Provide clear error messages and recovery options</rule>
