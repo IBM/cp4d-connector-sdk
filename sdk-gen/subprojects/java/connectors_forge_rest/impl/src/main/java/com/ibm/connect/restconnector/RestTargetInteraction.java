@@ -5,8 +5,6 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
-import java.util.Properties;
-
 import org.apache.arrow.flight.FlightStream;
 
 import com.ibm.connect.sdk.api.Connector;
@@ -25,8 +23,6 @@ import com.ibm.wdp.connect.sdk.connector.SdkTargetInteraction;
  */
 public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>, SdkTargetInteraction
 {
-    private final Properties interactionProperties;
-
     /**
      * Creates an Arrow target interaction from a legacy {@link CustomFlightAssetDescriptor}.
      *
@@ -36,13 +32,13 @@ public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>
      *            the asset to which to write
      * @throws Exception
      */
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     public RestTargetInteraction(RestConnector connector, CustomFlightAssetDescriptor asset) throws Exception
     {
         if (connector == null) {
             throw new IllegalArgumentException(RestMsgs.MISSING_CONNECTOR.format());
         }
-        interactionProperties = ModelMapper.toProperties(asset.getInteractionProperties());
-        validateProperties();
+        ModelMapper.toProperties(asset.getInteractionProperties()); // validate asset is readable
     }
 
     /**
@@ -53,29 +49,11 @@ public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>
      * @param asset
      *            the SDK asset to which to write
      */
-    public RestTargetInteraction(RestConnector connector, AssetDescriptor asset) {
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    public RestTargetInteraction(RestConnector connector, AssetDescriptor asset)
+    {
         if (connector == null) {
             throw new IllegalArgumentException(RestMsgs.MISSING_CONNECTOR.format());
-        }
-        // Build properties from SDK asset's properties map
-        interactionProperties = new Properties();
-        if (asset.getProperties() != null) {
-            for (final java.util.Map.Entry<String, Object> entry : asset.getProperties().entrySet()) {
-                if (entry.getValue() != null) {
-                    interactionProperties.setProperty(entry.getKey(), entry.getValue().toString());
-                }
-            }
-        }
-        validateProperties();
-    }
-
-    private void validateProperties()
-    {
-        if (interactionProperties.getProperty("schema_name") == null) {
-            throw new IllegalArgumentException(RestMsgs.MISSING_PROPERTY.format("schema_name"));
-        }
-        if (interactionProperties.getProperty("table_name") == null) {
-            throw new IllegalArgumentException(RestMsgs.MISSING_PROPERTY.format("table_name"));
         }
     }
 
@@ -83,57 +61,70 @@ public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always — write operations are not supported
      */
     @Override
-    public void setup() {
-        // TODO Perform any setup required before writing
+    public void setup()
+    {
+        throw new UnsupportedOperationException("Write operations are not supported by the REST connector.");
     }
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always — write operations are not supported
      */
     @Override
-    public void consume(RowReader reader) {
-        // TODO Read rows from reader and write to the target
+    public void consume(RowReader reader)
+    {
+        throw new UnsupportedOperationException("Write operations are not supported by the REST connector.");
     }
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always — write operations are not supported
      */
     @Override
-    public void wrapup() {
-        // TODO Perform any wrap-up required after writing
+    public void wrapup()
+    {
+        throw new UnsupportedOperationException("Write operations are not supported by the REST connector.");
     }
 
     // ---- TargetInteraction interface (legacy path) ----
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always — write operations are not supported
      */
     @Override
     public CustomFlightAssetDescriptor putSetup() throws Exception
     {
-        // TODO Perform any setup required before writing
-        return null;
+        throw new UnsupportedOperationException("Write operations are not supported by the REST connector.");
     }
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always — write operations are not supported
      */
     @Override
     public void putStream(FlightStream flightStream) throws Exception
     {
-        // TODO Write a stream to the data asset
+        throw new UnsupportedOperationException("Write operations are not supported by the REST connector.");
     }
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always — write operations are not supported
      */
     @Override
     public CustomFlightAssetDescriptor putWrapup() throws Exception
     {
-        // TODO Perform any wrap-up required after writing
-        return null;
+        throw new UnsupportedOperationException("Write operations are not supported by the REST connector.");
     }
 
     /**
@@ -142,6 +133,6 @@ public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>
     @Override
     public void close() throws Exception
     {
-        // TODO Close any open resources
+        // nothing to close
     }
 }
