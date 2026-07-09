@@ -64,13 +64,43 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     }
 
     /**
+     * Creates an Arrow-based REST connector with a pre-built API mapping.
+     *
+     * <p>When {@code apiMapping} is non-null, {@link #connect()} will skip the
+     * singleton factory lookup and use the supplied mapping directly.
+     *
+     * @param datasourceTypeName
+     *            the datasource type name (connector name)
+     * @param properties
+     *            connection properties (currently unused, reserved for future use)
+     * @param apiMapping
+     *            a pre-built {@link RestApiMapping} to use instead of the factory cache;
+     *            may be {@code null}, in which case behaviour is identical to the two-arg
+     *            constructor
+     */
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    public RestConnector(String datasourceTypeName, ConnectionProperties properties, RestApiMapping apiMapping)
+    {
+        this.datasourceTypeName = datasourceTypeName;
+        this.apiMapping = apiMapping;
+    }
+
+    /**
      * {@inheritDoc}
      *
-     * <p>Loads the JSON configuration from the factory's cache.
+     * <p>Loads the JSON configuration from the factory's cache, unless a mapping was
+     * already supplied via the constructor or {@link #setApiMapping(RestApiMapping)},
+     * in which case the factory lookup is skipped entirely.
      */
     @Override
     public void connect() throws Exception
     {
+        if (apiMapping != null) {
+            LOGGER.debug("Skipped factory lookup. API mapping already set for connector '{}'",
+                    datasourceTypeName);
+            return;
+        }
+
         LOGGER.info("Connecting: loading REST API configuration for connector '{}'", datasourceTypeName);
         apiMapping = RestConnectorFactory.getInstance().getConfiguration(datasourceTypeName);
 
@@ -86,11 +116,26 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     /**
      * Returns the loaded API mapping.
      *
-     * @return the REST API mapping, or null if {@link #connect()} has not been called
+     * @return the REST API mapping, or {@code null} if {@link #connect()} has not been called
+     *         and no mapping was pre-set
      */
     public RestApiMapping getApiMapping()
     {
         return apiMapping;
+    }
+
+    /**
+     * Sets the API mapping directly, bypassing the factory singleton.
+     *
+     * <p>Must be called before {@link #connect()} if you want to inject a mapping
+     * programmatically (e.g., in tests or embedded use-cases).
+     *
+     * @param apiMapping
+     *            the {@link RestApiMapping} to use; must not be {@code null}
+     */
+    public void setApiMapping(RestApiMapping apiMapping)
+    {
+        this.apiMapping = apiMapping;
     }
 
     /**
