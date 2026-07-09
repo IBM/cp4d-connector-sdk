@@ -54,106 +54,32 @@ public class RestApiMapping
         this.metadata = metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Collections.emptyMap();
     }
 
-    /**
-     * Returns the connector name.
-     *
-     * @return the connector name
-     */
-    public String getConnectorName()
-    {
-        return connectorName;
-    }
+    public String getConnectorName() { return connectorName; }
+    public String getConnectorLabel() { return connectorLabel; }
+    public String getConnectorDescription() { return connectorDescription; }
+    public String getBaseUrl() { return baseUrl; }
+    public String getAuthenticationType() { return authenticationType.getValue(); }
+    public AuthenticationType getAuthenticationTypeEnum() { return authenticationType; }
+    public Map<String, RestTableDefinition> getTables() { return tables; }
 
     /**
-     * Returns the connector label.
-     *
-     * @return the connector label
-     */
-    public String getConnectorLabel()
-    {
-        return connectorLabel;
-    }
-
-    /**
-     * Returns the connector description.
-     *
-     * @return the connector description
-     */
-    public String getConnectorDescription()
-    {
-        return connectorDescription;
-    }
-
-    /**
-     * Returns the base URL for all API calls.
-     *
-     * @return the base URL (e.g. "https://api.spacexdata.com:443")
-     */
-    public String getBaseUrl()
-    {
-        return baseUrl;
-    }
-
-    /**
-     * Returns the authentication type for this API.
-     *
-     * @return the authentication type: "none", "api_key", "oauth2", or "basic"
-     */
-    public String getAuthenticationType()
-    {
-        return authenticationType.getValue();
-    }
-
-    /**
-     * Returns the authentication type enum for this API.
-     *
-     * @return the authentication type enum
-     */
-    public AuthenticationType getAuthenticationTypeEnum()
-    {
-        return authenticationType;
-    }
-
-    /**
-     * Returns the map of table name to table definition.
-     *
-     * @return an unmodifiable map of table definitions keyed by table name
-     */
-    public Map<String, RestTableDefinition> getTables()
-    {
-        return tables;
-    }
-
-    /**
-     * Returns the table definition for the given table name (case-insensitive lookup).
-     *
-     * @param tableName
-     *            the table name to look up
-     * @return the table definition, or null if not found
+     * Returns the table definition for the given table name.
+     * Lookup order:
+     * 1. Exact match (preserves the original case from the JSON DSL key)
+     * 2. Case-insensitive linear scan (supports callers that normalise to upper/lower case)
      */
     public RestTableDefinition getTable(String tableName)
     {
-        if (tableName == null) {
-            return null;
+        if (tableName == null) { return null; }
+        final RestTableDefinition exact = tables.get(tableName);
+        if (exact != null) { return exact; }
+        for (final Map.Entry<String, RestTableDefinition> entry : tables.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(tableName)) { return entry.getValue(); }
         }
-        // Try exact match first
-        final RestTableDefinition def = tables.get(tableName);
-        if (def != null) {
-            return def;
-        }
-        // Try upper-case match
-        return tables.get(tableName.toUpperCase(java.util.Locale.ENGLISH));
+        return null;
     }
 
-    /**
-     * Returns the metadata map from the "$metadata" section of the connector configuration.
-     *
-     * @return an unmodifiable map of metadata (connector_source, target_service, connector_type, etc.)
-     */
-    public Map<String, String> getMetadata()
-    {
-        return metadata;
-    }
+    public Map<String, String> getMetadata() { return metadata; }
 
     @Override
     public String toString()
@@ -163,5 +89,3 @@ public class RestApiMapping
                 + ", metadata=" + metadata + "}";
     }
 }
-
-// Made with Bob

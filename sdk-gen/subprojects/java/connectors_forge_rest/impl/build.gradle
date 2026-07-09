@@ -80,6 +80,7 @@ dependencies {
   api project(':' + rootProject.name + '-java-api-models')
   api project(':' + rootProject.name + '-java-api')
   implementation project(':' + rootProject.name + '-java-util')
+  implementation project(':wdp-connect-sdk-gen-java-sdk-connector-api')
 
   // JSON processing for REST API calls (Java 11+ HttpClient is used, no need for Apache HttpClient)
   implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: project['jackson.version']

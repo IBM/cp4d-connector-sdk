@@ -19,6 +19,7 @@ dependencies {
   runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
   runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
   // End of flight-core
+  api project(':wdp-connect-sdk-gen-java-sdk-connector-api')
   api project(':wdp-connect-sdk-gen-java-api-models')
   api group: 'org.apache.commons', name: 'commons-pool2', version: project['commons.pool2.version']
   api group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
