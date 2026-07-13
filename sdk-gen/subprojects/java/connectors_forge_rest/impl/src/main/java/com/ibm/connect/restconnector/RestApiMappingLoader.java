@@ -109,11 +109,12 @@ public class RestApiMappingLoader
         final AuthenticationType authenticationType = parseAuthenticationType(root);
         final Map<String, RestTableDefinition> tables = parseTables(root);
         final Map<String, String> metadataMap = parseMetadata(root);
+        final Map<String, String> datasourceTypeConnectivityInternals = parseDatasourceTypeConnectivityInternals(root);
 
         LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables, metadata={}",
                 metadata.connectorName, authenticationType.getValue(), tables.size(), metadataMap.isEmpty() ? "none" : metadataMap.keySet());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authenticationType, tables, metadataMap);
+                baseUrl, authenticationType, tables, metadataMap, datasourceTypeConnectivityInternals);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
@@ -153,6 +154,37 @@ public class RestApiMappingLoader
         }
         
         return metadata;
+    }
+
+    private static Map<String, String> parseDatasourceTypeConnectivityInternals(JsonNode root)
+    {
+        final JsonNode metadataNode = root.get(METADATA_KEY);
+        if (metadataNode == null || !metadataNode.isObject()) {
+            return new LinkedHashMap<>();
+        }
+
+        final JsonNode connectivityInternalsNode = metadataNode.get("connectivity_internals");
+        if (connectivityInternalsNode == null || !connectivityInternalsNode.isObject()) {
+            return new LinkedHashMap<>();
+        }
+
+        final JsonNode datasourceTypeNode = connectivityInternalsNode.get("datasource_type");
+        if (datasourceTypeNode == null || !datasourceTypeNode.isObject()) {
+            return new LinkedHashMap<>();
+        }
+
+        final Map<String, String> datasourceTypeConnectivityInternals = new LinkedHashMap<>();
+        final JsonNode connectorSourceNode = datasourceTypeNode.get("connector_source");
+        if (connectorSourceNode != null && !connectorSourceNode.isNull()) {
+            datasourceTypeConnectivityInternals.put("connector_source", connectorSourceNode.asText());
+        }
+
+        final JsonNode forgeVersionNode = datasourceTypeNode.get("forge_version");
+        if (forgeVersionNode != null && !forgeVersionNode.isNull()) {
+            datasourceTypeConnectivityInternals.put("forge_version", forgeVersionNode.asText());
+        }
+
+        return datasourceTypeConnectivityInternals;
     }
 
     private static String parseBaseUrl(JsonNode root) throws IOException

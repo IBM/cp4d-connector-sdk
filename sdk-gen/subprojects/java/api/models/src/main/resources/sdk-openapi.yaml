@@ -237,34 +237,25 @@ components:
       additionalProperties:
         type: string
     DatasourceTypeMetadata:
-      description: Metadata about the datasource type origin and creation.
+      description: Metadata for Connector Forge connectors to track provenance and categorization.
       type: object
       properties:
         connector_source:
           type: string
-          description: Source of the connector (e.g., "connector_forge", "library").
-          example: "connector_forge"
-        target_service:
-          type: string
-          description: Target service name (e.g., "GitHub", "Salesforce").
-          example: "GitHub"
-        connector_type:
-          type: string
-          description: Type of connector (e.g., "rest_api", "jdbc", "file").
-          example: "rest_api"
-        created_at:
-          type: string
-          format: date-time
-          description: ISO 8601 timestamp when connector was created.
-          example: "2026-05-06T13:00:00Z"
-        created_by:
-          type: string
-          description: User ID who created the connector.
-          example: "user_12345"
+          description: The origin of the connector ('forge', 'library', or 'app_connect').
+          example: "forge"
         forge_version:
           type: string
           description: Version of Connector Forge used to create this connector.
           example: "1.0.0"
+    ConnectivityInternals:
+      description: >
+        Connectivity-specific metadata for a datasource type asset.
+        CAMS does not process these fields — they survive round-trips unchanged.
+      type: object
+      properties:
+        datasource_type:
+          $ref: '#/components/schemas/DatasourceTypeMetadata'
     CustomFlightDatasourceType:
       description: The definition of a custom Arrow Flight data source type.
       type: object
@@ -301,8 +292,8 @@ components:
           type: array
           items:
             type: string
-        metadata:
-          $ref: '#/components/schemas/DatasourceTypeMetadata'
+        connectivity_internals:
+          $ref: '#/components/schemas/ConnectivityInternals'
         actions:
           description: The actions supported for the data source.
           type: array

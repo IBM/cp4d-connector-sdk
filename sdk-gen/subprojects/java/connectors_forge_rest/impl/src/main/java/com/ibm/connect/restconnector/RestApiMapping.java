@@ -22,6 +22,7 @@ public class RestApiMapping
     private final AuthenticationType authenticationType;
     private final Map<String, RestTableDefinition> tables;
     private final Map<String, String> metadata;
+    private final Map<String, String> datasourceTypeConnectivityInternals;
 
     /**
      * Creates an API mapping.
@@ -43,7 +44,7 @@ public class RestApiMapping
      */
     public RestApiMapping(String connectorName, String connectorLabel, String connectorDescription,
             String baseUrl, AuthenticationType authenticationType, Map<String, RestTableDefinition> tables,
-            Map<String, String> metadata)
+            Map<String, String> metadata, Map<String, String> datasourceTypeConnectivityInternals)
     {
         this.connectorName = connectorName;
         this.connectorLabel = connectorLabel;
@@ -52,6 +53,9 @@ public class RestApiMapping
         this.authenticationType = authenticationType != null ? authenticationType : AuthenticationType.NONE;
         this.tables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
         this.metadata = metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Collections.emptyMap();
+        this.datasourceTypeConnectivityInternals = datasourceTypeConnectivityInternals != null
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(datasourceTypeConnectivityInternals))
+                : Collections.emptyMap();
     }
 
     /**
@@ -153,6 +157,11 @@ public class RestApiMapping
     public Map<String, String> getMetadata()
     {
         return metadata;
+    }
+
+    public Map<String, String> getDatasourceTypeConnectivityInternals()
+    {
+        return datasourceTypeConnectivityInternals;
     }
 
     @Override
