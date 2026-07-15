@@ -14,6 +14,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+
 /**
  * Tests for advanced REST connector features including authentication,
  * pagination, data paths, and object flattening.

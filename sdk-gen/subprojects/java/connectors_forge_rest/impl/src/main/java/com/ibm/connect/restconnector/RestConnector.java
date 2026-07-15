@@ -23,19 +23,26 @@ import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetType;
+import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
+import com.ibm.wdp.connect.sdk.connector.DiscoveryCriteria;
+import com.ibm.wdp.connect.sdk.connector.SdkConnector;
 
 /**
  * An Arrow-based connector for connecting to a REST API data source.
  *
+ * <p>Implements both the legacy {@link Connector} interface (for backward compatibility with
+ * existing SDK tooling) and the new {@link SdkConnector} interface (for the Arrow-native path
+ * through {@link AbstractSdkConnectorFlightProducer}).
+ *
  * <p>The connector reads a JSON configuration file that describes the API endpoints
  * and their field schemas. It uses this configuration to discover assets and read data
  * from the REST API in a streaming fashion.
- * 
+ *
  * <p>Each connector instance is associated with a specific datasource type (connector name)
  * and loads its configuration from the factory's cache.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
-public class RestConnector implements Connector<RestSourceInteraction, RestTargetInteraction>
+public class RestConnector implements Connector<RestSourceInteraction, RestTargetInteraction>,
+        SdkConnector<RestSourceInteraction, RestTargetInteraction, RestDiscoveryInteraction>
 {
     private static final Logger LOGGER = getLogger(RestConnector.class);
 
@@ -43,7 +50,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     private RestApiMapping apiMapping;
 
     /**
-     * Creates an Arrow-based REST connector.
+     * Creates an Arrow-based REST connector (legacy SCAPI path).
      *
      * @param datasourceTypeName
      *            the datasource type name (connector name)
@@ -54,26 +61,54 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     public RestConnector(String datasourceTypeName, ConnectionProperties properties)
     {
         this.datasourceTypeName = datasourceTypeName;
-        // Connection properties are currently unused since configurations are loaded from factory cache
-        // The parameter is kept for API compatibility and potential future use
+    }
+
+    /**
+     * Creates an Arrow-based REST connector with a pre-built API mapping.
+     *
+     * <p>When {@code apiMapping} is non-null, {@link #connect()} will skip the
+     * singleton factory lookup and use the supplied mapping directly.
+     *
+     * @param datasourceTypeName
+     *            the datasource type name (connector name)
+     * @param properties
+     *            connection properties (currently unused, reserved for future use)
+     * @param apiMapping
+     *            a pre-built {@link RestApiMapping} to use instead of the factory cache;
+     *            may be {@code null}, in which case behaviour is identical to the two-arg
+     *            constructor
+     */
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    public RestConnector(String datasourceTypeName, ConnectionProperties properties, RestApiMapping apiMapping)
+    {
+        this.datasourceTypeName = datasourceTypeName;
+        this.apiMapping = apiMapping;
     }
 
     /**
      * {@inheritDoc}
      *
-     * <p>Loads the JSON configuration from the factory's cache.
+     * <p>Loads the JSON configuration from the factory's cache, unless a mapping was
+     * already supplied via the constructor or {@link #setApiMapping(RestApiMapping)},
+     * in which case the factory lookup is skipped entirely.
      */
     @Override
     public void connect() throws Exception
     {
+        if (apiMapping != null) {
+            LOGGER.debug("Skipped factory lookup. API mapping already set for connector '{}'",
+                    datasourceTypeName);
+            return;
+        }
+
         LOGGER.info("Connecting: loading REST API configuration for connector '{}'", datasourceTypeName);
         apiMapping = RestConnectorFactory.getInstance().getConfiguration(datasourceTypeName);
-        
+
         if (apiMapping == null) {
             throw new IllegalStateException(
                 RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
         }
-        
+
         LOGGER.debug("Connected: loaded {} tables for connector '{}' ({})",
                 apiMapping.getTables().size(), datasourceTypeName, apiMapping.getConnectorLabel());
     }
@@ -81,11 +116,26 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     /**
      * Returns the loaded API mapping.
      *
-     * @return the REST API mapping, or null if {@link #connect()} has not been called
+     * @return the REST API mapping, or {@code null} if {@link #connect()} has not been called
+     *         and no mapping was pre-set
      */
     public RestApiMapping getApiMapping()
     {
         return apiMapping;
+    }
+
+    /**
+     * Sets the API mapping directly, bypassing the factory singleton.
+     *
+     * <p>Must be called before {@link #connect()} if you want to inject a mapping
+     * programmatically (e.g., in tests or embedded use-cases).
+     *
+     * @param apiMapping
+     *            the {@link RestApiMapping} to use; must not be {@code null}
+     */
+    public void setApiMapping(RestApiMapping apiMapping)
+    {
+        this.apiMapping = apiMapping;
     }
 
     /**
@@ -98,14 +148,56 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
         return datasourceTypeName;
     }
 
+    // ---- SdkConnector interface (new path) ----
+
     /**
      * {@inheritDoc}
-     *
-     * <p>Hierarchical discovery:
-     * <ul>
-     * <li>Path "/" - returns all table names as containers (no fields)</li>
-     * <li>Path "/{tableName}" - returns the specific table as a dataset with fields</li>
-     * </ul>
+     */
+    @Override
+    public Schema getSchema(AssetDescriptor asset) throws Exception
+    {
+        if (apiMapping == null) {
+            throw new IllegalStateException("API mapping not loaded. Call connect() first.");
+        }
+        final String tableName = RestConnectorUtils.resolveTableName(asset.getPath(), asset.getName());
+        final RestTableDefinition tableDef = apiMapping.getTable(tableName);
+        if (tableDef == null) {
+            throw new IllegalArgumentException("Table '" + tableName + "' not found in REST API mapping.");
+        }
+        return ArrowConversions.toArrow(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public RestSourceInteraction getSourceInteraction(AssetDescriptor asset, Ticket ticket) throws Exception
+    {
+        return new RestSourceInteraction(this, asset, ticket);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public RestTargetInteraction getTargetInteraction(AssetDescriptor asset) throws Exception
+    {
+        return new RestTargetInteraction(this, asset);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public RestDiscoveryInteraction getDiscoveryInteraction(DiscoveryCriteria criteria) throws Exception
+    {
+        return new RestDiscoveryInteraction(this);
+    }
+
+    // ---- Connector interface (legacy path) ----
+
+    /**
+     * {@inheritDoc}
      */
     @Override
     public List<CustomFlightAssetDescriptor> discoverAssets(CustomFlightAssetsCriteria criteria) throws Exception
@@ -118,7 +210,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
         final List<CustomFlightAssetDescriptor> assets = new ArrayList<>();
 
         if ("/".equals(path)) {
-            // Root discovery: return all tables as containers (no fields)
             for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
                 final String tableName = entry.getKey();
 
@@ -129,9 +220,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
                 descriptor.setDatasourceTypeName(datasourceTypeName);
                 descriptor.setConnectionProperties(criteria.getConnectionProperties());
                 descriptor.setHasChildren(true);
-                // No fields at this level
 
-                // Asset type: container, not a dataset
                 final DiscoveredAssetType assetType = new DiscoveredAssetType();
                 assetType.setType("table");
                 assetType.setDataset(false);
@@ -141,11 +230,9 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
                 assets.add(descriptor);
                 LOGGER.debug("Discovered table container: {}", tableName);
             }
-        }
-        else if (path != null && path.startsWith("/") && !path.substring(1).contains("/")) {
-            // Table-level discovery: return the specific table with fields
-            final String tableName = path.substring(1); // Remove leading "/"
-            final RestTableDefinition tableDef = apiMapping.getTables().get(tableName);
+        } else if (path != null && path.startsWith("/") && !path.substring(1).contains("/")) {
+            final String tableName = path.substring(1);
+            final RestTableDefinition tableDef = apiMapping.getTable(tableName);
 
             if (tableDef != null) {
                 final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
@@ -157,7 +244,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
                 descriptor.setHasChildren(false);
                 descriptor.setFields(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
 
-                // Asset type: dataset, not a container
                 final DiscoveredAssetType assetType = new DiscoveredAssetType();
                 assetType.setType("table");
                 assetType.setDataset(true);
@@ -166,12 +252,10 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
 
                 assets.add(descriptor);
                 LOGGER.debug("Discovered table dataset: {}", tableName);
-            }
-            else {
+            } else {
                 LOGGER.warn("Table not found in mapping: {}", tableName);
             }
-        }
-        else {
+        } else {
             LOGGER.warn("Unsupported discovery path supplied for discovery");
         }
 
@@ -181,9 +265,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
 
     /**
      * {@inheritDoc}
-     *
-     * <p>Returns the Arrow schema for the given asset by looking up the table
-     * definition in the API mapping.
      */
     @Override
     public Schema getSchema(CustomFlightAssetDescriptor asset) throws Exception
@@ -234,10 +315,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     @Override
     public void close() throws Exception
     {
-        // No persistent resources to close
         LOGGER.debug("RestConnector closed");
     }
-
 }
-
-// Made with Bob
