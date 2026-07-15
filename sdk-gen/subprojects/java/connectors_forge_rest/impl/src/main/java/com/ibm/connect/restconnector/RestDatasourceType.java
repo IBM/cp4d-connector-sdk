@@ -10,13 +10,12 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.Map;
 
-import com.ibm.wdp.connect.common.sdk.api.models.ConnectivityInternals;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty.TypeEnum;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypeProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeDiscovery;
-import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeMetadata;
+import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeOrigin;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryAssetType;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathSegment;
@@ -58,8 +57,13 @@ public class RestDatasourceType extends CustomFlightDatasourceType
         setStatus(CustomFlightDatasourceType.StatusEnum.ACTIVE);
         setTags(Collections.emptyList());
 
-        // Set connectivity_internals from $metadata.connectivity_internals.datasource_type
-        setConnectivityInternals(mapping);
+        // Set origin from $metadata (connector_source → name, forge_version → version)
+        final Map<String, String> originMap = mapping.getOrigin();
+        if (!originMap.isEmpty()) {
+            setOrigin(new DatasourceTypeOrigin()
+                    .name(originMap.get("name"))
+                    .version(originMap.get("version")));
+        }
 
         final CustomFlightDatasourceTypeProperties properties = new CustomFlightDatasourceTypeProperties();
         setProperties(properties);
@@ -205,18 +209,6 @@ public class RestDatasourceType extends CustomFlightDatasourceType
     public String getConfigFilePath()
     {
         return configFilePath;
-    }
-
-    private void setConnectivityInternals(RestApiMapping mapping)
-    {
-        final Map<String, String> ci = mapping.getDatasourceTypeConnectivityInternals();
-        if (ci.isEmpty()) {
-            return;
-        }
-        final DatasourceTypeMetadata dsTypeMeta = new DatasourceTypeMetadata()
-                .connectorSource(ci.get("connector_source"))
-                .forgeVersion(ci.get("forge_version"));
-        setConnectivityInternals(new ConnectivityInternals().datasourceType(dsTypeMeta));
     }
 
 }

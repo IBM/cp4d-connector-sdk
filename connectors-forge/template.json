@@ -2,14 +2,7 @@
   "$connector_name": "api-name-connector",
   "$connector_label": "Display Label",
   "$connector_description": "Description of what this connector provides access to",
-  "$metadata": {
-    "connector_source": "connector_forge",
-    "target_service": "Example Service",
-    "connector_type": "rest_api",
-    "created_at": "2026-05-06T12:00:00Z",
-    "created_by": "user_12345",
-    "forge_version": "1.0.0"
-  },
+  "$origin": { "name": "forge", "version": "1.0.0" },
   "$hostname": "https://api.example.com",
   "$authentication": "api_key",
   "$tables": {

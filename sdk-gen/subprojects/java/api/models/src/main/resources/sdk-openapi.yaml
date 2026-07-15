@@ -236,26 +236,24 @@ components:
       type: object
       additionalProperties:
         type: string
-    DatasourceTypeMetadata:
-      description: Metadata for Connector Forge connectors to track provenance and categorization.
-      type: object
-      properties:
-        connector_source:
-          type: string
-          description: The origin of the connector ('forge', 'library', or 'app_connect').
-          example: "forge"
-        forge_version:
-          type: string
-          description: Version of Connector Forge used to create this connector.
-          example: "1.0.0"
-    ConnectivityInternals:
+    DatasourceTypeOrigin:
       description: >
-        Connectivity-specific metadata for a datasource type asset.
-        CAMS does not process these fields — they survive round-trips unchanged.
+        The origin of a datasource type connector. Carried through CAMS as an
+        opaque field so the connection service can filter by connector source.
       type: object
       properties:
-        datasource_type:
-          $ref: '#/components/schemas/DatasourceTypeMetadata'
+        name:
+          type: string
+          description: >
+            The origin of the connector.
+            One of 'forge', 'library', 'app_connect', or 'custom'.
+          example: "forge"
+        version:
+          type: string
+          description: >
+            The version of Connector Forge used to create this connector.
+            Present only when name is 'forge'.
+          example: "1.0.0"
     CustomFlightDatasourceType:
       description: The definition of a custom Arrow Flight data source type.
       type: object
@@ -292,8 +290,8 @@ components:
           type: array
           items:
             type: string
-        connectivity_internals:
-          $ref: '#/components/schemas/ConnectivityInternals'
+        origin:
+          $ref: '#/components/schemas/DatasourceTypeOrigin'
         actions:
           description: The actions supported for the data source.
           type: array

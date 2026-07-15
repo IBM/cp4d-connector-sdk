@@ -21,8 +21,7 @@ public class RestApiMapping
     private final String baseUrl;
     private final AuthenticationType authenticationType;
     private final Map<String, RestTableDefinition> tables;
-    private final Map<String, String> metadata;
-    private final Map<String, String> datasourceTypeConnectivityInternals;
+    private final Map<String, String> origin;
 
     /**
      * Creates an API mapping.
@@ -39,12 +38,13 @@ public class RestApiMapping
      *            the authentication type: "none", "api_key", "oauth2", or "basic" (from "$authentication")
      * @param tables
      *            a map of table name to table definition
-     * @param metadata
-     *            metadata from "$metadata" section (connector_source, target_service, etc.)
+     * @param origin
+     *            origin fields from the "$origin" directive: name and
+     *            optionally version
      */
     public RestApiMapping(String connectorName, String connectorLabel, String connectorDescription,
             String baseUrl, AuthenticationType authenticationType, Map<String, RestTableDefinition> tables,
-            Map<String, String> metadata, Map<String, String> datasourceTypeConnectivityInternals)
+            Map<String, String> origin)
     {
         this.connectorName = connectorName;
         this.connectorLabel = connectorLabel;
@@ -52,9 +52,8 @@ public class RestApiMapping
         this.baseUrl = baseUrl;
         this.authenticationType = authenticationType != null ? authenticationType : AuthenticationType.NONE;
         this.tables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
-        this.metadata = metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Collections.emptyMap();
-        this.datasourceTypeConnectivityInternals = datasourceTypeConnectivityInternals != null
-                ? Collections.unmodifiableMap(new LinkedHashMap<>(datasourceTypeConnectivityInternals))
+        this.origin = origin != null
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(origin))
                 : Collections.emptyMap();
     }
 
@@ -150,26 +149,21 @@ public class RestApiMapping
     }
 
     /**
-     * Returns the metadata map from the "$metadata" section of the connector configuration.
+     * Returns the origin map from the "$origin" directive: name and
+     * optionally version.
      *
-     * @return an unmodifiable map of metadata (connector_source, target_service, connector_type, etc.)
+     * @return an unmodifiable map with keys "name" and optionally "version"
      */
-    public Map<String, String> getMetadata()
+    public Map<String, String> getOrigin()
     {
-        return metadata;
-    }
-
-    public Map<String, String> getDatasourceTypeConnectivityInternals()
-    {
-        return datasourceTypeConnectivityInternals;
+        return origin;
     }
 
     @Override
     public String toString()
     {
         return "RestApiMapping{connectorName='" + connectorName + "', baseUrl='" + baseUrl
-                + "', authenticationType='" + authenticationType.getValue() + "', tables=" + tables.keySet()
-                + ", metadata=" + metadata + "}";
+                + "', authenticationType='" + authenticationType.getValue() + "', tables=" + tables.keySet() + "}";
     }
 }
 
