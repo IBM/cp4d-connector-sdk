@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <deployment_setup_phase>
   <overview>
-    This phase handles the initial deployment option selection and project setup.
-    It must be completed BEFORE proceeding to API discovery and configuration generation.
+    This phase handles deployment option selection and project setup.
   </overview>
 
   <phase_0_deployment_selection>
@@ -16,37 +15,14 @@
       <title>Ask User for Deployment Preference</title>
       <description>
         Present the user with two deployment options and gather their preference.
+        Use ask_followup_question so the user gets clickable suggestion buttons.
       </description>
-      
-      <question>
-        Which deployment option would you like to use for this REST API connector?
-      </question>
 
-      <options>
-        <option name="codeless">
-          <label>Codeless Option</label>
-          <description>
-            Download a pre-built Docker image from the repository.
-            Quick setup with no code generation required.
-            Best for: Standard use cases without customization needs.
-          </description>
-        </option>
-        
-        <option name="developer">
-          <label>Developer Option</label>
-          <description>
-            Generate connector code that you can modify and customize.
-            Build your own Docker image from the generated code.
-            Best for: Custom implementations and advanced use cases.
-          </description>
-        </option>
-      </options>
-
-      <presentation_format>
-        Present options clearly with numbered choices:
-        1. Codeless Option - Download pre-built Docker image
-        2. Developer Option - Generate and customize connector code
-      </presentation_format>
+      <ask_followup_question>
+        <question>Which deployment option would you like to use for this REST API connector?</question>
+        <suggest>Codeless — use the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.3), no code generation needed</suggest>
+        <suggest>Developer — generate customisable connector code and build my own Docker image</suggest>
+      </ask_followup_question>
     </step_1_ask_deployment_option>
 
     <step_2_handle_codeless_option>
@@ -74,7 +50,7 @@
         <action priority="2">
           <name>Inform User About Codeless Option</name>
           <message>
-            The codeless option will use a pre-built Docker image from Docker Hub.
+            The codeless option will use a pre-built Docker image from GitHub Container Registry.
             
             Docker Image: ghcr.io/marek-zuwala/connectors-forge:1.0.3
             
@@ -105,31 +81,11 @@
 
       <sub_step_1_ask_generation_preference>
         <title>Ask Code Generation Preference</title>
-        <question>
-          Would you like me to generate the connector code for you, or would you prefer to do it yourself?
-        </question>
-
-        <options>
-          <option name="auto_generate">
-            <label>Generate Code Automatically</label>
-            <description>
-              I will run the Gradle task to generate all necessary connector code and project structure.
-            </description>
-          </option>
-
-          <option name="manual_setup">
-            <label>Manual Setup</label>
-            <description>
-              I will provide you with instructions to generate the code yourself.
-            </description>
-          </option>
-        </options>
-
-        <presentation_format>
-          Present options clearly:
-          1. Generate code automatically (I'll run the Gradle task)
-          2. Manual setup (You'll run the Gradle task yourself)
-        </presentation_format>
+        <ask_followup_question>
+          <question>Would you like me to generate the connector code for you, or would you prefer to run the Gradle task yourself?</question>
+          <suggest>Generate automatically — run the Gradle task for me</suggest>
+          <suggest>Manual setup — give me the instructions and I'll run the Gradle task myself</suggest>
+        </ask_followup_question>
       </sub_step_1_ask_generation_preference>
 
       <sub_step_2a_auto_generate>
