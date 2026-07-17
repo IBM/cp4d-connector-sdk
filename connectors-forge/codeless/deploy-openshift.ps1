@@ -14,7 +14,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PropertiesFile = Join-Path $ScriptDir "deploy-openshift.properties"
 
 # Hardcoded configuration
-$DockerImage = "ghcr.io/marek-zuwala/connectors-forge:1.0.3"
+$DockerImage = "ghcr.io/marek-zuwala/connectors-forge:1.0.4"
 $ConfigFilesPath = "sdk-gen/subprojects/connectors_forge_rest/src/main/resources"
 $DeploymentYaml = Join-Path $ScriptDir "deployment.yaml"
 $ServiceYaml = Join-Path $ScriptDir "service.yaml"
