@@ -236,34 +236,23 @@ components:
       type: object
       additionalProperties:
         type: string
-    DatasourceTypeMetadata:
-      description: Metadata about the datasource type origin and creation.
+    DatasourceTypeOrigin:
+      description: >
+        The origin of a datasource type connector. Carried through CAMS as an
+        opaque field so the connection service can filter by connector source.
       type: object
       properties:
-        connector_source:
+        name:
           type: string
-          description: Source of the connector (e.g., "connector_forge", "library").
-          example: "connector_forge"
-        target_service:
+          description: >
+            The origin of the connector.
+            One of 'forge', 'library', 'app_connect', or 'custom'.
+          example: "forge"
+        version:
           type: string
-          description: Target service name (e.g., "GitHub", "Salesforce").
-          example: "GitHub"
-        connector_type:
-          type: string
-          description: Type of connector (e.g., "rest_api", "jdbc", "file").
-          example: "rest_api"
-        created_at:
-          type: string
-          format: date-time
-          description: ISO 8601 timestamp when connector was created.
-          example: "2026-05-06T13:00:00Z"
-        created_by:
-          type: string
-          description: User ID who created the connector.
-          example: "user_12345"
-        forge_version:
-          type: string
-          description: Version of Connector Forge used to create this connector.
+          description: >
+            The version of Connector Forge used to create this connector.
+            Present only when name is 'forge'.
           example: "1.0.0"
     CustomFlightDatasourceType:
       description: The definition of a custom Arrow Flight data source type.
@@ -301,8 +290,8 @@ components:
           type: array
           items:
             type: string
-        metadata:
-          $ref: '#/components/schemas/DatasourceTypeMetadata'
+        origin:
+          $ref: '#/components/schemas/DatasourceTypeOrigin'
         actions:
           description: The actions supported for the data source.
           type: array

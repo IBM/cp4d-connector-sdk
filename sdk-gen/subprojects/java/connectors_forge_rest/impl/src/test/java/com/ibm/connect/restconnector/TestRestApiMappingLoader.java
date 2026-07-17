@@ -210,6 +210,32 @@ public class TestRestApiMappingLoader
         final RestFieldDefinition flightField = launches.getFields().get(4);
         assertEquals("cores.flight", flightField.getName());
     }
+    /**
+     * Test that origin name and version are parsed from $origin.
+     */
+    @Test
+    public void testOriginParsedFromMetadata() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$connector_name\": \"my-forge-connector\",\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$origin\": {\"name\": \"forge\", \"version\": \"1.2.3\"},\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals("forge", mapping.getOrigin().get("name"));
+        assertEquals("1.2.3", mapping.getOrigin().get("version"));
+    }
+
+    /**
+     * Test that origin is empty when $metadata has no connector_source.
+     */
+    @Test
+    public void testOriginEmptyWhenNoMetadata() throws Exception
+    {
+        final RestApiMapping mapping = RestApiMappingLoader.parse(MINIMAL_REST_JSON);
+        assertTrue(mapping.getOrigin().isEmpty());
+    }
 }
 
 // Made with Bob

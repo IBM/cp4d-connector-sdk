@@ -300,7 +300,7 @@
 
       <important_note>
         This deployment option uses IBM Cloud Code Engine for serverless container deployment.
-        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.3) from GitHub Container Registry.
+        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.4) from GitHub Container Registry.
         Code Engine provides serverless container deployment with automatic scaling and built-in HTTPS endpoints.
       </important_note>
 
@@ -780,7 +780,7 @@ Optional configuration (will use defaults if not specified):
       
       <important_note>
         The deployment process differs based on the deployment type chosen in Phase 0:
-        - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.3)
+        - Codeless: Uses deploy-container.sh script with pre-built image (ghcr.io/marek-zuwala/connectors-forge:1.0.4)
         - Developer: Uses ./gradlew dockerPush to build and push custom Docker image
       </important_note>
 
@@ -1291,7 +1291,7 @@ Optional configuration (will use defaults if not specified):
 
       <important_note>
         This step is for CODELESS deployment to OpenShift.
-        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.3) from GitHub Container Registry.
+        It uses the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.4) from GitHub Container Registry.
         For DEVELOPER deployment to OpenShift, see step_6_handle_openshift_deployment_developer.
       </important_note>
 
@@ -2263,7 +2263,7 @@ Required configuration:
               1. The deployment context from earlier steps (e.g., Code Engine app URL, OpenShift route)
               2. The template structure
               3. Appropriate defaults for the deployment type
-              
+
               Format it as a complete, ready-to-use properties file that the user can copy directly.
               Include comments from the template to help users understand each setting.
             </bob_instruction>

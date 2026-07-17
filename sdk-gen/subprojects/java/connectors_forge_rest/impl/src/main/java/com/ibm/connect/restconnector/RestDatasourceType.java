@@ -7,18 +7,15 @@ package com.ibm.connect.restconnector;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.text.SimpleDateFormat;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Map;
-import java.util.TimeZone;
 
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty.TypeEnum;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypeProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeDiscovery;
-import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeMetadata;
+import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeOrigin;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryAssetType;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathSegment;
@@ -60,31 +57,12 @@ public class RestDatasourceType extends CustomFlightDatasourceType
         setStatus(CustomFlightDatasourceType.StatusEnum.ACTIVE);
         setTags(Collections.emptyList());
 
-        // Set metadata from the $metadata section if present
-        final Map<String, String> metadataMap = mapping.getMetadata();
-        if (!metadataMap.isEmpty()) {
-            final DatasourceTypeMetadata metadata = new DatasourceTypeMetadata();
-            metadata.setConnectorSource(metadataMap.get("connector_source"));
-            metadata.setTargetService(metadataMap.get("target_service"));
-            metadata.setConnectorType(metadataMap.get("connector_type"));
-            metadata.setCreatedBy(metadataMap.get("created_by"));
-            metadata.setForgeVersion(metadataMap.get("forge_version"));
-            
-            // Parse created_at timestamp from ISO 8601 format string to Date
-            final String createdAtStr = metadataMap.get("created_at");
-            if (createdAtStr != null && !createdAtStr.isEmpty()) {
-                try {
-                    // Parse ISO 8601 date-time format (e.g., "2026-05-06T13:00:00Z")
-                    final SimpleDateFormat iso8601Format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
-                    iso8601Format.setTimeZone(TimeZone.getTimeZone("UTC"));
-                    final Date createdAt = iso8601Format.parse(createdAtStr);
-                    metadata.setCreatedAt(createdAt);
-                } catch (Exception e) {
-                    // If parsing fails, skip setting created_at (field remains null)
-                }
-            }
-            
-            setMetadata(metadata);
+        // Set origin from $metadata (connector_source → name, forge_version → version)
+        final Map<String, String> originMap = mapping.getOrigin();
+        if (!originMap.isEmpty()) {
+            setOrigin(new DatasourceTypeOrigin()
+                    .name(originMap.get("name"))
+                    .version(originMap.get("version")));
         }
 
         final CustomFlightDatasourceTypeProperties properties = new CustomFlightDatasourceTypeProperties();
@@ -232,6 +210,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
     {
         return configFilePath;
     }
+
 }
 
 // Made with Bob

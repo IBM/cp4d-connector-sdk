@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *   "$connector_name": "Connector's name",
  *   "$connector_label": "Connector's label",
  *   "$connector_description": "Connector's description",
+ *   "$origin": { "name": "forge", "version": "1.0.0" },
  *   "$hostname": "https://api.spacexdata.com:443",
  *   "$tables": {
  *     "capsules": {
@@ -54,7 +55,7 @@ public class RestApiMappingLoader
     private static final String CONNECTOR_NAME_KEY = "$connector_name";
     private static final String CONNECTOR_LABEL_KEY = "$connector_label";
     private static final String CONNECTOR_DESCRIPTION_KEY = "$connector_description";
-    private static final String METADATA_KEY = "$metadata";
+    private static final String ORIGIN_KEY = "$origin";
     private static final String HOSTNAME_KEY = "$hostname";
     private static final String AUTHENTICATION_KEY = "$authentication";
     private static final String TABLES_KEY = "$tables";
@@ -108,12 +109,12 @@ public class RestApiMappingLoader
         final String baseUrl = parseBaseUrl(root);
         final AuthenticationType authenticationType = parseAuthenticationType(root);
         final Map<String, RestTableDefinition> tables = parseTables(root);
-        final Map<String, String> metadataMap = parseMetadata(root);
+        final Map<String, String> origin = parseOrigin(root);
 
-        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables, metadata={}",
-                metadata.connectorName, authenticationType.getValue(), tables.size(), metadataMap.isEmpty() ? "none" : metadataMap.keySet());
+        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables",
+                metadata.connectorName, authenticationType.getValue(), tables.size());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authenticationType, tables, metadataMap);
+                baseUrl, authenticationType, tables, origin);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
@@ -124,35 +125,26 @@ public class RestApiMappingLoader
         return new ConnectorMetadata(connectorName, connectorLabel, connectorDescription);
     }
 
-    /**
-     * Parses the $metadata section from the JSON configuration.
-     *
-     * @param root
-     *            the root JSON node
-     * @return a map of metadata key-value pairs, or an empty map if no metadata is present
-     */
-    private static Map<String, String> parseMetadata(JsonNode root)
+    // Reads name and version from the top-level $origin directive.
+    private static Map<String, String> parseOrigin(JsonNode root)
     {
-        final Map<String, String> metadata = new LinkedHashMap<>();
-        final JsonNode metadataNode = root.get(METADATA_KEY);
-        
-        if (metadataNode != null && metadataNode.isObject()) {
-            final Iterator<Map.Entry<String, JsonNode>> fields = metadataNode.fields();
-            while (fields.hasNext()) {
-                final Map.Entry<String, JsonNode> field = fields.next();
-                final String key = field.getKey();
-                final JsonNode value = field.getValue();
-                
-                if (value != null && !value.isNull()) {
-                    metadata.put(key, value.asText());
-                }
-            }
-            LOGGER.debug("Parsed metadata: {}", metadata);
-        } else {
-            LOGGER.debug("No $metadata section found in configuration");
+        final JsonNode originNode = root.get(ORIGIN_KEY);
+        if (originNode == null || !originNode.isObject()) {
+            return new LinkedHashMap<>();
         }
-        
-        return metadata;
+
+        final Map<String, String> origin = new LinkedHashMap<>();
+        final JsonNode nameNode = originNode.get("name");
+        if (nameNode != null && !nameNode.isNull()) {
+            origin.put("name", nameNode.asText());
+        }
+
+        final JsonNode versionNode = originNode.get("version");
+        if (versionNode != null && !versionNode.isNull()) {
+            origin.put("version", versionNode.asText());
+        }
+
+        return origin;
     }
 
     private static String parseBaseUrl(JsonNode root) throws IOException
