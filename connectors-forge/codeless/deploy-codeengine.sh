@@ -332,6 +332,24 @@ create_project() {
     local response_body=$(echo "$response" | sed '$d')
     
     if [ "$http_code" != "200" ] && [ "$http_code" != "201" ] && [ "$http_code" != "202" ]; then
+        # Check for resource group permission error
+        if [ "$http_code" = "403" ]; then
+            local error_code=$(echo "$response_body" | grep -o '"code":"[^"]*"' | head -n1 | cut -d'"' -f4)
+            if echo "$error_code" | grep -q "resource_group"; then
+                # Extract the actual error message from the API response
+                local error_message=$(echo "$response_body" | grep -o '"message":"[^"]*"' | head -n1 | cut -d'"' -f4)
+                log_error "Failed to create project: $error_message"
+                log_error ""
+                log_error "Potential resolution:"
+                log_error "  1. Obtain your resource group ID from IBM Cloud console"
+                log_error "  2. Add it to your properties file: RESOURCE_GROUP_ID=<your-resource-group-id>"
+                log_error "  3. Re-run this script"
+                log_error ""
+                log_error "For more information, see: https://cloud.ibm.com/docs/account?topic=account-rgs"
+                exit 1
+            fi
+        fi
+        
         log_error "Failed to create project (HTTP $http_code)"
         log_error "Response: $response_body"
         exit 1
@@ -401,25 +419,43 @@ get_project_id() {
             exit 1
         fi
         
-        # Extract project ID by matching project name
-        # This approach finds the project object and extracts the id field from it
-        PROJECT_ID=$(echo "$response_body" | awk -v project="$CODE_ENGINE_PROJECT" '
+        # Extract project ID and region by matching project name
+        # This approach finds the project object and extracts both id and region fields
+        local project_info=$(echo "$response_body" | awk -v project="$CODE_ENGINE_PROJECT" '
             BEGIN { RS="{"; FS="\""; found=0 }
             /"name"/ && /"id"/ {
-                name=""; id=""
+                name=""; id=""; region=""
                 for (i=1; i<=NF; i++) {
                     if ($i == "name") name=$(i+2)
                     if ($i == "id")   id=$(i+2)
+                    if ($i == "region") region=$(i+2)
                 }
                 if (name == project && id != "") {
-                    print id
+                    print id "|" region
                     exit
                 }
             }
         ')
         
-        if [ -n "$PROJECT_ID" ]; then
-            log "Project ID: $PROJECT_ID"
+        if [ -n "$project_info" ]; then
+            PROJECT_ID=$(echo "$project_info" | cut -d'|' -f1)
+            local project_region=$(echo "$project_info" | cut -d'|' -f2)
+            
+            log "Found project '$CODE_ENGINE_PROJECT' with ID: $PROJECT_ID"
+            
+            # Validate region matches
+            if [ -n "$project_region" ] && [ "$project_region" != "$REGION" ]; then
+                log_error "Project '$CODE_ENGINE_PROJECT' exists in region '$project_region' but you specified region '$REGION'"
+                log_error ""
+                log_error "Please choose one of the following options:"
+                log_error "  1. Change the REGION in your properties file to: $project_region"
+                log_error "  2. Change the CODE_ENGINE_PROJECT name to deploy to a different project in region: $REGION"
+                log_error "     (A new project will be created automatically if it doesn't exist)"
+                log_error ""
+                exit 1
+            fi
+            
+            log "Project region validated: $REGION"
             return 0
         fi
         
@@ -480,7 +516,6 @@ get_existing_configmap_data() {
             }
         }
         }'
-        ``
     else
         echo ""
     fi
@@ -506,7 +541,8 @@ build_configmap_data() {
             exit 1
         fi
         
-        local content=$(cat "$file")
+        # Strip newlines, carriage returns, and tabs to compact the JSON before embedding
+        local content=$(tr -d '\n\r\t' < "$file")
         local escaped=$(escape_json_string "$content")
         
         # Check if this filename already exists in the data
