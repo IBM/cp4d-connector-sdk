@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data_source_patterns>
+  <overview>
+    This file provides comprehensive patterns and examples to help identify whether
+    a data source should use REST or JDBC connector approach.
+  </overview>
+
+  <rest_api_patterns>
+    <category name="web_services">
+      <description>Modern web services and SaaS applications</description>
+      <examples>
+        <example>
+          <name>GitHub API</name>
+          <indicators>
+            - REST API with endpoints like /repos, /users, /issues
+            - JSON responses
+            - OAuth2 or personal access token authentication
+            - Rate limiting via headers
+          </indicators>
+          <routing_decision>REST connector (connectors-forge-rest)</routing_decision>
+        </example>
+
+        <example>
+          <name>Salesforce REST API</name>
+          <indicators>
+            - REST API endpoints for objects (Account, Contact, etc.)
+            - OAuth2 authentication
+            - JSON responses with nested objects
+            - Pagination via nextRecordsUrl
+          </indicators>
+          <routing_decision>REST connector (but note: Salesforce also has JDBC driver)</routing_decision>
+        </example>
+
+        <example>
+          <name>ServiceNow</name>
+          <indicators>
+            - Table API with REST endpoints
+            - Basic auth or OAuth2
+            - JSON responses
+            - Query parameters for filtering
+          </indicators>
+          <routing_decision>REST connector</routing_decision>
+        </example>
+
+        <example>
+          <name>Jira Cloud API</name>
+          <indicators>
+            - REST API v3 endpoints
+            - API token authentication
+            - JSON responses
+            - Pagination with startAt/maxResults
+          </indicators>
+          <routing_decision>REST connector</routing_decision>
+        </example>
+      </examples>
+    </category>
+
+    <category name="cloud_services">
+      <description>Cloud platform APIs and services</description>
+      <examples>
+        <example>
+          <name>AWS Services (S3, DynamoDB, etc.)</name>
+          <indicators>
+            - REST/HTTP APIs
+            - AWS signature authentication
+            - JSON/XML responses
+            - Service-specific endpoints
+          </indicators>
+          <routing_decision>REST connector</routing_decision>
+        </example>
+
+        <example>
+          <name>Google Cloud APIs</name>
+          <indicators>
+            - REST APIs with JSON
+            - OAuth2 authentication
+            - Standard Google API patterns
+          </indicators>
+          <routing_decision>REST connector</routing_decision>
+        </example>
+
+        <example>
+          <name>Azure REST APIs</name>
+          <indicators>
+            - REST endpoints
+            - Azure AD authentication
+            - JSON responses
+          </indicators>
+          <routing_decision>REST connector</routing_decision>
+        </example>
+      </examples>
+    </category>
+
+    <category name="custom_apis">
+      <description>Custom or internal REST APIs</description>
+      <indicators>
+        <indicator>HTTP/HTTPS endpoints</indicator>
+        <indicator>JSON or XML response format</indicator>
+        <indicator>RESTful URL patterns (/resource/{id})</indicator>
+        <indicator>HTTP methods (GET, POST, PUT, DELETE)</indicator>
+        <indicator>API key, OAuth2, or basic authentication</indicator>
+        <indicator>Pagination via query parameters or headers</indicator>
+      </indicators>
+      <routing_decision>REST connector</routing_decision>
+    </category>
+  </rest_api_patterns>
+
+  <jdbc_patterns>
+    <category name="relational_databases">
+      <description>Traditional SQL databases</description>
+      <examples>
+        <example>
+          <name>PostgreSQL</name>
+          <indicators>
+            - Relational database
+            - JDBC driver: org.postgresql.Driver
+            - Connection string: jdbc:postgresql://host:port/database
+            - SQL query support
+          </indicators>
+          <routing_decision>JDBC connector (connectors-forge-jdbc)</routing_decision>
+        </example>
+
+        <example>
+          <name>MySQL / MariaDB</name>
+          <indicators>
+            - Relational database
+            - JDBC driver: com.mysql.cj.jdbc.Driver
+            - Connection string: jdbc:mysql://host:port/database
+            - SQL query support
+          </indicators>
+          <routing_decision>JDBC connector</routing_decision>
+        </example>
+
+        <example>
+          <name>Oracle Database</name>
+          <indicators>
+            - Enterprise relational database
+            - JDBC driver: oracle.jdbc.OracleDriver
+            - Connection string: jdbc:oracle:thin:@host:port:sid
+            - SQL and PL/SQL support
+          </indicators>
+          <routing_decision>JDBC connector</routing_decision>
+        </example>
+
+        <example>
+          <name>Microsoft SQL Server</name>
+          <indicators>
+            - Relational database
+            - JDBC driver: com.microsoft.sqlserver.jdbc.SQLServerDriver
+            - Connection string: jdbc:sqlserver://host:port;database=dbname
+            - T-SQL support
+          </indicators>
+          <routing_decision>JDBC connector</routing_decision>
+        </example>
+
+        <example>
+          <name>IBM Db2</name>
+          <indicators>
+            - Enterprise relational database
+            - JDBC driver: com.ibm.db2.jcc.DB2Driver
+            - Connection string: jdbc:db2://host:port/database
+            - SQL support
+          </indicators>
+          <routing_decision>JDBC connector</routing_decision>
+        </example>
+      </examples>
+    </category>
+
+    <category name="data_warehouses">
+      <description>Data warehouse systems (may support both REST and JDBC)</description>
+      <examples>
+        <example>
+          <name>Amazon Redshift</name>
+          <indicators>
+            - PostgreSQL-compatible data warehouse
+            - JDBC driver available
+            - SQL query support
+            - Also has REST API via AWS SDK
+          </indicators>
+          <routing_decision>Typically JDBC connector (but can use REST for AWS API)</routing_decision>
+        </example>
+
+        <example>
+          <name>Teradata</name>
+          <indicators>
+            - Enterprise data warehouse
+            - JDBC driver: com.teradata.jdbc.TeraDriver
+            - SQL support
+          </indicators>
+          <routing_decision>JDBC connector</routing_decision>
+        </example>
+      </examples>
+    </category>
+
+    <category name="nosql_with_jdbc">
+      <description>NoSQL databases that provide JDBC drivers</description>
+      <examples>
+        <example>
+          <name>Apache Cassandra (via JDBC)</name>
+          <indicators>
+            - NoSQL database with JDBC driver
+            - CQL (Cassandra Query Language)
+            - JDBC driver available
+          </indicators>
+          <routing_decision>JDBC connector (if using JDBC driver)</routing_decision>
+        </example>
+
+        <example>
+          <name>MongoDB (via JDBC)</name>
+          <indicators>
+            - Document database
+            - JDBC driver available (MongoDB Connector for BI)
+            - SQL-like query interface
+          </indicators>
+          <routing_decision>JDBC connector (if using JDBC driver)</routing_decision>
+        </example>
+      </examples>
+    </category>
+  </jdbc_patterns>
+
+  <hybrid_patterns>
+    <description>
+      Data sources that support both REST API and JDBC connectivity.
+      For these, ask the user which approach they prefer.
+    </description>
+
+    <examples>
+      <example>
+        <name>Snowflake</name>
+        <rest_support>
+          - SQL REST API
+          - OAuth2 authentication
+          - JSON responses
+        </rest_support>
+        <jdbc_support>
+          - JDBC driver: net.snowflake.client.jdbc.SnowflakeDriver
+          - Connection string: jdbc:snowflake://account.snowflakecomputing.com
+          - Full SQL support
+        </jdbc_support>
+        <recommendation>
+          JDBC is more common for Snowflake, but REST API is good for
+          specific use cases or when JDBC driver cannot be used.
+        </recommendation>
+      </example>
+
+      <example>
+        <name>Google BigQuery</name>
+        <rest_support>
+          - BigQuery REST API
+          - OAuth2 authentication
+          - JSON responses
+          - Query jobs via API
+        </rest_support>
+        <jdbc_support>
+          - JDBC driver: com.google.cloud.bigquery.jdbc.Driver
+          - Connection string: jdbc:bigquery://project-id
+          - SQL support
+        </jdbc_support>
+        <recommendation>
+          Both approaches are valid. JDBC for traditional SQL workflows,
+          REST API for more programmatic control.
+        </recommendation>
+      </example>
+
+      <example>
+        <name>Salesforce</name>
+        <rest_support>
+          - Salesforce REST API
+          - OAuth2 authentication
+          - SOQL queries via API
+          - JSON responses
+        </rest_support>
+        <jdbc_support>
+          - JDBC driver available (CData or similar)
+          - SOQL support
+          - Connection via JDBC
+        </jdbc_support>
+        <recommendation>
+          REST API is more native to Salesforce. JDBC drivers are third-party
+          and may have limitations.
+        </recommendation>
+      </example>
+
+      <example>
+        <name>Databricks</name>
+        <rest_support>
+          - Databricks REST API
+          - Token authentication
+          - JSON responses
+        </rest_support>
+        <jdbc_support>
+          - JDBC driver: com.databricks.client.jdbc.Driver
+          - Connection to SQL endpoints
+          - Spark SQL support
+        </jdbc_support>
+        <recommendation>
+          JDBC is standard for SQL queries. REST API for cluster management
+          and other operations.
+        </recommendation>
+      </example>
+    </examples>
+
+    <decision_guidance>
+      <when_to_prefer_rest>
+        <reason>User needs to access specific API endpoints</reason>
+        <reason>OAuth2 authentication is required</reason>
+        <reason>JDBC driver is not available or difficult to obtain</reason>
+        <reason>Need to access non-tabular data or metadata</reason>
+        <reason>API provides better rate limiting or quota management</reason>
+      </when_to_prefer_rest>
+
+      <when_to_prefer_jdbc>
+        <reason>User needs full SQL query capabilities</reason>
+        <reason>Existing tools/workflows use JDBC</reason>
+        <reason>Need to perform complex joins or aggregations</reason>
+        <reason>Better performance for large data transfers</reason>
+        <reason>Standard database operations (SELECT, INSERT, UPDATE, DELETE)</reason>
+      </when_to_prefer_jdbc>
+    </decision_guidance>
+  </hybrid_patterns>
+
+  <keyword_indicators>
+    <rest_keywords>
+      <keyword weight="high">API</keyword>
+      <keyword weight="high">REST</keyword>
+      <keyword weight="high">endpoint</keyword>
+      <keyword weight="high">HTTP</keyword>
+      <keyword weight="high">HTTPS</keyword>
+      <keyword weight="medium">JSON</keyword>
+      <keyword weight="medium">XML</keyword>
+      <keyword weight="medium">OAuth</keyword>
+      <keyword weight="medium">API key</keyword>
+      <keyword weight="medium">bearer token</keyword>
+      <keyword weight="low">webhook</keyword>
+      <keyword weight="low">GraphQL</keyword>
+    </rest_keywords>
+
+    <jdbc_keywords>
+      <keyword weight="high">database</keyword>
+      <keyword weight="high">JDBC</keyword>
+      <keyword weight="high">SQL</keyword>
+      <keyword weight="high">connection string</keyword>
+      <keyword weight="medium">table</keyword>
+      <keyword weight="medium">schema</keyword>
+      <keyword weight="medium">query</keyword>
+      <keyword weight="medium">driver</keyword>
+      <keyword weight="low">SELECT</keyword>
+      <keyword weight="low">INSERT</keyword>
+      <keyword weight="low">UPDATE</keyword>
+    </jdbc_keywords>
+
+    <usage_note>
+      Use these keywords as indicators, but always confirm with the user.
+      Multiple high-weight keywords strongly suggest a particular type.
+    </usage_note>
+  </keyword_indicators>
+</data_source_patterns>
+
+<!-- Made with Bob -->

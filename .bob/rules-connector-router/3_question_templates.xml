@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<question_templates>
+  <overview>
+    Pre-defined question templates and follow-up suggestions for gathering information
+    about data sources when the type is unclear.
+  </overview>
+
+  <initial_questions>
+    <question_template id="data_source_identification">
+      <question>What data source would you like to create a connector for?</question>
+      <follow_up_suggestions>
+        <suggest>GitHub API - I want to access repositories and issues</suggest>
+        <suggest>PostgreSQL database - I have a relational database</suggest>
+        <suggest>Salesforce - I need to connect to Salesforce data</suggest>
+        <suggest>Custom REST API - I have my own API endpoints</suggest>
+      </follow_up_suggestions>
+      <context>
+        Use this as the opening question when user hasn't specified their data source.
+      </context>
+    </question_template>
+
+    <question_template id="access_method">
+      <question>How do you currently access or plan to access this data source?</question>
+      <follow_up_suggestions>
+        <suggest>Through HTTP API calls with JSON responses</suggest>
+        <suggest>Through database queries using SQL</suggest>
+        <suggest>Both methods are available</suggest>
+        <suggest>I'm not sure - can you help me determine this?</suggest>
+      </follow_up_suggestions>
+      <context>
+        Use when the data source name alone doesn't clearly indicate REST vs JDBC.
+      </context>
+    </question_template>
+
+    <question_template id="documentation_check">
+      <question>Do you have documentation or a URL for this data source?</question>
+      <follow_up_suggestions>
+        <suggest>Yes, here's the API documentation URL</suggest>
+        <suggest>Yes, here's the database documentation</suggest>
+        <suggest>No, but I can describe what I know</suggest>
+        <suggest>I need help finding the documentation</suggest>
+      </follow_up_suggestions>
+      <context>
+        Documentation URLs often clearly indicate REST API vs database.
+      </context>
+    </question_template>
+  </initial_questions>
+
+  <clarifying_questions>
+    <question_set scenario="unclear_after_initial">
+      <description>
+        When initial response doesn't provide enough clarity
+      </description>
+      
+      <question_template id="technical_details">
+        <question>Can you tell me more about the technical details of your data source?</question>
+        <follow_up_suggestions>
+          <suggest>It has REST API endpoints that return JSON</suggest>
+          <suggest>It's a database with tables I can query using SQL</suggest>
+          <suggest>It provides both API and database access</suggest>
+          <suggest>I only know the product name, not the technical details</suggest>
+        </follow_up_suggestions>
+      </question_template>
+
+      <question_template id="authentication_method">
+        <question>What authentication method does your data source use?</question>
+        <follow_up_suggestions>
+          <suggest>API key or OAuth2 tokens</suggest>
+          <suggest>Database username and password</suggest>
+          <suggest>Both API and database authentication</suggest>
+          <suggest>I'm not sure about authentication</suggest>
+        </follow_up_suggestions>
+        <context>
+          Authentication method is a strong indicator:
+          - API key/OAuth2 → REST API
+          - Username/password for database → JDBC
+        </context>
+      </question_template>
+
+      <question_template id="data_format">
+        <question>What format does the data come in?</question>
+        <follow_up_suggestions>
+          <suggest>JSON or XML from HTTP responses</suggest>
+          <suggest>Rows and columns from database tables</suggest>
+          <suggest>Both formats are available</suggest>
+          <suggest>I'm not sure about the format</suggest>
+        </follow_up_suggestions>
+        <context>
+          Data format is a clear indicator:
+          - JSON/XML → REST API
+          - Rows/columns/tables → JDBC
+        </context>
+      </question_template>
+    </question_set>
+
+    <question_set scenario="hybrid_source_detected">
+      <description>
+        When data source supports both REST and JDBC
+      </description>
+
+      <question_template id="preference_with_context">
+        <question>
+          Your data source supports both REST API and JDBC connectivity.
+          Which approach would you prefer?
+        </question>
+        <context_explanation>
+          REST API approach:
+          - Configuration-based, no code required
+          - Good for accessing specific API endpoints
+          - OAuth2 authentication support
+          - May have rate limits
+          
+          JDBC approach:
+          - Full SQL query capabilities
+          - Direct database access
+          - Better for complex queries and joins
+          - Standard database operations
+        </context_explanation>
+        <follow_up_suggestions>
+          <suggest>REST API - I want to use the API endpoints</suggest>
+          <suggest>JDBC - I need SQL query capabilities</suggest>
+          <suggest>I'm not sure - which do you recommend?</suggest>
+        </follow_up_suggestions>
+      </question_template>
+
+      <question_template id="use_case_based">
+        <question>What is your primary use case for this connector?</question>
+        <follow_up_suggestions>
+          <suggest>Query data using SQL-like operations</suggest>
+          <suggest>Access specific API endpoints or resources</suggest>
+          <suggest>Both querying and API access</suggest>
+          <suggest>I need help deciding</suggest>
+        </follow_up_suggestions>
+        <routing_logic>
+          - SQL operations → JDBC
+          - API endpoints → REST
+          - Both → Ask for preference
+          - Need help → Provide recommendation based on data source
+        </routing_logic>
+      </question_template>
+    </question_set>
+
+    <question_set scenario="user_unsure">
+      <description>
+        When user explicitly states they don't know or are unsure
+      </description>
+
+      <question_template id="educational_then_specific">
+        <educational_context>
+          Let me help you understand the difference:
+          
+          REST API connectors are for:
+          - Web services with HTTP endpoints
+          - APIs that return JSON or XML
+          - Services like GitHub, Salesforce API, ServiceNow
+          
+          JDBC connectors are for:
+          - Traditional databases (PostgreSQL, MySQL, Oracle, etc.)
+          - Data warehouses (Snowflake, Redshift, BigQuery)
+          - Any system you connect to using SQL queries
+        </educational_context>
+        <question>
+          Based on this, which category does your data source fall into?
+        </question>
+        <follow_up_suggestions>
+          <suggest>It's a web service/API (REST)</suggest>
+          <suggest>It's a database (JDBC)</suggest>
+          <suggest>I'm still not sure</suggest>
+        </follow_up_suggestions>
+      </question_template>
+
+      <question_template id="tool_based">
+        <question>What tools or methods do you currently use to access this data?</question>
+        <follow_up_suggestions>
+          <suggest>curl, Postman, or HTTP clients</suggest>
+          <suggest>SQL clients like pgAdmin, DBeaver, or SQL Server Management Studio</suggest>
+          <suggest>Programming libraries (specify which)</suggest>
+          <suggest>I haven't accessed it yet</suggest>
+        </follow_up_suggestions>
+        <routing_logic>
+          - curl/Postman → REST
+          - SQL clients → JDBC
+          - Programming libraries → Ask which library
+          - Haven't accessed → Ask for product name/documentation
+        </routing_logic>
+      </question_template>
+    </question_set>
+  </clarifying_questions>
+
+  <progressive_questioning_strategy>
+    <overview>
+      Use a progressive approach: start broad, then narrow down based on responses.
+    </overview>
+
+    <level_1_broad>
+      <description>Initial broad questions</description>
+      <questions>
+        <question>What data source would you like to connect to?</question>
+        <question>Do you have documentation or details about it?</question>
+      </questions>
+    </level_1_broad>
+
+    <level_2_medium>
+      <description>Medium specificity - if level 1 unclear</description>
+      <questions>
+        <question>How do you access this data source?</question>
+        <question>What authentication method does it use?</question>
+      </questions>
+    </level_2_medium>
+
+    <level_3_specific>
+      <description>Highly specific - if level 2 unclear</description>
+      <questions>
+        <question>Does it have HTTP endpoints that return JSON/XML?</question>
+        <question>Or is it a database with tables you query using SQL?</question>
+      </questions>
+    </level_3_specific>
+
+    <level_4_binary>
+      <description>Binary choice - last resort</description>
+      <question>
+        I need to determine if this is a REST API or a database connection.
+        Can you tell me which of these is true:
+        
+        A) It's a web service/API with HTTP endpoints
+        B) It's a database that uses SQL queries
+        C) It supports both
+        D) I really don't know
+      </question>
+      <handling>
+        - A → Route to REST
+        - B → Route to JDBC
+        - C → Ask for preference
+        - D → Ask for product name and search for documentation
+      </handling>
+    </level_4_binary>
+  </progressive_questioning_strategy>
+
+  <response_analysis>
+    <strong_indicators>
+      <rest_indicators>
+        <indicator>Mentions "API", "endpoint", "HTTP", "REST"</indicator>
+        <indicator>Provides API documentation URL</indicator>
+        <indicator>Mentions JSON or XML responses</indicator>
+        <indicator>Talks about OAuth2, API keys, bearer tokens</indicator>
+        <indicator>References curl, Postman, or HTTP clients</indicator>
+      </rest_indicators>
+
+      <jdbc_indicators>
+        <indicator>Mentions "database", "SQL", "JDBC", "driver"</indicator>
+        <indicator>Names specific databases (PostgreSQL, MySQL, etc.)</indicator>
+        <indicator>Talks about tables, schemas, queries</indicator>
+        <indicator>Mentions connection strings</indicator>
+        <indicator>References SQL clients or database tools</indicator>
+      </jdbc_indicators>
+    </strong_indicators>
+
+    <weak_indicators>
+      <description>
+        These alone are not sufficient but support other evidence
+      </description>
+      <indicators>
+        <indicator>Company/product names (need to look up capabilities)</indicator>
+        <indicator>Generic terms like "data source", "system"</indicator>
+        <indicator>Vague descriptions without technical details</indicator>
+      </indicators>
+      <action>
+        When only weak indicators present, ask more specific questions
+      </action>
+    </weak_indicators>
+  </response_analysis>
+
+  <example_conversations>
+    <example scenario="clear_rest">
+      <user_input>I want to connect to the GitHub API to access repository data</user_input>
+      <analysis>
+        Strong REST indicators: "API", "GitHub API"
+        GitHub is a well-known REST API
+      </analysis>
+      <response>
+        GitHub provides a REST API for accessing repositories, issues, and other resources.
+        This is clearly a REST API connector scenario.
+        
+        I'll switch you to the REST Connector Forge mode to help you create the
+        configuration for GitHub API endpoints.
+      </response>
+      <action>Switch to connectors-forge-rest</action>
+    </example>
+
+    <example scenario="clear_jdbc">
+      <user_input>I need to connect to our PostgreSQL database to query customer data</user_input>
+      <analysis>
+        Strong JDBC indicators: "PostgreSQL database", "query"
+        PostgreSQL is a relational database
+      </analysis>
+      <response>
+        PostgreSQL is a relational database that uses JDBC for connectivity.
+        This is a JDBC connector scenario.
+        
+        I'll switch you to the JDBC Connector Forge mode to help you set up
+        the database connector configuration.
+      </response>
+      <action>Switch to connectors-forge-jdbc</action>
+    </example>
+
+    <example scenario="hybrid_snowflake">
+      <user_input>I want to connect to Snowflake</user_input>
+      <analysis>
+        Snowflake supports both REST API and JDBC
+        Need to ask for preference
+      </analysis>
+      <response>
+        Snowflake supports both REST API and JDBC connectivity.
+        
+        REST API approach:
+        - Good for specific API operations
+        - OAuth2 authentication
+        - Configuration-based
+        
+        JDBC approach:
+        - Full SQL query capabilities
+        - Standard database connectivity
+        - Better for complex queries
+        
+        Which approach would you prefer for your use case?
+      </response>
+      <action>Wait for user preference, then route accordingly</action>
+    </example>
+
+    <example scenario="unclear_generic">
+      <user_input>I need to connect to our CRM system</user_input>
+      <analysis>
+        Weak indicator: "CRM system" is generic
+        Need more information
+      </analysis>
+      <response>
+        To help you create the right connector, I need to understand how your CRM
+        system provides data access.
+        
+        Does your CRM system provide:
+        1. A REST API with HTTP endpoints?
+        2. Database access via JDBC/SQL?
+        3. Both options?
+        4. You're not sure?
+      </response>
+      <action>Wait for clarification, then route based on response</action>
+    </example>
+  </example_conversations>
+</question_templates>
+
+<!-- Made with Bob -->
