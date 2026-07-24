@@ -1,4 +1,5 @@
 import org.apache.tools.ant.filters.*
+import groovy.json.JsonSlurper
 buildscript {
   apply from: 'repos.gradle'
   repositories {
@@ -43,6 +44,10 @@ apply from: 'ext.gradle'
 apply from: 'docker.gradle'
 
 apply from: 'registration.gradle'
+
+apply from: 'customize-jdbc.gradle'
+
+apply from: 'generate-jdbc-tests.gradle'
 
 apply from: 'internal.gradle' // remove-129921
 
@@ -466,6 +471,23 @@ subprojects {
   }
 }
 
+def generateConnectorProjectFromValues = { configurationName, srcJavaPackage, connectorName, connectorLabel, connectorClassPrefix, connectorJavaPackage, connectorDescription ->
+  FileTree connTree = zipTree(configurations.getByName(configurationName).singleFile)
+  copy{
+    from connTree
+    into "${project.rootDir}/subprojects/${connectorName}"
+    eachFile{ path = path.replace(srcJavaPackage.replace('.','/'), connectorJavaPackage.replace('.','/')) }
+    rename{filename -> filename.replace '$_CONNNAME_$', connectorName }
+    rename{filename -> filename.replace '$_CONNNAMEPREFIX_$', connectorClassPrefix }
+    filter{line -> line.replace '$_CONNNAME_$', connectorName}
+    filter{line -> line.replace '$_CONNLABEL_$', connectorLabel}
+    filter{line -> line.replace '$_CONNDESCRIPTION_$', connectorDescription}
+    filter{line -> line.replace'$_CONNNAMEPREFIX_$', connectorClassPrefix }
+    filter{line -> line.replace srcJavaPackage, connectorJavaPackage }
+    filter{line -> line.replace'  isTemplate = true', '' }
+  }
+}
+
 def generateConnectorProject = { connectorType, configurationName, projectPath, srcJavaPackage ->
   println "Generating " + connectorType + " Java connector project"
   ant.input(message: "Connector's label:", addproperty: 'connectorLabel', defaultValue: 'Custom DataSource')
@@ -477,19 +499,39 @@ def generateConnectorProject = { connectorType, configurationName, projectPath, 
   ant.input(message: "Java package for the connector:", addproperty: 'connectorJavaPackage',defaultvalue: defaultJavaPackage)
   String defaultDesc = "${ant.connectorLabel} (SDK)"
   ant.input(message: "Connector's description:", addproperty: 'connectorDescription', defaultValue: defaultDesc)
-  FileTree connTree = zipTree(configurations.getByName(configurationName).singleFile)
-  copy{
-    from connTree
-    into "${project.rootDir}/subprojects/${ant.connectorName}"
-    eachFile{ path = path.replace(srcJavaPackage.replace('.','/'), ant.connectorJavaPackage.replace('.','/')) }
-    rename{filename -> filename.replace '$_CONNNAME_$', ant.connectorName }
-    rename{filename -> filename.replace '$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
-    filter{line -> line.replace '$_CONNNAME_$', ant.connectorName}
-    filter{line -> line.replace '$_CONNLABEL_$', ant.connectorLabel}
-    filter{line -> line.replace '$_CONNDESCRIPTION_$', ant.connectorDescription}
-    filter{line -> line.replace'$_CONNNAMEPREFIX_$', ant.connectorClassPrefix }
-    filter{line -> line.replace srcJavaPackage, ant.connectorJavaPackage }
-    filter{line -> line.replace'  isTemplate = true', '' }
+  generateConnectorProjectFromValues(configurationName, srcJavaPackage, ant.connectorName, ant.connectorLabel, ant.connectorClassPrefix, ant.connectorJavaPackage, ant.connectorDescription)
+}
+
+def resolveDslFile = {
+  def dslFilePath = project.hasProperty('dslFile') ? project.property('dslFile') : 'DSL-jdbc.json'
+  def dslFile = new File(project.rootDir, dslFilePath)
+  if (!dslFile.exists()) {
+    throw new GradleException("DSL file not found: ${dslFile.absolutePath}")
+  }
+  dslFile
+}
+
+tasks.register('autoGenerateJavaJdbc'){
+  dependsOn configurations.jdbcImplConnector
+  description = 'Generate a JDBC Java connector project using label and description from the DSL file'
+  doLast{
+    def dslFile = resolveDslFile()
+    println "Generating JDBC Java connector project from DSL: ${dslFile.absolutePath}"
+
+    def dsl = new JsonSlurper().parse(dslFile)
+    def connectorMetadata = dsl.connector_metadata ?: [:]
+
+    def connectorLabel = connectorMetadata.connector_label
+    if (!connectorLabel) {
+      throw new GradleException("Missing required property 'connector_metadata.connector_label' in DSL file: ${dslFile.absolutePath}")
+    }
+
+    def connectorName = connectorMetadata.connector_name ?: connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
+    def connectorClassPrefix = camelCase(connectorName) - ~/Connector$/
+    def connectorJavaPackage = "com.yourorganizationname.connect."+connectorName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
+    def connectorDescription = connectorMetadata.connector_description ?: "${connectorLabel} (SDK)"
+
+    generateConnectorProjectFromValues('jdbcImplConnector', 'com.ibm.connect.sdk.jdbc.impl', connectorName, connectorLabel, connectorClassPrefix, connectorJavaPackage, connectorDescription)
   }
 }
 
@@ -587,6 +629,50 @@ tasks.register('generateFlightApp'){
     }
   }
 }
+
+tasks.register('autoGenerateFlightApp'){
+  dependsOn configurations.basicFlight
+  description = 'Generate a Flight app project automatically using connector name from DSL file'
+  doLast{
+    def dslFile = resolveDslFile()
+    println "Generating Flight app project from DSL: ${dslFile.absolutePath}"
+    def dsl = new JsonSlurper().parse(dslFile)
+    def connectorMetadata = dsl.connector_metadata ?: [:]
+
+    def connectorLabel = connectorMetadata.connector_label
+    if (!connectorLabel) {
+      throw new GradleException("Missing required property 'connector_metadata.connector_label' in DSL file: ${dslFile.absolutePath}")
+    }
+    // Determine connector name using same logic as autoGenerateJavaJdbc
+    def connectorName = connectorMetadata.connector_name ?: connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
+
+    // Build the full Gradle project name
+    def fullProjectName = "wdp-connect-sdk-gen-${connectorName}"
+
+    println "Creating Flight app 'flight' with connector project: ${fullProjectName}"
+
+    // Check if the connector project exists
+    def connectorProject = rootProject.findProject(":${fullProjectName}")
+    if (!connectorProject) {
+      throw new GradleException("Connector project ':${fullProjectName}' not found. Please generate the connector first using autoGenerateJavaJdbc.")
+    }
+    def flightProjectName = 'flight'
+    def newLine = "  runtimeOnly project(path: ':${fullProjectName}')"
+
+    println "Extracting Flight app template..."
+    FileTree connTree = zipTree(configurations.basicFlight.singleFile)
+    copy{
+      from connTree
+      into "${project.rootDir}/subprojects/${flightProjectName}"
+      filter { line -> line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line }
+      filter { line -> line.replace('  isTemplate = true', '') }
+    }
+    println "✅ Flight app created successfully!"
+    println "Location: ${project.rootDir}/subprojects/${flightProjectName}"
+    println "Included connector: :${fullProjectName}"
+  }
+}
+
 tasks.register('quickstart'){
   dependsOn configurations.basicConnector
   dependsOn configurations.basicFlight
