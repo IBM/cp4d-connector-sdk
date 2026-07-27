@@ -7,12 +7,12 @@ package com.ibm.wdp.connect.sdk.connector;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 import org.apache.arrow.memory.RootAllocator;
@@ -56,9 +56,12 @@ public class TestArrowBatchReader
         final List<VectorSchemaRoot> batches = new ArrayList<>();
         int idCounter = 1;
         for (final int count : rowCounts) {
+            @SuppressWarnings("PMD.CloseResource")
             final VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
             root.allocateNew();
+            @SuppressWarnings("PMD.CloseResource")
             final IntVector idVec = (IntVector) root.getVector("id");
+            @SuppressWarnings("PMD.CloseResource")
             final VarCharVector nameVec = (VarCharVector) root.getVector("name");
             for (int i = 0; i < count; i++) {
                 idVec.setSafe(i, idCounter++);
@@ -80,8 +83,8 @@ public class TestArrowBatchReader
                 count++;
                 final Object id = reader.get("id");
                 final Object name = reader.get("name");
-                assertFalse(id == null);
-                assertFalse(name == null);
+                assertNotNull(id);
+                assertNotNull(name);
             }
             assertEquals(5, count);
         }
@@ -100,9 +103,12 @@ public class TestArrowBatchReader
     @Test
     public void testNullValue() throws Exception
     {
+        @SuppressWarnings("PMD.CloseResource")
         final VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
         root.allocateNew();
+        @SuppressWarnings("PMD.CloseResource")
         final IntVector idVec = (IntVector) root.getVector("id");
+        @SuppressWarnings("PMD.CloseResource")
         final VarCharVector nameVec = (VarCharVector) root.getVector("name");
         idVec.setSafe(0, 99);
         nameVec.setNull(0);

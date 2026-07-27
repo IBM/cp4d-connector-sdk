@@ -7,7 +7,6 @@ package com.ibm.wdp.connect.sdk.connector;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -56,6 +55,7 @@ public class TestColumnarArrowBatchWriter
 
             final Iterator<VectorSchemaRoot> it = writer.batches();
             assertTrue(it.hasNext());
+            @SuppressWarnings("PMD.CloseResource")
             final VectorSchemaRoot root = it.next();
             assertEquals(3, root.getRowCount());
             root.close();
@@ -79,6 +79,7 @@ public class TestColumnarArrowBatchWriter
             int totalRows = 0;
             final Iterator<VectorSchemaRoot> it = writer.batches();
             while (it.hasNext()) {
+                @SuppressWarnings("PMD.CloseResource")
                 final VectorSchemaRoot root = it.next();
                 totalRows += root.getRowCount();
                 root.close();
@@ -97,6 +98,7 @@ public class TestColumnarArrowBatchWriter
 
             final Iterator<VectorSchemaRoot> it = writer.batches();
             assertTrue(it.hasNext());
+            @SuppressWarnings("PMD.CloseResource")
             final VectorSchemaRoot root = it.next();
             assertEquals(1, root.getRowCount());
             assertTrue(root.getVector("value").isNull(0));

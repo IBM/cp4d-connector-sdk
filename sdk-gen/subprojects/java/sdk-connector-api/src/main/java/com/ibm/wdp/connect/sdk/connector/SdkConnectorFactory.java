@@ -4,6 +4,7 @@
 
 /* *************************************************** */
 package com.ibm.wdp.connect.sdk.connector;
+import org.slf4j.Logger;
 
 /**
  * Factory for creating {@link SdkConnector} instances.
@@ -51,6 +52,21 @@ public interface SdkConnectorFactory
      *             if the connector cannot be created
      */
     SdkConnector<?, ?, ?> createConnector(String datasourceTypeName, ConnectionProperties properties) throws Exception;
+
+    /**
+     * Passes the Logger object to this connector factory.
+     *
+     * @param logger
+     *            Logger object.
+     */
+    void setLogger(Logger logger);
+
+    /**
+     * Retrieves the Logger object for this connector factory.
+     *
+     * @return Logger object.
+     */
+    Logger getLogger();
 }
 
 // Made with Bob

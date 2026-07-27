@@ -80,6 +80,7 @@ public final class ColumnarArrowBatchReader implements ColumnarReader, AutoClose
 
     // ---- private helpers ----
 
+    @SuppressWarnings("PMD.CloseResource")
     private void extractColumns()
     {
         final int rowCount = current.getRowCount();

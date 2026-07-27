@@ -5,8 +5,6 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
-import static org.slf4j.LoggerFactory.getLogger;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +32,7 @@ import com.ibm.wdp.connect.sdk.connector.SdkDatasourceTypes;
  */
 public class RestConnectorFactory implements SdkConnectorFactory
 {
-    private static final Logger LOGGER = getLogger(RestConnectorFactory.class);
+    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(RestConnectorFactory.class);
     private static final RestConnectorFactory INSTANCE = new RestConnectorFactory();
 
     /** Default directory for configuration files */
@@ -165,8 +163,22 @@ public class RestConnectorFactory implements SdkConnectorFactory
             if (properties != null) {
                 modelProps.putAll(properties.asMap());
             }
-            return new RestConnector(datasourceTypeName, modelProps);
+            return new RestConnector(datasourceTypeName, modelProps, configCache.get(datasourceTypeName));
         }
         throw new UnsupportedOperationException(RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void setLogger(Logger logger)
+    {
+        // no-op: this factory uses its own static logger
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Logger getLogger()
+    {
+        return LOGGER;
     }
 }

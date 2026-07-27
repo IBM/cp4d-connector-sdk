@@ -69,6 +69,7 @@ public final class ArrowBatchReader implements RowReader, AutoCloseable
 
     /** {@inheritDoc} */
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public Object get(String fieldName)
     {
         final FieldVector vector = vectorCache.get(fieldName);
@@ -103,6 +104,7 @@ public final class ArrowBatchReader implements RowReader, AutoCloseable
         return false;
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     private void cacheVectors()
     {
         vectorCache = new HashMap<>();

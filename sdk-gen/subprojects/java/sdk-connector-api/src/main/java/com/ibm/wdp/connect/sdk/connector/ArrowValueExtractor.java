@@ -161,32 +161,32 @@ final class ArrowValueExtractor
 
     static int toInt(Object v)
     {
-        if (v instanceof Number) return ((Number) v).intValue();
+        if (v instanceof Number) { return ((Number) v).intValue(); }
         return Integer.parseInt(v.toString());
     }
 
     static long toLong(Object v)
     {
-        if (v instanceof Number) return ((Number) v).longValue();
+        if (v instanceof Number) { return ((Number) v).longValue(); }
         return Long.parseLong(v.toString());
     }
 
     static double toDouble(Object v)
     {
-        if (v instanceof Number) return ((Number) v).doubleValue();
+        if (v instanceof Number) { return ((Number) v).doubleValue(); }
         return Double.parseDouble(v.toString());
     }
 
     static float toFloat(Object v)
     {
-        if (v instanceof Number) return ((Number) v).floatValue();
+        if (v instanceof Number) { return ((Number) v).floatValue(); }
         return Float.parseFloat(v.toString());
     }
 
     static int toBit(Object v)
     {
-        if (v instanceof Boolean) return ((Boolean) v) ? 1 : 0;
-        if (v instanceof Number) return ((Number) v).intValue() != 0 ? 1 : 0;
+        if (v instanceof Boolean) { return ((Boolean) v) ? 1 : 0; }
+        if (v instanceof Number) { return ((Number) v).intValue() != 0 ? 1 : 0; }
         return Boolean.parseBoolean(v.toString()) ? 1 : 0;
     }
 
@@ -216,13 +216,13 @@ final class ArrowValueExtractor
 
     static int toTimeMilli(Object v)
     {
-        if (v instanceof Time) return (int) (((Time) v).getTime() % 86_400_000L);
+        if (v instanceof Time) { return (int) (((Time) v).getTime() % 86_400_000L); }
         return (int) (Time.valueOf(v.toString()).getTime() % 86_400_000L);
     }
 
     static long toTimeMicro(Object v)
     {
-        if (v instanceof Time) return TimeUnit.MILLISECONDS.toMicros(((Time) v).getTime() % 86_400_000L);
+        if (v instanceof Time) { return TimeUnit.MILLISECONDS.toMicros(((Time) v).getTime() % 86_400_000L); }
         return TimeUnit.MILLISECONDS.toMicros(Time.valueOf(v.toString()).getTime() % 86_400_000L);
     }
 

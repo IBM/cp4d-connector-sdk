@@ -162,7 +162,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
      *
      * @return an {@link SdkConnectorFactory}, or null (default)
      */
-    protected SdkConnectorFactory getSdkConnectorFactory()
+    protected SdkConnectorFactory getSdkConnectorFactory() // NOPMD EmptyMethodInAbstractClass
     {
         return null;
     }
@@ -595,6 +595,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     /**
      * Streams batches from the given iterator to the Flight listener, handling backpressure.
      */
+    @SuppressWarnings("PMD.CloseResource")
     private void streamBatches(Iterator<VectorSchemaRoot> batches, Schema schema,
             ServerStreamListener listener, BackpressureStrategy bpStrategy) throws Exception
     {

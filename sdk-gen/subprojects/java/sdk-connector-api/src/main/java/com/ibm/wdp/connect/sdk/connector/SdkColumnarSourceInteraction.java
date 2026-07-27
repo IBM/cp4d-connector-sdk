@@ -5,11 +5,6 @@
 /* *************************************************** */
 package com.ibm.wdp.connect.sdk.connector;
 
-import java.util.List;
-
-import org.apache.arrow.flight.Ticket;
-import org.apache.arrow.vector.types.pojo.Schema;
-
 /**
  * Source interaction for connectors that produce data column-by-column rather than row-by-row.
  *

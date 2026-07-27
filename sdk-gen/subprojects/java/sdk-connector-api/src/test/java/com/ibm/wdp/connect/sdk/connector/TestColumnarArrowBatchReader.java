@@ -54,9 +54,12 @@ public class TestColumnarArrowBatchReader
     {
         final List<VectorSchemaRoot> batches = new ArrayList<>();
         for (final int count : new int[]{ rows1, rows2 }) {
+            @SuppressWarnings("PMD.CloseResource")
             final VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
             root.allocateNew();
+            @SuppressWarnings("PMD.CloseResource")
             final IntVector idVec = (IntVector) root.getVector("id");
+            @SuppressWarnings("PMD.CloseResource")
             final VarCharVector labelVec = (VarCharVector) root.getVector("label");
             for (int i = 0; i < count; i++) {
                 idVec.setSafe(i, i + 1);
@@ -89,9 +92,12 @@ public class TestColumnarArrowBatchReader
     @Test
     public void testNullInColumn() throws Exception
     {
+        @SuppressWarnings("PMD.CloseResource")
         final VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
         root.allocateNew();
+        @SuppressWarnings("PMD.CloseResource")
         final IntVector idVec = (IntVector) root.getVector("id");
+        @SuppressWarnings("PMD.CloseResource")
         final VarCharVector labelVec = (VarCharVector) root.getVector("label");
         idVec.setSafe(0, 7);
         labelVec.setNull(0);

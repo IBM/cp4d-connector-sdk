@@ -76,6 +76,7 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
 
     /** {@inheritDoc} */
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public void set(String fieldName, Object value)
     {
         final FieldVector vector = root.getVector(fieldName);
@@ -129,6 +130,7 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
 
     /** {@inheritDoc} */
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public void close()
     {
         if (!closed) {
@@ -143,6 +145,7 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
 
     // ---- private helpers ----
 
+    @SuppressWarnings("PMD.CloseResource")
     private void flushCurrentBatch()
     {
         completedBatches.add(root.slice(0, currentRow));

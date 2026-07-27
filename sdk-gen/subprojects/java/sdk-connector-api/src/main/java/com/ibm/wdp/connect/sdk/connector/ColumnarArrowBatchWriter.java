@@ -42,6 +42,7 @@ public final class ColumnarArrowBatchWriter implements ColumnarWriter, AutoClose
      * @param batchSize
      *            hint for initial allocation; actual batch size is driven by {@link #writeColumn} array lengths
      */
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     public ColumnarArrowBatchWriter(Schema schema, BufferAllocator allocator, int batchSize)
     {
         this.schema = schema;
@@ -54,6 +55,7 @@ public final class ColumnarArrowBatchWriter implements ColumnarWriter, AutoClose
 
     /** {@inheritDoc} */
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public void writeColumn(String fieldName, Object[] values)
     {
         final FieldVector vector = root.getVector(fieldName);
@@ -75,6 +77,7 @@ public final class ColumnarArrowBatchWriter implements ColumnarWriter, AutoClose
 
     /** {@inheritDoc} */
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public void flushBatch()
     {
         if (currentBatchRows > 0) {
@@ -115,6 +118,7 @@ public final class ColumnarArrowBatchWriter implements ColumnarWriter, AutoClose
 
     /** {@inheritDoc} */
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public void close()
     {
         if (!closed) {

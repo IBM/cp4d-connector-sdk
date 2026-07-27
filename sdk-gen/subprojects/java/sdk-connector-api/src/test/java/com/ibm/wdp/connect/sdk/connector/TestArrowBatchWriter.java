@@ -7,12 +7,10 @@ package com.ibm.wdp.connect.sdk.connector;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -67,6 +65,7 @@ public class TestArrowBatchWriter
 
             final Iterator<VectorSchemaRoot> it = writer.batches();
             assertTrue(it.hasNext());
+            @SuppressWarnings("PMD.CloseResource")
             final VectorSchemaRoot root = it.next();
             assertEquals(2, root.getRowCount());
             root.close();
@@ -91,6 +90,7 @@ public class TestArrowBatchWriter
             int batchCount = 0;
             final Iterator<VectorSchemaRoot> it = writer.batches();
             while (it.hasNext()) {
+                @SuppressWarnings("PMD.CloseResource")
                 final VectorSchemaRoot root = it.next();
                 totalRows += root.getRowCount();
                 batchCount++;
@@ -114,6 +114,7 @@ public class TestArrowBatchWriter
 
             final Iterator<VectorSchemaRoot> it = writer.batches();
             assertTrue(it.hasNext());
+            @SuppressWarnings("PMD.CloseResource")
             final VectorSchemaRoot root = it.next();
             assertEquals(1, root.getRowCount());
             assertTrue(root.getVector("name").isNull(0));

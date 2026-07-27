@@ -151,6 +151,7 @@ public class JsonToArrowStream implements Closeable
      * @throws InterruptedException
      *             if the thread is interrupted during an HTTP request
      */
+    @SuppressWarnings("PMD.CloseResource")
     public void streamTo(RowWriter writer) throws IOException, InterruptedException
     {
         final HttpClient httpClient = HttpClient.newBuilder()
@@ -164,14 +165,16 @@ public class JsonToArrowStream implements Closeable
         String nextPageUrl = null;
         int totalPagesFetched = 0;
 
-        do {
+        while (true) {
             if (totalPagesFetched >= MAX_PAGES) {
                 LOGGER.warn("Reached maximum page limit of {}", MAX_PAGES);
                 break;
             }
 
             final String url = buildCurrentPageUrl(currentOffset, currentPage, nextCursor, nextPageUrl);
-            LOGGER.debug("Fetching page {}: {}", totalPagesFetched + 1, url);
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Fetching page {}: {}", totalPagesFetched + 1, url);
+            }
 
             final HttpRequest request = buildRequest(url);
             final HttpResponse<InputStream> response = httpClient.send(request, BodyHandlers.ofInputStream());
@@ -188,7 +191,7 @@ public class JsonToArrowStream implements Closeable
             }
 
             totalPagesFetched++;
-            int recordsInPage = 0;
+            int recordsInPage;
 
             // Cursor and next_url need full parse to extract metadata
             if (paginationConfig != null &&
@@ -236,7 +239,7 @@ public class JsonToArrowStream implements Closeable
                 break;
             }
 
-        } while (true);
+        }
     }
 
     /** {@inheritDoc} */
@@ -400,35 +403,35 @@ public class JsonToArrowStream implements Closeable
 
     private static Integer parseIntSafe(String text)
     {
-        if (text == null || text.isEmpty()) return null;
+        if (text == null || text.isEmpty()) { return null; }
         try { return Integer.parseInt(text.trim()); }
         catch (NumberFormatException e) { LOGGER.warn("Cannot parse integer: '{}'", text); return null; }
     }
 
     private static Long parseLongSafe(String text)
     {
-        if (text == null || text.isEmpty()) return null;
+        if (text == null || text.isEmpty()) { return null; }
         try { return Long.parseLong(text.trim()); }
         catch (NumberFormatException e) { LOGGER.warn("Cannot parse long: '{}'", text); return null; }
     }
 
     private static Double parseDoubleSafe(String text)
     {
-        if (text == null || text.isEmpty()) return null;
+        if (text == null || text.isEmpty()) { return null; }
         try { return Double.parseDouble(text.trim()); }
         catch (NumberFormatException e) { LOGGER.warn("Cannot parse double: '{}'", text); return null; }
     }
 
     private static Date parseDateSafe(String text)
     {
-        if (text == null || text.isEmpty()) return null;
+        if (text == null || text.isEmpty()) { return null; }
         try { return Date.valueOf(LocalDate.parse(text.trim())); }
         catch (DateTimeParseException e) { LOGGER.warn("Cannot parse date: '{}'", text); return null; }
     }
 
     private static Timestamp parseTimestampSafe(String text)
     {
-        if (text == null || text.isEmpty()) return null;
+        if (text == null || text.isEmpty()) { return null; }
         try { return Timestamp.from(Instant.parse(text.trim())); }
         catch (DateTimeParseException e) {
             try { return Timestamp.valueOf(text.trim().replace("T", " ").replaceAll("\\.\\d+Z?$", "")); }
