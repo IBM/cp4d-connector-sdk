@@ -381,6 +381,7 @@ create_security_group() {
         --cidr 0.0.0.0/0 2>/dev/null || log_warning "Ingress rule may already exist"
     
     log_success "Security group configured: $SECURITY_GROUP_ID"
+}
 
 # Step 1b: Create EFS File System (Optional - for JDBC driver)
 create_efs_filesystem() {
@@ -421,10 +422,31 @@ create_efs_filesystem() {
         
         # Wait for EFS to become available
         log_info "Waiting for EFS file system to become available..."
-        aws efs wait file-system-available \
-            --region "$AWS_REGION" \
-            --file-system-id "$EFS_FILE_SYSTEM_ID"
-        log_success "EFS file system is available"
+        local efs_lifecycle_state=""
+        local efs_wait_attempt=0
+        local efs_wait_max_attempts=30
+
+        while [[ $efs_wait_attempt -lt $efs_wait_max_attempts ]]; do
+            efs_lifecycle_state=$(aws efs describe-file-systems \
+                --region "$AWS_REGION" \
+                --file-system-id "$EFS_FILE_SYSTEM_ID" \
+                --query 'FileSystems[0].LifeCycleState' \
+                --output text 2>/dev/null || echo "unknown")
+
+            if [[ "$efs_lifecycle_state" == "available" ]]; then
+                log_success "EFS file system is available"
+                break
+            fi
+
+            efs_wait_attempt=$((efs_wait_attempt + 1))
+            log_info "EFS state: $efs_lifecycle_state (attempt ${efs_wait_attempt}/${efs_wait_max_attempts}); retrying in 10 seconds..."
+            sleep 10
+        done
+
+        if [[ "$efs_lifecycle_state" != "available" ]]; then
+            log_error "EFS file system did not become available within the expected time"
+            exit 1
+        fi
     fi
     
     # Create mount target in the subnet
@@ -510,170 +532,31 @@ create_efs_filesystem() {
     log_success "EFS file system configured: $EFS_FILE_SYSTEM_ID"
 }
 
-# Step 1c: Upload JDBC Driver to EFS (Automated via S3 and DataSync)
+# Step 1c: Verify EFS Configuration (Driver Upload Assumed)
 upload_driver_to_efs() {
     if [[ "$ENABLE_EFS" != "true" ]]; then
         return 0
     fi
     
-    log_step "Step 1c: Uploading JDBC Driver to EFS (Automated)"
+    log_step "Step 1c: Verifying EFS Configuration"
     
-    # Check if driver file exists
-    DRIVER_FILE="${SCRIPT_DIR}/../connectors-forge/codeless/lib/driver.jar"
-    if [[ ! -f "$DRIVER_FILE" ]]; then
-        log_error "JDBC driver not found at: $DRIVER_FILE"
-        log_error "Please place your JDBC driver JAR file at this location"
-        exit 1
-    fi
+    log_info "This script assumes the JDBC driver has already been uploaded to EFS"
+    log_info "If you haven't uploaded the driver yet, please run: ./upload-driver-to-efs.sh"
+    echo ""
     
-    log_info "Found JDBC driver: $DRIVER_FILE"
-    
-    # Create S3 bucket for driver upload (temporary)
-    S3_BUCKET_NAME="jdbc-driver-upload-${AWS_ACCOUNT_ID}-${AWS_REGION}"
-    log_info "Creating temporary S3 bucket: $S3_BUCKET_NAME"
-    
-    if aws s3 ls "s3://${S3_BUCKET_NAME}" 2>/dev/null; then
-        log_warning "S3 bucket already exists: $S3_BUCKET_NAME"
+    # Verify EFS file system exists
+    if [[ -n "$EFS_FILE_SYSTEM_ID" && "$EFS_FILE_SYSTEM_ID" != "None" ]]; then
+        log_success "EFS file system configured: $EFS_FILE_SYSTEM_ID"
+        log_info "Driver should be available at: /jdbc-drivers/driver.jar"
     else
-        aws s3 mb "s3://${S3_BUCKET_NAME}" --region "$AWS_REGION"
-        log_success "S3 bucket created: $S3_BUCKET_NAME"
+        log_warning "EFS file system ID not found"
+        log_warning "Make sure to upload the driver before the container starts"
     fi
     
-    # Upload driver to S3
-    log_info "Uploading driver to S3..."
-    aws s3 cp "$DRIVER_FILE" "s3://${S3_BUCKET_NAME}/driver.jar" --region "$AWS_REGION"
-    log_success "Driver uploaded to S3"
-    
-    # Create IAM role for DataSync if it doesn't exist
-    DATASYNC_ROLE_NAME="DataSyncEFSRole-${EFS_NAME}"
-    log_info "Creating IAM role for DataSync..."
-    
-    if aws iam get-role --role-name "$DATASYNC_ROLE_NAME" &>/dev/null; then
-        log_warning "DataSync IAM role already exists"
-        DATASYNC_ROLE_ARN=$(aws iam get-role --role-name "$DATASYNC_ROLE_NAME" --query 'Role.Arn' --output text)
-    else
-        # Create trust policy for DataSync
-        cat > /tmp/datasync-trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": {"Service": "datasync.amazonaws.com"},
-    "Action": "sts:AssumeRole"
-  }]
-}
-EOF
-        
-        DATASYNC_ROLE_ARN=$(aws iam create-role \
-            --role-name "$DATASYNC_ROLE_NAME" \
-            --assume-role-policy-document file:///tmp/datasync-trust-policy.json \
-            --query 'Role.Arn' \
-            --output text)
-        
-        # Attach policies for S3 and EFS access
-        aws iam attach-role-policy \
-            --role-name "$DATASYNC_ROLE_NAME" \
-            --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-        
-        aws iam attach-role-policy \
-            --role-name "$DATASYNC_ROLE_NAME" \
-            --policy-arn arn:aws:iam::aws:policy/AmazonElasticFileSystemClientFullAccess
-        
-        sleep 10  # Wait for role propagation
-        rm -f /tmp/datasync-trust-policy.json
-        log_success "DataSync IAM role created"
-    fi
-    
-    # Create DataSync locations
-    log_info "Creating DataSync source location (S3)..."
-    S3_LOCATION_ARN=$(aws datasync create-location-s3 \
-        --region "$AWS_REGION" \
-        --s3-bucket-arn "arn:aws:s3:::${S3_BUCKET_NAME}" \
-        --s3-config "BucketAccessRoleArn=${DATASYNC_ROLE_ARN}" \
-        --query 'LocationArn' \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -z "$S3_LOCATION_ARN" ]]; then
-        # Location might already exist, try to find it
-        S3_LOCATION_ARN=$(aws datasync list-locations \
-            --region "$AWS_REGION" \
-            --query "Locations[?LocationUri=='s3://${S3_BUCKET_NAME}/'].LocationArn" \
-            --output text | head -1)
-    fi
-    log_success "S3 location ready: $S3_LOCATION_ARN"
-    
-    log_info "Creating DataSync destination location (EFS)..."
-    EFS_LOCATION_ARN=$(aws datasync create-location-efs \
-        --region "$AWS_REGION" \
-        --efs-filesystem-arn "arn:aws:elasticfilesystem:${AWS_REGION}:${AWS_ACCOUNT_ID}:file-system/${EFS_FILE_SYSTEM_ID}" \
-        --ec2-config "SubnetArn=arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:subnet/${SUBNET_ID},SecurityGroupArns=[arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:security-group/${EFS_SG_ID}]" \
-        --subdirectory "/jdbc-drivers" \
-        --query 'LocationArn' \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -z "$EFS_LOCATION_ARN" ]]; then
-        # Location might already exist
-        EFS_LOCATION_ARN=$(aws datasync list-locations \
-            --region "$AWS_REGION" \
-            --query "Locations[?contains(LocationUri, '${EFS_FILE_SYSTEM_ID}')].LocationArn" \
-            --output text | head -1)
-    fi
-    log_success "EFS location ready: $EFS_LOCATION_ARN"
-    
-    # Create and run DataSync task
-    log_info "Creating DataSync task..."
-    TASK_ARN=$(aws datasync create-task \
-        --region "$AWS_REGION" \
-        --source-location-arn "$S3_LOCATION_ARN" \
-        --destination-location-arn "$EFS_LOCATION_ARN" \
-        --name "jdbc-driver-upload-${EFS_NAME}" \
-        --query 'TaskArn' \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -z "$TASK_ARN" ]]; then
-        # Task might already exist
-        TASK_ARN=$(aws datasync list-tasks \
-            --region "$AWS_REGION" \
-            --query "Tasks[?Name=='jdbc-driver-upload-${EFS_NAME}'].TaskArn" \
-            --output text | head -1)
-    fi
-    log_success "DataSync task ready: $TASK_ARN"
-    
-    # Start the task
-    log_info "Starting DataSync task to copy driver to EFS..."
-    TASK_EXECUTION_ARN=$(aws datasync start-task-execution \
-        --region "$AWS_REGION" \
-        --task-arn "$TASK_ARN" \
-        --query 'TaskExecutionArn' \
-        --output text)
-    
-    log_info "Waiting for DataSync task to complete..."
-    while true; do
-        STATUS=$(aws datasync describe-task-execution \
-            --region "$AWS_REGION" \
-            --task-execution-arn "$TASK_EXECUTION_ARN" \
-            --query 'Status' \
-            --output text)
-        
-        if [[ "$STATUS" == "SUCCESS" ]]; then
-            log_success "Driver successfully copied to EFS!"
-            break
-        elif [[ "$STATUS" == "ERROR" ]]; then
-            log_error "DataSync task failed"
-            exit 1
-        else
-            log_info "DataSync status: $STATUS (waiting...)"
-            sleep 10
-        fi
-    done
-    
-    # Clean up S3 bucket (optional)
-    log_info "Cleaning up temporary S3 bucket..."
-    aws s3 rm "s3://${S3_BUCKET_NAME}/driver.jar" --region "$AWS_REGION" 2>/dev/null || true
-    aws s3 rb "s3://${S3_BUCKET_NAME}" --region "$AWS_REGION" 2>/dev/null || true
-    
-    log_success "JDBC driver is now available in EFS at /jdbc-drivers/driver.jar"
-}
+    echo ""
+    echo -e "${YELLOW}Note:${NC} To upload the JDBC driver to EFS, run:"
+    echo "  ./upload-driver-to-efs.sh"
+    echo ""
 }
 
 # Step 2: Create CloudWatch Log Group
@@ -728,11 +611,16 @@ EOF
         
         log_success "IAM role created: $IAM_ROLE_ARN"
         
-        # Attach policy
+        # Attach policies
         log_info "Attaching execution policy to role"
         aws iam attach-role-policy \
             --role-name "$IAM_ROLE_NAME" \
             --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        
+        log_info "Attaching SSM policy for ECS Exec"
+        aws iam attach-role-policy \
+            --role-name "$IAM_ROLE_NAME" \
+            --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         
         # Wait for role to be available
         log_info "Waiting for IAM role to propagate..."
@@ -751,22 +639,18 @@ register_task_definition() {
     
     log_info "Creating task definition: $TASK_FAMILY"
     
-    # Load connector configuration from connector-config.properties if it exists
-    CONNECTOR_CONFIG_FILE="${SCRIPT_DIR}/connector-config.properties"
+    # Load connector configuration from connector-config.env if it exists
+    CONNECTOR_CONFIG_FILE="${SCRIPT_DIR}/connector-config.env"
     if [[ -f "$CONNECTOR_CONFIG_FILE" ]]; then
         log_info "Loading connector configuration from: $CONNECTOR_CONFIG_FILE"
         
-        # Read environment variables from the properties file
         while IFS='=' read -r key value; do
-            # Skip comments and empty lines
             [[ "$key" =~ ^#.*$ ]] && continue
             [[ -z "$key" ]] && continue
-            
-            # Remove leading/trailing whitespace
+
             key=$(echo "$key" | xargs)
             value=$(echo "$value" | xargs)
-            
-            # Store in associative array
+
             case "$key" in
                 CONNECTOR_DATASOURCE_TYPE) CONNECTOR_DATASOURCE_TYPE="$value" ;;
                 CONNECTOR_LABEL) CONNECTOR_LABEL="$value" ;;
@@ -775,10 +659,10 @@ register_task_definition() {
                 JDBC_DRIVER_PATH) JDBC_DRIVER_PATH="$value" ;;
             esac
         done < "$CONNECTOR_CONFIG_FILE"
-        
+
         log_success "Connector configuration loaded"
     else
-        log_warning "connector-config.properties not found at: $CONNECTOR_CONFIG_FILE"
+        log_warning "No connector config file found at ${SCRIPT_DIR}/connector-config.env"
         log_warning "Container will start without connector-specific environment variables"
     fi
     
@@ -828,6 +712,7 @@ register_task_definition() {
   "cpu": "$TASK_CPU",
   "memory": "$TASK_MEMORY",
   "executionRoleArn": "$IAM_ROLE_ARN",
+  "taskRoleArn": "$IAM_ROLE_ARN",
   "containerDefinitions": [{
     "name": "jdbc-connector",
     "image": "$ECR_IMAGE_URI",
@@ -913,6 +798,7 @@ deploy_service() {
             --service "$SERVICE_NAME" \
             --task-definition "$TASK_FAMILY" \
             --desired-count "$DESIRED_COUNT" \
+            --enable-execute-command \
             --force-new-deployment > /dev/null
         
         log_success "Service updated: $SERVICE_NAME"
@@ -927,6 +813,7 @@ deploy_service() {
             --task-definition "$TASK_FAMILY" \
             --desired-count "$DESIRED_COUNT" \
             --launch-type FARGATE \
+            --enable-execute-command \
             --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_ID],securityGroups=[$SECURITY_GROUP_ID],assignPublicIp=ENABLED}" \
             > /dev/null
         
@@ -934,10 +821,39 @@ deploy_service() {
     fi
     
     log_info "Waiting for service to stabilize..."
-    aws ecs wait services-stable \
+    if ! aws ecs wait services-stable \
         --region "$AWS_REGION" \
         --cluster "$ECS_CLUSTER" \
-        --services "$SERVICE_NAME" || log_warning "Service may still be starting up"
+        --services "$SERVICE_NAME"; then
+        log_warning "Service did not stabilize in time"
+        log_info "Recent ECS service events:"
+        aws ecs describe-services \
+            --region "$AWS_REGION" \
+            --cluster "$ECS_CLUSTER" \
+            --services "$SERVICE_NAME" \
+            --query 'services[0].events[0:10].[createdAt,message]' \
+            --output table 2>/dev/null || log_warning "Could not retrieve ECS service events"
+
+        STOPPED_TASK_ARN=$(aws ecs list-tasks \
+            --region "$AWS_REGION" \
+            --cluster "$ECS_CLUSTER" \
+            --service-name "$SERVICE_NAME" \
+            --desired-status STOPPED \
+            --query 'taskArns[0]' \
+            --output text 2>/dev/null || echo "")
+
+        if [[ -n "$STOPPED_TASK_ARN" && "$STOPPED_TASK_ARN" != "None" ]]; then
+            log_info "Most recent stopped task details:"
+            aws ecs describe-tasks \
+                --region "$AWS_REGION" \
+                --cluster "$ECS_CLUSTER" \
+                --tasks "$STOPPED_TASK_ARN" \
+                --query 'tasks[0].{stopCode:stopCode,stoppedReason:stoppedReason,containers:containers[*].{name:name,reason:reason,lastStatus:lastStatus,exitCode:exitCode}}' \
+                --output json 2>/dev/null || log_warning "Could not retrieve stopped task details"
+        fi
+
+        log_warning "Service may still be starting up or failing due to task/network configuration"
+    fi
 }
 
 # Step 7: Get Public IP
