@@ -174,9 +174,10 @@ mount -t efs -o tls EFS_FILE_SYSTEM_ID:/ /mnt/efs
 touch /tmp/mount-complete
 echo "EFS mounted successfully"
 USERDATA
-    
-    # Substitute EFS_FILE_SYSTEM_ID in user data
-    sed -i '' "s/EFS_FILE_SYSTEM_ID/${EFS_FILE_SYSTEM_ID}/g" /tmp/user-data.sh
+
+# Substitute EFS_FILE_SYSTEM_ID in user data (cross-platform compatible)
+sed -i.bak "s/EFS_FILE_SYSTEM_ID/${EFS_FILE_SYSTEM_ID}/g" /tmp/user-data.sh
+rm -f /tmp/user-data.sh.bak
     
     # Create SSH key pair
     create_key_pair
@@ -218,31 +219,72 @@ USERDATA
     fi
     log_success "Instance public IP: $PUBLIC_IP"
     
-    # Wait for SSH to be ready and EFS to mount
-    log_info "Waiting for SSH to be ready and EFS to mount (60 seconds)..."
-    sleep 60
+    # Wait for SSH to be ready and EFS to mount (with polling)
+    log_info "Waiting for SSH to be ready and EFS to mount..."
+    SSH_OPTIONS="-i $TEMP_KEY_FILE -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5"
+    
+    MAX_ATTEMPTS=30
+    ATTEMPT=0
+    while [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; do
+        ATTEMPT=$((ATTEMPT + 1))
+        
+        # Check if SSH is ready and EFS is mounted
+        if ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "test -f /tmp/mount-complete" 2>/dev/null; then
+            log_success "SSH ready and EFS mounted (took $((ATTEMPT * 2)) seconds)"
+            break
+        fi
+        
+        if [[ $ATTEMPT -eq $MAX_ATTEMPTS ]]; then
+            log_error "Timeout waiting for SSH/EFS mount after $((MAX_ATTEMPTS * 2)) seconds"
+            cleanup_resources
+            exit 1
+        fi
+        
+        echo -n "."
+        sleep 2
+    done
+    echo ""
     
     # Upload driver via SCP
     log_info "Uploading driver via SCP to $PUBLIC_IP..."
     
-    # Disable strict host key checking for this temporary instance
+    # SCP options (reuse SSH_OPTIONS for consistency)
     SCP_OPTIONS="-i $TEMP_KEY_FILE -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
     
-    # Copy driver to EC2 instance home directory first
-    if scp $SCP_OPTIONS "$DRIVER_FILE" "ec2-user@${PUBLIC_IP}:/tmp/driver.jar"; then
-        log_success "Driver copied to EC2 instance"
-    else
-        log_error "Failed to copy driver via SCP"
-        cleanup_resources
-        exit 1
-    fi
+    # Copy driver to EC2 instance with retry logic
+    MAX_RETRIES=3
+    RETRY=0
+    while [[ $RETRY -lt $MAX_RETRIES ]]; do
+        RETRY=$((RETRY + 1))
+        
+        if scp $SCP_OPTIONS "$DRIVER_FILE" "ec2-user@${PUBLIC_IP}:/tmp/driver.jar"; then
+            log_success "Driver copied to EC2 instance"
+            break
+        else
+            if [[ $RETRY -lt $MAX_RETRIES ]]; then
+                log_warning "Upload attempt $RETRY failed, retrying in 5 seconds..."
+                sleep 5
+            else
+                log_error "Failed to copy driver via SCP after $MAX_RETRIES attempts"
+                cleanup_resources
+                exit 1
+            fi
+        fi
+    done
     
-    # Move driver to EFS via SSH
+    # Move driver to EFS via SSH with verification
     log_info "Moving driver to EFS mount point..."
-    SSH_OPTIONS="-i $TEMP_KEY_FILE -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
     
-    if ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "sudo cp /tmp/driver.jar /mnt/efs/ && sudo chmod 644 /mnt/efs/driver.jar && ls -lh /mnt/efs/"; then
-        log_success "Driver successfully uploaded to EFS at /driver.jar (accessible via access point)"
+    if ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "sudo cp /tmp/driver.jar /mnt/efs/ && sudo chmod 644 /mnt/efs/driver.jar && ls -lh /mnt/efs/driver.jar"; then
+        # Verify file size matches
+        REMOTE_SIZE=$(ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "stat -c%s /mnt/efs/driver.jar" 2>/dev/null || echo "0")
+        LOCAL_SIZE=$(stat -f%z "$DRIVER_FILE" 2>/dev/null || stat -c%s "$DRIVER_FILE" 2>/dev/null || echo "0")
+        
+        if [[ "$REMOTE_SIZE" == "$LOCAL_SIZE" ]]; then
+            log_success "Driver successfully uploaded to EFS at /driver.jar ($(numfmt --to=iec-i --suffix=B $LOCAL_SIZE 2>/dev/null || echo "${LOCAL_SIZE} bytes"))"
+        else
+            log_warning "File uploaded but size mismatch (local: $LOCAL_SIZE, remote: $REMOTE_SIZE)"
+        fi
     else
         log_error "Failed to move driver to EFS"
         cleanup_resources
@@ -257,14 +299,17 @@ USERDATA
 cleanup_resources() {
     log_info "Cleaning up temporary resources..."
     
-    # Terminate instance
+    # Terminate instance and wait asynchronously
     if [[ -n "$INSTANCE_ID" ]]; then
         aws ec2 terminate-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" > /dev/null 2>&1 || true
         log_info "Instance termination initiated: $INSTANCE_ID"
+        
+        # Start async wait for termination (don't block cleanup)
+        (aws ec2 wait instance-terminated --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" 2>/dev/null &)
     fi
     
-    # Wait a bit before deleting security group
-    sleep 30
+    # Brief wait for instance to start terminating
+    sleep 5
     
     # Remove security group rule from EFS SG
     if [[ -n "$EFS_SG_ID" && -n "$TEMP_SG_ID" ]]; then

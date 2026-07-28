@@ -540,21 +540,20 @@ upload_driver_to_efs() {
     
     log_step "Step 1c: Verifying EFS Configuration"
     
-    log_info "This script assumes the JDBC driver has already been uploaded to EFS"
-    log_info "If you haven't uploaded the driver yet, please run: ./upload-driver-to-efs.sh"
+    log_info "EFS file system has been created and is ready for driver upload"
+    log_info "After this deployment completes, run: ./upload-driver-to-efs.sh"
     echo ""
     
     # Verify EFS file system exists
     if [[ -n "$EFS_FILE_SYSTEM_ID" && "$EFS_FILE_SYSTEM_ID" != "None" ]]; then
         log_success "EFS file system configured: $EFS_FILE_SYSTEM_ID"
-        log_info "Driver should be available at: /jdbc-drivers/driver.jar"
+        log_info "Driver will be accessible at: /jdbc-drivers/driver.jar (after upload)"
     else
         log_warning "EFS file system ID not found"
-        log_warning "Make sure to upload the driver before the container starts"
     fi
     
     echo ""
-    echo -e "${YELLOW}Note:${NC} To upload the JDBC driver to EFS, run:"
+    echo -e "${YELLOW}Next Step:${NC} Upload the JDBC driver to EFS by running:"
     echo "  ./upload-driver-to-efs.sh"
     echo ""
 }
