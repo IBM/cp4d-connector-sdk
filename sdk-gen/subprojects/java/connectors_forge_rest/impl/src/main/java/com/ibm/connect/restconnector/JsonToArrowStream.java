@@ -11,10 +11,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -53,8 +55,13 @@ public class JsonToArrowStream implements Closeable
     private static final Logger LOGGER = getLogger(JsonToArrowStream.class);
 
     private static final int HTTP_TIMEOUT_SECONDS = 60;
-    private static final int HTTP_OK = 200;
+    private static final int HTTP_STATUS_2XX = 2;
     private static final int MAX_PAGES = 10000;
+
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
 
     private final String baseUrl;
     private final String dataPath;
@@ -154,10 +161,6 @@ public class JsonToArrowStream implements Closeable
     @SuppressWarnings("PMD.CloseResource")
     public void streamTo(RowWriter writer) throws IOException, InterruptedException
     {
-        final HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .build();
-
         // Pagination state
         int currentOffset = paginationConfig != null ? paginationConfig.getInitialOffset() : 0;
         int currentPage = paginationConfig != null ? paginationConfig.getInitialPage() : 1;
@@ -177,9 +180,9 @@ public class JsonToArrowStream implements Closeable
             }
 
             final HttpRequest request = buildRequest(url);
-            final HttpResponse<InputStream> response = httpClient.send(request, BodyHandlers.ofInputStream());
+            final HttpResponse<InputStream> response = HTTP_CLIENT.send(request, BodyHandlers.ofInputStream());
 
-            if (response.statusCode() != HTTP_OK) {
+            if (response.statusCode() / 100 != HTTP_STATUS_2XX) {
                 throw new IOException("HTTP request failed with status " + response.statusCode());
             }
 
@@ -271,7 +274,7 @@ public class JsonToArrowStream implements Closeable
     private int streamParserToWriter(JsonParser jsonParser, RowWriter writer) throws IOException
     {
         int count = 0;
-        JsonToken firstToken = jsonParser.nextToken();
+        final JsonToken firstToken = jsonParser.nextToken();
 
         if (dataPath != null && !dataPath.isEmpty()) {
             // Fall back to tree-mode for any dataPath. The streaming parser cannot navigate
@@ -371,6 +374,9 @@ public class JsonToArrowStream implements Closeable
         case "real":
         case "float4":
             return node.isNumber() ? node.doubleValue() : parseDoubleSafe(node.asText());
+        case "decimal":
+        case "numeric":
+            return node.isNumber() ? node.decimalValue() : new java.math.BigDecimal(node.asText());
         case "date":
             return parseDateSafe(node.asText());
         case "timestamp":
@@ -470,7 +476,8 @@ public class JsonToArrowStream implements Closeable
             break;
         case "cursor":
             if (nextCursor != null && !nextCursor.isEmpty()) {
-                sb.append(sep).append(paginationConfig.getCursorParam()).append('=').append(nextCursor);
+                sb.append(sep).append(paginationConfig.getCursorParam()).append('=')
+                        .append(URLEncoder.encode(nextCursor, StandardCharsets.UTF_8));
                 if (paginationConfig.getLimitParam() != null) {
                     sb.append('&').append(paginationConfig.getLimitParam()).append('=').append(paginationConfig.getPageSize());
                 }

@@ -7,6 +7,8 @@ package com.ibm.wdp.connect.sdk.connector;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -36,6 +38,8 @@ import org.apache.arrow.vector.VarCharVector;
  */
 final class ArrowValueExtractor
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ArrowValueExtractor.class);
+
     private ArrowValueExtractor()
     {
         // utility class
@@ -151,11 +155,7 @@ final class ArrowValueExtractor
                     : value.toString().getBytes(StandardCharsets.UTF_8);
             ((VarBinaryVector) vector).setSafe(index, bytes, 0, bytes.length);
         } else {
-            // Fallback: attempt varchar
-            final byte[] bytes = value.toString().getBytes(StandardCharsets.UTF_8);
-            if (vector instanceof VarCharVector) {
-                ((VarCharVector) vector).setSafe(index, bytes, 0, bytes.length);
-            }
+            LOGGER.warn("No mapping for vector type {}; value dropped at index {}", vector.getClass().getSimpleName(), index);
         }
     }
 

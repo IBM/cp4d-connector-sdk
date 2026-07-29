@@ -164,7 +164,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
         if (tableDef == null) {
             throw new IllegalArgumentException("Table '" + tableName + "' not found in REST API mapping.");
         }
-        return ArrowConversions.toArrow(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
+        return ForgeSchemaBuilder.buildSchema(tableDef.getFields());
     }
 
     /**
@@ -182,7 +182,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     @Override
     public RestTargetInteraction getTargetInteraction(AssetDescriptor asset) throws Exception
     {
-        return new RestTargetInteraction(this, asset);
+        throw new UnsupportedOperationException(RestMsgs.UNSUPPORTED_ACTION.format("write (REST connector is read-only)"));
     }
 
     /**
