@@ -170,6 +170,9 @@ mkdir -p /mnt/efs
 # Mount EFS (EFS_FILE_SYSTEM_ID will be substituted)
 mount -t efs -o tls EFS_FILE_SYSTEM_ID:/ /mnt/efs
 
+# Create jdbc-drivers directory to match Access Point configuration
+mkdir -p /mnt/efs/jdbc-drivers
+
 # Signal mount completion
 touch /tmp/mount-complete
 echo "EFS mounted successfully"
@@ -275,13 +278,13 @@ rm -f /tmp/user-data.sh.bak
     # Move driver to EFS via SSH with verification
     log_info "Moving driver to EFS mount point..."
     
-    if ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "sudo cp /tmp/driver.jar /mnt/efs/ && sudo chmod 644 /mnt/efs/driver.jar && ls -lh /mnt/efs/driver.jar"; then
+    if ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "sudo cp /tmp/driver.jar /mnt/efs/jdbc-drivers/ && sudo chmod 644 /mnt/efs/jdbc-drivers/driver.jar && ls -lh /mnt/efs/jdbc-drivers/driver.jar"; then
         # Verify file size matches
-        REMOTE_SIZE=$(ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "stat -c%s /mnt/efs/driver.jar" 2>/dev/null || echo "0")
+        REMOTE_SIZE=$(ssh $SSH_OPTIONS "ec2-user@${PUBLIC_IP}" "stat -c%s /mnt/efs/jdbc-drivers/driver.jar" 2>/dev/null || echo "0")
         LOCAL_SIZE=$(stat -f%z "$DRIVER_FILE" 2>/dev/null || stat -c%s "$DRIVER_FILE" 2>/dev/null || echo "0")
         
         if [[ "$REMOTE_SIZE" == "$LOCAL_SIZE" ]]; then
-            log_success "Driver successfully uploaded to EFS at /driver.jar ($(numfmt --to=iec-i --suffix=B $LOCAL_SIZE 2>/dev/null || echo "${LOCAL_SIZE} bytes"))"
+            log_success "Driver successfully uploaded to EFS at /jdbc-drivers/driver.jar ($(numfmt --to=iec-i --suffix=B $LOCAL_SIZE 2>/dev/null || echo "${LOCAL_SIZE} bytes"))"
         else
             log_warning "File uploaded but size mismatch (local: $LOCAL_SIZE, remote: $REMOTE_SIZE)"
         fi
