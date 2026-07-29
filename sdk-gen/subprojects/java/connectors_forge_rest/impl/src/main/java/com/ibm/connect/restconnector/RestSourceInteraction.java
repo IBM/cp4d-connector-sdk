@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -47,6 +48,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
     private final String tableName;
     private final RestTableDefinition tableDef;
     private final List<CustomFlightAssetField> assetFields;
+    private final Map<String, Object> connectionProperties;
 
     /**
      * Creates a REST source interaction from a legacy {@link CustomFlightAssetDescriptor}.
@@ -62,7 +64,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
     public RestSourceInteraction(RestConnector connector, CustomFlightAssetDescriptor asset, Ticket ticket)
             throws Exception
     {
-        this(connector, RestConnectorUtils.resolveTableName(asset), ticket);
+        this(connector, RestConnectorUtils.resolveTableName(asset), asset.getConnectionProperties(), ticket);
     }
 
     /**
@@ -78,19 +80,22 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      */
     public RestSourceInteraction(RestConnector connector, AssetDescriptor asset, Ticket ticket) throws Exception
     {
-        this(connector, RestConnectorUtils.resolveTableName(asset.getPath(), asset.getName()), ticket);
+        this(connector, RestConnectorUtils.resolveTableName(asset.getPath(), asset.getName()),
+                asset.getProperties(), ticket);
     }
 
     /**
      * Common constructor.
      */
-    private RestSourceInteraction(RestConnector connector, String resolvedTableName, Ticket ticket) throws Exception
+    private RestSourceInteraction(RestConnector connector, String resolvedTableName,
+            Map<String, Object> connectionProperties, Ticket ticket) throws Exception
     {
         if (connector == null) {
             throw new IllegalArgumentException(RestMsgs.MISSING_CONNECTOR.format());
         }
         this.connector = connector;
         this.tableName = resolvedTableName;
+        this.connectionProperties = connectionProperties != null ? connectionProperties : Collections.emptyMap();
         LOGGER.debug("Creating source interaction for table: {}", tableName);
 
         final RestApiMapping apiMapping = connector.getApiMapping();
@@ -235,22 +240,50 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
 
     private Map<String, String> buildAuthHeaders()
     {
-        final AuthenticationType authType
-                = connector.getApiMapping().getAuthenticationTypeEnum();
+        final AuthenticationType authType = connector.getApiMapping().getAuthenticationTypeEnum();
 
         if (authType == AuthenticationType.NONE) {
             LOGGER.debug("No authentication configured");
             return null;
         }
 
+        if (connectionProperties.isEmpty()) {
+            LOGGER.warn("No connection properties provided for configured authentication");
+            return null;
+        }
+
         final Map<String, String> headers = new HashMap<>();
 
         if (authType == AuthenticationType.API_KEY) {
-            headers.put("Authorization", "ApiKey");
-            LOGGER.debug("Using API Key authentication (key from config)");
+            final Object apiKeyObj = connectionProperties.get("api_key");
+            if (apiKeyObj != null) {
+                headers.put("Authorization", "ApiKey " + apiKeyObj.toString());
+                LOGGER.debug("Using API Key authentication");
+            } else {
+                LOGGER.warn("API key not provided in connection properties");
+            }
         } else if (authType == AuthenticationType.OAUTH2) {
-            headers.put("Authorization", "Bearer");
-            LOGGER.debug("Using OAuth 2.0 Bearer Token authentication");
+            final Object tokenObj = connectionProperties.get("bearer_token");
+            if (tokenObj != null) {
+                headers.put("Authorization", "Bearer " + tokenObj.toString());
+                LOGGER.debug("Using OAuth 2.0 Bearer Token authentication");
+            } else {
+                LOGGER.warn("Bearer token not provided in connection properties");
+            }
+        } else if (authType == AuthenticationType.BASIC) {
+            final Object usernameObj = connectionProperties.get("username");
+            final Object passwordObj = connectionProperties.get("password");
+            if (usernameObj != null && passwordObj != null) {
+                final String credentials = usernameObj.toString() + ":" + passwordObj.toString();
+                final String encoded = Base64.getEncoder()
+                        .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+                headers.put("Authorization", "Basic " + encoded);
+                LOGGER.debug("Using Basic authentication");
+            } else {
+                LOGGER.warn("Username or password not provided in connection properties");
+            }
+        } else {
+            LOGGER.warn("Unknown authentication type: {}", authType);
         }
 
         return headers.isEmpty() ? null : headers;
