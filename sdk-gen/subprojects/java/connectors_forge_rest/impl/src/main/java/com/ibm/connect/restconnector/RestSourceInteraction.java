@@ -217,25 +217,24 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
     // ---- private helpers ----
 
     private String buildUrl() {
-        String host;
-        Integer port;
-
         try {
             final URL configUrl = new URL(connector.getApiMapping().getBaseUrl());
-            host = configUrl.getHost();
-            port = configUrl.getPort();
-            if (port == -1) {
-                port = "https".equalsIgnoreCase(configUrl.getProtocol()) ? 443 : 80;
-            }
+            final String protocol = configUrl.getProtocol();
+            final String host = configUrl.getHost();
+            final int port = configUrl.getPort();
+            // Preserve the path prefix from $hostname (e.g. "/api/1.0" in "https://host/api/1.0")
+            final String basePath = configUrl.getPath();
+
+            // Omit the port when none was written in the config — avoids sending
+            // explicit default ports (e.g. :443) that some servers reject.
+            final String authority = port == -1 ? host : host + ":" + port;
+            final String url = protocol + "://" + authority + basePath + tableDef.getPath();
+            LOGGER.debug("Built request URL: {}", url);
+            return url;
         } catch (MalformedURLException e) {
             LOGGER.error("Failed to parse base URL from config: {}", connector.getApiMapping().getBaseUrl(), e);
             throw new IllegalStateException("Invalid base URL in configuration", e);
         }
-
-        final String protocol = (port == 443) ? "https" : "http";
-        final String url = protocol + "://" + host + ":" + port + tableDef.getPath();
-        LOGGER.debug("Built request URL from configured host and port");
-        return url;
     }
 
     private Map<String, String> buildAuthHeaders()

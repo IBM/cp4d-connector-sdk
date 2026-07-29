@@ -274,32 +274,23 @@ public class JsonToArrowStream implements Closeable
         JsonToken firstToken = jsonParser.nextToken();
 
         if (dataPath != null && !dataPath.isEmpty()) {
-            if (firstToken == JsonToken.START_ARRAY) {
-                // Root is an array (e.g. NBP API returns [{...}]) — fall back to tree-mode
-                // so that extractJsonPath can handle numeric index segments like "0.rates".
-                // JsonParser is already positioned AT START_ARRAY so readTree reads the full array.
-                final JsonNode rootNode = objectMapper.readTree(jsonParser);
-                final JsonNode dataNode = extractJsonPath(rootNode, dataPath);
-                if (dataNode == null) {
-                    throw new IOException("Data path '" + dataPath + "' not found in JSON response");
-                }
-                return streamNodeToWriter(dataNode, writer);
+            // Fall back to tree-mode for any dataPath. The streaming parser cannot navigate
+            // dotted multi-segment paths (e.g. "response.data") by key-name comparison alone;
+            // extractJsonPath handles both single-segment and dotted paths uniformly.
+            // For a root-array response, readTree consumes the parser positioned at START_ARRAY.
+            // For a root-object response, we must reposition: readTree needs to start from the
+            // token already consumed (firstToken), so pass the parser directly.
+            if (firstToken != JsonToken.START_OBJECT && firstToken != JsonToken.START_ARRAY) {
+                throw new IOException(
+                        "Expected START_OBJECT or START_ARRAY at root when dataPath is specified, got: "
+                                + firstToken);
             }
-            if (firstToken != JsonToken.START_OBJECT) {
-                throw new IOException("Expected START_OBJECT or START_ARRAY at root when dataPath is specified, got: " + firstToken);
-            }
-            boolean found = false;
-            while (jsonParser.nextToken() != JsonToken.END_OBJECT) {
-                if (dataPath.equals(jsonParser.currentName())) {
-                    firstToken = jsonParser.nextToken();
-                    found = true;
-                    break;
-                }
-                jsonParser.skipChildren();
-            }
-            if (!found) {
+            final JsonNode rootNode = objectMapper.readTree(jsonParser);
+            final JsonNode dataNode = extractJsonPath(rootNode, dataPath);
+            if (dataNode == null) {
                 throw new IOException("Data path '" + dataPath + "' not found in JSON response");
             }
+            return streamNodeToWriter(dataNode, writer);
         }
 
         if (firstToken == JsonToken.START_ARRAY) {
