@@ -5,6 +5,8 @@
 /* *************************************************** */
 package com.ibm.connect.sdk.file.s3;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.util.Collections;
@@ -14,7 +16,6 @@ import java.util.UUID;
 
 import org.apache.arrow.flight.Ticket;
 
-import com.google.common.io.ByteStreams;
 import com.ibm.connect.sdk.api.Record;
 import com.ibm.connect.sdk.api.TicketInfo;
 import com.ibm.connect.sdk.file.FileMsgs;
@@ -43,6 +44,8 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
 {
     private static final String RAW_CONTENT_FIELD = "content";
     private static final int DEFAULT_BATCH_SIZE = 1000;
+    /** Read buffer size for raw-mode streaming (64 KiB). */
+    private static final int READ_BUFFER_BYTES = 65536;
 
     private final AWSS3Connector connector;
     private final String objectKey;
@@ -135,6 +138,9 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
      *
      * <p>In raw mode the entire S3 object is returned as a single record containing a
      * {@code varbinary} value.  In structured mode the superclass drives Spark.
+     *
+     * <p>The object content is read in fixed-size chunks ({@value #READ_BUFFER_BYTES}
+     * bytes) to avoid allocating the full object size upfront.
      */
     @Override
     public Record getRecord()
@@ -148,7 +154,7 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
         rawRecordDelivered = true;
         try {
             try (InputStream objectStream = connector.openObject(objectKey)) {
-                final byte[] bytes = ByteStreams.toByteArray(objectStream);
+                final byte[] bytes = readAllBytes(objectStream);
                 final Record rec = new Record(1);
                 rec.appendValue((Serializable) bytes);
                 return rec;
@@ -157,6 +163,22 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
         catch (Exception e) {
             throw new UnsupportedOperationException(e.getMessage(), e);
         }
+    }
+
+    /**
+     * Reads all bytes from {@code in} using a fixed-size buffer so the JVM does
+     * not need to know the stream length up-front (avoids a single huge allocation
+     * that equals the full object size).
+     */
+    private static byte[] readAllBytes(InputStream in) throws IOException
+    {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final byte[] buf = new byte[READ_BUFFER_BYTES];
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            out.write(buf, 0, n);
+        }
+        return out.toByteArray();
     }
 
     /**

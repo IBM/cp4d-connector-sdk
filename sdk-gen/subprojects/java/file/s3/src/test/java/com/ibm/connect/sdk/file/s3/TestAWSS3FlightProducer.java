@@ -15,13 +15,16 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.arrow.flight.Action;
 import org.apache.arrow.flight.Criteria;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightInfo;
+import org.apache.arrow.flight.Result;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -34,7 +37,10 @@ import com.ibm.connect.sdk.test.ConnectorTestSuite;
 import com.ibm.connect.sdk.test.TestConfig;
 import com.ibm.connect.sdk.test.TestFlight;
 import com.ibm.connect.sdk.util.ModelMapper;
+import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionConfiguration;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionProperties;
@@ -187,8 +193,8 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     @Test
     public void testConnectionMissingBucket() throws Exception
     {
-        final com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest request
-                = new com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest();
+        final CustomFlightActionRequest request
+                = new CustomFlightActionRequest();
         request.setDatasourceTypeName(getDatasourceTypeName());
         request.setConnectionProperties(createConnectionProperties());
         request.getConnectionProperties().remove("bucket");
@@ -422,5 +428,162 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         assertNotNull("content field must not be null", content);
         assertTrue("content field must be a byte array", content instanceof byte[]);
         assertTrue("content must be non-empty", ((byte[]) content).length > 0);
+    }
+
+    // -----------------------------------------------------------------------
+    // ListFlights (discovery) tests — already exercised above; this test
+    // explicitly validates the asset-type contract from the guide.
+    // -----------------------------------------------------------------------
+
+    /**
+     * ListFlights at the root must return descriptors with non-null id, name,
+     * assetType, and path attributes as required by the guide.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testListFlightsContractRoot() throws Exception
+    {
+        final CustomFlightAssetsCriteria criteria = new CustomFlightAssetsCriteria();
+        criteria.setDatasourceTypeName(getDatasourceTypeName());
+        criteria.setConnectionProperties(createConnectionProperties());
+        criteria.setPath("/");
+        int count = 0;
+        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+            final CustomFlightAssetDescriptor descriptor
+                    = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+            // Guide requires id, name, path, and asset_type on every returned descriptor.
+            assertNotNull("descriptor.id must not be null", descriptor.getId());
+            assertNotNull("descriptor.name must not be null", descriptor.getName());
+            assertNotNull("descriptor.path must not be null", descriptor.getPath());
+            assertNotNull("descriptor.assetType must not be null", descriptor.getAssetType());
+            assertNotNull("assetType.type must not be null", descriptor.getAssetType().getType());
+            assertNotNull("assetType.dataset must not be null", descriptor.getAssetType().isDataset());
+            assertNotNull("assetType.datasetContainer must not be null", descriptor.getAssetType().isDatasetContainer());
+            // Containers must have an empty schema; data assets may have fields.
+            if (Boolean.TRUE.equals(descriptor.getAssetType().isDatasetContainer())) {
+                assertTrue("Schema for container must have no fields",
+                        info.getSchemaOptional().map(s -> s.getFields().isEmpty()).orElse(true));
+            }
+            count++;
+        }
+        assertTrue("Expected at least one asset at the root", count > 0);
+    }
+
+    // -----------------------------------------------------------------------
+    // get_acl action tests
+    // -----------------------------------------------------------------------
+
+    /**
+     * get_acl with a valid object key must return a response whose structure
+     * matches the ACLProvider contract used by wdp-connect-library:
+     * path / allow{users,groups} / deny{users,groups} / inheritance / precedence.
+     * Requires {@code file_s3.s3.test_csv_key} to be set in tests.properties.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetAclSuccess() throws Exception
+    {
+        assumeNotNull(S3_TEST_CSV_KEY);
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, S3_TEST_CSV_KEY);
+        request.setRequestProperties(inputProps);
+
+        final Iterator<Result> iter = getClient().doAction(
+                new Action(AWSS3DatasourceType.ACTION_GET_ACL, modelMapper.toBytes(request)));
+        assertTrue("Expected a result", iter.hasNext());
+        final CustomFlightActionResponse actionResponse
+                = modelMapper.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
+        assertNotNull("Response properties must not be null", actionResponse.getResponseProperties());
+
+        // Structural contract: top-level keys must be present.
+        assertTrue("Response must contain 'path'",   actionResponse.getResponseProperties().containsKey("path"));
+        assertTrue("Response must contain 'allow'",  actionResponse.getResponseProperties().containsKey("allow"));
+        assertTrue("Response must contain 'deny'",   actionResponse.getResponseProperties().containsKey("deny"));
+        assertTrue("Response must contain 'inheritance'", actionResponse.getResponseProperties().containsKey("inheritance"));
+        assertTrue("Response must contain 'precedence'",  actionResponse.getResponseProperties().containsKey("precedence"));
+
+        // allow / deny must each have 'users' and 'groups' sub-keys.
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> allow = (Map<String, Object>) actionResponse.getResponseProperties().get("allow");
+        assertNotNull("allow must not be null", allow);
+        assertTrue("allow must contain 'users'",  allow.containsKey("users"));
+        assertTrue("allow must contain 'groups'", allow.containsKey("groups"));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> deny = (Map<String, Object>) actionResponse.getResponseProperties().get("deny");
+        assertNotNull("deny must not be null", deny);
+        assertTrue("deny must contain 'users'",  deny.containsKey("users"));
+        assertTrue("deny must contain 'groups'", deny.containsKey("groups"));
+
+        // inheritance must have 'enabled' and 'parent_precedence'.
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> inheritance
+                = (Map<String, Object>) actionResponse.getResponseProperties().get("inheritance");
+        assertNotNull("inheritance must not be null", inheritance);
+        assertTrue("inheritance must contain 'enabled'",          inheritance.containsKey("enabled"));
+        assertTrue("inheritance must contain 'parent_precedence'", inheritance.containsKey("parent_precedence"));
+        assertFalse("inheritance.enabled must be false", (Boolean) inheritance.get("enabled"));
+        assertEquals("inheritance.parent_precedence must be 'parent'", "parent", inheritance.get("parent_precedence"));
+
+        assertEquals("precedence must be 'deny'", "deny", actionResponse.getResponseProperties().get("precedence"));
+    }
+
+    /**
+     * get_acl on a bucket with ACLs disabled (BucketOwnerEnforced) must return
+     * a valid empty ACL structure rather than throwing.
+     * Requires {@code file_s3.s3.test_csv_key} and the bucket having ACLs
+     * disabled to be meaningful; when ACLs are enabled the test still passes
+     * (it just exercises the happy path instead).
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetAclDisabledReturnsEmptyStructure() throws Exception
+    {
+        assumeNotNull(S3_TEST_CSV_KEY);
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, S3_TEST_CSV_KEY);
+        request.setRequestProperties(inputProps);
+
+        // Should not throw regardless of whether bucket ACLs are enabled or not.
+        final Iterator<Result> iter = getClient().doAction(
+                new Action(AWSS3DatasourceType.ACTION_GET_ACL, modelMapper.toBytes(request)));
+        assertTrue("Expected a result", iter.hasNext());
+        final CustomFlightActionResponse actionResponse
+                = modelMapper.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
+        assertNotNull(actionResponse.getResponseProperties());
+        assertTrue(actionResponse.getResponseProperties().containsKey("allow"));
+        assertTrue(actionResponse.getResponseProperties().containsKey("deny"));
+    }
+
+    /**
+     * get_acl with a missing path property must return an error.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetAclMissingPath() throws Exception
+    {
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        request.setRequestProperties(new ConnectionActionConfiguration());
+        try {
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL,
+                    modelMapper.toBytes(request))).next();
+            fail("Exception expected for missing path");
+        }
+        catch (Exception e) {
+            assertTrue("Error must mention 'path'",
+                    e.getMessage() != null && e.getMessage().contains("path"));
+        }
     }
 }

@@ -23,6 +23,8 @@ dependencies {
   api project(':wdp-connect-sdk-gen-java-api')
   implementation project(':wdp-connect-sdk-gen-java-file')
   implementation project(':wdp-connect-sdk-gen-java-util')
+  // Guava is used for ByteStreams (removed in favour of plain InputStream loop)
+  // but kept as it is also used by flight-core transitively.
   implementation(group: 'com.google.guava', name: 'guava', version: project['guava.version']) {
     exclude group: 'com.google.code.findbugs'
     exclude group: 'com.google.errorprone'

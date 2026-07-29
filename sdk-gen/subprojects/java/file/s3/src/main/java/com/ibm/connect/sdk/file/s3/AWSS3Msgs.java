@@ -20,7 +20,12 @@ public enum AWSS3Msgs implements ResourceBundleHelper.MessageFormatter<AWSS3Msgs
     /**
      * The object is not a file.
      */
-    OBJECT_IS_A_PREFIX;
+    OBJECT_IS_A_PREFIX,
+
+    /**
+     * Bucket has S3 Object ACLs disabled (BucketOwnerEnforced ownership).
+     */
+    ACL_DISABLED;
 
     private static final ResourceBundleHelper<AWSS3Msgs> BUNDLE = new ResourceBundleHelper<>(AWSS3Msgs.class);
 

@@ -93,24 +93,34 @@ public enum AWSS3Labels implements ResourceBundleHelper.MessageFormatter<AWSS3La
     ACTION_GET_ACL_DESCRIPTION,
 
     /**
-     * Label for action get_acl input property object_key.
+     * Label for action get_acl input property path.
      */
-    ACTION_GET_ACL_INPUT_OBJECT_KEY_LABEL,
+    ACTION_GET_ACL_INPUT_PATH_LABEL,
 
     /**
-     * Description for action get_acl input property object_key.
+     * Description for action get_acl input property path.
      */
-    ACTION_GET_ACL_INPUT_OBJECT_KEY_DESCRIPTION,
+    ACTION_GET_ACL_INPUT_PATH_DESCRIPTION,
 
     /**
-     * Label for action get_acl output property acl.
+     * Label for action get_acl output property allow.
      */
-    ACTION_GET_ACL_OUTPUT_ACL_LABEL,
+    ACTION_GET_ACL_OUTPUT_ALLOW_LABEL,
 
     /**
-     * Description for action get_acl output property acl.
+     * Description for action get_acl output property allow.
      */
-    ACTION_GET_ACL_OUTPUT_ACL_DESCRIPTION;
+    ACTION_GET_ACL_OUTPUT_ALLOW_DESCRIPTION,
+
+    /**
+     * Label for action get_acl output property deny.
+     */
+    ACTION_GET_ACL_OUTPUT_DENY_LABEL,
+
+    /**
+     * Description for action get_acl output property deny.
+     */
+    ACTION_GET_ACL_OUTPUT_DENY_DESCRIPTION;
 
     private static final ResourceBundleHelper<AWSS3Labels> BUNDLE = new ResourceBundleHelper<>(AWSS3Labels.class);
 

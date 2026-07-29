@@ -42,8 +42,9 @@ public class AWSS3DatasourceType extends CustomFlightDatasourceType
 
     /**
      * Action name for retrieving the ACL of an S3 object.
+     * Matches {@code AWSS3Connector.ACTION_GET_ACL}.
      */
-    public static final String ACTION_GET_ACL = "get_acl";
+    public static final String ACTION_GET_ACL = AWSS3Connector.ACTION_GET_ACL;
 
     /**
      * Defines a custom data source type for Amazon S3.
@@ -175,16 +176,26 @@ public class AWSS3DatasourceType extends CustomFlightDatasourceType
                 .addSegmentsItem(new DiscoveryPathSegment().assetTypes("folder").repeatable(true))
                 .addSegmentsItem(new DiscoveryPathSegment().assetTypes("file").repeatable(false)));
 
-        // Define the get_acl action (placeholder — full implementation in a future phase).
+        // Define the get_acl action.
+        // Input/output property names match the ACLProvider contract in wdp-connect-library.
         final CustomDatasourceTypeActionProperties aclActionProperties = new CustomDatasourceTypeActionProperties();
         final CustomDatasourceTypeAction aclAction = new CustomDatasourceTypeAction().name(ACTION_GET_ACL)
                 .description(AWSS3Labels.ACTION_GET_ACL_DESCRIPTION.format()).properties(aclActionProperties);
         aclActionProperties.addInputItem(
-                new CustomDatasourceTypeProperty().name("object_key").label(AWSS3Labels.ACTION_GET_ACL_INPUT_OBJECT_KEY_LABEL.format())
-                        .description(AWSS3Labels.ACTION_GET_ACL_INPUT_OBJECT_KEY_DESCRIPTION.format()).type(TypeEnum.STRING).required(true));
+                new CustomDatasourceTypeProperty().name(AWSS3Connector.ACTION_PATH_PROP)
+                        .label(AWSS3Labels.ACTION_GET_ACL_INPUT_PATH_LABEL.format())
+                        .description(AWSS3Labels.ACTION_GET_ACL_INPUT_PATH_DESCRIPTION.format())
+                        .type(TypeEnum.STRING).required(true));
         aclActionProperties.addOutputItem(
-                new CustomDatasourceTypeProperty().name("acl").label(AWSS3Labels.ACTION_GET_ACL_OUTPUT_ACL_LABEL.format())
-                        .description(AWSS3Labels.ACTION_GET_ACL_OUTPUT_ACL_DESCRIPTION.format()).type(TypeEnum.STRING).required(true));
+                new CustomDatasourceTypeProperty().name("allow")
+                        .label(AWSS3Labels.ACTION_GET_ACL_OUTPUT_ALLOW_LABEL.format())
+                        .description(AWSS3Labels.ACTION_GET_ACL_OUTPUT_ALLOW_DESCRIPTION.format())
+                        .type(TypeEnum.STRING).required(true));
+        aclActionProperties.addOutputItem(
+                new CustomDatasourceTypeProperty().name("deny")
+                        .label(AWSS3Labels.ACTION_GET_ACL_OUTPUT_DENY_LABEL.format())
+                        .description(AWSS3Labels.ACTION_GET_ACL_OUTPUT_DENY_DESCRIPTION.format())
+                        .type(TypeEnum.STRING).required(true));
         addActionsItem(aclAction);
     }
 
