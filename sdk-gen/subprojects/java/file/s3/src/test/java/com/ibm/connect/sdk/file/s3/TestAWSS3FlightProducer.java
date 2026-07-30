@@ -586,4 +586,96 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
                     e.getMessage() != null && e.getMessage().contains("path"));
         }
     }
+
+    // -----------------------------------------------------------------------
+    // get_file_metadata action tests
+    // -----------------------------------------------------------------------
+
+    /**
+     * get_file_metadata with a valid object key must return last_modified (non-null,
+     * non-empty ISO-8601 string) and size (non-negative long).
+     * Requires {@code file_s3.s3.test_csv_key} to be set in tests.properties.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetFileMetadataSuccess() throws Exception
+    {
+        assumeNotNull(S3_TEST_CSV_KEY);
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, S3_TEST_CSV_KEY);
+        request.setRequestProperties(inputProps);
+
+        final Iterator<Result> iter = getClient().doAction(
+                new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA, modelMapper.toBytes(request)));
+        assertTrue("Expected a result", iter.hasNext());
+        final CustomFlightActionResponse actionResponse
+                = modelMapper.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
+        assertNotNull("Response properties must not be null", actionResponse.getResponseProperties());
+
+        assertTrue("Response must contain 'last_modified'",
+                actionResponse.getResponseProperties().containsKey("last_modified"));
+        assertTrue("Response must contain 'size'",
+                actionResponse.getResponseProperties().containsKey("size"));
+
+        final String lastModified = (String) actionResponse.getResponseProperties().get("last_modified");
+        assertNotNull("last_modified must not be null", lastModified);
+        assertFalse("last_modified must not be empty", lastModified.isEmpty());
+        // ISO-8601 UTC instants always contain 'T' and 'Z'.
+        assertTrue("last_modified must be an ISO-8601 UTC string", lastModified.contains("T"));
+
+        final Number size = (Number) actionResponse.getResponseProperties().get("size");
+        assertNotNull("size must not be null", size);
+        assertTrue("size must be non-negative", size.longValue() >= 0);
+    }
+
+    /**
+     * get_file_metadata with a missing path property must return an error.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetFileMetadataMissingPath() throws Exception
+    {
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        request.setRequestProperties(new ConnectionActionConfiguration());
+        try {
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA,
+                    modelMapper.toBytes(request))).next();
+            fail("Exception expected for missing path");
+        }
+        catch (Exception e) {
+            assertTrue("Error must mention 'path'",
+                    e.getMessage() != null && e.getMessage().contains("path"));
+        }
+    }
+
+    /**
+     * get_file_metadata on a non-existent key must propagate an S3 error.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetFileMetadataNonExistentKey() throws Exception
+    {
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, "this/key/does/not/exist.csv");
+        request.setRequestProperties(inputProps);
+        try {
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA,
+                    modelMapper.toBytes(request))).next();
+            fail("Exception expected for non-existent key");
+        }
+        catch (Exception e) {
+            assertNotNull("Exception message must not be null", e.getMessage());
+        }
+    }
 }

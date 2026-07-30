@@ -66,7 +66,10 @@ public class AWSS3Connector extends FileConnector
     /** ACL action name — matches {@code ACLProvider.ACTION_GETACL} in wdp-connect-library. */
     static final String ACTION_GET_ACL = "get_acl";
 
-    /** Input parameter name for the ACL action — path within the bucket. */
+    /** File metadata action name — returns last_modified and size for an S3 object. */
+    static final String ACTION_GET_FILE_METADATA = "get_file_metadata";
+
+    /** Input parameter name for the ACL and file metadata actions — path within the bucket. */
     static final String ACTION_PATH_PROP = "path";
 
     // S3 permission values that grant read access (map to "allow").
@@ -409,6 +412,19 @@ public class AWSS3Connector extends FileConnector
     @Override
     public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties) throws Exception
     {
+        if (ACTION_GET_FILE_METADATA.equals(action)) {
+            final Properties inputProperties = ModelMapper.toProperties(properties);
+            final String path = inputProperties.getProperty(ACTION_PATH_PROP);
+            if (path == null || path.isEmpty()) {
+                throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format(ACTION_PATH_PROP));
+            }
+            final String normalizedKey = normalizeKey(path);
+            final HeadObjectResponse head = headObject(normalizedKey);
+            final ConnectionActionResponse response = new ConnectionActionResponse();
+            response.put("last_modified", head.lastModified().toString());
+            response.put("size", head.contentLength());
+            return response;
+        }
         if (ACTION_GET_ACL.equals(action)) {
             final Properties inputProperties = ModelMapper.toProperties(properties);
             final String path = inputProperties.getProperty(ACTION_PATH_PROP);

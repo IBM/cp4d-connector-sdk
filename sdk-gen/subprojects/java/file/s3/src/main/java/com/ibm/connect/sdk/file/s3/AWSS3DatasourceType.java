@@ -47,6 +47,12 @@ public class AWSS3DatasourceType extends CustomFlightDatasourceType
     public static final String ACTION_GET_ACL = AWSS3Connector.ACTION_GET_ACL;
 
     /**
+     * Action name for retrieving file metadata (last_modified, size) of an S3 object.
+     * Matches {@code AWSS3Connector.ACTION_GET_FILE_METADATA}.
+     */
+    public static final String ACTION_GET_FILE_METADATA = AWSS3Connector.ACTION_GET_FILE_METADATA;
+
+    /**
      * Defines a custom data source type for Amazon S3.
      */
     public AWSS3DatasourceType()
@@ -197,6 +203,27 @@ public class AWSS3DatasourceType extends CustomFlightDatasourceType
                         .description(AWSS3Labels.ACTION_GET_ACL_OUTPUT_DENY_DESCRIPTION.format())
                         .type(TypeEnum.STRING).required(true));
         addActionsItem(aclAction);
+
+        // Define the get_file_metadata action.
+        final CustomDatasourceTypeActionProperties metadataActionProperties = new CustomDatasourceTypeActionProperties();
+        final CustomDatasourceTypeAction metadataAction = new CustomDatasourceTypeAction().name(ACTION_GET_FILE_METADATA)
+                .description(AWSS3Labels.ACTION_GET_FILE_METADATA_DESCRIPTION.format()).properties(metadataActionProperties);
+        metadataActionProperties.addInputItem(
+                new CustomDatasourceTypeProperty().name(AWSS3Connector.ACTION_PATH_PROP)
+                        .label(AWSS3Labels.ACTION_GET_FILE_METADATA_INPUT_PATH_LABEL.format())
+                        .description(AWSS3Labels.ACTION_GET_FILE_METADATA_INPUT_PATH_DESCRIPTION.format())
+                        .type(TypeEnum.STRING).required(true));
+        metadataActionProperties.addOutputItem(
+                new CustomDatasourceTypeProperty().name("last_modified")
+                        .label(AWSS3Labels.ACTION_GET_FILE_METADATA_OUTPUT_LAST_MODIFIED_LABEL.format())
+                        .description(AWSS3Labels.ACTION_GET_FILE_METADATA_OUTPUT_LAST_MODIFIED_DESCRIPTION.format())
+                        .type(TypeEnum.STRING).required(true));
+        metadataActionProperties.addOutputItem(
+                new CustomDatasourceTypeProperty().name("size")
+                        .label(AWSS3Labels.ACTION_GET_FILE_METADATA_OUTPUT_SIZE_LABEL.format())
+                        .description(AWSS3Labels.ACTION_GET_FILE_METADATA_OUTPUT_SIZE_DESCRIPTION.format())
+                        .type(TypeEnum.INTEGER).required(true));
+        addActionsItem(metadataAction);
     }
 
 }

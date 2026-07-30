@@ -120,7 +120,42 @@ public enum AWSS3Labels implements ResourceBundleHelper.MessageFormatter<AWSS3La
     /**
      * Description for action get_acl output property deny.
      */
-    ACTION_GET_ACL_OUTPUT_DENY_DESCRIPTION;
+    ACTION_GET_ACL_OUTPUT_DENY_DESCRIPTION,
+
+    /**
+     * Description for action get_file_metadata.
+     */
+    ACTION_GET_FILE_METADATA_DESCRIPTION,
+
+    /**
+     * Label for action get_file_metadata input property path.
+     */
+    ACTION_GET_FILE_METADATA_INPUT_PATH_LABEL,
+
+    /**
+     * Description for action get_file_metadata input property path.
+     */
+    ACTION_GET_FILE_METADATA_INPUT_PATH_DESCRIPTION,
+
+    /**
+     * Label for action get_file_metadata output property last_modified.
+     */
+    ACTION_GET_FILE_METADATA_OUTPUT_LAST_MODIFIED_LABEL,
+
+    /**
+     * Description for action get_file_metadata output property last_modified.
+     */
+    ACTION_GET_FILE_METADATA_OUTPUT_LAST_MODIFIED_DESCRIPTION,
+
+    /**
+     * Label for action get_file_metadata output property size.
+     */
+    ACTION_GET_FILE_METADATA_OUTPUT_SIZE_LABEL,
+
+    /**
+     * Description for action get_file_metadata output property size.
+     */
+    ACTION_GET_FILE_METADATA_OUTPUT_SIZE_DESCRIPTION;
 
     private static final ResourceBundleHelper<AWSS3Labels> BUNDLE = new ResourceBundleHelper<>(AWSS3Labels.class);
 
