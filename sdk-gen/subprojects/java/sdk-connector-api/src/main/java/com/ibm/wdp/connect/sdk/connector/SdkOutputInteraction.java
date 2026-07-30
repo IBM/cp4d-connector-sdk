@@ -6,18 +6,18 @@
 package com.ibm.wdp.connect.sdk.connector;
 
 /**
- * Target interaction for row-based connectors.
+ * Output interaction for row-based connectors.
  *
  * <p>Connector authors implement this interface to consume rows from the Flight layer.
  * The implementation reads rows by calling {@link RowReader#nextRow()} and
  * {@link RowReader#get(String)}.
  *
- * <p>For columnar connectors, implement {@link SdkColumnarTargetInteraction} instead — it extends
+ * <p>For columnar connectors, implement {@link SdkColumnarOutputInteraction} instead — it extends
  * this interface and provides a {@code consume(ColumnarReader)} overload.
  *
  * <p>Example:
  * <pre>
- *   public class MyTargetInteraction implements SdkTargetInteraction {
+ *   public class MyOutputInteraction implements SdkOutputInteraction {
  *       {@literal @}Override
  *       public void setup() throws Exception {
  *           target.beginTransaction();
@@ -35,7 +35,7 @@ package com.ibm.wdp.connect.sdk.connector;
  *   }
  * </pre>
  */
-public interface SdkTargetInteraction extends AutoCloseable
+public interface SdkOutputInteraction extends AutoCloseable
 {
     /**
      * Called before any data arrives. Use to create tables, begin transactions, etc.

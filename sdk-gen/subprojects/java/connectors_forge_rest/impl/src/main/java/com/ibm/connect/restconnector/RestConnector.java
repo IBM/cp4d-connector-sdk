@@ -15,7 +15,6 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
 
-import com.ibm.connect.sdk.api.ArrowConversions;
 import com.ibm.connect.sdk.api.Connector;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionConfiguration;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionResponse;
@@ -41,8 +40,8 @@ import com.ibm.wdp.connect.sdk.connector.SdkConnector;
  * <p>Each connector instance is associated with a specific datasource type (connector name)
  * and loads its configuration from the factory's cache.
  */
-public class RestConnector implements Connector<RestSourceInteraction, RestTargetInteraction>,
-        SdkConnector<RestSourceInteraction, RestTargetInteraction, RestDiscoveryInteraction>
+public class RestConnector implements Connector<RestInputInteraction, RestOutputInteraction>,
+        SdkConnector<RestInputInteraction, RestOutputInteraction, RestDiscoveryInteraction>
 {
     private static final Logger LOGGER = getLogger(RestConnector.class);
 
@@ -66,17 +65,13 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     /**
      * Creates an Arrow-based REST connector with a pre-built API mapping.
      *
-     * <p>When {@code apiMapping} is non-null, {@link #connect()} will skip the
-     * singleton factory lookup and use the supplied mapping directly.
-     *
      * @param datasourceTypeName
      *            the datasource type name (connector name)
      * @param properties
      *            connection properties (currently unused, reserved for future use)
      * @param apiMapping
      *            a pre-built {@link RestApiMapping} to use instead of the factory cache;
-     *            may be {@code null}, in which case behaviour is identical to the two-arg
-     *            constructor
+     *            may be {@code null}, in which case behaviour is identical to the two-arg constructor
      */
     @SuppressWarnings("PMD.UnusedFormalParameter")
     public RestConnector(String datasourceTypeName, ConnectionProperties properties, RestApiMapping apiMapping)
@@ -87,10 +82,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
 
     /**
      * {@inheritDoc}
-     *
-     * <p>Loads the JSON configuration from the factory's cache, unless a mapping was
-     * already supplied via the constructor or {@link #setApiMapping(RestApiMapping)},
-     * in which case the factory lookup is skipped entirely.
      */
     @Override
     public void connect() throws Exception
@@ -117,7 +108,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
      * Returns the loaded API mapping.
      *
      * @return the REST API mapping, or {@code null} if {@link #connect()} has not been called
-     *         and no mapping was pre-set
      */
     public RestApiMapping getApiMapping()
     {
@@ -126,9 +116,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
 
     /**
      * Sets the API mapping directly, bypassing the factory singleton.
-     *
-     * <p>Must be called before {@link #connect()} if you want to inject a mapping
-     * programmatically (e.g., in tests or embedded use-cases).
      *
      * @param apiMapping
      *            the {@link RestApiMapping} to use; must not be {@code null}
@@ -148,7 +135,7 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
         return datasourceTypeName;
     }
 
-    // ---- SdkConnector interface (new path) ----
+    // ---- SdkConnector interface (new Arrow-native path) ----
 
     /**
      * {@inheritDoc}
@@ -171,16 +158,16 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
      * {@inheritDoc}
      */
     @Override
-    public RestSourceInteraction getSourceInteraction(AssetDescriptor asset, Ticket ticket) throws Exception
+    public RestInputInteraction getInputInteraction(AssetDescriptor asset, Ticket ticket) throws Exception
     {
-        return new RestSourceInteraction(this, asset, ticket);
+        return new RestInputInteraction(this, asset, ticket);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public RestTargetInteraction getTargetInteraction(AssetDescriptor asset) throws Exception
+    public RestOutputInteraction getOutputInteraction(AssetDescriptor asset) throws Exception
     {
         throw new UnsupportedOperationException(RestMsgs.UNSUPPORTED_ACTION.format("write (REST connector is read-only)"));
     }
@@ -272,32 +259,30 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
         if (apiMapping == null) {
             throw new IllegalStateException("API mapping not loaded. Call connect() first.");
         }
-
         final String tableName = RestConnectorUtils.resolveTableName(asset);
         final RestTableDefinition tableDef = apiMapping.getTable(tableName);
         if (tableDef == null) {
             throw new IllegalArgumentException("Table '" + tableName + "' not found in REST API mapping.");
         }
-
-        return ArrowConversions.toArrow(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
+        return ForgeSchemaBuilder.buildSchema(tableDef.getFields());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public RestSourceInteraction getSourceInteraction(CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception
+    public RestInputInteraction getSourceInteraction(CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception
     {
-        return new RestSourceInteraction(this, asset, ticket);
+        return new RestInputInteraction(this, asset, ticket);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public RestTargetInteraction getTargetInteraction(CustomFlightAssetDescriptor asset) throws Exception
+    public RestOutputInteraction getTargetInteraction(CustomFlightAssetDescriptor asset) throws Exception
     {
-        return new RestTargetInteraction(this, asset);
+        return new RestOutputInteraction(this, asset);
     }
 
     /**

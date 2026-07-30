@@ -6,7 +6,7 @@
 package com.ibm.wdp.connect.sdk.connector;
 
 /**
- * Target interaction for connectors that consume data column-by-column rather than row-by-row.
+ * Output interaction for connectors that consume data column-by-column rather than row-by-row.
  *
  * <p>Suitable for data targets where data is naturally organised in columnar format, such as
  * Parquet files or columnar databases. The Flight layer detects this interface via {@code instanceof}
@@ -17,7 +17,7 @@ package com.ibm.wdp.connect.sdk.connector;
  *
  * <p>Example:
  * <pre>
- *   public class MyColumnarTargetInteraction implements SdkColumnarTargetInteraction {
+ *   public class MyColumnarOutputInteraction implements SdkColumnarOutputInteraction {
  *       {@literal @}Override
  *       public void consume(ColumnarReader reader) throws Exception {
  *           while (reader.nextBatch()) {
@@ -30,7 +30,7 @@ package com.ibm.wdp.connect.sdk.connector;
  *   }
  * </pre>
  */
-public interface SdkColumnarTargetInteraction extends SdkTargetInteraction
+public interface SdkColumnarOutputInteraction extends SdkOutputInteraction
 {
     /**
      * {@inheritDoc}
@@ -41,7 +41,7 @@ public interface SdkColumnarTargetInteraction extends SdkTargetInteraction
     default void consume(RowReader reader) throws Exception
     {
         throw new UnsupportedOperationException(
-                "SdkColumnarTargetInteraction.consume(RowReader) should not be called directly. "
+                "SdkColumnarOutputInteraction.consume(RowReader) should not be called directly. "
                         + "The Flight layer calls consume(ColumnarReader).");
     }
 

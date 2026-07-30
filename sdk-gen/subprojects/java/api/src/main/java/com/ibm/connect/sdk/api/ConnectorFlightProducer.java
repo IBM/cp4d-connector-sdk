@@ -57,13 +57,13 @@ import com.ibm.wdp.connect.sdk.connector.ColumnarArrowBatchReader;
 import com.ibm.wdp.connect.sdk.connector.ColumnarArrowBatchWriter;
 import com.ibm.wdp.connect.sdk.connector.ConnectionProperties;
 import com.ibm.wdp.connect.sdk.connector.DiscoveryCriteria;
-import com.ibm.wdp.connect.sdk.connector.SdkColumnarSourceInteraction;
-import com.ibm.wdp.connect.sdk.connector.SdkColumnarTargetInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkColumnarInputInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkColumnarOutputInteraction;
 import com.ibm.wdp.connect.sdk.connector.SdkConnector;
 import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
 import com.ibm.wdp.connect.sdk.connector.SdkDiscoveryInteraction;
-import com.ibm.wdp.connect.sdk.connector.SdkSourceInteraction;
-import com.ibm.wdp.connect.sdk.connector.SdkTargetInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkInputInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkOutputInteraction;
 
 /**
  * An abstract Flight producer for connectors.
@@ -189,12 +189,12 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                         asset.getDatasourceTypeName(), toConnectionProperties(asset.getConnectionProperties()))) {
                     connector.connect();
-                    try (SdkSourceInteraction interaction = connector.getSourceInteraction(assetDescriptor, ticket)) {
+                    try (SdkInputInteraction interaction = connector.getInputInteraction(assetDescriptor, ticket)) {
                         final Schema schema = interaction.getSchema();
-                        if (interaction instanceof SdkColumnarSourceInteraction) {
+                        if (interaction instanceof SdkColumnarInputInteraction) {
                             final int batchSize = getBatchSize(asset);
                             try (ColumnarArrowBatchWriter writer = new ColumnarArrowBatchWriter(schema, rootAllocator, batchSize)) {
-                                ((SdkColumnarSourceInteraction) interaction).stream(writer);
+                                ((SdkColumnarInputInteraction) interaction).stream(writer);
                                 streamBatches(writer.batches(), schema, listener, bpStrategy);
                             }
                         } else {
@@ -344,7 +344,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                         asset.getDatasourceTypeName(), toConnectionProperties(asset.getConnectionProperties()))) {
                     connector.connect();
-                    try (SdkSourceInteraction interaction = connector.getSourceInteraction(assetDescriptor, null)) {
+                    try (SdkInputInteraction interaction = connector.getInputInteraction(assetDescriptor, null)) {
                         final Schema schema = interaction.getSchema();
                         asset.setFields(Utils.getAssetFields(schema));
                         final List<Ticket> tickets = interaction.getTickets();
@@ -405,7 +405,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                     try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                             asset.getDatasourceTypeName(), toConnectionProperties(asset.getConnectionProperties()))) {
                         connector.connect();
-                        try (SdkTargetInteraction interaction = connector.getTargetInteraction(assetDescriptor)) {
+                        try (SdkOutputInteraction interaction = connector.getOutputInteraction(assetDescriptor)) {
                             if (asset.getPartitionCount() == null || asset.getPartitionCount() == 1) {
                                 interaction.setup();
                             }
@@ -414,9 +414,9 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                             while (flightStream.next()) {
                                 batches.add(flightStream.getRoot());
                             }
-                            if (interaction instanceof SdkColumnarTargetInteraction) {
+                            if (interaction instanceof SdkColumnarOutputInteraction) {
                                 try (ColumnarArrowBatchReader reader = new ColumnarArrowBatchReader(batches)) {
-                                    ((SdkColumnarTargetInteraction) interaction).consume(reader);
+                                    ((SdkColumnarOutputInteraction) interaction).consume(reader);
                                 }
                             } else {
                                 try (ArrowBatchReader reader = new ArrowBatchReader(batches)) {
@@ -636,7 +636,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 src.getName(),
                 src.getPath(),
                 src.getDatasourceTypeName(),
-                src.getConnectionProperties(), // ConnectionProperties extends HashMap<String,Object>
+                src.getConnectionProperties(),
                 Boolean.TRUE.equals(src.isHasChildren()),
                 batchSize);
     }
@@ -646,17 +646,13 @@ public abstract class ConnectorFlightProducer implements FlightProducer
      */
     private static DiscoveryCriteria toDiscoveryCriteria(CustomFlightAssetsCriteria src)
     {
-        final ConnectionProperties connProps = toConnectionProperties(src.getConnectionProperties());
-        return new DiscoveryCriteria(src.getPath(), src.getDatasourceTypeName(), connProps);
+        return new DiscoveryCriteria(src.getPath(), src.getDatasourceTypeName(),
+                toConnectionProperties(src.getConnectionProperties()));
     }
 
     /**
-     * Translates a model SDK-API {@code ConnectionProperties} to the connector-SDK
-     * {@link ConnectionProperties}.
-     *
-     * <p>The model type extends {@code HashMap<String,Object>} and is passed directly as the
-     * backing map. The parameter must be fully-qualified because both packages expose a class
-     * named {@code ConnectionProperties}.
+     * Translates a model {@link com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties}
+     * to the sdk-connector-api {@link ConnectionProperties}.
      */
     private static ConnectionProperties toConnectionProperties(
             com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties src)

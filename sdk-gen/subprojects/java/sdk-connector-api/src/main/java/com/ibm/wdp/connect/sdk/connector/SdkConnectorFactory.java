@@ -4,6 +4,7 @@
 
 /* *************************************************** */
 package com.ibm.wdp.connect.sdk.connector;
+
 import org.slf4j.Logger;
 
 /**
@@ -33,9 +34,6 @@ public interface SdkConnectorFactory
     /**
      * Returns the datasource type names handled by this factory.
      *
-     * <p>The returned value is used by the runtime to route connector creation requests
-     * to the correct factory.
-     *
      * @return the supported datasource type names
      */
     SdkDatasourceTypes getDatasourceTypes();
@@ -44,7 +42,7 @@ public interface SdkConnectorFactory
      * Creates a new connector for the specified datasource type and connection properties.
      *
      * @param datasourceTypeName
-     *            the datasource type name (must be one of those returned by {@link #getDatasourceTypes()})
+     *            the datasource type name
      * @param properties
      *            the connection properties provided by the user
      * @return a new connector instance; caller is responsible for closing it
@@ -68,5 +66,3 @@ public interface SdkConnectorFactory
      */
     Logger getLogger();
 }
-
-// Made with Bob

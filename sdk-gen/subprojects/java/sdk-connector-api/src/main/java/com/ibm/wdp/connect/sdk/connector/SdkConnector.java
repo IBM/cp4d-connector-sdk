@@ -5,6 +5,7 @@
 /* *************************************************** */
 package com.ibm.wdp.connect.sdk.connector;
 
+import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
@@ -16,19 +17,19 @@ import org.apache.arrow.vector.types.pojo.Schema;
  *
  * <p>The generic parameters let connector authors expose concrete interaction types without casts:
  * <pre>
- *   public class MyConnector implements SdkConnector&lt;MySourceInteraction, MyTargetInteraction,
+ *   public class MyConnector implements SdkConnector&lt;MyInputInteraction, MyOutputInteraction,
  *                                                      MyDiscoveryInteraction&gt; { ... }
  * </pre>
  *
- * @param <S>
- *            the source interaction type (must extend {@link SdkSourceInteraction})
- * @param <T>
- *            the target interaction type (must extend {@link SdkTargetInteraction})
+ * @param <I>
+ *            the input interaction type (must extend {@link SdkInputInteraction})
+ * @param <O>
+ *            the output interaction type (must extend {@link SdkOutputInteraction})
  * @param <D>
  *            the discovery interaction type (must extend {@link SdkDiscoveryInteraction})
  */
-public interface SdkConnector<S extends SdkSourceInteraction,
-                               T extends SdkTargetInteraction,
+public interface SdkConnector<I extends SdkInputInteraction,
+                               O extends SdkOutputInteraction,
                                D extends SdkDiscoveryInteraction>
         extends AutoCloseable
 {
@@ -52,28 +53,28 @@ public interface SdkConnector<S extends SdkSourceInteraction,
     Schema getSchema(AssetDescriptor asset) throws Exception;
 
     /**
-     * Creates a source interaction for reading data from the named asset.
+     * Creates an input interaction for reading data from the named asset.
      *
      * @param asset
      *            the asset descriptor identifying the table or object to read
      * @param ticket
      *            the Arrow Flight ticket identifying this particular partition
-     * @return a new source interaction; caller must close it when done
+     * @return a new input interaction; caller must close it when done
      * @throws Exception
      *             if the interaction cannot be created
      */
-    S getSourceInteraction(AssetDescriptor asset, org.apache.arrow.flight.Ticket ticket) throws Exception;
+    I getInputInteraction(AssetDescriptor asset, Ticket ticket) throws Exception;
 
     /**
-     * Creates a target interaction for writing data to the named asset.
+     * Creates an output interaction for writing data to the named asset.
      *
      * @param asset
      *            the asset descriptor identifying the table or object to write
-     * @return a new target interaction; caller must close it when done
+     * @return a new output interaction; caller must close it when done
      * @throws Exception
      *             if the interaction cannot be created
      */
-    T getTargetInteraction(AssetDescriptor asset) throws Exception;
+    O getOutputInteraction(AssetDescriptor asset) throws Exception;
 
     /**
      * Creates a discovery interaction for browsing available assets.
@@ -86,5 +87,3 @@ public interface SdkConnector<S extends SdkSourceInteraction,
      */
     D getDiscoveryInteraction(DiscoveryCriteria criteria) throws Exception;
 }
-
-// Made with Bob

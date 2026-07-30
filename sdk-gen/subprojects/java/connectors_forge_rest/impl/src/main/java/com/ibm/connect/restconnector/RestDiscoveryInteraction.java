@@ -21,8 +21,7 @@ import com.ibm.wdp.connect.sdk.connector.SdkDiscoveryInteraction;
  * Discovery interaction for a REST API connector.
  *
  * <p>Translates the connector's hierarchical path-based discovery into a list of
- * {@link AssetDescriptor} objects. The discovery logic mirrors the old
- * {@code RestConnector.discoverAssets()} implementation:
+ * {@link AssetDescriptor} objects:
  * <ul>
  *   <li>Path "/" — returns all tables as containers (no fields)</li>
  *   <li>Path "/{tableName}" — returns the specific table as a dataset</li>
@@ -49,7 +48,8 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
      * {@inheritDoc}
      */
     @Override
-    public List<AssetDescriptor> discoverAssets(DiscoveryCriteria criteria) {
+    public List<AssetDescriptor> discoverAssets(DiscoveryCriteria criteria)
+    {
         final RestApiMapping apiMapping = connector.getApiMapping();
         if (apiMapping == null) {
             throw new IllegalStateException("API mapping not loaded. Call connect() first.");
@@ -59,7 +59,6 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
         final List<AssetDescriptor> assets = new ArrayList<>();
 
         if ("/".equals(path)) {
-            // Root discovery: return all tables as containers (no fields)
             for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
                 final String tableName = entry.getKey();
                 assets.add(new AssetDescriptor(
@@ -68,12 +67,11 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
                         "/" + tableName,
                         criteria.getDatasourceTypeName(),
                         criteria.getConnectionProperties() != null ? criteria.getConnectionProperties().asMap() : null,
-                        true,  // hasChildren
+                        true,
                         0));
                 LOGGER.debug("Discovered table container: {}", tableName);
             }
         } else if (path != null && path.startsWith("/") && !path.substring(1).contains("/")) {
-            // Table-level discovery: return the specific table
             final String tableName = path.substring(1);
             final RestTableDefinition tableDef = apiMapping.getTable(tableName);
 
@@ -84,7 +82,7 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
                         path,
                         criteria.getDatasourceTypeName(),
                         criteria.getConnectionProperties() != null ? criteria.getConnectionProperties().asMap() : null,
-                        false, // not a container
+                        false,
                         0));
                 LOGGER.debug("Discovered table dataset: {}", tableName);
             } else {
@@ -102,7 +100,8 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
      * {@inheritDoc}
      */
     @Override
-    public void close() {
+    public void close()
+    {
         // No persistent resources to close
     }
 }

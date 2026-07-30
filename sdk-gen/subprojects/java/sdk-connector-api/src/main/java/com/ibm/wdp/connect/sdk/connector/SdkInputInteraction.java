@@ -11,20 +11,20 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
- * Source interaction for row-based connectors (most connectors).
+ * Input interaction for row-based connectors (most connectors).
  *
  * <p>Connector authors implement this interface to stream rows into the Flight layer.
  * The implementation calls {@link RowWriter#startRow()}, {@link RowWriter#set(String, Object)},
  * and {@link RowWriter#endRow()} for each row.
  *
  * <p>For columnar connectors (Parquet, columnar databases), implement
- * {@link SdkColumnarSourceInteraction} instead — it extends this interface and provides a
+ * {@link SdkColumnarInputInteraction} instead — it extends this interface and provides a
  * {@code stream(ColumnarWriter)} overload. The Flight layer detects the correct interface via
  * {@code instanceof} and creates the appropriate writer.
  *
  * <p>Example:
  * <pre>
- *   public class MySourceInteraction implements SdkSourceInteraction {
+ *   public class MyInputInteraction implements SdkInputInteraction {
  *       {@literal @}Override
  *       public Schema getSchema() {
  *           return mySchema;
@@ -45,7 +45,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
  *   }
  * </pre>
  */
-public interface SdkSourceInteraction extends AutoCloseable
+public interface SdkInputInteraction extends AutoCloseable
 {
     /**
      * Returns the Arrow schema describing the data this interaction will produce.
@@ -60,7 +60,7 @@ public interface SdkSourceInteraction extends AutoCloseable
      * Returns the list of Arrow Flight tickets representing the partitions this interaction covers.
      *
      * <p>For single-partition connectors, return a list with a single ticket. The Flight layer
-     * will call {@link SdkConnector#getSourceInteraction(AssetDescriptor, Ticket)} once per ticket.
+     * will call {@link SdkConnector#getInputInteraction(com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor, Ticket)} once per ticket.
      *
      * @return a non-empty list of tickets
      * @throws Exception

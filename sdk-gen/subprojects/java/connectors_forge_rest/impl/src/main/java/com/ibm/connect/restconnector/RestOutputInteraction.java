@@ -11,20 +11,21 @@ import com.ibm.connect.sdk.api.Connector;
 import com.ibm.connect.sdk.api.TargetInteraction;
 import com.ibm.connect.sdk.util.ModelMapper;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
-import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
 import com.ibm.wdp.connect.sdk.connector.RowReader;
-import com.ibm.wdp.connect.sdk.connector.SdkTargetInteraction;
+import com.ibm.wdp.connect.sdk.connector.SdkOutputInteraction;
 
 /**
- * An interaction with an Arrow asset as a target.
+ * An interaction with an Arrow asset as an output (write) target.
  *
  * <p>Implements both the legacy {@link TargetInteraction} interface (used by the old connector
- * path) and the new {@link SdkTargetInteraction} interface (used by the Arrow-native path).
+ * path) and the new {@link SdkOutputInteraction} interface (used by the Arrow-native path).
+ *
+ * <p>The REST connector is read-only; all write methods throw {@link UnsupportedOperationException}.
  */
-public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>, SdkTargetInteraction
+public class RestOutputInteraction implements TargetInteraction<Connector<?, ?>>, SdkOutputInteraction
 {
     /**
-     * Creates an Arrow target interaction from a legacy {@link CustomFlightAssetDescriptor}.
+     * Creates a REST output interaction from a legacy {@link CustomFlightAssetDescriptor}.
      *
      * @param connector
      *            the connector managing the connection to the data source
@@ -33,7 +34,7 @@ public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>
      * @throws Exception
      */
     @SuppressWarnings("PMD.UnusedFormalParameter")
-    public RestTargetInteraction(RestConnector connector, CustomFlightAssetDescriptor asset) throws Exception
+    public RestOutputInteraction(RestConnector connector, CustomFlightAssetDescriptor asset) throws Exception
     {
         if (connector == null) {
             throw new IllegalArgumentException(RestMsgs.MISSING_CONNECTOR.format());
@@ -41,23 +42,7 @@ public class RestTargetInteraction implements TargetInteraction<Connector<?, ?>>
         ModelMapper.toProperties(asset.getInteractionProperties()); // validate asset is readable
     }
 
-    /**
-     * Creates an Arrow target interaction from an SDK {@link AssetDescriptor}.
-     *
-     * @param connector
-     *            the connector managing the connection to the data source
-     * @param asset
-     *            the SDK asset to which to write
-     */
-    @SuppressWarnings("PMD.UnusedFormalParameter")
-    public RestTargetInteraction(RestConnector connector, AssetDescriptor asset)
-    {
-        if (connector == null) {
-            throw new IllegalArgumentException(RestMsgs.MISSING_CONNECTOR.format());
-        }
-    }
-
-    // ---- SdkTargetInteraction interface (new path) ----
+    // ---- SdkOutputInteraction interface (new path) ----
 
     /**
      * {@inheritDoc}

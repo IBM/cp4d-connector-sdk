@@ -6,7 +6,7 @@
 package com.ibm.wdp.connect.sdk.connector;
 
 /**
- * Source interaction for connectors that produce data column-by-column rather than row-by-row.
+ * Input interaction for connectors that produce data column-by-column rather than row-by-row.
  *
  * <p>Suitable for data sources where data is naturally organised in columnar format, such as
  * Parquet files or columnar databases. The Flight layer detects this interface via {@code instanceof}
@@ -17,7 +17,7 @@ package com.ibm.wdp.connect.sdk.connector;
  *
  * <p>Example:
  * <pre>
- *   public class MyColumnarSourceInteraction implements SdkColumnarSourceInteraction {
+ *   public class MyColumnarInputInteraction implements SdkColumnarInputInteraction {
  *       {@literal @}Override
  *       public void stream(ColumnarWriter writer) throws Exception {
  *           for (ColumnBatch batch : source.batches()) {
@@ -30,7 +30,7 @@ package com.ibm.wdp.connect.sdk.connector;
  *   }
  * </pre>
  */
-public interface SdkColumnarSourceInteraction extends SdkSourceInteraction
+public interface SdkColumnarInputInteraction extends SdkInputInteraction
 {
     /**
      * {@inheritDoc}
@@ -43,7 +43,7 @@ public interface SdkColumnarSourceInteraction extends SdkSourceInteraction
     default void stream(RowWriter writer) throws Exception
     {
         throw new UnsupportedOperationException(
-                "SdkColumnarSourceInteraction.stream(RowWriter) should not be called directly. "
+                "SdkColumnarInputInteraction.stream(RowWriter) should not be called directly. "
                         + "The Flight layer calls stream(ColumnarWriter).");
     }
 

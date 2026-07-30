@@ -5,53 +5,56 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
-import com.ibm.connect.sdk.api.ArrowConversions;
-import com.ibm.connect.sdk.api.Connector;
-import com.ibm.connect.sdk.api.SourceInteraction;
-import com.ibm.connect.sdk.api.TicketInfo;
-import com.ibm.connect.sdk.util.ModelMapper;
-import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
-import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
-import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
-import com.ibm.wdp.connect.sdk.connector.RowWriter;
-import com.ibm.wdp.connect.sdk.connector.SdkSourceInteraction;
+import static org.slf4j.LoggerFactory.getLogger;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
 
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-
-import static org.slf4j.LoggerFactory.getLogger;
+import com.ibm.connect.sdk.api.Connector;
+import com.ibm.connect.sdk.api.SourceInteraction;
+import com.ibm.connect.sdk.api.TicketInfo;
+import com.ibm.connect.sdk.util.ModelMapper;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
+import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
+import com.ibm.wdp.connect.sdk.connector.RowWriter;
+import com.ibm.wdp.connect.sdk.connector.SdkInputInteraction;
 
 /**
- * An interaction with a REST API asset as a source.
+ * An interaction with a REST API asset as an input (read) source.
  *
  * <p>Implements both the legacy {@link SourceInteraction} interface (for API compatibility) and
- * the new {@link SdkSourceInteraction} interface (push-based via {@link #stream(RowWriter)},
+ * the new {@link SdkInputInteraction} interface (push-based via {@link #stream(RowWriter)},
  * used by the Arrow-native path through {@link RestFlightProducer}).
  *
  * <p>Reads data from a REST API endpoint defined in the JSON mapping configuration,
  * converts the JSON response to Arrow format in a streaming fashion.
  */
 @SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
-public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>, SdkSourceInteraction
+public class RestInputInteraction implements SourceInteraction<Connector<?, ?>>, SdkInputInteraction
 {
-    private static final Logger LOGGER = getLogger(RestSourceInteraction.class);
+    private static final Logger LOGGER = getLogger(RestInputInteraction.class);
 
     private final ModelMapper modelMapper = new ModelMapper();
     private final RestConnector connector;
     private final String tableName;
     private final RestTableDefinition tableDef;
-    private final List<CustomFlightAssetField> assetFields;
     private final Map<String, Object> connectionProperties;
 
     /**
-     * Creates a REST source interaction from a legacy {@link CustomFlightAssetDescriptor}.
+     * Creates a REST input interaction from a legacy {@link CustomFlightAssetDescriptor}.
      *
      * @param connector
      *            the connector managing the connection to the data source
@@ -61,14 +64,14 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      *            a Flight ticket to read a partition or null to get tickets
      * @throws Exception
      */
-    public RestSourceInteraction(RestConnector connector, CustomFlightAssetDescriptor asset, Ticket ticket)
+    public RestInputInteraction(RestConnector connector, CustomFlightAssetDescriptor asset, Ticket ticket)
             throws Exception
     {
         this(connector, RestConnectorUtils.resolveTableName(asset), asset.getConnectionProperties(), ticket);
     }
 
     /**
-     * Creates a REST source interaction from an SDK {@link AssetDescriptor}.
+     * Creates a REST input interaction from an SDK {@link AssetDescriptor}.
      *
      * @param connector
      *            the connector managing the connection to the data source
@@ -78,7 +81,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      *            a Flight ticket to read a partition or null to get tickets
      * @throws Exception
      */
-    public RestSourceInteraction(RestConnector connector, AssetDescriptor asset, Ticket ticket) throws Exception
+    public RestInputInteraction(RestConnector connector, AssetDescriptor asset, Ticket ticket) throws Exception
     {
         this(connector, RestConnectorUtils.resolveTableName(asset.getPath(), asset.getName()),
                 asset.getProperties(), ticket);
@@ -87,7 +90,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
     /**
      * Common constructor.
      */
-    private RestSourceInteraction(RestConnector connector, String resolvedTableName,
+    private RestInputInteraction(RestConnector connector, String resolvedTableName,
             Map<String, Object> connectionProperties, Ticket ticket) throws Exception
     {
         if (connector == null) {
@@ -96,7 +99,7 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
         this.connector = connector;
         this.tableName = resolvedTableName;
         this.connectionProperties = connectionProperties != null ? connectionProperties : Collections.emptyMap();
-        LOGGER.debug("Creating source interaction for table: {}", tableName);
+        LOGGER.debug("Creating input interaction for table: {}", tableName);
 
         final RestApiMapping apiMapping = connector.getApiMapping();
         if (apiMapping == null) {
@@ -108,22 +111,21 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
                     + "Available tables: " + apiMapping.getTables().keySet());
         }
 
-        assetFields = RestFieldTypeMapper.toAssetFields(tableDef.getFields());
-
         if (ticket != null) {
             final TicketInfo ticketInfo = modelMapper.fromBytes(ticket.getBytes(), TicketInfo.class);
             LOGGER.debug("Ticket info: {}", ticketInfo);
         }
     }
 
-    // ---- SdkSourceInteraction interface (new path) ----
+    // ---- SdkInputInteraction interface (new path) ----
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public Schema getSchema() {
-        return ArrowConversions.toArrow(assetFields);
+    public Schema getSchema()
+    {
+        return ForgeSchemaBuilder.buildSchema(tableDef.getFields());
     }
 
     /**
@@ -178,7 +180,8 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      */
     @Deprecated
     @Override
-    public void beginStream(BufferAllocator allocator) {
+    public void beginStream(BufferAllocator allocator)
+    {
         throw new UnsupportedOperationException(
                 "Pull-based streaming is not supported. Use stream(RowWriter) instead.");
     }
@@ -190,7 +193,8 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      */
     @Deprecated
     @Override
-    public boolean hasNextBatch() {
+    public boolean hasNextBatch()
+    {
         return false;
     }
 
@@ -201,7 +205,8 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      */
     @Deprecated
     @Override
-    public VectorSchemaRoot nextBatch() {
+    public VectorSchemaRoot nextBatch()
+    {
         throw new UnsupportedOperationException(
                 "Pull-based streaming is not supported. Use stream(RowWriter) instead.");
     }
@@ -210,13 +215,15 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
      * {@inheritDoc}
      */
     @Override
-    public void close() {
+    public void close()
+    {
         // No persistent resources to close
     }
 
     // ---- private helpers ----
 
-    private String buildUrl() {
+    private String buildUrl()
+    {
         try {
             final URL configUrl = new URL(connector.getApiMapping().getBaseUrl());
             final String protocol = configUrl.getProtocol();
