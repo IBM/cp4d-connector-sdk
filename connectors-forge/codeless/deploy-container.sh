@@ -18,7 +18,7 @@ CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
 CONTAINER_RUNTIME="docker"
-IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.5"
+IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.5.2"
 CONTAINER_ID=""
 CONTAINER_NAME=""
 TEMP_DIR=""
@@ -271,7 +271,20 @@ check_container_exists() {
 
 find_container_by_port() {
     local port="$1"
-    ssh_exec "$CONTAINER_RUNTIME ps -a --filter 'publish=${port}' --format '{{.ID}}'" | tail -1
+
+    # Primary: --filter publish (fast but unsupported on some Docker/Podman versions)
+    local result
+    result=$(ssh_exec "$CONTAINER_RUNTIME ps -a --filter 'publish=${port}' --format '{{.ID}}'" 2>/dev/null | tail -1) || true
+    if [ -n "$result" ]; then
+        echo "$result"
+        return
+    fi
+
+    # Universal fallback: parse .Ports display field — works on every Docker/Podman version
+    ssh_exec "$CONTAINER_RUNTIME ps -a --format '{{.ID}} {{.Ports}}'" 2>/dev/null \
+        | grep -E ":${port}->" \
+        | awk '{print $1}' \
+        | tail -1
 }
 
 get_container_name() {

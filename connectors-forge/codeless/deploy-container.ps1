@@ -23,7 +23,7 @@ param(
 # Configuration & Global Variables
 # ============================================
 
-$Image = "ghcr.io/marek-zuwala/connectors-forge:1.0.5"
+$Image = "ghcr.io/marek-zuwala/connectors-forge:1.0.5.2"
 $ContainerId = $null
 $ContainerName = $null
 $TempDir = $null
@@ -194,15 +194,29 @@ function Test-ContainerExists {
 function Find-ContainerByPort {
     param([int]$PortNumber)
     
+    # Primary: --filter publish (fast but unsupported on some Docker/Podman versions)
     try {
         $result = Invoke-SshCommand "$ContainerRuntime ps -a --filter 'publish=${PortNumber}' --format '{{.ID}}'"
-        if ($result) {
+        if ($result -and $result.Trim()) {
             return $result.Trim()
         }
-        return $null
     } catch {
-        return $null
+        # Filter flag unsupported — fall through to universal fallback
     }
+
+    # Universal fallback: parse .Ports display field — works on every Docker/Podman version
+    try {
+        $allPorts = Invoke-SshCommand "$ContainerRuntime ps -a --format '{{.ID}} {{.Ports}}'"
+        foreach ($line in ($allPorts -split "`n")) {
+            $line = $line.Trim()
+            if ($line -match ":${PortNumber}->") {
+                return ($line -split '\s')[0]
+            }
+        }
+    } catch {
+        # Ignore
+    }
+    return $null
 }
 
 function Get-ContainerName {
