@@ -516,9 +516,18 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                     throw new IllegalArgumentException(ApiMsgs.MISSING_ACTION_BODY.format());
                 }
                 final CustomFlightActionRequest request = modelMapper.fromBytes(action.getBody(), CustomFlightActionRequest.class);
-                try (Connector<?, ?> connector
-                        = connectorFactory.createConnector(request.getDatasourceTypeName(), request.getConnectionProperties())) {
-                    connector.connect();
+                // --- SDK connector path ---
+                if (sdkConnectorFactory != null) {
+                    try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
+                            request.getDatasourceTypeName(), request.getConnectionProperties())) {
+                        connector.connect();
+                    }
+                } else {
+                    // --- Legacy connector path ---
+                    try (Connector<?, ?> connector
+                            = connectorFactory.createConnector(request.getDatasourceTypeName(), request.getConnectionProperties())) {
+                        connector.connect();
+                    }
                 }
             } else if (ACTION_VALIDATE.equals(action.getType())) {
                 if (action.getBody() == null || action.getBody().length == 0) {
