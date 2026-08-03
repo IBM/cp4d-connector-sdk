@@ -13,7 +13,10 @@ param(
     
     [int]$SshPort = 22,
     
-    [switch]$Replace
+    [switch]$Replace,
+
+    [ValidateSet("docker", "podman")]
+    [string]$ContainerRuntime = "docker"
 )
 
 # ============================================
@@ -45,10 +48,12 @@ function Write-LogStep {
     Write-Host "[$Step] $Message"
 }
 
-# Execute command via SSH
+# Execute command via SSH — stdout only, stderr goes to host console.
+# Returns a plain string so callers can always call .Trim() safely.
+# Throws if the remote exit code is non-zero.
 function Invoke-SshCommand {
     param([string]$Command)
-    
+
     $sshArgs = @(
         "-p", $SshPort,
         "-o", "StrictHostKeyChecking=no",
@@ -57,12 +62,21 @@ function Invoke-SshCommand {
         "${SshUser}@${SshHost}",
         $Command
     )
-    
-    $result = & ssh $sshArgs 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "SSH command failed: $result"
+
+    # Redirect stderr to $null so the IBM MOTD banner never contaminates stdout.
+    # $stdoutLines will always be a plain string or string array — never ErrorRecord objects.
+    $stdoutLines = & ssh $sshArgs 2>$null
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0) {
+        throw "SSH command failed (exit $exitCode)"
     }
-    return $result
+
+    # Always return a single string so .Trim() is always safe to call
+    if ($stdoutLines -is [array]) {
+        return ($stdoutLines -join "`n")
+    }
+    return [string]$stdoutLines
 }
 
 # ============================================
@@ -88,7 +102,7 @@ function Exit-WithError {
     if ($ContainerId) {
         Write-Log "Cleaning up failed deployment..."
         try {
-            Invoke-SshCommand "docker rm -f $ContainerId" | Out-Null
+            Invoke-SshCommand "$ContainerRuntime rm -f $ContainerId" | Out-Null
         } catch {
             # Ignore cleanup errors
         }
@@ -105,13 +119,13 @@ function Exit-WithError {
 function Test-Inputs {
     Write-LogStep "1/7" "Validating inputs..."
     
-    # Test SSH connectivity and Docker availability
-    Write-Log "Testing SSH connectivity and Docker availability..."
+    # Test SSH connectivity and container runtime availability
+    Write-Log "Testing SSH connectivity and $ContainerRuntime availability..."
     try {
-        Invoke-SshCommand "docker version" | Out-Null
-        Write-Log "SSH connection and Docker verified"
+        Invoke-SshCommand "$ContainerRuntime version" | Out-Null
+        Write-Log "SSH connection and $ContainerRuntime verified"
     } catch {
-        Exit-WithError "Cannot connect via SSH or Docker not available on ${SshUser}@${SshHost}:${SshPort}"
+        Exit-WithError "Cannot connect via SSH or $ContainerRuntime not available on ${SshUser}@${SshHost}:${SshPort}"
     }
     
     # Check if all config files exist and validate JSON
@@ -167,7 +181,7 @@ function Test-ContainerExists {
     param([string]$Name)
     
     try {
-        $result = Invoke-SshCommand "docker ps -aq --filter 'name=^${Name}$'"
+        $result = Invoke-SshCommand "$ContainerRuntime ps -aq --filter 'name=^${Name}$'"
         if ($result) {
             return $result.Trim()
         }
@@ -181,7 +195,7 @@ function Find-ContainerByPort {
     param([int]$PortNumber)
     
     try {
-        $result = Invoke-SshCommand "docker ps -a --filter 'publish=${PortNumber}' --format '{{.ID}}'"
+        $result = Invoke-SshCommand "$ContainerRuntime ps -a --filter 'publish=${PortNumber}' --format '{{.ID}}'"
         if ($result) {
             return $result.Trim()
         }
@@ -195,7 +209,7 @@ function Get-ContainerName {
     param([string]$Id)
     
     try {
-        $result = Invoke-SshCommand "docker inspect $Id --format '{{.Name}}'"
+        $result = Invoke-SshCommand "$ContainerRuntime inspect $Id --format '{{.Name}}'"
         return $result.Trim().TrimStart('/')
     } catch {
         return "unknown"
@@ -207,7 +221,7 @@ function Stop-AndRemoveContainer {
     
     Write-Log "Stopping and removing container..."
     try {
-        Invoke-SshCommand "docker stop $Id && docker rm $Id" | Out-Null
+        Invoke-SshCommand "$ContainerRuntime stop $Id && $ContainerRuntime rm $Id" | Out-Null
         Write-Log "Container removed"
         return $true
     } catch {
@@ -262,11 +276,12 @@ function Test-ExistingContainer {
 function New-Container {
     Write-LogStep "3/7" "Creating container..."
     
-    # Create container with port mapping (Docker will pull image if needed)
+    # Create container with port mapping (runtime will pull image if needed)
     Write-Log "Creating container from image: $Image"
     try {
-        $script:ContainerId = Invoke-SshCommand "docker create --name $ContainerName -p ${Port}:9443 $Image"
-        $script:ContainerId = $ContainerId.Trim()
+        $output = Invoke-SshCommand "$ContainerRuntime create --name $ContainerName -p ${Port}:9443 $Image"
+        # Take only the last non-empty line — that is the container ID
+        $script:ContainerId = ($output -split "`n" | Where-Object { $_.Trim() -ne "" } | Select-Object -Last 1).Trim()
     } catch {
         Exit-WithError "Failed to create container: $_"
     }
@@ -296,7 +311,7 @@ function Send-ConfigFiles {
         Copy-Item $file -Destination "$TempDir\mappings\"
     }
     
-    # Create tar archive and stream it via SSH to docker cp
+    # Create tar archive and stream it via SSH to container runtime cp
     try {
         # Create tar archive
         $tarFile = "$TempDir\config.tar"
@@ -312,17 +327,14 @@ function Send-ConfigFiles {
             Pop-Location
         }
         
-        # Stream tar to remote docker cp via SSH
-        $sshArgs = @(
-            "-p", $SshPort,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=10",
-            "-o", "BatchMode=yes",
-            "${SshUser}@${SshHost}",
-            "docker cp - ${ContainerId}:/config"
-        )
-        
-        Get-Content $tarFile -Raw -AsByteStream | & ssh $sshArgs
+        # Pipe the tar file to SSH using cmd.exe — compatible with PS 5.1+ and PS 7+.
+        # PowerShell's pipeline corrupts binary data in PS 5.1 (no -AsByteStream);
+        # cmd.exe type piping preserves raw bytes on all versions.
+        $sshTarget = "${SshUser}@${SshHost}"
+        $remoteCmd = "$ContainerRuntime cp - ${ContainerId}:/config"
+        $sshOpts = "-p $SshPort -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes"
+        $cmdExpr = "type `"$tarFile`" | ssh $sshOpts $sshTarget `"$remoteCmd`""
+        cmd.exe /c $cmdExpr
         
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to upload files"
@@ -342,7 +354,7 @@ function Start-Container {
     Write-LogStep "5/7" "Starting container..."
     
     try {
-        Invoke-SshCommand "docker start $ContainerId" | Out-Null
+        Invoke-SshCommand "$ContainerRuntime start $ContainerId" | Out-Null
         Write-Log "Container started"
     } catch {
         Exit-WithError "Failed to start container: $_"
@@ -359,14 +371,12 @@ function Test-ContainerRunning {
     Start-Sleep -Seconds 2
     
     try {
-        $running = Invoke-SshCommand "docker inspect $ContainerId --format '{{.State.Running}}'"
-        $running = $running.Trim()
+        $running = (Invoke-SshCommand "$ContainerRuntime inspect $ContainerId --format '{{.State.Running}}'").Trim()
         
         if ($running -eq "true") {
             Write-Log "Container is running"
         } else {
-            $status = Invoke-SshCommand "docker inspect $ContainerId --format '{{.State.Status}}'"
-            $status = $status.Trim()
+            $status = (Invoke-SshCommand "$ContainerRuntime inspect $ContainerId --format '{{.State.Status}}'").Trim()
             if (-not $status) { $status = "unknown" }
             Exit-WithError "Container is not running (Status: $status)"
         }
@@ -384,6 +394,7 @@ function Main {
     Write-Host "Container Deployment Script (SSH)"
     Write-Host "=========================================="
     Write-Host "SSH Host:       ${SshUser}@${SshHost}:${SshPort}"
+    Write-Host "Runtime:        $ContainerRuntime"
     Write-Host "Files:          $($Files.Count) file(s)"
     foreach ($file in $Files) {
         Write-Host "                - $(Split-Path -Leaf $file)"
