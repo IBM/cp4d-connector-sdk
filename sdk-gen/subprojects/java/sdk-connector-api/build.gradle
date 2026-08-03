@@ -17,6 +17,9 @@ archivesBaseName = 'wdp-connect-sdk-connector-api'
 // Declare project dependencies
 //
 dependencies {
+  // OpenAPI model classes (CustomFlightAssetDescriptor, CustomFlightDatasourceTypes, etc.)
+  api project(':wdp-connect-sdk-gen-java-api-models')
+
   // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
   api group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
   runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']

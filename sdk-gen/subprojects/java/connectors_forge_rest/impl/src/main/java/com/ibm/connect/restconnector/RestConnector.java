@@ -22,8 +22,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetType;
-import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
-import com.ibm.wdp.connect.sdk.connector.DiscoveryCriteria;
 import com.ibm.wdp.connect.sdk.connector.SdkConnector;
 
 /**
@@ -141,12 +139,12 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
      * {@inheritDoc}
      */
     @Override
-    public Schema getSchema(AssetDescriptor asset) throws Exception
+    public Schema getSchema(CustomFlightAssetDescriptor asset) throws Exception
     {
         if (apiMapping == null) {
             throw new IllegalStateException("API mapping not loaded. Call connect() first.");
         }
-        final String tableName = RestConnectorUtils.resolveTableName(asset.getPath(), asset.getName());
+        final String tableName = RestConnectorUtils.resolveTableName(asset);
         final RestTableDefinition tableDef = apiMapping.getTable(tableName);
         if (tableDef == null) {
             throw new IllegalArgumentException("Table '" + tableName + "' not found in REST API mapping.");
@@ -158,7 +156,7 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
      * {@inheritDoc}
      */
     @Override
-    public RestInputInteraction getInputInteraction(AssetDescriptor asset, Ticket ticket) throws Exception
+    public RestInputInteraction getInputInteraction(CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception
     {
         return new RestInputInteraction(this, asset, ticket);
     }
@@ -167,7 +165,7 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
      * {@inheritDoc}
      */
     @Override
-    public RestOutputInteraction getOutputInteraction(AssetDescriptor asset) throws Exception
+    public RestOutputInteraction getOutputInteraction(CustomFlightAssetDescriptor asset) throws Exception
     {
         throw new UnsupportedOperationException(RestMsgs.UNSUPPORTED_ACTION.format("write (REST connector is read-only)"));
     }
@@ -176,7 +174,7 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
      * {@inheritDoc}
      */
     @Override
-    public RestDiscoveryInteraction getDiscoveryInteraction(DiscoveryCriteria criteria) throws Exception
+    public RestDiscoveryInteraction getDiscoveryInteraction(CustomFlightAssetsCriteria criteria) throws Exception
     {
         return new RestDiscoveryInteraction(this);
     }
@@ -248,23 +246,6 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
 
         LOGGER.info("Discovered {} assets", assets.size());
         return assets;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Schema getSchema(CustomFlightAssetDescriptor asset) throws Exception
-    {
-        if (apiMapping == null) {
-            throw new IllegalStateException("API mapping not loaded. Call connect() first.");
-        }
-        final String tableName = RestConnectorUtils.resolveTableName(asset);
-        final RestTableDefinition tableDef = apiMapping.getTable(tableName);
-        if (tableDef == null) {
-            throw new IllegalArgumentException("Table '" + tableName + "' not found in REST API mapping.");
-        }
-        return ForgeSchemaBuilder.buildSchema(tableDef.getFields());
     }
 
     /**

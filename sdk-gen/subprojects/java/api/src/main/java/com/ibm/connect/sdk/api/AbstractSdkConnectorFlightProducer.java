@@ -5,8 +5,6 @@
 /* *************************************************** */
 package com.ibm.connect.sdk.api;
 
-import java.util.Collections;
-
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
 import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
@@ -73,13 +71,9 @@ public abstract class AbstractSdkConnectorFlightProducer extends ConnectorFlight
         @Override
         public CustomFlightDatasourceTypes getDatasourceTypes()
         {
-            final CustomFlightDatasourceTypes types = new CustomFlightDatasourceTypes();
-            // Return empty list — datasource type listing for SDK producers goes through
-            // doAction(ACTION_LIST_DATASOURCE_TYPES) which uses connectorFactory.getDatasourceTypes().
-            // SDK producers that want to expose types should override doAction or provide
-            // their own CustomFlightDatasourceTypes mapping.
-            types.setDatasourceTypes(Collections.emptyList());
-            return types;
+            // Delegate to the SDK factory so the datasourceTypes field stored in
+            // ConnectorFlightProducer's constructor is also populated correctly.
+            return sdkFactory.getDatasourceTypes();
         }
 
         @Override

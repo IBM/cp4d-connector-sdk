@@ -7,8 +7,8 @@ package com.ibm.connect.restconnector;
 
 import static org.junit.Assert.assertNotNull;
 
-import com.ibm.wdp.connect.sdk.connector.ConnectionProperties;
-import com.ibm.wdp.connect.sdk.connector.SdkDatasourceTypes;
+import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
 import org.junit.Test;
 
 /**
@@ -27,8 +27,7 @@ public class TestPropertyValidation
     public void testConnectionPropertiesNegative() throws Exception
     {
         final String typeName = "unknown_type";
-        final ConnectionProperties properties
-                = new ConnectionProperties(null);
+        final ConnectionProperties properties = new ConnectionProperties();
         RestConnectorFactory.getInstance().createConnector(typeName, properties);
     }
 
@@ -41,20 +40,18 @@ public class TestPropertyValidation
     @Test
     public void testConnectionProperties() throws Exception
     {
-        // Get the first available datasource type from the factory
-        final SdkDatasourceTypes datasourceTypes
+        final CustomFlightDatasourceTypes datasourceTypes
                 = RestConnectorFactory.getInstance().getDatasourceTypes();
 
-        if (datasourceTypes.getTypeNames() == null || datasourceTypes.getTypeNames().isEmpty()
-                || "__rest__".equals(datasourceTypes.getTypeNames().get(0))) {
+        if (datasourceTypes.getDatasourceTypes() == null || datasourceTypes.getDatasourceTypes().isEmpty()
+                || "__rest__".equals(datasourceTypes.getDatasourceTypes().get(0).getName())) {
             // No configurations loaded - skip test
             System.out.println("No REST connector configurations loaded. Skipping test.");
             return;
         }
 
-        final String typeName = datasourceTypes.getTypeNames().get(0);
-        final ConnectionProperties sdkProps
-                = new ConnectionProperties(null);
+        final String typeName = datasourceTypes.getDatasourceTypes().get(0).getName();
+        final ConnectionProperties sdkProps = new ConnectionProperties();
 
         // Create connector - should succeed
         assertNotNull(RestConnectorFactory.getInstance().createConnector(typeName, sdkProps));

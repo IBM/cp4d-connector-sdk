@@ -9,16 +9,15 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import org.slf4j.Logger;
 
-import com.ibm.wdp.connect.sdk.connector.ConnectionProperties;
+import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
 import com.ibm.wdp.connect.sdk.connector.SdkConnector;
 import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
-import com.ibm.wdp.connect.sdk.connector.SdkDatasourceTypes;
 
 /**
  * A factory for creating REST connectors.
@@ -142,13 +141,11 @@ public class RestConnectorFactory implements SdkConnectorFactory
      * {@inheritDoc}
      */
     @Override
-    public SdkDatasourceTypes getDatasourceTypes()
+    public CustomFlightDatasourceTypes getDatasourceTypes()
     {
-        final List<String> typeNames = new ArrayList<>(configCache.keySet());
-        if (typeNames.isEmpty()) {
-            typeNames.add("__rest__");
-        }
-        return new SdkDatasourceTypes(typeNames);
+        final CustomFlightDatasourceTypes types = new CustomFlightDatasourceTypes();
+        types.setDatasourceTypes(new ArrayList<>(datasourceTypeCache.values()));
+        return types;
     }
 
     /**
@@ -158,12 +155,7 @@ public class RestConnectorFactory implements SdkConnectorFactory
     public SdkConnector<?, ?, ?> createConnector(String datasourceTypeName,
             ConnectionProperties properties) {
         if (configCache.containsKey(datasourceTypeName)) {
-            final com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties modelProps
-                    = new com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties();
-            if (properties != null) {
-                modelProps.putAll(properties.asMap());
-            }
-            return new RestConnector(datasourceTypeName, modelProps, configCache.get(datasourceTypeName));
+            return new RestConnector(datasourceTypeName, properties, configCache.get(datasourceTypeName));
         }
         throw new UnsupportedOperationException(RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
     }

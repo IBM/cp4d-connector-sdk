@@ -28,7 +28,6 @@ import com.ibm.connect.sdk.api.SourceInteraction;
 import com.ibm.connect.sdk.api.TicketInfo;
 import com.ibm.connect.sdk.util.ModelMapper;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
-import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
 import com.ibm.wdp.connect.sdk.connector.RowWriter;
 import com.ibm.wdp.connect.sdk.connector.SdkInputInteraction;
 
@@ -68,23 +67,6 @@ public class RestInputInteraction implements SourceInteraction<Connector<?, ?>>,
             throws Exception
     {
         this(connector, RestConnectorUtils.resolveTableName(asset), asset.getConnectionProperties(), ticket);
-    }
-
-    /**
-     * Creates a REST input interaction from an SDK {@link AssetDescriptor}.
-     *
-     * @param connector
-     *            the connector managing the connection to the data source
-     * @param asset
-     *            the SDK asset descriptor from which to read
-     * @param ticket
-     *            a Flight ticket to read a partition or null to get tickets
-     * @throws Exception
-     */
-    public RestInputInteraction(RestConnector connector, AssetDescriptor asset, Ticket ticket) throws Exception
-    {
-        this(connector, RestConnectorUtils.resolveTableName(asset.getPath(), asset.getName()),
-                asset.getProperties(), ticket);
     }
 
     /**

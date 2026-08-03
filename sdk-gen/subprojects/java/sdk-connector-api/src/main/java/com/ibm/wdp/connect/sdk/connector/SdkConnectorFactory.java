@@ -7,6 +7,8 @@ package com.ibm.wdp.connect.sdk.connector;
 
 import org.slf4j.Logger;
 
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
+
 /**
  * Factory for creating {@link SdkConnector} instances.
  *
@@ -18,12 +20,12 @@ import org.slf4j.Logger;
  * <pre>
  *   public class MyConnectorFactory implements SdkConnectorFactory {
  *       {@literal @}Override
- *       public SdkDatasourceTypes getDatasourceTypes() {
- *           return new SdkDatasourceTypes(Collections.singletonList("my_connector"));
+ *       public CustomFlightDatasourceTypes getDatasourceTypes() {
+ *           return new CustomFlightDatasourceTypes().addDatasourceTypesItem(new MyDatasourceType());
  *       }
  *       {@literal @}Override
  *       public SdkConnector&lt;?, ?, ?&gt; createConnector(String datasourceTypeName,
- *                                                       ConnectionProperties props) {
+ *           com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties props) {
  *           return new MyConnector(props);
  *       }
  *   }
@@ -32,11 +34,12 @@ import org.slf4j.Logger;
 public interface SdkConnectorFactory
 {
     /**
-     * Returns the datasource type names handled by this factory.
+     * Returns the full datasource type definitions for this factory, including labels,
+     * properties and discovery configuration.
      *
-     * @return the supported datasource type names
+     * @return the supported datasource types; must not be null
      */
-    SdkDatasourceTypes getDatasourceTypes();
+    CustomFlightDatasourceTypes getDatasourceTypes();
 
     /**
      * Creates a new connector for the specified datasource type and connection properties.
@@ -49,7 +52,8 @@ public interface SdkConnectorFactory
      * @throws Exception
      *             if the connector cannot be created
      */
-    SdkConnector<?, ?, ?> createConnector(String datasourceTypeName, ConnectionProperties properties) throws Exception;
+    SdkConnector<?, ?, ?> createConnector(String datasourceTypeName,
+            com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties properties) throws Exception;
 
     /**
      * Passes the Logger object to this connector factory.

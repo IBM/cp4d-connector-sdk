@@ -13,15 +13,16 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 
-import com.ibm.wdp.connect.sdk.connector.AssetDescriptor;
-import com.ibm.wdp.connect.sdk.connector.DiscoveryCriteria;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
+import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetType;
 import com.ibm.wdp.connect.sdk.connector.SdkDiscoveryInteraction;
 
 /**
  * Discovery interaction for a REST API connector.
  *
  * <p>Translates the connector's hierarchical path-based discovery into a list of
- * {@link AssetDescriptor} objects:
+ * {@link CustomFlightAssetDescriptor} objects:
  * <ul>
  *   <li>Path "/" — returns all tables as containers (no fields)</li>
  *   <li>Path "/{tableName}" — returns the specific table as a dataset</li>
@@ -48,7 +49,7 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
      * {@inheritDoc}
      */
     @Override
-    public List<AssetDescriptor> discoverAssets(DiscoveryCriteria criteria)
+    public List<CustomFlightAssetDescriptor> discoverAssets(CustomFlightAssetsCriteria criteria)
     {
         final RestApiMapping apiMapping = connector.getApiMapping();
         if (apiMapping == null) {
@@ -56,19 +57,24 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
         }
 
         final String path = criteria.getPath();
-        final List<AssetDescriptor> assets = new ArrayList<>();
+        final List<CustomFlightAssetDescriptor> assets = new ArrayList<>();
 
         if ("/".equals(path)) {
             for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
                 final String tableName = entry.getKey();
-                assets.add(new AssetDescriptor(
-                        tableName,
-                        tableName,
-                        "/" + tableName,
-                        criteria.getDatasourceTypeName(),
-                        criteria.getConnectionProperties() != null ? criteria.getConnectionProperties().asMap() : null,
-                        true,
-                        0));
+                final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
+                descriptor.setId(tableName);
+                descriptor.setName(tableName);
+                descriptor.setPath("/" + tableName);
+                descriptor.setDatasourceTypeName(criteria.getDatasourceTypeName());
+                descriptor.setConnectionProperties(criteria.getConnectionProperties());
+                descriptor.setHasChildren(true);
+                final DiscoveredAssetType assetType = new DiscoveredAssetType();
+                assetType.setType("table");
+                assetType.setDataset(false);
+                assetType.setDatasetContainer(true);
+                descriptor.setAssetType(assetType);
+                assets.add(descriptor);
                 LOGGER.debug("Discovered table container: {}", tableName);
             }
         } else if (path != null && path.startsWith("/") && !path.substring(1).contains("/")) {
@@ -76,14 +82,20 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
             final RestTableDefinition tableDef = apiMapping.getTable(tableName);
 
             if (tableDef != null) {
-                assets.add(new AssetDescriptor(
-                        tableName,
-                        tableName,
-                        path,
-                        criteria.getDatasourceTypeName(),
-                        criteria.getConnectionProperties() != null ? criteria.getConnectionProperties().asMap() : null,
-                        false,
-                        0));
+                final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
+                descriptor.setId(tableName);
+                descriptor.setName(tableName);
+                descriptor.setPath(path);
+                descriptor.setDatasourceTypeName(criteria.getDatasourceTypeName());
+                descriptor.setConnectionProperties(criteria.getConnectionProperties());
+                descriptor.setHasChildren(false);
+                descriptor.setFields(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
+                final DiscoveredAssetType assetType = new DiscoveredAssetType();
+                assetType.setType("table");
+                assetType.setDataset(true);
+                assetType.setDatasetContainer(false);
+                descriptor.setAssetType(assetType);
+                assets.add(descriptor);
                 LOGGER.debug("Discovered table dataset: {}", tableName);
             } else {
                 LOGGER.warn("Table not found in mapping: {}", tableName);

@@ -60,7 +60,7 @@ public interface SdkInputInteraction extends AutoCloseable
      * Returns the list of Arrow Flight tickets representing the partitions this interaction covers.
      *
      * <p>For single-partition connectors, return a list with a single ticket. The Flight layer
-     * will call {@link SdkConnector#getInputInteraction(com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor, Ticket)} once per ticket.
+     * will call {@link SdkConnector#getInputInteraction(CustomFlightAssetDescriptor, Ticket)} once per ticket.
      *
      * @return a non-empty list of tickets
      * @throws Exception

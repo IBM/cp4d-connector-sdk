@@ -8,6 +8,9 @@ package com.ibm.wdp.connect.sdk.connector;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
+
 /**
  * Minimal SDK connector interface.
  *
@@ -42,7 +45,7 @@ public interface SdkConnector<I extends SdkInputInteraction,
     void connect() throws Exception;
 
     /**
-     * Returns the Arrow schema for the named asset.
+     * Returns the Arrow schema for the described asset.
      *
      * @param asset
      *            the asset descriptor identifying the table or object
@@ -50,10 +53,10 @@ public interface SdkConnector<I extends SdkInputInteraction,
      * @throws Exception
      *             if the schema cannot be determined
      */
-    Schema getSchema(AssetDescriptor asset) throws Exception;
+    Schema getSchema(CustomFlightAssetDescriptor asset) throws Exception;
 
     /**
-     * Creates an input interaction for reading data from the named asset.
+     * Creates an input interaction for reading data from the described asset.
      *
      * @param asset
      *            the asset descriptor identifying the table or object to read
@@ -63,10 +66,10 @@ public interface SdkConnector<I extends SdkInputInteraction,
      * @throws Exception
      *             if the interaction cannot be created
      */
-    I getInputInteraction(AssetDescriptor asset, Ticket ticket) throws Exception;
+    I getInputInteraction(CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception;
 
     /**
-     * Creates an output interaction for writing data to the named asset.
+     * Creates an output interaction for writing data to the described asset.
      *
      * @param asset
      *            the asset descriptor identifying the table or object to write
@@ -74,7 +77,7 @@ public interface SdkConnector<I extends SdkInputInteraction,
      * @throws Exception
      *             if the interaction cannot be created
      */
-    O getOutputInteraction(AssetDescriptor asset) throws Exception;
+    O getOutputInteraction(CustomFlightAssetDescriptor asset) throws Exception;
 
     /**
      * Creates a discovery interaction for browsing available assets.
@@ -85,5 +88,5 @@ public interface SdkConnector<I extends SdkInputInteraction,
      * @throws Exception
      *             if the interaction cannot be created
      */
-    D getDiscoveryInteraction(DiscoveryCriteria criteria) throws Exception;
+    D getDiscoveryInteraction(CustomFlightAssetsCriteria criteria) throws Exception;
 }

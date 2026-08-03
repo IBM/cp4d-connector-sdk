@@ -7,13 +7,16 @@ package com.ibm.wdp.connect.sdk.connector;
 
 import java.util.List;
 
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
+
 /**
  * Discovery interaction for browsing assets available through a connector.
  *
  * <p>Connector authors implement this interface to expose browseable assets (tables, schemas, etc.)
  * without knowledge of the library's lifecycle management.
  *
- * <p>Instances are obtained from {@link SdkConnector#getDiscoveryInteraction(DiscoveryCriteria)}.
+ * <p>Instances are obtained from {@link SdkConnector#getDiscoveryInteraction(CustomFlightAssetsCriteria)}.
  */
 public interface SdkDiscoveryInteraction extends AutoCloseable
 {
@@ -26,5 +29,5 @@ public interface SdkDiscoveryInteraction extends AutoCloseable
      * @throws Exception
      *             if an error occurs during discovery
      */
-    List<AssetDescriptor> discoverAssets(DiscoveryCriteria criteria) throws Exception;
+    List<CustomFlightAssetDescriptor> discoverAssets(CustomFlightAssetsCriteria criteria) throws Exception;
 }
