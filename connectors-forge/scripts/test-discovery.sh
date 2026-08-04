@@ -335,5 +335,3 @@ fi
 echo ""
 echo "✓ All connector tests passed!"
 exit 0
-
-# Made with Bob

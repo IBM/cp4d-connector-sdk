@@ -936,5 +936,3 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     }
 
 }
-
-// Made with Bob

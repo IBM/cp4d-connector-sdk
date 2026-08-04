@@ -29,7 +29,7 @@ BEARER_TOKEN=""
 PROJECT_ID=""
 CONFIGMAP_NAME="connectors-config"
 CONFIGMAP_ETAG=""
-IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.4"
+IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.5"
 APP_EXISTS=false
 CONFIGMAP_EXISTS=false
 API_VERSION="2025-07-10"
@@ -909,5 +909,3 @@ main() {
 # ============================================
 
 main
-
-# Made with Bob

@@ -14,5 +14,3 @@ spec:
     targetPort: 9443
     protocol: TCP
     appProtocol: grpc
-
-# Made with Bob

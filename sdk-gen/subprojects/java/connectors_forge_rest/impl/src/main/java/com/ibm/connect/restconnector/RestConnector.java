@@ -239,5 +239,3 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     }
 
 }
-
-// Made with Bob

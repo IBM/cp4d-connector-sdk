@@ -55,5 +55,3 @@ public enum AuthenticationType
                 .collect(Collectors.joining(", "));
     }
 }
-
-// Made with Bob

@@ -84,5 +84,3 @@ public class RestFieldDefinition
                 + ", isNotNull=" + isNotNull + "}";
     }
 }
-
-// Made with Bob

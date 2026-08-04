@@ -14,7 +14,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PropertiesFile = Join-Path $ScriptDir "deploy-openshift.properties"
 
 # Hardcoded configuration
-$DockerImage = "ghcr.io/marek-zuwala/connectors-forge:1.0.4"
+$DockerImage = "ghcr.io/marek-zuwala/connectors-forge:1.0.5"
 $ConfigFilesPath = "sdk-gen/subprojects/connectors_forge_rest/src/main/resources"
 $DeploymentYaml = Join-Path $ScriptDir "deployment.yaml"
 $ServiceYaml = Join-Path $ScriptDir "service.yaml"
@@ -413,5 +413,3 @@ function Main {
 
 # Run main function
 Main
-
-# Made with Bob

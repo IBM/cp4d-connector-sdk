@@ -56,5 +56,3 @@ public class TestPropertyValidation
         assertNotNull(RestConnectorFactory.getInstance().createConnector(typeName, properties));
     }
 }
-
-// Made with Bob

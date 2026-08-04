@@ -54,5 +54,3 @@ public enum PaginationType
                 .collect(Collectors.joining(", "));
     }
 }
-
-// Made with Bob

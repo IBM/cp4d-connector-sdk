@@ -140,5 +140,3 @@ public class RestConnectorFactory extends PooledConnectorFactory
         return types;
     }
 }
-
-// Made with Bob

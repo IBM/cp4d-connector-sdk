@@ -17,7 +17,7 @@ SSH_PORT="22"
 CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
-IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.4"
+IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.5"
 CONTAINER_ID=""
 CONTAINER_NAME=""
 TEMP_DIR=""
@@ -453,5 +453,3 @@ main() {
 
 parse_arguments "$@"
 main
-
-# Made with Bob

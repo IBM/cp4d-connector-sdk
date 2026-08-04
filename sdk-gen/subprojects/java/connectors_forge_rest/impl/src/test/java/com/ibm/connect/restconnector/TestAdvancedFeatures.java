@@ -460,5 +460,3 @@ public class TestAdvancedFeatures
         assertEquals("address.country", fields.get(3).getName());
     }
 }
-
-// Made with Bob

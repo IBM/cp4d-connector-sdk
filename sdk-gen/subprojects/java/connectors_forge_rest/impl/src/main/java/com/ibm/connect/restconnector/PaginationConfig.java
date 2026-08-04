@@ -190,5 +190,3 @@ public final class PaginationConfig
                 + "', nextCursorPath='" + nextCursorPath + "', nextUrlPath='" + nextUrlPath + "'}";
     }
 }
-
-// Made with Bob

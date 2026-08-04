@@ -202,5 +202,3 @@ public class TestRestFieldTypeMapper
         assertEquals("varchar", f.getType());
     }
 }
-
-// Made with Bob

@@ -237,5 +237,3 @@ public class TestRestApiMappingLoader
         assertTrue(mapping.getOrigin().isEmpty());
     }
 }
-
-// Made with Bob

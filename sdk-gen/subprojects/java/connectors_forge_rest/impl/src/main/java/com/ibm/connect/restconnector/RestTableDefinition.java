@@ -115,5 +115,3 @@ public class RestTableDefinition
                 + "', paginationConfig=" + paginationConfig + ", fields=" + fields + "}";
     }
 }
-
-// Made with Bob

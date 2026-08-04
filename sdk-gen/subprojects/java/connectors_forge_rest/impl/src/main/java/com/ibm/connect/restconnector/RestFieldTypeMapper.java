@@ -199,5 +199,3 @@ public class RestFieldTypeMapper
         return fields;
     }
 }
-
-// Made with Bob

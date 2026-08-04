@@ -212,5 +212,3 @@ public class RestDatasourceType extends CustomFlightDatasourceType
     }
 
 }
-
-// Made with Bob

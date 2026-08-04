@@ -345,5 +345,3 @@ else
     echo "$RESPONSE_BODY"
     exit 1
 fi
-
-# Made with Bob

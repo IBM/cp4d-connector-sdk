@@ -331,5 +331,3 @@ public class RestSourceInteraction implements SourceInteraction<Connector<?, ?>>
         return headers.isEmpty() ? null : headers;
     }
 }
-
-// Made with Bob

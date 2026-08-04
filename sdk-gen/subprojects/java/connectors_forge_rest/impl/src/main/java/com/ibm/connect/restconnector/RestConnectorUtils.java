@@ -64,5 +64,3 @@ public final class RestConnectorUtils
     }
 
 }
-
-// Made with Bob

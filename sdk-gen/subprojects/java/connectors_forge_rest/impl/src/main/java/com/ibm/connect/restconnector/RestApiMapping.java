@@ -166,5 +166,3 @@ public class RestApiMapping
                 + "', authenticationType='" + authenticationType.getValue() + "', tables=" + tables.keySet() + "}";
     }
 }
-
-// Made with Bob
