@@ -141,7 +141,6 @@ subprojects {
             req.setRequestProperty("User-Agent","ConnectivitySDK")
             req.setRequestProperty("Authorization", "Bearer "+ registrationProperties.getProperty("authToken"))
             req.setRequestProperty("Accept-Language", "en")
-            req.setRequestProperty("Accept-Encoding", "gzip, deflate, br")
             req.setRequestProperty("Accept", "application/json")
             req.setRequestProperty("Content-Type", "application/json")
             def body = new JsonSlurper().parseText('{ "origin_country":"us", "flight_info": { "flight_uri": "", "ssl_certificate": "","ssl_certificate_validation": false } }')

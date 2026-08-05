@@ -96,8 +96,9 @@ spotless {
     target fileTree(dir: "${project.projectDir}", include: '**/*.gradle', excludes: [
       '.gradle/**/*',
       '**/bin/**/*',
-      '**/build/**/*'
-    ]).files
+      '**/build/**/*',
+      '**/node_modules/**/*'
+    ])
     endWithNewline()
     trimTrailingWhitespace()
     def groovyEclipseConfigFile = file("$rootDir/config/spotless/groovy.xml")
@@ -105,6 +106,15 @@ spotless {
     if (groovyEclipseConfigFile.exists() && groovyEclipsePropertiesFile.exists()) {
       greclipse().configFile(groovyEclipseConfigFile.absolutePath, groovyEclipsePropertiesFile.absolutePath)
     }
+  }
+}
+
+// Ensure spotless does not race with npmInstall writing into the sdk-gen subtree
+afterEvaluate {
+  def npmTask = project.tasks.findByPath(':wdp-connect-sdk-gen-java-api-models:npmInstall')
+  if (npmTask) {
+    tasks.named('spotlessGroovyGradle') { mustRunAfter npmTask }
+    tasks.named('spotlessGroovyGradleApply') { mustRunAfter npmTask }
   }
 }
 
