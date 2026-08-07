@@ -9,7 +9,6 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -187,17 +186,28 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                     connector.connect();
                     try (SdkInputInteraction interaction = connector.getInputInteraction(asset, ticket)) {
                         final Schema schema = interaction.getSchema();
-                        if (interaction instanceof SdkColumnarInputInteraction) {
-                            final int batchSize = getBatchSize(asset);
-                            try (ColumnarArrowBatchWriter writer = new ColumnarArrowBatchWriter(schema, rootAllocator, batchSize)) {
-                                ((SdkColumnarInputInteraction) interaction).stream(writer);
-                                streamBatches(writer.batches(), schema, listener, bpStrategy);
+                        final int batchSize = getBatchSize(asset);
+                        try (VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, rootAllocator)) {
+                            final VectorLoader loader = new VectorLoader(streamRoot);
+                            listener.start(streamRoot);
+                            if (interaction instanceof SdkColumnarInputInteraction) {
+                                try (ColumnarArrowBatchWriter writer = new ColumnarArrowBatchWriter(
+                                        schema, rootAllocator, batchSize,
+                                        batch -> sendBatch(batch, loader, streamRoot, listener, bpStrategy))) {
+                                    ((SdkColumnarInputInteraction) interaction).stream(writer);
+                                }
+                            } else {
+                                try (ArrowBatchWriter writer = new ArrowBatchWriter(
+                                        schema, rootAllocator, batchSize,
+                                        batch -> sendBatch(batch, loader, streamRoot, listener, bpStrategy))) {
+                                    interaction.stream(writer);
+                                }
                             }
-                        } else {
-                            final int batchSize = getBatchSize(asset);
-                            try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, rootAllocator, batchSize)) {
-                                interaction.stream(writer);
-                                streamBatches(writer.batches(), schema, listener, bpStrategy);
+                            if (listener.isCancelled()) {
+                                LOGGER.info("Stream has been cancelled");
+                                listener.error(CallStatus.CANCELLED.withDescription("Stream cancelled.").toRuntimeException());
+                            } else {
+                                listener.completed();
                             }
                         }
                     }
@@ -605,36 +615,28 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     }
 
     /**
-     * Streams batches from the given iterator to the Flight listener, handling backpressure.
+     * Sends a single batch to the Flight listener, handling backpressure.
+     * Called directly by the writer's batch consumer so each batch is transmitted
+     * as it is produced rather than after the full dataset is buffered.
      */
     @SuppressWarnings("PMD.CloseResource")
-    private void streamBatches(Iterator<VectorSchemaRoot> batches, Schema schema,
-            ServerStreamListener listener, BackpressureStrategy bpStrategy) throws Exception
+    private void sendBatch(VectorSchemaRoot batch, VectorLoader loader,
+            VectorSchemaRoot streamRoot, ServerStreamListener listener,
+            BackpressureStrategy bpStrategy)
     {
-        try (VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(schema, rootAllocator)) {
-            final VectorLoader loader = new VectorLoader(vectorSchemaRoot);
-            listener.start(vectorSchemaRoot);
-            while (batches.hasNext()) {
-                final VectorSchemaRoot batch = batches.next();
-                final VectorUnloader unloader = new VectorUnloader(batch);
-                loader.load(unloader.getRecordBatch());
-                WaitResult wr;
-                while ((wr = bpStrategy.waitForListener(5000)) == WaitResult.TIMEOUT) {
-                    LOGGER.info("Waiting for ready from client");
-                }
-                if (wr == WaitResult.CANCELLED) {
-                    break;
-                }
-                listener.putNext();
-                vectorSchemaRoot.clear();
-            }
-            if (listener.isCancelled()) {
-                LOGGER.info("Stream has been cancelled");
-                listener.error(CallStatus.CANCELLED.withDescription("Stream cancelled.").toRuntimeException());
-            } else {
-                listener.completed();
-            }
+        if (listener.isCancelled()) {
+            return;
         }
+        final VectorUnloader unloader = new VectorUnloader(batch);
+        loader.load(unloader.getRecordBatch());
+        WaitResult wr;
+        while ((wr = bpStrategy.waitForListener(5000)) == WaitResult.TIMEOUT) {
+            LOGGER.info("Waiting for ready from client");
+        }
+        if (wr != WaitResult.CANCELLED) {
+            listener.putNext();
+        }
+        streamRoot.clear();
     }
 
     private static int getBatchSize(CustomFlightAssetDescriptor asset)

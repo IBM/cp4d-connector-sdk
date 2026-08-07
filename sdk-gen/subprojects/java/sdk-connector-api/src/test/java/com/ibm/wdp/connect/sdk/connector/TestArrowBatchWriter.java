@@ -9,8 +9,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
+import java.util.List;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -50,7 +51,9 @@ public class TestArrowBatchWriter
     @Test
     public void testWriteAndReadSingleBatch() throws Exception
     {
-        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100)) {
+        final List<VectorSchemaRoot> received = new ArrayList<>();
+        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100,
+                batch -> received.add(batch.slice(0, batch.getRowCount())))) {
             writer.startRow();
             writer.set("id", 1);
             writer.set("name", "Alice");
@@ -62,22 +65,20 @@ public class TestArrowBatchWriter
             writer.set("name", "Bob");
             writer.set("score", 8.0);
             writer.endRow();
+        } // close() flushes the final partial batch
 
-            final Iterator<VectorSchemaRoot> it = writer.batches();
-            assertTrue(it.hasNext());
-            @SuppressWarnings("PMD.CloseResource")
-            final VectorSchemaRoot root = it.next();
-            assertEquals(2, root.getRowCount());
-            root.close();
-            assertFalse(it.hasNext());
-        }
+        assertEquals(1, received.size());
+        assertEquals(2, received.get(0).getRowCount());
+        received.forEach(VectorSchemaRoot::close);
     }
 
     @Test
     public void testAutoFlushAtBatchSize() throws Exception
     {
         final int batchSize = 3;
-        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, batchSize)) {
+        final List<VectorSchemaRoot> received = new ArrayList<>();
+        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, batchSize,
+                batch -> received.add(batch.slice(0, batch.getRowCount())))) {
             for (int i = 0; i < 7; i++) {
                 writer.startRow();
                 writer.set("id", i);
@@ -85,57 +86,54 @@ public class TestArrowBatchWriter
                 writer.set("score", (double) i);
                 writer.endRow();
             }
-
-            int totalRows = 0;
-            int batchCount = 0;
-            final Iterator<VectorSchemaRoot> it = writer.batches();
-            while (it.hasNext()) {
-                @SuppressWarnings("PMD.CloseResource")
-                final VectorSchemaRoot root = it.next();
-                totalRows += root.getRowCount();
-                batchCount++;
-                root.close();
-            }
-            assertEquals(7, totalRows);
-            // 7 rows with batchSize=3: two full batches flush at row 3 and 6, one partial at end
-            assertEquals(3, batchCount);
         }
+
+        int totalRows = 0;
+        for (final VectorSchemaRoot root : received) {
+            totalRows += root.getRowCount();
+        }
+        assertEquals(7, totalRows);
+        // 7 rows with batchSize=3: two full batches flush at rows 3 and 6, one partial at close
+        assertEquals(3, received.size());
+        received.forEach(VectorSchemaRoot::close);
     }
 
     @Test
     public void testNullValue() throws Exception
     {
-        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100)) {
+        final List<VectorSchemaRoot> received = new ArrayList<>();
+        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100,
+                batch -> received.add(batch.slice(0, batch.getRowCount())))) {
             writer.startRow();
             writer.set("id", 42);
             writer.set("name", null);
             writer.set("score", null);
             writer.endRow();
-
-            final Iterator<VectorSchemaRoot> it = writer.batches();
-            assertTrue(it.hasNext());
-            @SuppressWarnings("PMD.CloseResource")
-            final VectorSchemaRoot root = it.next();
-            assertEquals(1, root.getRowCount());
-            assertTrue(root.getVector("name").isNull(0));
-            assertTrue(root.getVector("score").isNull(0));
-            root.close();
         }
+
+        assertEquals(1, received.size());
+        final VectorSchemaRoot root = received.get(0);
+        assertEquals(1, root.getRowCount());
+        assertTrue(root.getVector("name").isNull(0));
+        assertTrue(root.getVector("score").isNull(0));
+        root.close();
     }
 
     @Test
     public void testEmptyWriter() throws Exception
     {
-        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100)) {
-            final Iterator<VectorSchemaRoot> it = writer.batches();
-            assertFalse(it.hasNext());
+        final List<VectorSchemaRoot> received = new ArrayList<>();
+        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100,
+                batch -> received.add(batch.slice(0, batch.getRowCount())))) {
+            // write nothing
         }
+        assertFalse(received.iterator().hasNext());
     }
 
     @Test
     public void testGetSchema()
     {
-        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100)) {
+        try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 100, batch -> { })) {
             assertEquals(schema, writer.getSchema());
         }
     }

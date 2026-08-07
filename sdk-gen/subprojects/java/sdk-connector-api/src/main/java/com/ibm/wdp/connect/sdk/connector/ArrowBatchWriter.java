@@ -5,9 +5,7 @@
 /* *************************************************** */
 package com.ibm.wdp.connect.sdk.connector;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.function.Consumer;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
@@ -21,17 +19,19 @@ import org.apache.arrow.vector.types.pojo.Schema;
  * {@link #startRow()}, {@link #set(String, Object)}, and {@link #endRow()} through
  * the {@link RowWriter} interface. All Apache Arrow memory management is hidden inside this class.
  *
- * <p>The Flight layer retrieves the accumulated batches via the package-private {@link #batches()}
- * method after the connector's {@code stream(RowWriter)} call completes.
+ * <p>Each time a batch is full it is passed immediately to the {@code batchConsumer} supplied at
+ * construction time. The Flight layer wires that consumer directly to {@code listener.putNext()},
+ * so rows are sent to the client as they are produced rather than after the entire dataset is
+ * buffered in memory.
  *
  * <p>Usage:
  * <pre>
- *   try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 1000)) {
+ *   try (ArrowBatchWriter writer = new ArrowBatchWriter(schema, allocator, 1000, batch -> {
+ *       // called once per full/final batch — send it immediately
+ *       loader.load(unloader.getRecordBatch());
+ *       listener.putNext();
+ *   })) {
  *       interaction.stream(writer);
- *       for (Iterator&lt;VectorSchemaRoot&gt; it = writer.batches(); it.hasNext(); ) {
- *           VectorSchemaRoot root = it.next();
- *           listener.putNext(root);
- *       }
  *   }
  * </pre>
  */
@@ -40,7 +40,7 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
     private final Schema schema;
     private final int batchSize;
     private final VectorSchemaRoot root;
-    private final List<VectorSchemaRoot> completedBatches;
+    private final Consumer<VectorSchemaRoot> batchConsumer;
 
     private int currentRow;
     private boolean closed;
@@ -55,14 +55,19 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
      * @param batchSize
      *            the number of rows per batch; when a batch reaches this size it is flushed
      *            automatically on {@link #endRow()}
+     * @param batchConsumer
+     *            called once per completed batch (including the final partial batch on
+     *            {@link #close()}); the supplied {@link VectorSchemaRoot} must be consumed
+     *            before returning — it will be cleared and reused for the next batch
      */
-    public ArrowBatchWriter(Schema schema, BufferAllocator allocator, int batchSize)
+    public ArrowBatchWriter(Schema schema, BufferAllocator allocator, int batchSize,
+            Consumer<VectorSchemaRoot> batchConsumer)
     {
         this.schema = schema;
         this.batchSize = batchSize > 0 ? batchSize : 1000;
         this.root = VectorSchemaRoot.create(schema, allocator);
         this.root.allocateNew();
-        this.completedBatches = new ArrayList<>();
+        this.batchConsumer = batchConsumer;
         this.currentRow = 0;
         this.closed = false;
     }
@@ -102,21 +107,6 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
     }
 
     /**
-     * Returns an iterator over all completed batches plus any remaining partial batch.
-     * <p>
-     * For use by the Flight layer after the connector's {@code stream(RowWriter)} method returns.
-     *
-     * @return an iterator over {@link VectorSchemaRoot} batches; caller must not close the roots
-     */
-    public Iterator<VectorSchemaRoot> batches()
-    {
-        if (currentRow > 0) {
-            flushCurrentBatch();
-        }
-        return completedBatches.iterator();
-    }
-
-    /**
      * Returns the Arrow schema.
      * <p>
      * For use by the Flight layer.
@@ -130,25 +120,23 @@ public final class ArrowBatchWriter implements RowWriter, AutoCloseable
 
     /** {@inheritDoc} */
     @Override
-    @SuppressWarnings("PMD.CloseResource")
     public void close()
     {
         if (!closed) {
             closed = true;
-            for (final VectorSchemaRoot batch : completedBatches) {
-                batch.close();
+            if (currentRow > 0) {
+                flushCurrentBatch();
             }
-            completedBatches.clear();
             root.close();
         }
     }
 
     // ---- private helpers ----
 
-    @SuppressWarnings("PMD.CloseResource")
     private void flushCurrentBatch()
     {
-        completedBatches.add(root.slice(0, currentRow));
+        root.setRowCount(currentRow);
+        batchConsumer.accept(root);
         root.clear();
         root.allocateNew();
         currentRow = 0;
