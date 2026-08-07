@@ -7,29 +7,20 @@ package com.ibm.connect.restconnector;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
 
-import com.ibm.connect.sdk.api.Connector;
-import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionConfiguration;
-import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
-import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetType;
 import com.ibm.wdp.connect.sdk.connector.SdkConnector;
 
 /**
  * An Arrow-based connector for connecting to a REST API data source.
  *
- * <p>Implements both the legacy {@link Connector} interface (for backward compatibility with
- * existing SDK tooling) and the new {@link SdkConnector} interface (for the Arrow-native path
- * through {@link AbstractSdkConnectorFlightProducer}).
+ * <p>Implements the {@link SdkConnector} interface for the Arrow-native path through
+ * {@link RestFlightProducer}.
  *
  * <p>The connector reads a JSON configuration file that describes the API endpoints
  * and their field schemas. It uses this configuration to discover assets and read data
@@ -38,8 +29,7 @@ import com.ibm.wdp.connect.sdk.connector.SdkConnector;
  * <p>Each connector instance is associated with a specific datasource type (connector name)
  * and loads its configuration from the factory's cache.
  */
-public class RestConnector implements Connector<RestInputInteraction, RestOutputInteraction>,
-        SdkConnector<RestInputInteraction, RestOutputInteraction, RestDiscoveryInteraction>
+public class RestConnector implements SdkConnector<RestInputInteraction, RestOutputInteraction, RestDiscoveryInteraction>
 {
     private static final Logger LOGGER = getLogger(RestConnector.class);
 
@@ -47,7 +37,7 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
     private RestApiMapping apiMapping;
 
     /**
-     * Creates an Arrow-based REST connector (legacy SCAPI path).
+     * Creates an Arrow-based REST connector.
      *
      * @param datasourceTypeName
      *            the datasource type name (connector name)
@@ -133,8 +123,6 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
         return datasourceTypeName;
     }
 
-    // ---- SdkConnector interface (new Arrow-native path) ----
-
     /**
      * {@inheritDoc}
      */
@@ -177,102 +165,6 @@ public class RestConnector implements Connector<RestInputInteraction, RestOutput
     public RestDiscoveryInteraction getDiscoveryInteraction(CustomFlightAssetsCriteria criteria) throws Exception
     {
         return new RestDiscoveryInteraction(this);
-    }
-
-    // ---- Connector interface (legacy path) ----
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public List<CustomFlightAssetDescriptor> discoverAssets(CustomFlightAssetsCriteria criteria) throws Exception
-    {
-        if (apiMapping == null) {
-            throw new IllegalStateException("API mapping not loaded. Call connect() first.");
-        }
-
-        final String path = criteria.getPath();
-        final List<CustomFlightAssetDescriptor> assets = new ArrayList<>();
-
-        if ("/".equals(path)) {
-            for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
-                final String tableName = entry.getKey();
-
-                final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-                descriptor.setName(tableName);
-                descriptor.setId(tableName);
-                descriptor.setPath("/" + tableName);
-                descriptor.setDatasourceTypeName(datasourceTypeName);
-                descriptor.setConnectionProperties(criteria.getConnectionProperties());
-                descriptor.setHasChildren(true);
-
-                final DiscoveredAssetType assetType = new DiscoveredAssetType();
-                assetType.setType("table");
-                assetType.setDataset(false);
-                assetType.setDatasetContainer(true);
-                descriptor.setAssetType(assetType);
-
-                assets.add(descriptor);
-                LOGGER.debug("Discovered table container: {}", tableName);
-            }
-        } else if (path != null && path.startsWith("/") && !path.substring(1).contains("/")) {
-            final String tableName = path.substring(1);
-            final RestTableDefinition tableDef = apiMapping.getTable(tableName);
-
-            if (tableDef != null) {
-                final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-                descriptor.setName(tableName);
-                descriptor.setId(tableName);
-                descriptor.setPath(path);
-                descriptor.setDatasourceTypeName(datasourceTypeName);
-                descriptor.setConnectionProperties(criteria.getConnectionProperties());
-                descriptor.setHasChildren(false);
-                descriptor.setFields(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
-
-                final DiscoveredAssetType assetType = new DiscoveredAssetType();
-                assetType.setType("table");
-                assetType.setDataset(true);
-                assetType.setDatasetContainer(false);
-                descriptor.setAssetType(assetType);
-
-                assets.add(descriptor);
-                LOGGER.debug("Discovered table dataset: {}", tableName);
-            } else {
-                LOGGER.warn("Table not found in mapping: {}", tableName);
-            }
-        } else {
-            LOGGER.warn("Unsupported discovery path supplied for discovery");
-        }
-
-        LOGGER.info("Discovered {} assets", assets.size());
-        return assets;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RestInputInteraction getSourceInteraction(CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception
-    {
-        return new RestInputInteraction(this, asset, ticket);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RestOutputInteraction getTargetInteraction(CustomFlightAssetDescriptor asset) throws Exception
-    {
-        return new RestOutputInteraction(this, asset);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties) throws Exception
-    {
-        throw new UnsupportedOperationException(RestMsgs.UNSUPPORTED_ACTION.format(action));
     }
 
     /**

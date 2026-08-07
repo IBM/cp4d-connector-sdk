@@ -18,13 +18,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.apache.arrow.flight.Ticket;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
 
-import com.ibm.connect.sdk.api.Connector;
-import com.ibm.connect.sdk.api.SourceInteraction;
 import com.ibm.connect.sdk.api.TicketInfo;
 import com.ibm.connect.sdk.util.ModelMapper;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
@@ -34,15 +30,14 @@ import com.ibm.wdp.connect.sdk.connector.SdkInputInteraction;
 /**
  * An interaction with a REST API asset as an input (read) source.
  *
- * <p>Implements both the legacy {@link SourceInteraction} interface (for API compatibility) and
- * the new {@link SdkInputInteraction} interface (push-based via {@link #stream(RowWriter)},
- * used by the Arrow-native path through {@link RestFlightProducer}).
+ * <p>Implements {@link SdkInputInteraction} (push-based via {@link #stream(RowWriter)}),
+ * used by the Arrow-native path through {@link RestFlightProducer}.
  *
  * <p>Reads data from a REST API endpoint defined in the JSON mapping configuration,
  * converts the JSON response to Arrow format in a streaming fashion.
  */
 @SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
-public class RestInputInteraction implements SourceInteraction<Connector<?, ?>>, SdkInputInteraction
+public class RestInputInteraction implements SdkInputInteraction
 {
     private static final Logger LOGGER = getLogger(RestInputInteraction.class);
 
@@ -53,7 +48,7 @@ public class RestInputInteraction implements SourceInteraction<Connector<?, ?>>,
     private final Map<String, Object> connectionProperties;
 
     /**
-     * Creates a REST input interaction from a legacy {@link CustomFlightAssetDescriptor}.
+     * Creates a REST input interaction.
      *
      * @param connector
      *            the connector managing the connection to the data source
@@ -66,21 +61,13 @@ public class RestInputInteraction implements SourceInteraction<Connector<?, ?>>,
     public RestInputInteraction(RestConnector connector, CustomFlightAssetDescriptor asset, Ticket ticket)
             throws Exception
     {
-        this(connector, RestConnectorUtils.resolveTableName(asset), asset.getConnectionProperties(), ticket);
-    }
-
-    /**
-     * Common constructor.
-     */
-    private RestInputInteraction(RestConnector connector, String resolvedTableName,
-            Map<String, Object> connectionProperties, Ticket ticket) throws Exception
-    {
         if (connector == null) {
             throw new IllegalArgumentException(RestMsgs.MISSING_CONNECTOR.format());
         }
         this.connector = connector;
-        this.tableName = resolvedTableName;
-        this.connectionProperties = connectionProperties != null ? connectionProperties : Collections.emptyMap();
+        this.tableName = RestConnectorUtils.resolveTableName(asset);
+        this.connectionProperties = asset.getConnectionProperties() != null
+                ? asset.getConnectionProperties() : Collections.emptyMap();
         LOGGER.debug("Creating input interaction for table: {}", tableName);
 
         final RestApiMapping apiMapping = connector.getApiMapping();
@@ -99,20 +86,14 @@ public class RestInputInteraction implements SourceInteraction<Connector<?, ?>>,
         }
     }
 
-    // ---- SdkInputInteraction interface (new path) ----
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public Schema getSchema()
     {
         return ForgeSchemaBuilder.buildSchema(tableDef.getFields());
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public List<Ticket> getTickets() throws Exception
     {
@@ -152,50 +133,7 @@ public class RestInputInteraction implements SourceInteraction<Connector<?, ?>>,
         }
     }
 
-    // ---- SourceInteraction interface (legacy stubs — pull path not supported) ----
-
-    /**
-     * {@inheritDoc}
-     *
-     * @deprecated The pull-based path is not supported in this implementation.
-     *             Use {@link #stream(RowWriter)} instead via the SDK connector path.
-     */
-    @Deprecated
-    @Override
-    public void beginStream(BufferAllocator allocator)
-    {
-        throw new UnsupportedOperationException(
-                "Pull-based streaming is not supported. Use stream(RowWriter) instead.");
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @deprecated The pull-based path is not supported in this implementation.
-     */
-    @Deprecated
-    @Override
-    public boolean hasNextBatch()
-    {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @deprecated The pull-based path is not supported in this implementation.
-     */
-    @Deprecated
-    @Override
-    public VectorSchemaRoot nextBatch()
-    {
-        throw new UnsupportedOperationException(
-                "Pull-based streaming is not supported. Use stream(RowWriter) instead.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void close()
     {

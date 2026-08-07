@@ -89,7 +89,7 @@ public class TestArrowBatchWriter
         }
 
         int totalRows = 0;
-        for (final VectorSchemaRoot root : received) {
+        for (@SuppressWarnings("PMD.CloseResource") final VectorSchemaRoot root : received) {
             totalRows += root.getRowCount();
         }
         assertEquals(7, totalRows);
@@ -112,7 +112,7 @@ public class TestArrowBatchWriter
         }
 
         assertEquals(1, received.size());
-        final VectorSchemaRoot root = received.get(0);
+        @SuppressWarnings("PMD.CloseResource") final VectorSchemaRoot root = received.get(0);
         assertEquals(1, root.getRowCount());
         assertTrue(root.getVector("name").isNull(0));
         assertTrue(root.getVector("score").isNull(0));
