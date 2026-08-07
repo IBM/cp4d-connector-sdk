@@ -62,16 +62,21 @@ public final class ColumnarArrowBatchWriter implements ColumnarWriter, AutoClose
         if (vector == null) {
             throw new IllegalArgumentException("Unknown field: " + fieldName);
         }
+        // Track row count from the first column written in this batch;
+        // subsequent columns must have the same length.
+        if (currentBatchRows == 0 && values.length > 0) {
+            currentBatchRows = values.length;
+        } else if (values.length != currentBatchRows) {
+            throw new IllegalArgumentException(
+                    "Column '" + fieldName + "' has " + values.length
+                    + " values but expected " + currentBatchRows + " (from earlier columns in this batch)");
+        }
         for (int i = 0; i < values.length; i++) {
             if (values[i] == null) {
                 vector.setNull(i);
             } else {
                 ArrowValueExtractor.setValue(vector, i, values[i]);
             }
-        }
-        // Track row count from the first column written in this batch
-        if (currentBatchRows == 0 && values.length > 0) {
-            currentBatchRows = values.length;
         }
     }
 

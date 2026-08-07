@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 
@@ -19,13 +20,24 @@ import org.apache.arrow.vector.VectorSchemaRoot;
  * interface by calling {@link #nextRow()} and {@link #get(String)}. All Apache Arrow
  * internals are hidden inside this class.
  *
- * <p>The Flight layer constructs this from incoming {@link VectorSchemaRoot} batches and passes
- * it to the connector's {@code consume(RowReader)} method.
+ * <p>Two construction modes are supported:
+ * <ul>
+ *   <li><b>Stream mode</b> ({@link #ArrowBatchReader(FlightStream)}): consumes batches lazily
+ *       from a live {@link FlightStream}. This is the correct production path inside
+ *       {@code acceptPut}: the Flight SDK reuses the same {@code VectorSchemaRoot} instance on
+ *       every {@link FlightStream#next()} call, so each batch must be consumed before the stream
+ *       is advanced.</li>
+ *   <li><b>List mode</b> ({@link #ArrowBatchReader(List)}): iterates over a pre-collected list
+ *       of independent {@code VectorSchemaRoot} objects. Used in unit tests.</li>
+ * </ul>
  */
 public final class ArrowBatchReader implements RowReader, AutoCloseable
 {
+    // Exactly one of these is non-null.
+    private final FlightStream flightStream;
     private final List<VectorSchemaRoot> batches;
-    private int batchIndex;
+
+    private int batchIndex = -1; // used only in list mode
     private VectorSchemaRoot current;
     private int rowIndex;
     private int rowCount;
@@ -33,16 +45,37 @@ public final class ArrowBatchReader implements RowReader, AutoCloseable
     private boolean closed;
 
     /**
-     * Creates an Arrow batch reader over the given batches.
+     * Creates an Arrow batch reader that consumes batches lazily from a live {@link FlightStream}.
+     *
+     * <p>Use this constructor in {@code acceptPut}. The Flight SDK reuses the same root object
+     * on every {@link FlightStream#next()} call, so the stream must be advanced only <em>after</em>
+     * the current batch has been fully consumed — which this constructor guarantees.
+     *
+     * @param flightStream
+     *            the incoming Flight stream; must not be null
+     */
+    public ArrowBatchReader(FlightStream flightStream)
+    {
+        this.flightStream = flightStream;
+        this.batches = null;
+        this.rowCount = 0;
+        this.closed = false;
+        advanceBatch();
+    }
+
+    /**
+     * Creates an Arrow batch reader over a pre-collected list of independent batches.
+     *
+     * <p>Each root in the list must be an independent copy (not the reused root from a
+     * {@link FlightStream}). Intended for unit tests.
      *
      * @param batches
      *            the list of {@link VectorSchemaRoot} batches to iterate; must not be null
      */
     public ArrowBatchReader(List<VectorSchemaRoot> batches)
     {
+        this.flightStream = null;
         this.batches = batches;
-        this.batchIndex = -1;
-        this.rowIndex = -1;
         this.rowCount = 0;
         this.closed = false;
         advanceBatch();
@@ -93,15 +126,26 @@ public final class ArrowBatchReader implements RowReader, AutoCloseable
 
     private boolean advanceBatch()
     {
-        batchIndex++;
-        if (batchIndex < batches.size()) {
+        if (flightStream != null) {
+            try {
+                if (!flightStream.next()) {
+                    return false;
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Error advancing FlightStream", e);
+            }
+            current = flightStream.getRoot();
+        } else {
+            batchIndex++;
+            if (batchIndex >= batches.size()) {
+                return false;
+            }
             current = batches.get(batchIndex);
-            rowCount = current.getRowCount();
-            rowIndex = -1;
-            cacheVectors();
-            return true;
         }
-        return false;
+        rowCount = current.getRowCount();
+        rowIndex = -1;
+        cacheVectors();
+        return true;
     }
 
     @SuppressWarnings("PMD.CloseResource")

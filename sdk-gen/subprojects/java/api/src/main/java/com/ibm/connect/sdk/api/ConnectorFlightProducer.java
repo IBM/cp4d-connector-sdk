@@ -181,7 +181,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
             final CustomFlightAssetDescriptor asset = modelMapper.fromBytes(descriptor.getCommand(), CustomFlightAssetDescriptor.class);
 
             // --- SDK connector path ---
-            if (sdkConnectorFactory != null) {
+            if (hasSdkFactory()) {
                 try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                         asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
                     connector.connect();
@@ -264,7 +264,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                     = modelMapper.fromBytes(criteria.getExpression(), CustomFlightAssetsCriteria.class);
 
             // --- SDK connector path ---
-            if (sdkConnectorFactory != null) {
+            if (hasSdkFactory()) {
                 try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                         assetsCriteria.getDatasourceTypeName(), assetsCriteria.getConnectionProperties())) {
                     connector.connect();
@@ -331,7 +331,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
             final CustomFlightAssetDescriptor asset = modelMapper.fromBytes(descriptor.getCommand(), CustomFlightAssetDescriptor.class);
 
             // --- SDK connector path ---
-            if (sdkConnectorFactory != null) {
+            if (hasSdkFactory()) {
                 try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                         asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
                     connector.connect();
@@ -391,7 +391,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 asset.setFields(Utils.getAssetFields(flightStream.getSchema()));
 
                 // --- SDK connector path ---
-                if (sdkConnectorFactory != null) {
+                if (hasSdkFactory()) {
                     try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                             asset.getDatasourceTypeName(), asset.getConnectionProperties())) {
                         connector.connect();
@@ -399,17 +399,16 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                             if (asset.getPartitionCount() == null || asset.getPartitionCount() == 1) {
                                 interaction.setup();
                             }
-                            // Collect all incoming batches from the FlightStream
-                            final List<VectorSchemaRoot> batches = new ArrayList<>();
-                            while (flightStream.next()) {
-                                batches.add(flightStream.getRoot());
-                            }
+                            // Pass the FlightStream directly: getRoot() returns the same reused
+                            // VectorSchemaRoot instance on every next() call, so collecting the
+                            // references into a list would leave all pointers pointing at the last
+                            // batch. The readers advance the stream lazily, one batch at a time.
                             if (interaction instanceof SdkColumnarOutputInteraction) {
-                                try (ColumnarArrowBatchReader reader = new ColumnarArrowBatchReader(batches)) {
+                                try (ColumnarArrowBatchReader reader = new ColumnarArrowBatchReader(flightStream)) {
                                     ((SdkColumnarOutputInteraction) interaction).consume(reader);
                                 }
                             } else {
-                                try (ArrowBatchReader reader = new ArrowBatchReader(batches)) {
+                                try (ArrowBatchReader reader = new ArrowBatchReader(flightStream)) {
                                     interaction.consume(reader);
                                 }
                             }
@@ -471,7 +470,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 responseProperties.put("status", "OK");
             } else if (ACTION_LIST_DATASOURCE_TYPES.equals(action.getType())) {
                 // --- SDK connector path ---
-                if (sdkConnectorFactory != null) {
+                if (hasSdkFactory()) {
                     response.setDatasourceTypes(sdkConnectorFactory.getDatasourceTypes());
                 } else if (ThreadLocale.getLocale().equals(Locale.getDefault())) {
                     response.setDatasourceTypes(datasourceTypes);
@@ -517,7 +516,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                 }
                 final CustomFlightActionRequest request = modelMapper.fromBytes(action.getBody(), CustomFlightActionRequest.class);
                 // --- SDK connector path ---
-                if (sdkConnectorFactory != null) {
+                if (hasSdkFactory()) {
                     try (SdkConnector<?, ?, ?> connector = sdkConnectorFactory.createConnector(
                             request.getDatasourceTypeName(), request.getConnectionProperties())) {
                         connector.connect();
@@ -575,7 +574,7 @@ public abstract class ConnectorFlightProducer implements FlightProducer
             actions.put(ACTION_TEST, ACTION_TEST_DESCRIPTION);
             actions.put(ACTION_VALIDATE, ACTION_VALIDATE_DESCRIPTION);
             final CustomFlightDatasourceTypes effectiveTypes
-                    = (sdkConnectorFactory != null) ? sdkConnectorFactory.getDatasourceTypes() : datasourceTypes;
+                    = hasSdkFactory() ? sdkConnectorFactory.getDatasourceTypes() : datasourceTypes;
             for (final CustomFlightDatasourceType datasourceType : effectiveTypes.getDatasourceTypes()) {
                 if (datasourceType.getActions() != null) {
                     for (final CustomDatasourceTypeAction action : datasourceType.getActions()) {
@@ -595,6 +594,15 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     }
 
     // ---- private helpers ----
+
+    /**
+     * Returns {@code true} when an {@link SdkConnectorFactory} has been provided,
+     * indicating that the SDK connector path should be used instead of the legacy path.
+     */
+    private boolean hasSdkFactory()
+    {
+        return sdkConnectorFactory != null;
+    }
 
     /**
      * Streams batches from the given iterator to the Flight listener, handling backpressure.
