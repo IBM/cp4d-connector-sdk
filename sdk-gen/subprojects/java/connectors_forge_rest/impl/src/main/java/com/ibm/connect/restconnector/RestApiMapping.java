@@ -19,7 +19,7 @@ public class RestApiMapping
     private final String connectorLabel;
     private final String connectorDescription;
     private final String baseUrl;
-    private final AuthenticationType authenticationType;
+    private final AuthConfig authConfig;
     private final Map<String, RestTableDefinition> tables;
     private final Map<String, String> origin;
 
@@ -34,8 +34,8 @@ public class RestApiMapping
      *            the connector description (from "$connector_description")
      * @param baseUrl
      *            the base URL for all API calls (from "$hostname")
-     * @param authenticationType
-     *            the authentication type: "none", "api_key", "oauth2", or "basic" (from "$authentication")
+     * @param authConfig
+     *            the authentication configuration parsed from "$authentication"
      * @param tables
      *            a map of table name to table definition
      * @param origin
@@ -43,14 +43,14 @@ public class RestApiMapping
      *            optionally version
      */
     public RestApiMapping(String connectorName, String connectorLabel, String connectorDescription,
-            String baseUrl, AuthenticationType authenticationType, Map<String, RestTableDefinition> tables,
+            String baseUrl, AuthConfig authConfig, Map<String, RestTableDefinition> tables,
             Map<String, String> origin)
     {
         this.connectorName = connectorName;
         this.connectorLabel = connectorLabel;
         this.connectorDescription = connectorDescription;
         this.baseUrl = baseUrl;
-        this.authenticationType = authenticationType != null ? authenticationType : AuthenticationType.NONE;
+        this.authConfig = authConfig != null ? authConfig : new AuthConfig();
         this.tables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
         this.origin = origin != null
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(origin))
@@ -61,8 +61,7 @@ public class RestApiMapping
     public String getConnectorLabel() { return connectorLabel; }
     public String getConnectorDescription() { return connectorDescription; }
     public String getBaseUrl() { return baseUrl; }
-    public String getAuthenticationType() { return authenticationType.getValue(); }
-    public AuthenticationType getAuthenticationTypeEnum() { return authenticationType; }
+    public AuthConfig getAuthConfig() { return authConfig; }
     public Map<String, RestTableDefinition> getTables() { return tables; }
 
     /**
@@ -97,6 +96,6 @@ public class RestApiMapping
     public String toString()
     {
         return "RestApiMapping{connectorName='" + connectorName + "', baseUrl='" + baseUrl
-                + "', authenticationType='" + authenticationType.getValue() + "', tables=" + tables.keySet() + "}";
+                + "', authenticationType='" + authConfig.getType().getValue() + "', tables=" + tables.keySet() + "}";
     }
 }

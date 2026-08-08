@@ -325,6 +325,7 @@
       <name>Forgetting to Set Authentication</name>
       <description>
         Always explicitly set $authentication field, even for public APIs.
+        The value must be an object with a "type" field.
       </description>
       <wrong>
         <![CDATA[
@@ -340,7 +341,7 @@
 {
   "$connector_name": "My API",
   "$hostname": "https://api.example.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": { ... }
 }
         ]]>
@@ -729,9 +730,12 @@
       </category>
 
       <category name="Authentication">
-        <check>$authentication field is set</check>
-        <check>Value is one of: none, api_key, oauth2, basic</check>
-        <check>Matches actual API authentication method</check>
+        <check>$authentication is an object with a "type" field</check>
+        <check>type is one of: none, api_key, oauth2, basic, custom</check>
+        <check>For non-none types: "headers" array is present and non-empty</check>
+        <check>Each headers entry has: name, label, description, masked, header (or null), value (or null)</check>
+        <check>name values match the $var placeholders used in value templates</check>
+        <check>Matches actual API authentication method and header format</check>
       </category>
 
       <category name="Completeness">

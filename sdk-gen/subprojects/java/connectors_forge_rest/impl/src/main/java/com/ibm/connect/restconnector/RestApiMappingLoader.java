@@ -18,6 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ibm.connect.restconnector.AuthConfig.HeaderDef;
+
 import org.slf4j.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -129,14 +131,14 @@ public class RestApiMappingLoader
         final JsonNode root = MAPPER.readTree(jsonContent);
         final ConnectorMetadata metadata = parseConnectorMetadata(root);
         final String baseUrl = parseBaseUrl(root);
-        final AuthenticationType authenticationType = parseAuthenticationType(root);
+        final AuthConfig authConfig = parseAuthConfig(root);
         final Map<String, RestTableDefinition> tables = parseTables(root);
         final Map<String, String> origin = parseOrigin(root);
 
         LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables",
-                metadata.connectorName, authenticationType.getValue(), tables.size());
+                metadata.connectorName, authConfig.getType().getValue(), tables.size());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authenticationType, tables, origin);
+                baseUrl, authConfig, tables, origin);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
@@ -178,14 +180,63 @@ public class RestApiMappingLoader
         return hostnameNode.asText();
     }
 
-    private static AuthenticationType parseAuthenticationType(JsonNode root) throws IOException
+    private static AuthConfig parseAuthConfig(JsonNode root) throws IOException
     {
-        final String rawAuthenticationType = getTextOrDefault(root, AUTHENTICATION_KEY, AuthenticationType.NONE.getValue());
+        final JsonNode authNode = root.get(AUTHENTICATION_KEY);
+
+        // Missing or null → no authentication
+        if (authNode == null || authNode.isNull()) {
+            return new AuthConfig();
+        }
+
+        // Must be an object: { "type": "...", "headers": [...] }
+        if (!authNode.isObject()) {
+            throw new IOException(
+                    "The '$authentication' field must be a JSON object with a 'type' field.");
+        }
+
+        final String rawType = getTextOrDefault(authNode, "type", AuthenticationType.NONE.getValue());
+        final AuthenticationType type;
         try {
-            return AuthenticationType.fromValue(rawAuthenticationType);
+            type = AuthenticationType.fromValue(rawType);
         } catch (IllegalArgumentException e) {
             throw new IOException("Invalid authentication type in configuration: " + e.getMessage(), e);
         }
+
+        if (type == AuthenticationType.NONE) {
+            return new AuthConfig();
+        }
+
+        final JsonNode headersNode = authNode.get("headers");
+        if (headersNode == null || !headersNode.isArray() || headersNode.size() == 0) {
+            throw new IOException(
+                    "Authentication type '" + rawType + "' requires a non-empty 'headers' array.");
+        }
+
+        final List<HeaderDef> headers = new ArrayList<>();
+        for (final JsonNode hNode : headersNode) {
+            if (!hNode.isObject()) {
+                throw new IOException("Each entry in '$authentication.headers' must be a JSON object.");
+            }
+            final String name   = requireText(hNode, "name",  "'$authentication.headers' entry");
+            final String label  = getTextOrDefault(hNode, "label",  name);
+            final String desc   = getTextOrDefault(hNode, "description", "");
+            final boolean masked = hNode.hasNonNull("masked") && hNode.get("masked").asBoolean();
+            final String header = parseOptionalText(hNode, "header");
+            final String value  = parseOptionalText(hNode, "value");
+            headers.add(new HeaderDef(name, label, desc, masked, header, value));
+        }
+
+        return new AuthConfig(type, headers);
+    }
+
+    private static String requireText(JsonNode node, String key, String context) throws IOException
+    {
+        final JsonNode child = node.get(key);
+        if (child == null || child.isNull() || child.asText().isEmpty()) {
+            throw new IOException("Missing required field '" + key + "' in " + context + ".");
+        }
+        return child.asText();
     }
 
     private static Map<String, RestTableDefinition> parseTables(JsonNode root) throws IOException

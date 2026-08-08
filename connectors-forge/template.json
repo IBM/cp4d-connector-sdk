@@ -4,7 +4,19 @@
   "$connector_description": "Description of what this connector provides access to",
   "$origin": { "name": "forge", "version": "1.0.0" },
   "$hostname": "https://api.example.com",
-  "$authentication": "api_key",
+  "$authentication": {
+    "type": "api_key",
+    "headers": [
+      {
+        "name": "api_key",
+        "label": "API Key",
+        "description": "Your API key for authentication",
+        "masked": true,
+        "header": "Authorization",
+        "value": "ApiKey $api_key"
+      }
+    ]
+  },
   "$tables": {
     "SIMPLE_TABLE": {
       "$path": ["/api/users"],

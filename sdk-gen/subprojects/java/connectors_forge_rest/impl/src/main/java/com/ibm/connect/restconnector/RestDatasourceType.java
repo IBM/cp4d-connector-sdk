@@ -105,63 +105,20 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                         .defaultValue(String.valueOf(defaultPort))
                         .group("domain"));
 
-        // Add authentication-specific connection properties based on the authentication type
-        final AuthenticationType authType = mapping.getAuthenticationTypeEnum();
-        switch (authType) {
-            case API_KEY:
-                // API Key authentication
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("api_key")
-                                .label("API Key")
-                                .description("The API key for authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .masked(true)
-                                .group("credentials"));
-                break;
-            
-            case OAUTH2:
-                // OAuth 2.0 Bearer Token authentication
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("bearer_token")
-                                .label("Bearer Token")
-                                .description("The OAuth 2.0 bearer token for authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .masked(true)
-                                .group("credentials"));
-                break;
-            
-            case BASIC:
-                // Basic authentication (username + password)
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("username")
-                                .label("Username")
-                                .description("The username for basic authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .group("credentials"));
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("password")
-                                .label("Password")
-                                .description("The password for basic authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .masked(true)
-                                .group("credentials"));
-                break;
-            
-            case NONE:
-                // No authentication properties needed
-                break;
-            
-            default:
-                // Should never happen if AuthenticationType enum is complete
-                break;
+        // Add one connection property per header definition in the auth config.
+        // UI-only fields (header == null) are still shown so the user can supply
+        // credentials that are referenced inside another entry's value template.
+        final AuthConfig authConfig = mapping.getAuthConfig();
+        for (final AuthConfig.HeaderDef hd : authConfig.getHeaders()) {
+            final CustomDatasourceTypeProperty prop = new CustomDatasourceTypeProperty()
+                    .name(hd.getName())
+                    .label(hd.getLabel())
+                    .description(hd.getDescription())
+                    .type(TypeEnum.STRING)
+                    .required(true)
+                    .masked(hd.isMasked())
+                    .group("credentials");
+            properties.addConnectionItem(prop);
         }
 
         // Define the source interaction properties.

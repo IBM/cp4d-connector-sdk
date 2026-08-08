@@ -29,7 +29,7 @@ public class TestAdvancedFeatures
     {
         final String json = "{\n"
                 + "  \"$hostname\": \"https://api.example.com\",\n"
-                + "  \"$authentication\": \"none\",\n"
+                + "  \"$authentication\": { \"type\": \"none\" },\n"
                 + "  \"$tables\": {\n"
                 + "    \"USERS\": {\n"
                 + "      \"$path\": [\"/users\"],\n"
@@ -39,7 +39,7 @@ public class TestAdvancedFeatures
                 + "}";
 
         final RestApiMapping mapping = RestApiMappingLoader.parse(json);
-        assertEquals("none", mapping.getAuthenticationType());
+        assertEquals("none", mapping.getAuthConfig().getType().getValue());
     }
 
     /**
@@ -50,7 +50,13 @@ public class TestAdvancedFeatures
     {
         final String json = "{\n"
                 + "  \"$hostname\": \"https://api.example.com\",\n"
-                + "  \"$authentication\": \"api_key\",\n"
+                + "  \"$authentication\": {\n"
+                + "    \"type\": \"api_key\",\n"
+                + "    \"headers\": [\n"
+                + "      { \"name\": \"api_key\", \"label\": \"API Key\", \"description\": \"\","
+                + " \"masked\": true, \"header\": \"Authorization\", \"value\": \"ApiKey $api_key\" }\n"
+                + "    ]\n"
+                + "  },\n"
                 + "  \"$tables\": {\n"
                 + "    \"USERS\": {\n"
                 + "      \"$path\": [\"/users\"],\n"
@@ -60,7 +66,7 @@ public class TestAdvancedFeatures
                 + "}";
 
         final RestApiMapping mapping = RestApiMappingLoader.parse(json);
-        assertEquals("api_key", mapping.getAuthenticationType());
+        assertEquals("api_key", mapping.getAuthConfig().getType().getValue());
     }
 
     /**
@@ -71,7 +77,13 @@ public class TestAdvancedFeatures
     {
         final String json = "{\n"
                 + "  \"$hostname\": \"https://api.example.com\",\n"
-                + "  \"$authentication\": \"oauth2\",\n"
+                + "  \"$authentication\": {\n"
+                + "    \"type\": \"oauth2\",\n"
+                + "    \"headers\": [\n"
+                + "      { \"name\": \"bearer_token\", \"label\": \"Bearer Token\", \"description\": \"\","
+                + " \"masked\": true, \"header\": \"Authorization\", \"value\": \"Bearer $bearer_token\" }\n"
+                + "    ]\n"
+                + "  },\n"
                 + "  \"$tables\": {\n"
                 + "    \"USERS\": {\n"
                 + "      \"$path\": [\"/users\"],\n"
@@ -81,7 +93,7 @@ public class TestAdvancedFeatures
                 + "}";
 
         final RestApiMapping mapping = RestApiMappingLoader.parse(json);
-        assertEquals("oauth2", mapping.getAuthenticationType());
+        assertEquals("oauth2", mapping.getAuthConfig().getType().getValue());
     }
 
     /**
@@ -92,7 +104,16 @@ public class TestAdvancedFeatures
     {
         final String json = "{\n"
                 + "  \"$hostname\": \"https://api.example.com\",\n"
-                + "  \"$authentication\": \"basic\",\n"
+                + "  \"$authentication\": {\n"
+                + "    \"type\": \"basic\",\n"
+                + "    \"headers\": [\n"
+                + "      { \"name\": \"username\", \"label\": \"Username\", \"description\": \"\","
+                + " \"masked\": false, \"header\": \"Authorization\","
+                + " \"value\": \"Basic base64($username:$password)\" },\n"
+                + "      { \"name\": \"password\", \"label\": \"Password\", \"description\": \"\","
+                + " \"masked\": true, \"header\": null, \"value\": null }\n"
+                + "    ]\n"
+                + "  },\n"
                 + "  \"$tables\": {\n"
                 + "    \"USERS\": {\n"
                 + "      \"$path\": [\"/users\"],\n"
@@ -102,7 +123,7 @@ public class TestAdvancedFeatures
                 + "}";
 
         final RestApiMapping mapping = RestApiMappingLoader.parse(json);
-        assertEquals("basic", mapping.getAuthenticationType());
+        assertEquals("basic", mapping.getAuthConfig().getType().getValue());
     }
 
     /**
@@ -411,7 +432,13 @@ public class TestAdvancedFeatures
                 + "  \"$connector_label\": \"Test API Connector\",\n"
                 + "  \"$connector_description\": \"A test connector\",\n"
                 + "  \"$hostname\": \"https://api.example.com\",\n"
-                + "  \"$authentication\": \"api_key\",\n"
+                + "  \"$authentication\": {\n"
+                + "    \"type\": \"api_key\",\n"
+                + "    \"headers\": [\n"
+                + "      { \"name\": \"api_key\", \"label\": \"API Key\", \"description\": \"\","
+                + " \"masked\": true, \"header\": \"Authorization\", \"value\": \"ApiKey $api_key\" }\n"
+                + "    ]\n"
+                + "  },\n"
                 + "  \"$tables\": {\n"
                 + "    \"USERS\": {\n"
                 + "      \"$path\": [\"/v1/users\"],\n"
@@ -439,7 +466,7 @@ public class TestAdvancedFeatures
         assertEquals("Test API Connector", mapping.getConnectorLabel());
         assertEquals("A test connector", mapping.getConnectorDescription());
         assertEquals("https://api.example.com", mapping.getBaseUrl());
-        assertEquals("api_key", mapping.getAuthenticationType());
+        assertEquals("api_key", mapping.getAuthConfig().getType().getValue());
         
         // Verify table configuration
         final RestTableDefinition table = mapping.getTable("USERS");
