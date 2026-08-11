@@ -8,7 +8,6 @@ package com.ibm.connect.sdk.file.s3;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
@@ -28,16 +27,18 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
 /**
  * An interaction with an Amazon S3 object as a source.
  *
- * <p>Two read modes are supported:
+ * <p>
+ * Two read modes are supported:
  * <ul>
- *   <li><strong>Structured</strong> ({@code file_format} is a recognised Spark format such as
- *       {@code csv}, {@code json}, {@code parquet}, etc.) — the object is downloaded to a
- *       temporary local file and read by the Spark-based {@link FileSourceInteraction}
- *       superclass, producing typed rows.</li>
- *   <li><strong>Raw / unstructured</strong> ({@code file_format} is {@code binary} or the
- *       object cannot be detected as a structured format) — the raw bytes are streamed as a
- *       single Arrow record whose sole column is a {@code varbinary} field named
- *       {@code content}.  This is the "read_raw" capability for unstructured data.</li>
+ * <li><strong>Structured</strong> ({@code file_format} is a recognised Spark
+ * format such as {@code csv}, {@code json}, {@code parquet}, etc.) — the object
+ * is downloaded to a temporary local file and read by the Spark-based
+ * {@link FileSourceInteraction} superclass, producing typed rows.</li>
+ * <li><strong>Raw / unstructured</strong> ({@code file_format} is
+ * {@code binary} or the object cannot be detected as a structured format) — the
+ * raw bytes are streamed as a single Arrow record whose sole column is a
+ * {@code varbinary} field named {@code content}. This is the "read_raw"
+ * capability for unstructured data.</li>
  * </ul>
  */
 public class AWSS3SourceInteraction extends FileSourceInteraction
@@ -68,8 +69,7 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
      *            a Flight ticket to read a partition or null to get tickets
      * @throws Exception
      */
-    public AWSS3SourceInteraction(AWSS3Connector connector, CustomFlightAssetDescriptor asset, Ticket ticket)
-            throws Exception
+    public AWSS3SourceInteraction(AWSS3Connector connector, CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception
     {
         super(connector, asset, ticket);
         this.connector = connector;
@@ -84,8 +84,7 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
         // Resolve file format — may require inspecting the object.
         // Skip auto-detection when the caller has explicitly requested binary (raw) mode.
         String fileFormat = interactionProperties.getProperty("file_format");
-        if (!AWSS3DatasourceType.FILE_FORMAT_BINARY.equals(fileFormat)
-                && (fileFormat == null || asset.getFields() == null)) {
+        if (fileFormat == null || (asset.getFields() == null && !AWSS3DatasourceType.FILE_FORMAT_BINARY.equals(fileFormat))) {
             connector.validateObjectKey(objectKey);
             connector.addFileDetails(asset, objectKey);
             fileFormat = getInteractionProperties().getProperty("file_format");
@@ -95,8 +94,7 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
         if (rawMode) {
             // Inject a single varbinary field so the schema is well-defined.
             if (asset.getFields() == null || asset.getFields().isEmpty()) {
-                asset.addFieldsItem(
-                        new CustomFlightAssetField().name(RAW_CONTENT_FIELD).type("varbinary").nullable(false));
+                asset.addFieldsItem(new CustomFlightAssetField().name(RAW_CONTENT_FIELD).type("varbinary").nullable(false));
             }
         }
 
@@ -106,8 +104,8 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
     }
 
     /**
-     * Downloads the S3 object to a local temp file so Spark can read it (structured mode).
-     * In raw mode this method is never called.
+     * Downloads the S3 object to a local temp file so Spark can read it (structured
+     * mode). In raw mode this method is never called.
      *
      * @return path to the local temp file
      */
@@ -116,15 +114,18 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
     {
         try {
             final String fileFormat = getInteractionProperties().getProperty("file_format", FileUtils.FILE_FORMAT_DELIMITED);
-            final String baseName = objectKey.contains("/")
-                    ? objectKey.substring(objectKey.lastIndexOf('/') + 1)
-                    : objectKey;
+            final String baseName = objectKey.contains("/") ? objectKey.substring(objectKey.lastIndexOf('/') + 1) : objectKey;
             try (InputStream objectStream = connector.openObject(objectKey)) {
                 tempFilename = FileUtils.createTempFile(objectStream, baseName, fileFormat);
             }
             return tempFilename;
         }
         catch (Exception e) {
+            // Clean up any partial temp file before propagating.
+            if (tempFilename != null) {
+                FileUtils.deleteTempFile(tempFilename);
+                tempFilename = null;
+            }
             throw new UnsupportedOperationException(e.getMessage(), e);
         }
     }
@@ -136,10 +137,12 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
     /**
      * {@inheritDoc}
      *
-     * <p>In raw mode the entire S3 object is returned as a single record containing a
-     * {@code varbinary} value.  In structured mode the superclass drives Spark.
+     * <p>
+     * In raw mode the entire S3 object is returned as a single record containing a
+     * {@code varbinary} value. In structured mode the superclass drives Spark.
      *
-     * <p>The object content is read in fixed-size chunks ({@value #READ_BUFFER_BYTES}
+     * <p>
+     * The object content is read in fixed-size chunks ({@value #READ_BUFFER_BYTES}
      * bytes) to avoid allocating the full object size upfront.
      */
     @Override
@@ -153,10 +156,20 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
         }
         rawRecordDelivered = true;
         try {
+            // Respect byte_limit: reject objects that exceed it before buffering.
+            final String byteLimitStr = getInteractionProperties().getProperty("byte_limit");
+            if (byteLimitStr != null) {
+                final long byteLimit = com.ibm.connect.sdk.util.Utils.parseByteLimit(byteLimitStr);
+                final long objectSize = connector.headObject(objectKey).contentLength();
+                if (objectSize > byteLimit) {
+                    throw new IllegalArgumentException(
+                            "Object size " + objectSize + " exceeds byte_limit " + byteLimit);
+                }
+            }
             try (InputStream objectStream = connector.openObject(objectKey)) {
                 final byte[] bytes = readAllBytes(objectStream);
                 final Record rec = new Record(1);
-                rec.appendValue((Serializable) bytes);
+                rec.appendValue(bytes);
                 return rec;
             }
         }
@@ -166,9 +179,8 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
     }
 
     /**
-     * Reads all bytes from {@code in} using a fixed-size buffer so the JVM does
-     * not need to know the stream length up-front (avoids a single huge allocation
-     * that equals the full object size).
+     * Reads all bytes from {@code in} using a fixed-size buffer so the JVM does not
+     * need to know the stream length up-front.
      */
     private static byte[] readAllBytes(InputStream in) throws IOException
     {
@@ -183,24 +195,15 @@ public class AWSS3SourceInteraction extends FileSourceInteraction
 
     /**
      * {@inheritDoc}
-     */
-    @Override
-    public List<CustomFlightAssetField> getFields()
-    {
-        return getAsset().getFields();
-    }
-
-    /**
-     * {@inheritDoc}
      *
-     * <p>In raw mode a single ticket is always returned (no partitioning).
+     * <p>
+     * In raw mode a single ticket is always returned (no partitioning).
      */
     @Override
     public List<Ticket> getTickets() throws Exception
     {
         final String requestId = UUID.randomUUID().toString();
-        return Collections.singletonList(
-                new Ticket(modelMapper.toBytes(new TicketInfo().requestId(requestId).partitionIndex(0))));
+        return Collections.singletonList(new Ticket(modelMapper.toBytes(new TicketInfo().requestId(requestId).partitionIndex(0))));
     }
 
     /**

@@ -83,6 +83,11 @@ public enum AWSS3Labels implements ResourceBundleHelper.MessageFormatter<AWSS3La
     SOURCE_FILE_NAME_DESCRIPTION,
 
     /**
+     * Label for the binary (raw bytes) file format enum value.
+     */
+    SOURCE_FILE_FORMAT_BINARY_LABEL,
+
+    /**
      * Label for action get_acl.
      */
     ACTION_GET_ACL_LABEL,

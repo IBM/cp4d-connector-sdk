@@ -48,8 +48,10 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
 /**
  * Tests a Flight producer for the Amazon S3 connector.
  *
- * <p>To run against a real S3 bucket, create the file
+ * <p>
+ * To run against a real S3 bucket, create the file
  * {@code sdk-gen/tests.properties} (gitignored) and populate it:
+ * 
  * <pre>
  *   # S3 Flight server settings
  *   file_s3.flight.createLocal=true
@@ -70,8 +72,9 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
  *   file_s3.s3.test_binary_key=test-data/logo.png  # any binary object
  * </pre>
  *
- * <p>All tests are skipped automatically when {@code file_s3.s3.access_key_id}
- * is not set.
+ * <p>
+ * All tests are skipped automatically when {@code file_s3.s3.access_key_id} is
+ * not set.
  */
 public class TestAWSS3FlightProducer extends ConnectorTestSuite
 {
@@ -82,23 +85,28 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     // -----------------------------------------------------------------------
     // Test configuration — loaded once from tests.properties (gitignored)
     // -----------------------------------------------------------------------
-    private static final String S3_ACCESS_KEY_ID   = TestConfig.get("file_s3.s3.access_key_id");
+    private static final String S3_ACCESS_KEY_ID = TestConfig.get("file_s3.s3.access_key_id");
     private static final String S3_SECRET_ACCESS_KEY = TestConfig.get("file_s3.s3.secret_access_key");
-    private static final String S3_BUCKET         = TestConfig.get("file_s3.s3.bucket");
-    private static final String S3_REGION         = TestConfig.get("file_s3.s3.region");
-    private static final String S3_ENDPOINT_URL   = TestConfig.get("file_s3.s3.endpoint_url");
+    private static final String S3_BUCKET = TestConfig.get("file_s3.s3.bucket");
+    private static final String S3_REGION = TestConfig.get("file_s3.s3.region");
+    private static final String S3_ENDPOINT_URL = TestConfig.get("file_s3.s3.endpoint_url");
 
-    /** S3 prefix (key ending with "/") of a folder that contains at least one object. */
-    private static final String S3_TEST_FOLDER    = TestConfig.get("file_s3.s3.test_folder");
+    /**
+     * S3 prefix (key ending with "/") of a folder that contains at least one
+     * object.
+     */
+    private static final String S3_TEST_FOLDER = TestConfig.get("file_s3.s3.test_folder");
     /** S3 key of a CSV object to use for structured read tests. */
-    private static final String S3_TEST_CSV_KEY   = TestConfig.get("file_s3.s3.test_csv_key");
+    private static final String S3_TEST_CSV_KEY = TestConfig.get("file_s3.s3.test_csv_key");
     /** S3 key of any binary object to use for raw-bytes read tests. */
     private static final String S3_TEST_BINARY_KEY = TestConfig.get("file_s3.s3.test_binary_key");
 
     // -----------------------------------------------------------------------
     // Flight server / client
     // -----------------------------------------------------------------------
-    private static ModelMapper modelMapper = new ModelMapper();
+    private static final String NO_SCHEMA_MSG = "Expected a schema but none was present";
+
+    private static final ModelMapper MODEL_MAPPER = new ModelMapper();
     private static TestFlight testFlight;
     private static FlightClient client;
 
@@ -121,13 +129,10 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     {
         if (Boolean.parseBoolean(TestConfig.get("file_s3.flight.createLocal", "true"))) {
             final boolean useSSL = Boolean.parseBoolean(TestConfig.get("file_s3.flight.ssl", "true"));
-            testFlight = TestFlight.createLocal(
-                    TestConfig.getPort("file_s3.flight.port"), useSSL, new AWSS3FlightProducer(), null);
+            testFlight = TestFlight.createLocal(TestConfig.getPort("file_s3.flight.port"), useSSL, new AWSS3FlightProducer(), null);
         } else {
-            final boolean verifyCert = Boolean.parseBoolean(
-                    TestConfig.get("file_s3.flight.ssl_certificate_validation", "true"));
-            testFlight = TestFlight.createRemote(
-                    TestConfig.get("file_s3.flight.uri.internal", TestConfig.get("file_s3.flight.uri")),
+            final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("file_s3.flight.ssl_certificate_validation", "true"));
+            testFlight = TestFlight.createRemote(TestConfig.get("file_s3.flight.uri.internal", TestConfig.get("file_s3.flight.uri")),
                     TestConfig.get("file_s3.flight.ssl_certificate"), verifyCert, null);
         }
         client = testFlight.getClient();
@@ -187,19 +192,16 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
 
     /**
      * Validate action should fail when the required bucket property is missing.
-     *
-     * @throws Exception
      */
     @Test
-    public void testConnectionMissingBucket() throws Exception
+    public void testConnectionMissingBucket()
     {
-        final CustomFlightActionRequest request
-                = new CustomFlightActionRequest();
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
         request.setDatasourceTypeName(getDatasourceTypeName());
         request.setConnectionProperties(createConnectionProperties());
         request.getConnectionProperties().remove("bucket");
         try {
-            getClient().doAction(new Action("validate", modelMapper.toBytes(request))).next();
+            getClient().doAction(new Action("validate", MODEL_MAPPER.toBytes(request))).next();
             fail("Exception expected");
         }
         catch (Exception e) {
@@ -224,9 +226,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath("/");
         final List<String> names = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertNotNull(descriptor.getId());
             assertNotNull(descriptor.getName());
@@ -251,17 +253,17 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         criteria.setOffset(0);
         criteria.setLimit(2);
         final List<String> names = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             names.add(descriptor.getName());
         }
         assertTrue("Expected at most 2 results", names.size() <= 2);
     }
 
     /**
-     * List the contents of a specific folder (prefix).
-     * Requires {@code file_s3.s3.test_folder} to be set in tests.properties.
+     * List the contents of a specific folder (prefix). Requires
+     * {@code file_s3.s3.test_folder} to be set in tests.properties.
      *
      * @throws Exception
      */
@@ -275,9 +277,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         // Path uses leading slash; test_folder value should end with "/".
         criteria.setPath("/" + S3_TEST_FOLDER);
         final List<String> names = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertNotNull(descriptor.getId());
             names.add(descriptor.getName());
@@ -300,9 +302,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath("/" + S3_TEST_CSV_KEY);
         final List<CustomFlightAssetDescriptor> assets = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("file", descriptor.getAssetType().getType());
             assertTrue(descriptor.getAssetType().isDataset());
@@ -313,7 +315,8 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
             assertNotNull(descriptor.getDetails());
             assertNotNull(descriptor.getDetails().get("file_size"));
             assertEquals("text/csv", descriptor.getDetails().get("mime_type"));
-            final Schema schema = info.getSchemaOptional().get();
+            final Schema schema = info.getSchemaOptional()
+                    .orElseThrow(() -> new AssertionError(NO_SCHEMA_MSG));
             assertFalse("Schema must have at least one field", schema.getFields().isEmpty());
             assets.add(descriptor);
         }
@@ -325,9 +328,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     // -----------------------------------------------------------------------
 
     /**
-     * getFlightInfo for a CSV object — verify schema and interaction properties
-     * are populated.
-     * Requires {@code file_s3.s3.test_csv_key} to be set in tests.properties.
+     * getFlightInfo for a CSV object — verify schema and interaction properties are
+     * populated. Requires {@code file_s3.s3.test_csv_key} to be set in
+     * tests.properties.
      *
      * @throws Exception
      */
@@ -341,12 +344,13 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         descriptor.setConnectionProperties(createConnectionProperties());
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("file_name", "/" + S3_TEST_CSV_KEY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final CustomFlightAssetDescriptor returned
-                = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals("/" + S3_TEST_CSV_KEY, returned.getInteractionProperties().get("file_name"));
         assertEquals("csv", returned.getInteractionProperties().get("file_format"));
-        final Schema schema = info.getSchemaOptional().get();
+        final Schema schema = info.getSchemaOptional()
+                .orElseThrow(() -> new AssertionError(NO_SCHEMA_MSG));
         assertFalse("Schema must have at least one field", schema.getFields().isEmpty());
     }
 
@@ -366,7 +370,7 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         descriptor.setConnectionProperties(createConnectionProperties());
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("file_name", "/" + S3_TEST_CSV_KEY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Table<Integer, Integer, Object> data = getTableData(info);
         assertFalse("Expected at least one data row", data.isEmpty());
     }
@@ -377,8 +381,8 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
 
     /**
      * getFlightInfo for a binary object — verify the schema has a single
-     * {@code content} field of type varbinary.
-     * Requires {@code file_s3.s3.test_binary_key} to be set in tests.properties.
+     * {@code content} field of type varbinary. Requires
+     * {@code file_s3.s3.test_binary_key} to be set in tests.properties.
      *
      * @throws Exception
      */
@@ -393,20 +397,21 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("file_name", "/" + S3_TEST_BINARY_KEY);
         interactionProperties.put("file_format", AWSS3DatasourceType.FILE_FORMAT_BINARY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final CustomFlightAssetDescriptor returned
-                = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals("/" + S3_TEST_BINARY_KEY, returned.getInteractionProperties().get("file_name"));
         assertEquals(AWSS3DatasourceType.FILE_FORMAT_BINARY, returned.getInteractionProperties().get("file_format"));
-        final Schema schema = info.getSchemaOptional().get();
+        final Schema schema = info.getSchemaOptional()
+                .orElseThrow(() -> new AssertionError(NO_SCHEMA_MSG));
         assertEquals("Schema for binary mode must have exactly one field", 1, schema.getFields().size());
         assertEquals("content", schema.getFields().get(0).getName());
     }
 
     /**
      * getStream for a binary object — verify one record is returned that contains
-     * non-empty raw bytes.
-     * Requires {@code file_s3.s3.test_binary_key} to be set in tests.properties.
+     * non-empty raw bytes. Requires {@code file_s3.s3.test_binary_key} to be set in
+     * tests.properties.
      *
      * @throws Exception
      */
@@ -421,7 +426,7 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("file_name", "/" + S3_TEST_BINARY_KEY);
         interactionProperties.put("file_format", AWSS3DatasourceType.FILE_FORMAT_BINARY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Table<Integer, Integer, Object> data = getTableData(info);
         assertEquals("Binary read must produce exactly one record", 1, data.rowKeySet().size());
         final Object content = data.get(0, 0);
@@ -449,9 +454,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath("/");
         int count = 0;
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             // Guide requires id, name, path, and asset_type on every returned descriptor.
             assertNotNull("descriptor.id must not be null", descriptor.getId());
             assertNotNull("descriptor.name must not be null", descriptor.getName());
@@ -476,9 +481,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
 
     /**
      * get_acl with a valid object key must return a response whose structure
-     * matches the ACLProvider contract used by wdp-connect-library:
-     * path / allow{users,groups} / deny{users,groups} / inheritance / precedence.
-     * Requires {@code file_s3.s3.test_csv_key} to be set in tests.properties.
+     * matches the ACLProvider contract used by wdp-connect-library: path /
+     * allow{users,groups} / deny{users,groups} / inheritance / precedence. Requires
+     * {@code file_s3.s3.test_csv_key} to be set in tests.properties.
      *
      * @throws Exception
      */
@@ -493,39 +498,36 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         inputProps.put(AWSS3Connector.ACTION_PATH_PROP, S3_TEST_CSV_KEY);
         request.setRequestProperties(inputProps);
 
-        final Iterator<Result> iter = getClient().doAction(
-                new Action(AWSS3DatasourceType.ACTION_GET_ACL, modelMapper.toBytes(request)));
+        final Iterator<Result> iter = getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL, MODEL_MAPPER.toBytes(request)));
         assertTrue("Expected a result", iter.hasNext());
-        final CustomFlightActionResponse actionResponse
-                = modelMapper.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
+        final CustomFlightActionResponse actionResponse = MODEL_MAPPER.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
         assertNotNull("Response properties must not be null", actionResponse.getResponseProperties());
 
         // Structural contract: top-level keys must be present.
-        assertTrue("Response must contain 'path'",   actionResponse.getResponseProperties().containsKey("path"));
-        assertTrue("Response must contain 'allow'",  actionResponse.getResponseProperties().containsKey("allow"));
-        assertTrue("Response must contain 'deny'",   actionResponse.getResponseProperties().containsKey("deny"));
+        assertTrue("Response must contain 'path'", actionResponse.getResponseProperties().containsKey("path"));
+        assertTrue("Response must contain 'allow'", actionResponse.getResponseProperties().containsKey("allow"));
+        assertTrue("Response must contain 'deny'", actionResponse.getResponseProperties().containsKey("deny"));
         assertTrue("Response must contain 'inheritance'", actionResponse.getResponseProperties().containsKey("inheritance"));
-        assertTrue("Response must contain 'precedence'",  actionResponse.getResponseProperties().containsKey("precedence"));
+        assertTrue("Response must contain 'precedence'", actionResponse.getResponseProperties().containsKey("precedence"));
 
         // allow / deny must each have 'users' and 'groups' sub-keys.
         @SuppressWarnings("unchecked")
         final Map<String, Object> allow = (Map<String, Object>) actionResponse.getResponseProperties().get("allow");
         assertNotNull("allow must not be null", allow);
-        assertTrue("allow must contain 'users'",  allow.containsKey("users"));
+        assertTrue("allow must contain 'users'", allow.containsKey("users"));
         assertTrue("allow must contain 'groups'", allow.containsKey("groups"));
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> deny = (Map<String, Object>) actionResponse.getResponseProperties().get("deny");
         assertNotNull("deny must not be null", deny);
-        assertTrue("deny must contain 'users'",  deny.containsKey("users"));
+        assertTrue("deny must contain 'users'", deny.containsKey("users"));
         assertTrue("deny must contain 'groups'", deny.containsKey("groups"));
 
         // inheritance must have 'enabled' and 'parent_precedence'.
         @SuppressWarnings("unchecked")
-        final Map<String, Object> inheritance
-                = (Map<String, Object>) actionResponse.getResponseProperties().get("inheritance");
+        final Map<String, Object> inheritance = (Map<String, Object>) actionResponse.getResponseProperties().get("inheritance");
         assertNotNull("inheritance must not be null", inheritance);
-        assertTrue("inheritance must contain 'enabled'",          inheritance.containsKey("enabled"));
+        assertTrue("inheritance must contain 'enabled'", inheritance.containsKey("enabled"));
         assertTrue("inheritance must contain 'parent_precedence'", inheritance.containsKey("parent_precedence"));
         assertFalse("inheritance.enabled must be false", (Boolean) inheritance.get("enabled"));
         assertEquals("inheritance.parent_precedence must be 'parent'", "parent", inheritance.get("parent_precedence"));
@@ -534,11 +536,11 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     }
 
     /**
-     * get_acl on a bucket with ACLs disabled (BucketOwnerEnforced) must return
-     * a valid empty ACL structure rather than throwing.
-     * Requires {@code file_s3.s3.test_csv_key} and the bucket having ACLs
-     * disabled to be meaningful; when ACLs are enabled the test still passes
-     * (it just exercises the happy path instead).
+     * get_acl on a bucket with ACLs disabled (BucketOwnerEnforced) must return a
+     * valid empty ACL structure rather than throwing. Requires
+     * {@code file_s3.s3.test_csv_key} and the bucket having ACLs disabled to be
+     * meaningful; when ACLs are enabled the test still passes (it just exercises
+     * the happy path instead).
      *
      * @throws Exception
      */
@@ -554,11 +556,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         request.setRequestProperties(inputProps);
 
         // Should not throw regardless of whether bucket ACLs are enabled or not.
-        final Iterator<Result> iter = getClient().doAction(
-                new Action(AWSS3DatasourceType.ACTION_GET_ACL, modelMapper.toBytes(request)));
+        final Iterator<Result> iter = getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL, MODEL_MAPPER.toBytes(request)));
         assertTrue("Expected a result", iter.hasNext());
-        final CustomFlightActionResponse actionResponse
-                = modelMapper.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
+        final CustomFlightActionResponse actionResponse = MODEL_MAPPER.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
         assertNotNull(actionResponse.getResponseProperties());
         assertTrue(actionResponse.getResponseProperties().containsKey("allow"));
         assertTrue(actionResponse.getResponseProperties().containsKey("deny"));
@@ -577,13 +577,11 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         request.setConnectionProperties(createConnectionProperties());
         request.setRequestProperties(new ConnectionActionConfiguration());
         try {
-            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL,
-                    modelMapper.toBytes(request))).next();
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL, MODEL_MAPPER.toBytes(request))).next();
             fail("Exception expected for missing path");
         }
         catch (Exception e) {
-            assertTrue("Error must mention 'path'",
-                    e.getMessage() != null && e.getMessage().contains("path"));
+            assertTrue("Error must mention 'path'", e.getMessage() != null && e.getMessage().contains("path"));
         }
     }
 
@@ -592,9 +590,9 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     // -----------------------------------------------------------------------
 
     /**
-     * get_file_metadata with a valid object key must return last_modified (non-null,
-     * non-empty ISO-8601 string) and size (non-negative long).
-     * Requires {@code file_s3.s3.test_csv_key} to be set in tests.properties.
+     * get_file_metadata with a valid object key must return last_modified
+     * (non-null, non-empty ISO-8601 string) and size (non-negative long). Requires
+     * {@code file_s3.s3.test_csv_key} to be set in tests.properties.
      *
      * @throws Exception
      */
@@ -609,17 +607,14 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         inputProps.put(AWSS3Connector.ACTION_PATH_PROP, S3_TEST_CSV_KEY);
         request.setRequestProperties(inputProps);
 
-        final Iterator<Result> iter = getClient().doAction(
-                new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA, modelMapper.toBytes(request)));
+        final Iterator<Result> iter
+                = getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA, MODEL_MAPPER.toBytes(request)));
         assertTrue("Expected a result", iter.hasNext());
-        final CustomFlightActionResponse actionResponse
-                = modelMapper.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
+        final CustomFlightActionResponse actionResponse = MODEL_MAPPER.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
         assertNotNull("Response properties must not be null", actionResponse.getResponseProperties());
 
-        assertTrue("Response must contain 'last_modified'",
-                actionResponse.getResponseProperties().containsKey("last_modified"));
-        assertTrue("Response must contain 'size'",
-                actionResponse.getResponseProperties().containsKey("size"));
+        assertTrue("Response must contain 'last_modified'", actionResponse.getResponseProperties().containsKey("last_modified"));
+        assertTrue("Response must contain 'size'", actionResponse.getResponseProperties().containsKey("size"));
 
         final String lastModified = (String) actionResponse.getResponseProperties().get("last_modified");
         assertNotNull("last_modified must not be null", lastModified);
@@ -634,34 +629,28 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
 
     /**
      * get_file_metadata with a missing path property must return an error.
-     *
-     * @throws Exception
      */
     @Test
-    public void testGetFileMetadataMissingPath() throws Exception
+    public void testGetFileMetadataMissingPath()
     {
         final CustomFlightActionRequest request = new CustomFlightActionRequest();
         request.setDatasourceTypeName(getDatasourceTypeName());
         request.setConnectionProperties(createConnectionProperties());
         request.setRequestProperties(new ConnectionActionConfiguration());
         try {
-            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA,
-                    modelMapper.toBytes(request))).next();
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA, MODEL_MAPPER.toBytes(request))).next();
             fail("Exception expected for missing path");
         }
         catch (Exception e) {
-            assertTrue("Error must mention 'path'",
-                    e.getMessage() != null && e.getMessage().contains("path"));
+            assertTrue("Error must mention 'path'", e.getMessage() != null && e.getMessage().contains("path"));
         }
     }
 
     /**
      * get_file_metadata on a non-existent key must propagate an S3 error.
-     *
-     * @throws Exception
      */
     @Test
-    public void testGetFileMetadataNonExistentKey() throws Exception
+    public void testGetFileMetadataNonExistentKey()
     {
         final CustomFlightActionRequest request = new CustomFlightActionRequest();
         request.setDatasourceTypeName(getDatasourceTypeName());
@@ -670,8 +659,7 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         inputProps.put(AWSS3Connector.ACTION_PATH_PROP, "this/key/does/not/exist.csv");
         request.setRequestProperties(inputProps);
         try {
-            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA,
-                    modelMapper.toBytes(request))).next();
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_FILE_METADATA, MODEL_MAPPER.toBytes(request))).next();
             fail("Exception expected for non-existent key");
         }
         catch (Exception e) {

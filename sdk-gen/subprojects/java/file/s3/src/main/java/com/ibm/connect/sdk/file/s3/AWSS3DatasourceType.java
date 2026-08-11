@@ -101,7 +101,7 @@ public class AWSS3DatasourceType extends CustomFlightDatasourceType
                         .addValuesItem(
                                 new DatasourceTypePropertyValues().value("avro").label(FileLabels.SOURCE_FILE_FORMAT_VALUE_AVRO_LABEL.format()))
                         .addValuesItem(
-                                new DatasourceTypePropertyValues().value("binary").label(AWSS3Labels.DATASOURCE_TYPE_LABEL.format()))
+                                new DatasourceTypePropertyValues().value("binary").label(AWSS3Labels.SOURCE_FILE_FORMAT_BINARY_LABEL.format()))
                         .addValuesItem(
                                 new DatasourceTypePropertyValues().value("csv").label(FileLabels.SOURCE_FILE_FORMAT_VALUE_CSV_LABEL.format()))
                         .addValuesItem(new DatasourceTypePropertyValues().value("delimited")

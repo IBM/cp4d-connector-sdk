@@ -18,11 +18,6 @@ public enum AWSS3Msgs implements ResourceBundleHelper.MessageFormatter<AWSS3Msgs
     OBJECT_DOES_NOT_EXIST,
 
     /**
-     * The object is not a file.
-     */
-    OBJECT_IS_A_PREFIX,
-
-    /**
      * Bucket has S3 Object ACLs disabled (BucketOwnerEnforced ownership).
      */
     ACL_DISABLED;

@@ -10,7 +10,6 @@ import static org.slf4j.LoggerFactory.getLogger;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -73,8 +72,7 @@ public class AWSS3Connector extends FileConnector
     static final String ACTION_PATH_PROP = "path";
 
     // S3 permission values that grant read access (map to "allow").
-    private static final Set<String> READ_PERMISSIONS = Collections.unmodifiableSet(new HashSet<>(
-            Arrays.asList("FULL_CONTROL", "READ")));
+    private static final Set<String> READ_PERMISSIONS = Set.of("FULL_CONTROL", "READ");
 
     private static final Logger LOGGER = getLogger(AWSS3Connector.class);
 
@@ -133,15 +131,14 @@ public class AWSS3Connector extends FileConnector
         } else {
             // No explicit credentials — fall back to the default provider chain
             // (env vars, ~/.aws/credentials, EC2/ECS instance metadata, etc.).
-            LOGGER.warn("No access_key_id/secret_access_key provided; falling back to DefaultCredentialsProvider. "
-                    + "Ensure ambient AWS credentials are available in the runtime environment.");
+            LOGGER.debug("No access_key_id/secret_access_key provided; using DefaultCredentialsProvider.");
             builder.credentialsProvider(DefaultCredentialsProvider.create());
         }
 
         s3Client = builder.build();
 
         // Validate the bucket is reachable (equivalent to a connection test).
-        LOGGER.info("Validating access to S3 bucket: " + bucket);
+        LOGGER.info("Validating access to S3 bucket: {}", bucket);
         s3Client.headBucket(b -> b.bucket(bucket));
     }
 
@@ -208,10 +205,14 @@ public class AWSS3Connector extends FileConnector
         final int limit = criteria.getLimit() == null || criteria.getLimit() < 0 ? Integer.MAX_VALUE : criteria.getLimit();
 
         // Use delimiter "/" to emulate directory-style listing.
+        // Cap maxKeys to avoid fetching more items than needed for the requested page.
+        final int maxKeys = (offset + limit > 0 && limit != Integer.MAX_VALUE)
+                ? Math.min(offset + limit, 1000) : 1000;
         final ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucket)
                 .prefix(prefix)
                 .delimiter("/")
+                .maxKeys(maxKeys)
                 .build();
 
         int totalSeen = 0;
@@ -253,7 +254,8 @@ public class AWSS3Connector extends FileConnector
                     && response.contents().get(0).key().equals(prefix);
             for (final S3Object s3Object : response.contents()) {
                 // Skip the prefix itself (a zero-byte "directory marker") unless it is
-                // the explicitly requested file.
+                // the explicitly requested file. These markers do not count toward the
+                // offset/limit totals.
                 if (s3Object.key().equals(prefix) && !singleFileRequest) {
                     continue;
                 }
@@ -418,8 +420,7 @@ public class AWSS3Connector extends FileConnector
             if (path == null || path.isEmpty()) {
                 throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format(ACTION_PATH_PROP));
             }
-            final String normalizedKey = normalizeKey(path);
-            final HeadObjectResponse head = headObject(normalizedKey);
+            final HeadObjectResponse head = headObject(path);
             final ConnectionActionResponse response = new ConnectionActionResponse();
             response.put("last_modified", head.lastModified().toString());
             response.put("size", head.contentLength());
@@ -627,7 +628,7 @@ public class AWSS3Connector extends FileConnector
      * @param key S3 object key (no leading slash)
      * @throws IllegalArgumentException if the key does not exist or is a prefix
      */
-    void validateObjectKey(String key) throws Exception
+    void validateObjectKey(String key)
     {
         try {
             s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());

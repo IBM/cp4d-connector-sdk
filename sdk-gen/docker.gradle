@@ -45,8 +45,8 @@ def personalTagPrefix = 'personal-'
 def validateImageRef = { String value, String propertyName ->
   if (value && !value.matches('[a-zA-Z0-9._\\-/:@]+')) {
     throw new GradleException(
-      "Invalid value for '${propertyName}': '${value}'. " +
-      "Image references must contain only alphanumerics and [ . - _ / : @ ]."
+    "Invalid value for '${propertyName}': '${value}'. " +
+    "Image references must contain only alphanumerics and [ . - _ / : @ ]."
     )
   }
   value

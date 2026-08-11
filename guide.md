@@ -1727,6 +1727,19 @@ systemProp.repos.docker.url
 systemProp.repos.docker.username
 systemProp.repos.docker.password
 ```
+
+To pull base images from a specific registry (for example, an internal mirror), set `image.registry.prefix` in `~/.gradle/gradle.properties`:
+
+```
+systemProp.image.registry.prefix=my.internal.registry.com/dockerhub-proxy
+```
+
+Or pass it on the command line:
+
+```bash
+./gradlew dockerBuild -Dimage.registry.prefix=my.internal.registry.com/dockerhub-proxy
+```
+
 ## Registration
 Registration of newly deployed connectors can be done via the connections service API which first queries your Flight server for connectors and then creates a custom datasource type for each. Your Flight server provides the list of available connectors by responding to the `list_datasource_types` action. There is a dedicated Gradle task which can be used to trigger registration.
 
