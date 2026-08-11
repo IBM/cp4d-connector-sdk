@@ -384,7 +384,7 @@ public class AWSS3Connector extends FileConnector
      * S3 connector is source-only; writing is not supported.
      */
     @Override
-    public FileTargetInteraction getTargetInteraction(CustomFlightAssetDescriptor asset) throws Exception
+    public FileTargetInteraction getTargetInteraction(CustomFlightAssetDescriptor asset)
     {
         throw new UnsupportedOperationException(
                 FileMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(AWSS3DatasourceType.DATASOURCE_TYPE_NAME));
@@ -412,7 +412,7 @@ public class AWSS3Connector extends FileConnector
      * allow/deny structure with a descriptive error hint in the response.
      */
     @Override
-    public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties) throws Exception
+    public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties)
     {
         if (ACTION_GET_FILE_METADATA.equals(action)) {
             final Properties inputProperties = ModelMapper.toProperties(properties);
