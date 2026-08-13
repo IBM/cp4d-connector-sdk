@@ -480,9 +480,18 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     // -----------------------------------------------------------------------
 
     /**
-     * get_acl with a valid object key must return a response whose structure
-     * matches the ACLProvider contract used by wdp-connect-library: path /
-     * allow{users,groups} / deny{users,groups} / inheritance / precedence. Requires
+     * Builds a bucket-prefixed path for use in get_acl / get_file_metadata
+     * requests: {@code /<bucket>/<key>}.
+     */
+    private String bucketPrefixedPath(String key)
+    {
+        return "/" + S3_BUCKET + "/" + key;
+    }
+
+    /**
+     * get_acl with a valid bucket-prefixed path must return a response whose
+     * structure matches the ACLProvider contract: path / allow{users,groups} /
+     * deny{users,groups} / inheritance / precedence. Requires
      * {@code file_s3.s3.test_csv_key} to be set in tests.properties.
      *
      * @throws Exception
@@ -495,7 +504,8 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         request.setDatasourceTypeName(getDatasourceTypeName());
         request.setConnectionProperties(createConnectionProperties());
         final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
-        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, S3_TEST_CSV_KEY);
+        // Path must start with the bucket name as the leading segment.
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, bucketPrefixedPath(S3_TEST_CSV_KEY));
         request.setRequestProperties(inputProps);
 
         final Iterator<Result> iter = getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL, MODEL_MAPPER.toBytes(request)));
@@ -533,29 +543,33 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         assertEquals("inheritance.parent_precedence must be 'parent'", "parent", inheritance.get("parent_precedence"));
 
         assertEquals("precedence must be 'deny'", "deny", actionResponse.getResponseProperties().get("precedence"));
+
+        // The returned path must be the canonical /bucket/key form.
+        final String returnedPath = (String) actionResponse.getResponseProperties().get("path");
+        assertTrue("path must start with '/" + S3_BUCKET + "/'",
+                returnedPath != null && returnedPath.startsWith("/" + S3_BUCKET + "/"));
     }
 
     /**
-     * get_acl on a bucket with ACLs disabled (BucketOwnerEnforced) must return a
-     * valid empty ACL structure rather than throwing. Requires
-     * {@code file_s3.s3.test_csv_key} and the bucket having ACLs disabled to be
-     * meaningful; when ACLs are enabled the test still passes (it just exercises
-     * the happy path instead).
+     * get_acl when the bucket has no policy must return a valid (empty) ACL
+     * structure rather than throwing. This always passes regardless of whether
+     * a bucket policy exists; when one does exist the test still validates the
+     * structural contract.
      *
      * @throws Exception
      */
     @Test
-    public void testGetAclDisabledReturnsEmptyStructure() throws Exception
+    public void testGetAclNoPolicyReturnsValidStructure() throws Exception
     {
         assumeNotNull(S3_TEST_CSV_KEY);
         final CustomFlightActionRequest request = new CustomFlightActionRequest();
         request.setDatasourceTypeName(getDatasourceTypeName());
         request.setConnectionProperties(createConnectionProperties());
         final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
-        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, S3_TEST_CSV_KEY);
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, bucketPrefixedPath(S3_TEST_CSV_KEY));
         request.setRequestProperties(inputProps);
 
-        // Should not throw regardless of whether bucket ACLs are enabled or not.
+        // Must not throw regardless of whether a bucket policy exists.
         final Iterator<Result> iter = getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL, MODEL_MAPPER.toBytes(request)));
         assertTrue("Expected a result", iter.hasNext());
         final CustomFlightActionResponse actionResponse = MODEL_MAPPER.fromBytes(iter.next().getBody(), CustomFlightActionResponse.class);
@@ -582,6 +596,52 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         }
         catch (Exception e) {
             assertTrue("Error must mention 'path'", e.getMessage() != null && e.getMessage().contains("path"));
+        }
+    }
+
+    /**
+     * get_acl with a path that has no bucket segment (bare key) must return an
+     * error describing the requirement to include the bucket as the leading segment.
+     */
+    @Test
+    public void testGetAclPathNoBucketSegment()
+    {
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
+        // A bare key with no leading bucket segment — must be rejected.
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, "folder/file.csv");
+        request.setRequestProperties(inputProps);
+        try {
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL, MODEL_MAPPER.toBytes(request))).next();
+            fail("Exception expected for path with no bucket segment");
+        }
+        catch (Exception e) {
+            assertNotNull("Exception message must not be null", e.getMessage());
+        }
+    }
+
+    /**
+     * get_acl with a path whose bucket segment does not match the connection
+     * bucket must return an error.
+     */
+    @Test
+    public void testGetAclPathBucketMismatch()
+    {
+        final CustomFlightActionRequest request = new CustomFlightActionRequest();
+        request.setDatasourceTypeName(getDatasourceTypeName());
+        request.setConnectionProperties(createConnectionProperties());
+        final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
+        // A different bucket name as the leading segment — must be rejected.
+        inputProps.put(AWSS3Connector.ACTION_PATH_PROP, "/wrong-bucket/folder/file.csv");
+        request.setRequestProperties(inputProps);
+        try {
+            getClient().doAction(new Action(AWSS3DatasourceType.ACTION_GET_ACL, MODEL_MAPPER.toBytes(request))).next();
+            fail("Exception expected for bucket mismatch in path");
+        }
+        catch (Exception e) {
+            assertNotNull("Exception message must not be null", e.getMessage());
         }
     }
 

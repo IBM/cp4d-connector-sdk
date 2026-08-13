@@ -35,6 +35,11 @@ dependencies {
   // AWS SDK v2 (Apache-2.0 licensed, open source)
   implementation platform('software.amazon.awssdk:bom:2.29.52')
   implementation 'software.amazon.awssdk:s3'
+  // Jackson databind for bucket-policy JSON parsing (Apache-2.0).
+  // Pulled transitively at runtime via spark-sql but must be declared
+  // explicitly for compilation since the s3 subproject does not depend
+  // on the file subproject's implementation scope.
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: project['jackson.version']
 
   testImplementation project(':wdp-connect-sdk-gen-java-test')
 

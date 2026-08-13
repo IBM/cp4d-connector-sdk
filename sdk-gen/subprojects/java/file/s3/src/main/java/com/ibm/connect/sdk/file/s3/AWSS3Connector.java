@@ -8,19 +8,19 @@ package com.ibm.connect.sdk.file.s3;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 import org.apache.arrow.flight.Ticket;
 import org.slf4j.Logger;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.ImmutableList;
 import com.ibm.connect.sdk.file.FileConnector;
 import com.ibm.connect.sdk.file.FileMsgs;
 import com.ibm.connect.sdk.file.FileSourceInteraction;
@@ -37,21 +37,20 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetType;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.model.GetObjectAclRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectAclResponse;
+import software.amazon.awssdk.services.s3.model.GetBucketPolicyRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketPolicyResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.Grant;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-import software.amazon.awssdk.services.s3.model.Permission;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
@@ -62,22 +61,29 @@ public class AWSS3Connector extends FileConnector
 {
     private static final String BUCKET_PROP = "bucket";
 
-    /** ACL action name — matches {@code ACLProvider.ACTION_GETACL} in wdp-connect-library. */
+    /**
+     * ACL action name — matches {@code ACLProvider.ACTION_GETACL} in
+     * wdp-connect-library.
+     */
     static final String ACTION_GET_ACL = "get_acl";
 
-    /** File metadata action name — returns last_modified and size for an S3 object. */
+    /**
+     * File metadata action name — returns last_modified and size for an S3 object.
+     */
     static final String ACTION_GET_FILE_METADATA = "get_file_metadata";
 
-    /** Input parameter name for the ACL and file metadata actions — path within the bucket. */
+    /**
+     * Input parameter name for the ACL and file metadata actions — path within the
+     * bucket.
+     */
     static final String ACTION_PATH_PROP = "path";
-
-    // S3 permission values that grant read access (map to "allow").
-    private static final Set<String> READ_PERMISSIONS = Set.of("FULL_CONTROL", "READ");
 
     private static final Logger LOGGER = getLogger(AWSS3Connector.class);
 
     private final String bucket;
     private S3Client s3Client;
+    private AwsCredentialsProvider credentialsProvider;
+    private Region region;
 
     /**
      * Creates an Amazon S3 connector.
@@ -109,10 +115,9 @@ public class AWSS3Connector extends FileConnector
         final S3ClientBuilder builder = S3Client.builder();
 
         // Region (optional — falls back to environment / instance metadata).
-        final String region = connectionProperties.getProperty("region");
-        if (region != null && !region.isEmpty()) {
-            builder.region(Region.of(region));
-        }
+        final String regionStr = connectionProperties.getProperty("region");
+        region = (regionStr != null && !regionStr.isEmpty()) ? Region.of(regionStr) : Region.US_EAST_1;
+        builder.region(region);
 
         // Custom endpoint for S3-compatible stores (MinIO, LocalStack, etc.).
         final String endpointUrl = connectionProperties.getProperty("endpoint_url");
@@ -126,14 +131,14 @@ public class AWSS3Connector extends FileConnector
         final String accessKeyId = connectionProperties.getProperty("access_key_id");
         final String secretAccessKey = connectionProperties.getProperty("secret_access_key");
         if (accessKeyId != null && !accessKeyId.isEmpty() && secretAccessKey != null && !secretAccessKey.isEmpty()) {
-            builder.credentialsProvider(
-                    StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey)));
+            credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey));
         } else {
             // No explicit credentials — fall back to the default provider chain
             // (env vars, ~/.aws/credentials, EC2/ECS instance metadata, etc.).
             LOGGER.debug("No access_key_id/secret_access_key provided; using DefaultCredentialsProvider.");
-            builder.credentialsProvider(DefaultCredentialsProvider.create());
+            credentialsProvider = DefaultCredentialsProvider.create();
         }
+        builder.credentialsProvider(credentialsProvider);
 
         s3Client = builder.build();
 
@@ -197,8 +202,7 @@ public class AWSS3Connector extends FileConnector
         return listObjects(criteria, prefix);
     }
 
-    private List<CustomFlightAssetDescriptor> listObjects(CustomFlightAssetsCriteria criteria, String prefix)
-            throws Exception
+    private List<CustomFlightAssetDescriptor> listObjects(CustomFlightAssetsCriteria criteria, String prefix) throws Exception
     {
         final List<CustomFlightAssetDescriptor> descriptors = new ArrayList<>();
         final int offset = criteria.getOffset() == null || criteria.getOffset() < 0 ? 0 : criteria.getOffset();
@@ -206,14 +210,9 @@ public class AWSS3Connector extends FileConnector
 
         // Use delimiter "/" to emulate directory-style listing.
         // Cap maxKeys to avoid fetching more items than needed for the requested page.
-        final int maxKeys = (offset + limit > 0 && limit != Integer.MAX_VALUE)
-                ? Math.min(offset + limit, 1000) : 1000;
-        final ListObjectsV2Request request = ListObjectsV2Request.builder()
-                .bucket(bucket)
-                .prefix(prefix)
-                .delimiter("/")
-                .maxKeys(maxKeys)
-                .build();
+        final int maxKeys = (offset + limit > 0 && limit != Integer.MAX_VALUE) ? Math.min(offset + limit, 1000) : 1000;
+        final ListObjectsV2Request request
+                = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix).delimiter("/").maxKeys(maxKeys).build();
 
         int totalSeen = 0;
         int added = 0;
@@ -248,9 +247,7 @@ public class AWSS3Connector extends FileConnector
             // When the prefix resolves to exactly one object whose key matches the prefix
             // exactly (i.e. the caller specified a full file path), populate
             // interactionProperties so the framework can complete the asset descriptor.
-            final boolean singleFileRequest = !prefix.isEmpty()
-                    && response.commonPrefixes().isEmpty()
-                    && response.contents().size() == 1
+            final boolean singleFileRequest = !prefix.isEmpty() && response.commonPrefixes().isEmpty() && response.contents().size() == 1
                     && response.contents().get(0).key().equals(prefix);
             for (final S3Object s3Object : response.contents()) {
                 // Skip the prefix itself (a zero-byte "directory marker") unless it is
@@ -292,21 +289,19 @@ public class AWSS3Connector extends FileConnector
         return PageAction.ADD;
     }
 
-    private enum PageAction {
-        SKIP,
-        STOP,
-        ADD
+    private enum PageAction
+    {
+        SKIP, STOP, ADD
     }
 
-    private CustomFlightAssetDescriptor createFileDescriptor(S3Object s3Object, boolean describeInteraction)
-            throws Exception
+    private CustomFlightAssetDescriptor createFileDescriptor(S3Object s3Object, boolean describeInteraction) throws Exception
     {
         final String key = s3Object.key();
         final String fileName = objectName(key);
         final String assetPath = "/" + key;
 
-        final CustomFlightAssetDescriptor asset = new CustomFlightAssetDescriptor()
-                .name(fileName).path(assetPath).assetType(fileAssetType());
+        final CustomFlightAssetDescriptor asset
+                = new CustomFlightAssetDescriptor().name(fileName).path(assetPath).assetType(fileAssetType());
 
         // Add size detail directly available from the listing.
         final DiscoveredAssetDetails details = new DiscoveredAssetDetails();
@@ -380,36 +375,46 @@ public class AWSS3Connector extends FileConnector
     }
 
     /**
-     * {@inheritDoc}
-     * S3 connector is source-only; writing is not supported.
+     * {@inheritDoc} S3 connector is source-only; writing is not supported.
      */
     @Override
     public FileTargetInteraction getTargetInteraction(CustomFlightAssetDescriptor asset)
     {
-        throw new UnsupportedOperationException(
-                FileMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(AWSS3DatasourceType.DATASOURCE_TYPE_NAME));
+        throw new UnsupportedOperationException(FileMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(AWSS3DatasourceType.DATASOURCE_TYPE_NAME));
     }
 
     /**
      * {@inheritDoc}
      *
-     * <p>Handles the {@code get_acl} action. Returns an ACL response whose JSON
-     * structure matches the {@code ACLProvider} contract used by wdp-connect-library:
+     * <p>
+     * Handles the {@code get_acl} and {@code get_file_metadata} actions.
+     *
+     * <h3>get_acl</h3>
+     * <p>
+     * Returns an ACL response whose JSON structure matches the {@code ACLProvider}
+     * contract used by wdp-connect-library:
+     * 
      * <pre>
      * {
-     *   "path": "/path/to/object",
-     *   "allow": { "users": [...], "groups": [] },
-     *   "deny":  { "users": [],   "groups": [] },
+     *   "path": "/bucket/key",
+     *   "allow": { "users": ["user@example.com", ...], "groups": [] },
+     *   "deny":  { "users": [...], "groups": [] },
      *   "inheritance": { "enabled": false, "parent_precedence": "parent" },
      *   "precedence": "deny"
      * }
      * </pre>
      *
-     * <p>S3 object ACLs have no explicit deny grants; all grantees with
-     * {@code FULL_CONTROL} or {@code READ} are placed in {@code allow.users}.
-     * Group grantees (AllUsers, AuthenticatedUsers) are placed in
-     * {@code allow.groups}.  Buckets with ACLs disabled return an empty
-     * allow/deny structure with a descriptive error hint in the response.
+     * <p>
+     * The ACL source is the <em>bucket policy</em> only. The wildcard principal
+     * {@code "*"} is returned as-is; no user enumeration is performed. If the
+     * bucket has no policy an empty ACL structure is returned.
+     *
+     * <p>
+     * The {@code path} input must start with the bucket name as the leading path
+     * segment (e.g. {@code /mybucket/folder/file.csv}). The bucket segment is
+     * validated against the {@code bucket} connection property. A trailing
+     * {@code /} indicates a directory path, which is validated before querying the
+     * ACL.
      */
     @Override
     public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties)
@@ -432,110 +437,107 @@ public class AWSS3Connector extends FileConnector
             if (path == null || path.isEmpty()) {
                 throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format(ACTION_PATH_PROP));
             }
-            final String normalizedKey = normalizeKey(path);
-
-            final ConnectionActionResponse response = new ConnectionActionResponse();
-            try {
-                final GetObjectAclResponse aclResponse = s3Client.getObjectAcl(
-                        GetObjectAclRequest.builder().bucket(bucket).key(normalizedKey).build());
-                buildAclResponse(response, normalizedKey, aclResponse);
-            }
-            catch (S3Exception e) {
-                if ("InvalidRequest".equals(e.awsErrorDetails().errorCode())
-                        || "AclNotSupported".equals(e.awsErrorDetails().errorCode())) {
-                    // Bucket has ACLs disabled (BucketOwnerEnforced ownership).
-                    // Return an empty ACL structure so callers get a valid response
-                    // shape rather than an exception.
-                    LOGGER.warn(AWSS3Msgs.ACL_DISABLED.format(bucket));
-                    buildEmptyAclResponse(response, normalizedKey);
-                } else {
-                    throw e;
-                }
-            }
-            return response;
+            return performGetAcl(path);
         }
         throw new UnsupportedOperationException(FileMsgs.UNSUPPORTED_ACTION.format(action));
     }
 
     /**
-     * Populates {@code response} with the standardised ACL map derived from the
-     * raw S3 GetObjectAcl response.
+     * Executes the {@code get_acl} logic.
      *
-     * <p>S3 ACLs have no explicit deny concept — omission of a grantee is the
-     * only "deny".  All grantees holding {@code FULL_CONTROL} or {@code READ}
-     * are treated as allowed.  Group grantees (AllUsers, AuthenticatedUsers) are
-     * placed in {@code groups}; canonical-user grantees go into {@code users}.
+     * <ol>
+     * <li>Validates and strips the leading bucket segment from {@code path}.</li>
+     * <li>If the path ends with {@code /}, validates the directory exists.</li>
+     * <li>Obtains the ACL via the bucket policy.</li>
+     * </ol>
      */
-    private void buildAclResponse(ConnectionActionResponse response, String path, GetObjectAclResponse aclResponse)
+    private ConnectionActionResponse performGetAcl(String path)
     {
-        final Set<String> allowUsers = new HashSet<>();
-        final Set<String> allowGroups = new HashSet<>();
+        // ── 1. Resolve bucket and key ─────────────────────────────────────
+        final String resolvedKey = resolveKey(path);
+        final boolean isDirectory = path.endsWith("/");
 
-        for (final Grant grant : aclResponse.grants()) {
-            final Permission perm = grant.permission();
-            if (perm == null || !READ_PERMISSIONS.contains(perm.toString())) {
-                continue;
-            }
-            final software.amazon.awssdk.services.s3.model.Grantee grantee = grant.grantee();
-            if (grantee == null) {
-                continue;
-            }
-            switch (grantee.typeAsString()) {
-            case "CanonicalUser":
-                final String name = grantee.displayName() != null ? grantee.displayName() : grantee.id();
-                if (name != null) {
-                    allowUsers.add(name);
-                }
-                break;
-            case "Group":
-                if (grantee.uri() != null) {
-                    allowGroups.add(grantee.uri());
-                }
-                break;
-            default:
-                if (grantee.emailAddress() != null) {
-                    allowUsers.add(grantee.emailAddress());
-                }
-                break;
-            }
+        // ── 2. Validate path existence ────────────────────────────────────
+        if (isDirectory) {
+            validateDirectory(resolvedKey);
+        } else {
+            validateObjectKey(resolvedKey);
         }
 
-        populateAclResponse(response, path, allowUsers, allowGroups);
-    }
+        final String fullPath = "/" + bucket + "/" + resolvedKey;
 
-    /** Populates {@code response} with an empty (no grantees) ACL structure. */
-    private void buildEmptyAclResponse(ConnectionActionResponse response, String path)
-    {
-        populateAclResponse(response, path, Collections.emptySet(), Collections.emptySet());
+        return buildAclResponse(fullPath, getObjectAcl(resolvedKey));
     }
 
     /**
-     * Writes the standardised ACL map into the action response.
+     * Computes the effective ACL for the S3 object at {@code bucket/objectKey} by
+     * evaluating the bucket policy only.
      *
-     * <p>Output schema (matches {@code ACLProvider} contract):
+     * <p>
+     * The wildcard principal {@code "*"} is returned as-is; no attempt is made to
+     * enumerate all users.
+     * 
+     * @param objectKey
+     *            the S3 object key (no leading slash)
+     *
+     * @return an {@link AclResult} with allow and deny principal sets
+     */
+    AclResult getObjectAcl(String objectKey)
+    {
+        final AclResult result = new AclResult();
+
+        try {
+            final GetBucketPolicyResponse policyResp = s3Client.getBucketPolicy(GetBucketPolicyRequest.builder().bucket(bucket).build());
+            if (policyResp != null && policyResp.policy() != null) {
+                try {
+                    AWSS3PolicyParser.extractBucketPolicyAccess(policyResp.policy(), bucket, objectKey, result);
+                }
+                catch (JsonProcessingException e) {
+                    LOGGER.warn(AWSS3Msgs.BUCKET_POLICY_PARSE_ERROR.format(bucket), e);
+                }
+            }
+        }
+        catch (S3Exception e) {
+            if (e.statusCode() == HttpURLConnection.HTTP_NOT_FOUND
+                    && "NoSuchBucketPolicy".equalsIgnoreCase(e.awsErrorDetails().errorCode())) {
+                LOGGER.debug("No bucket policy on {}, ACL will be empty from policy path.", bucket);
+            } else {
+                LOGGER.warn(AWSS3Msgs.BUCKET_POLICY_FETCH_ERROR.format(bucket), e);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Writes the standardised ACL map into a new {@link ConnectionActionResponse}.
+     *
+     * <p>
+     * Output schema (matches {@code ACLProvider} contract):
+     * 
      * <pre>
-     * path          – full path of the object
-     * allow.users   – set of identities with read access
-     * allow.groups  – set of group URIs with read access
-     * deny.users    – always empty (S3 ACLs have no explicit deny)
-     * deny.groups   – always empty
+     * path          – full path including bucket (/bucket/key)
+     * allow.users   – user principals with read access (may contain "*")
+     * allow.groups  – group principals with read access (account ARNs, federated IdPs)
+     * deny.users    – user principals explicitly denied (may contain "*")
+     * deny.groups   – group principals explicitly denied
      * inheritance   – { enabled: false, parent_precedence: "parent" }
      * precedence    – "deny"
      * </pre>
      */
-    private static void populateAclResponse(ConnectionActionResponse response, String path,
-            Set<String> allowUsers, Set<String> allowGroups)
+    private static ConnectionActionResponse buildAclResponse(String path, AclResult acl)
     {
+        final ConnectionActionResponse response = new ConnectionActionResponse();
         response.put("path", path);
 
         final Map<String, Object> allow = new LinkedHashMap<>();
-        allow.put("users", new ArrayList<>(allowUsers));
-        allow.put("groups", new ArrayList<>(allowGroups));
+        allow.put("users", ImmutableList.copyOf(acl.allowUsers));
+        allow.put("groups", ImmutableList.copyOf(acl.allowGroups));
         response.put("allow", allow);
 
         final Map<String, Object> deny = new LinkedHashMap<>();
-        deny.put("users", Collections.emptyList());
-        deny.put("groups", Collections.emptyList());
+        deny.put("users", ImmutableList.copyOf(acl.denyUsers));
+        deny.put("groups", ImmutableList.copyOf(acl.denyGroups));
         response.put("deny", deny);
 
         final Map<String, Object> inheritance = new LinkedHashMap<>();
@@ -543,8 +545,8 @@ public class AWSS3Connector extends FileConnector
         inheritance.put("parent_precedence", "parent");
         response.put("inheritance", inheritance);
 
-        // S3 explicit-deny does not exist; deny always takes precedence when set.
         response.put("precedence", "deny");
+        return response;
     }
 
     /**
@@ -563,12 +565,8 @@ public class AWSS3Connector extends FileConnector
     public void close() throws Exception
     {
         super.close();
-        try {
-            if (s3Client != null) {
-                s3Client.close();
-            }
-        }
-        finally {
+        if (s3Client != null) {
+            s3Client.close();
             s3Client = null;
         }
     }
@@ -625,8 +623,10 @@ public class AWSS3Connector extends FileConnector
     /**
      * Verifies that the given key exists as an S3 object (not a prefix).
      *
-     * @param key S3 object key (no leading slash)
-     * @throws IllegalArgumentException if the key does not exist or is a prefix
+     * @param key
+     *            S3 object key (no leading slash)
+     * @throws IllegalArgumentException
+     *             if the key does not exist or is a prefix
      */
     void validateObjectKey(String key)
     {
@@ -635,6 +635,61 @@ public class AWSS3Connector extends FileConnector
         }
         catch (NoSuchKeyException e) {
             throw new IllegalArgumentException(AWSS3Msgs.OBJECT_DOES_NOT_EXIST.format(key), e);
+        }
+    }
+
+    /**
+     * Resolves a caller-supplied {@code path} to a bare S3 object key.
+     *
+     * <p>
+     * The path must start with the bucket name as the leading segment (e.g.
+     * {@code /mybucket/folder/file.csv} or {@code mybucket/folder/file.csv}). The
+     * bucket segment is validated against the connection {@code bucket} property
+     * and then stripped from the returned key. It is never concatenated to the
+     * path.
+     *
+     * <p>
+     * A trailing {@code /} on directory paths is preserved.
+     *
+     * @throws IllegalArgumentException
+     *             if the path has no bucket segment or the bucket segment does not
+     *             match the connection bucket
+     */
+    private String resolveKey(String path)
+    {
+        // Strip optional leading slash.
+        final String stripped = path.startsWith("/") ? path.substring(1) : path;
+
+        // Require at least one slash so there is both a bucket segment and a key.
+        final int slash = stripped.indexOf('/');
+        if (slash < 1) {
+            throw new IllegalArgumentException(AWSS3Msgs.PATH_MUST_START_WITH_BUCKET.format(path));
+        }
+        final String pathBucket = stripped.substring(0, slash);
+
+        // Validate the bucket segment against the connection property.
+        if (!bucket.equals(pathBucket)) {
+            throw new IllegalArgumentException(AWSS3Msgs.PATH_BUCKET_MISMATCH.format(pathBucket, bucket));
+        }
+
+        return stripped.substring(slash + 1);
+    }
+
+    /**
+     * Validates that the given key prefix (directory) exists in the bucket.
+     *
+     * @param key
+     *            directory key with a trailing slash (e.g. {@code "folder/"})
+     * @throws IllegalArgumentException
+     *             if no objects exist under the prefix
+     */
+    private void validateDirectory(String key)
+    {
+        final String prefix = key.endsWith("/") ? key : key + "/";
+        final ListObjectsV2Response response
+                = s3Client.listObjectsV2(ListObjectsV2Request.builder().bucket(bucket).prefix(prefix).maxKeys(1).build());
+        if (!response.hasContents() && response.commonPrefixes().isEmpty()) {
+            throw new IllegalArgumentException(AWSS3Msgs.DIRECTORY_DOES_NOT_EXIST.format(key));
         }
     }
 }
