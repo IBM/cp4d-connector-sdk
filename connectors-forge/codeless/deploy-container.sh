@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Container Deployment Script (SSH-based)
-# Deploys a container to a remote Docker server via SSH
+# Deploys a container to a remote Docker/Podman server via SSH
 # with configuration file upload using tar streaming
 
 set -e  # Exit on error
@@ -17,7 +17,8 @@ SSH_PORT="22"
 CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
-IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.4"
+CONTAINER_RUNTIME="docker"
+IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.5.3"
 CONTAINER_ID=""
 CONTAINER_NAME=""
 TEMP_DIR=""
@@ -39,12 +40,13 @@ log_step() {
     echo "[$1] $2"
 }
 
-# Execute command via SSH
+# Execute command via SSH — stdout only, stderr suppressed so MOTD banners
+# never contaminate captured output. Exit code is preserved.
 ssh_exec() {
     local command="$1"
     ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no \
         -o ConnectTimeout=10 -o BatchMode=yes \
-        "${SSH_USER}@${SSH_HOST}" "$command" 2>&1
+        "${SSH_USER}@${SSH_HOST}" "$command" 2>/dev/null
 }
 
 # ============================================
@@ -55,7 +57,7 @@ usage() {
     cat << EOF
 Usage: $SCRIPT_NAME --host HOST --files FILE1 [FILE2 ...] --port PORT [OPTIONS]
 
-Deploy a container to a remote Docker server via SSH.
+Deploy a container to a remote Docker/Podman server via SSH.
 
 Required Arguments:
   --host HOST          Remote server hostname or IP (e.g., remote-server.com)
@@ -65,6 +67,7 @@ Required Arguments:
 
 Optional Arguments:
   --ssh-port PORT      SSH port (default: 22)
+  --runtime RUNTIME    Container runtime: docker or podman (default: docker)
   --replace            Stop and remove existing container with same name or using the same port
   -h, --help           Show this help message
 
@@ -80,6 +83,10 @@ Examples:
   # Multiple files
   $SCRIPT_NAME --host 192.168.1.100 --ssh-user docker \\
     --files api1.json api2.json --port 9090
+
+  # Deploy using Podman
+  $SCRIPT_NAME --host 192.168.1.100 --ssh-user root \\
+    --files api1.json --port 9443 --runtime podman
 
   # Replace existing container
   $SCRIPT_NAME --host remote.example.com --ssh-user ubuntu \\
@@ -108,7 +115,7 @@ error_exit() {
     # If container was created but deployment failed, try to remove it
     if [ -n "$CONTAINER_ID" ]; then
         log "Cleaning up failed deployment..."
-        ssh_exec "docker rm -f $CONTAINER_ID" 2>/dev/null || true
+        ssh_exec "$CONTAINER_RUNTIME rm -f $CONTAINER_ID" >/dev/null || true
     fi
     
     exit 1
@@ -135,6 +142,14 @@ parse_arguments() {
                 ;;
             --ssh-port)
                 SSH_PORT="$2"
+                shift 2
+                ;;
+            --runtime)
+                CONTAINER_RUNTIME="$2"
+                if [[ "$CONTAINER_RUNTIME" != "docker" && "$CONTAINER_RUNTIME" != "podman" ]]; then
+                    log_error "Invalid runtime '$CONTAINER_RUNTIME'. Must be 'docker' or 'podman'."
+                    usage
+                fi
                 shift 2
                 ;;
             --files)
@@ -197,12 +212,12 @@ parse_arguments() {
 validate_inputs() {
     log_step "1/7" "Validating inputs..."
 
-    # Test SSH connectivity and Docker availability in one go
-    log "Testing SSH connectivity and Docker availability..."
-    if ! ssh_exec "docker version" >/dev/null 2>&1; then
-        error_exit "Cannot connect via SSH or Docker not available on ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
+    # Test SSH connectivity and container runtime availability in one go
+    log "Testing SSH connectivity and $CONTAINER_RUNTIME availability..."
+    if ! ssh_exec "$CONTAINER_RUNTIME version" >/dev/null; then
+        error_exit "Cannot connect via SSH or $CONTAINER_RUNTIME not available on ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
     fi
-    log "SSH connection and Docker verified"
+    log "SSH connection and $CONTAINER_RUNTIME verified"
 
     # Check if all config files exist and validate metadata
     local file_count=0
@@ -250,24 +265,38 @@ validate_inputs() {
 
 check_container_exists() {
     local name="$1"
-    ssh_exec "docker ps -aq --filter 'name=^${name}$'" | head -1
+    # tail -1 keeps only the last line — strips any residual header lines
+    ssh_exec "$CONTAINER_RUNTIME ps -aq --filter 'name=^${name}$'" | tail -1
 }
 
 find_container_by_port() {
     local port="$1"
-    ssh_exec "docker ps -a --filter 'publish=${port}' --format '{{.ID}}'" | head -1
+
+    # Primary: --filter publish (fast but unsupported on some Docker/Podman versions)
+    local result
+    result=$(ssh_exec "$CONTAINER_RUNTIME ps -a --filter 'publish=${port}' --format '{{.ID}}'" 2>/dev/null | tail -1) || true
+    if [ -n "$result" ]; then
+        echo "$result"
+        return
+    fi
+
+    # Universal fallback: parse .Ports display field — works on every Docker/Podman version
+    ssh_exec "$CONTAINER_RUNTIME ps -a --format '{{.ID}} {{.Ports}}'" 2>/dev/null \
+        | grep -E ":${port}->" \
+        | awk '{print $1}' \
+        | tail -1
 }
 
 get_container_name() {
     local id="$1"
-    ssh_exec "docker inspect $id --format '{{.Name}}'" | sed 's/^\///'
+    ssh_exec "$CONTAINER_RUNTIME inspect $id --format '{{.Name}}'" | tail -1 | sed 's/^\///'
 }
 
 stop_and_remove_container() {
     local id="$1"
     log "Stopping and removing container..."
     
-    if ssh_exec "docker stop $id && docker rm $id" >/dev/null 2>&1; then
+    if ssh_exec "$CONTAINER_RUNTIME stop $id && $CONTAINER_RUNTIME rm $id" >/dev/null; then
         log "Container removed"
         return 0
     else
@@ -320,12 +349,12 @@ handle_existing_container() {
 create_container() {
     log_step "3/7" "Creating container..."
     
-    # Create container with port mapping (Docker will pull image if needed)
+    # Create container with port mapping (runtime will pull image if needed)
     log "Creating container from image: $IMAGE"
-    local create_output=$(ssh_exec "docker create --name $CONTAINER_NAME -p ${PORT}:9443 $IMAGE")
+    local create_output=$(ssh_exec "$CONTAINER_RUNTIME create --name $CONTAINER_NAME -p ${PORT}:9443 $IMAGE")
     
-    # Extract only the container ID (last line of output)
-    CONTAINER_ID=$(echo "$create_output" | tail -n 1)
+    # Extract only the container ID (last non-empty line of output)
+    CONTAINER_ID=$(echo "$create_output" | grep -v '^$' | tail -n 1)
     
     if [ -z "$CONTAINER_ID" ]; then
         error_exit "Failed to create container"
@@ -351,7 +380,7 @@ upload_config_files() {
         cp "$file" "$TEMP_DIR/mappings/"
     done
     
-    # Stream tar directly to docker cp via SSH
+    # Stream tar directly to container runtime cp via SSH
     # The tar is created on-the-fly and piped, no archive file is created
     (
         cd "$TEMP_DIR" || exit 1
@@ -366,7 +395,7 @@ upload_config_files() {
         fi
     ) | ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no \
         -o ConnectTimeout=10 -o BatchMode=yes \
-        "${SSH_USER}@${SSH_HOST}" "docker cp - ${CONTAINER_ID}:/config"
+        "${SSH_USER}@${SSH_HOST}" "$CONTAINER_RUNTIME cp - ${CONTAINER_ID}:/config"
     
     if [ $? -eq 0 ]; then
         log "Files uploaded to /config/mappings/"
@@ -382,7 +411,7 @@ upload_config_files() {
 start_container() {
     log_step "5/7" "Starting container..."
     
-    if ssh_exec "docker start $CONTAINER_ID" >/dev/null 2>&1; then
+    if ssh_exec "$CONTAINER_RUNTIME start $CONTAINER_ID" >/dev/null; then
         log "Container started"
     else
         error_exit "Failed to start container"
@@ -398,12 +427,13 @@ verify_container_running() {
     
     sleep 2
     
-    local running=$(ssh_exec "docker inspect $CONTAINER_ID --format '{{.State.Running}}'")
+    # tail -1 strips any residual banner/header lines before the actual value
+    local running=$(ssh_exec "$CONTAINER_RUNTIME inspect $CONTAINER_ID --format '{{.State.Running}}'" | tail -1)
     
     if [ "$running" = "true" ]; then
         log "Container is running"
     else
-        local status=$(ssh_exec "docker inspect $CONTAINER_ID --format '{{.State.Status}}'")
+        local status=$(ssh_exec "$CONTAINER_RUNTIME inspect $CONTAINER_ID --format '{{.State.Status}}'" | tail -1)
         [ -z "$status" ] && status="unknown"
         error_exit "Container is not running (Status: $status)"
     fi
@@ -418,6 +448,7 @@ main() {
     echo "Container Deployment Script (SSH)"
     echo "=========================================="
     echo "SSH Host:       ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
+    echo "Runtime:        $CONTAINER_RUNTIME"
     echo "Files:          ${#CONFIG_FILES[@]} file(s)"
     for file in "${CONFIG_FILES[@]}"; do
         echo "                - $(basename "$file")"

@@ -30,7 +30,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathSegment;
  * <p>Each instance of RestDatasourceType represents one connector defined by one JSON configuration file.
  * Multiple instances can be created from multiple configuration files in the /config/mappings directory.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
 public class RestDatasourceType extends CustomFlightDatasourceType
 {
     private final String configFilePath;
