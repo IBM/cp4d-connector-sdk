@@ -514,7 +514,15 @@
   <example name="authentication_reference">
     <title>Authentication Configuration Reference</title>
     <description>
-      Complete reference for all supported $authentication formats.
+      Complete reference for all supported $authentication formats and the $accept_header field.
+
+      ACCEPT HEADER:
+        "$accept_header" is an optional top-level field that sets the value of the HTTP Accept
+        header sent with every API request. Defaults to "application/json" when omitted.
+        Use it when the API requires a vendor-specific media type, e.g.:
+          "$accept_header": "application/vnd.dwolla.v1.hal+json"
+          "$accept_header": "application/vnd.github.v3+json"
+          "$accept_header": "application/json"   (explicit default)
 
       STRUCTURE — every non-none type uses:
         "$authentication": {
@@ -540,6 +548,22 @@
         Its value is referenced via $name inside another entry's value template.
         Used for the "password" field in Basic authentication.
     </description>
+
+    <accept_header_examples>
+      <![CDATA[
+// Standard JSON API (default — can be omitted, but being explicit is recommended)
+"$accept_header": "application/json"
+
+// Dwolla HAL+JSON API
+"$accept_header": "application/vnd.dwolla.v1.hal+json"
+
+// GitHub REST API v3
+"$accept_header": "application/vnd.github.v3+json"
+
+// Generic HAL
+"$accept_header": "application/hal+json"
+      ]]>
+    </accept_header_examples>
 
     <auth_type name="none">
       <![CDATA[

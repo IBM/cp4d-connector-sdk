@@ -59,6 +59,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private final String dataPath;
     private final List<RestFieldDefinition> fieldDefs;
     private final java.util.Map<String, String> authHeaders;
+    private final String acceptHeader;
     private final PaginationConfig paginationConfig;
     private final ObjectMapper objectMapper;
 
@@ -80,76 +81,35 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private int totalPagesFetched;
 
     /**
-     * Creates a streaming record iterator for the given URL and field definitions.
+     * Creates a streaming record iterator with full configuration.
      *
      * @param url
-     *            the full URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
-     * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
-     */
-    public JsonToRecordStream(String url, List<RestFieldDefinition> fieldDefs)
-    {
-        this(url, null, fieldDefs, null, null);
-    }
-
-    /**
-     * Creates a streaming record iterator for the given URL, field definitions, and authentication headers.
-     *
-     * @param url
-     *            the full URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
-     * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
-     * @param authHeaders
-     *            optional authentication headers to include in the HTTP request (may be null)
-     */
-    public JsonToRecordStream(String url, List<RestFieldDefinition> fieldDefs, java.util.Map<String, String> authHeaders)
-    {
-        this(url, null, fieldDefs, authHeaders, null);
-    }
-
-    /**
-     * Creates a streaming record iterator for the given URL, data path, field definitions, and authentication headers.
-     *
-     * @param url
-     *            the full URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
+     *            the base URL to fetch
      * @param dataPath
-     *            optional JSON path to the data array (e.g. "result" for {"result": [...]})
+     *            optional JSON path to the data array (may be null)
      * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
+     *            the field definitions
      * @param authHeaders
-     *            optional authentication headers to include in the HTTP request (may be null)
-     */
-    public JsonToRecordStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs, java.util.Map<String, String> authHeaders)
-    {
-        this(url, dataPath, fieldDefs, authHeaders, null);
-    }
-
-    /**
-     * Creates a streaming record iterator with full configuration including pagination support.
-     *
-     * @param url
-     *            the base URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
-     * @param dataPath
-     *            optional JSON path to the data array (e.g. "result" for {"result": [...]})
-     * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
-     * @param authHeaders
-     *            optional authentication headers to include in the HTTP request (may be null)
+     *            optional authentication headers (may be null)
      * @param paginationConfig
      *            optional pagination configuration (may be null for non-paginated APIs)
+     * @param acceptHeader
+     *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
      */
     public JsonToRecordStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
-            java.util.Map<String, String> authHeaders, PaginationConfig paginationConfig)
+            java.util.Map<String, String> authHeaders, PaginationConfig paginationConfig,
+            String acceptHeader)
     {
         this.baseUrl = url;
         this.dataPath = dataPath;
         this.fieldDefs = fieldDefs;
         this.authHeaders = authHeaders;
+        this.acceptHeader = acceptHeader;
         this.paginationConfig = paginationConfig;
         this.objectMapper = new ObjectMapper();
         this.initialized = false;
         this.done = false;
-        
+
         // Initialize pagination state
         this.recordsInCurrentPage = 0;
         this.totalPagesFetched = 0;
@@ -247,7 +207,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(currentUrl))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .header("Accept", "application/json")
+                .header("Accept", acceptHeader)
                 .header("User-Agent", "CP4D-REST-Connector/1.0");
 
         // Add authentication headers if provided
@@ -470,7 +430,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(nextUrl))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .header("Accept", "application/json")
+                .header("Accept", acceptHeader)
                 .header("User-Agent", "CP4D-REST-Connector/1.0")
                 .GET();
 

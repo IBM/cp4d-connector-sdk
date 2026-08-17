@@ -123,13 +123,15 @@ public class RestInputInteraction implements SdkInputInteraction
         LOGGER.info("Starting stream for table: {}", tableName);
 
         final Map<String, String> authHeaders = buildAuthHeaders();
+        final String acceptHeader = connector.getApiMapping().getAcceptHeader();
 
         final JsonToArrowStream jsonStream = new JsonToArrowStream(
                 url,
                 tableDef.getDataPath(),
                 tableDef.getFields(),
                 authHeaders,
-                tableDef.getPaginationConfig());
+                tableDef.getPaginationConfig(),
+                acceptHeader);
 
         try {
             jsonStream.streamTo(writer);

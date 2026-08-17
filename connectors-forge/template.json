@@ -4,6 +4,7 @@
   "$connector_description": "Description of what this connector provides access to",
   "$origin": { "name": "forge", "version": "1.0.0" },
   "$hostname": "https://api.example.com",
+  "$accept_header": "application/json",
   "$authentication": {
     "type": "api_key",
     "headers": [
