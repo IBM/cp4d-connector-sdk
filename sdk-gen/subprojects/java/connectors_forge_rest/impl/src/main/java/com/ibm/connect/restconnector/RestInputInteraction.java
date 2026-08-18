@@ -154,19 +154,33 @@ public class RestInputInteraction implements SdkInputInteraction
         try {
             final URL configUrl = new URL(connector.getApiMapping().getBaseUrl());
             final String protocol = configUrl.getProtocol();
-            final String host = configUrl.getHost();
-            final int port = configUrl.getPort();
-            // Preserve the path prefix from $hostname (e.g. "/api/1.0" in "https://host/api/1.0")
+            // Preserve the path prefix from baseUrl (e.g. "/api/1.0" in "https://host/api/1.0")
             final String basePath = configUrl.getPath();
 
-            // Omit the port when none was written in the config — avoids sending
-            // explicit default ports (e.g. :443) that some servers reject.
-            final String authority = port == -1 ? host : host + ":" + port;
+            // Use host and port from connection properties if supplied; fall back to the config URL.
+            final Object hostProp = connectionProperties.get("host");
+            final Object portProp = connectionProperties.get("port");
+
+            final String host = (hostProp != null && !hostProp.toString().isBlank())
+                    ? hostProp.toString()
+                    : configUrl.getHost();
+
+            final String authority;
+            if (portProp != null && !portProp.toString().isBlank()) {
+                authority = host + ":" + portProp;
+            } else {
+                final int configPort = configUrl.getPort();
+                authority = configPort == -1 ? host : host + ":" + configPort;
+            }
+
             final String url = protocol + "://" + authority + basePath + tableDef.getPath();
             LOGGER.debug("Built request URL: {}", url);
             return url;
         } catch (MalformedURLException e) {
-            LOGGER.error("Failed to parse base URL from config: {}", connector.getApiMapping().getBaseUrl(), e);
+            LOGGER.error("Failed to build request URL (baseUrl: {}, host: {}, port: {})",
+                    connector.getApiMapping().getBaseUrl(),
+                    connectionProperties.get("host"),
+                    connectionProperties.get("port"), e);
             throw new IllegalStateException("Invalid base URL in configuration", e);
         }
     }
