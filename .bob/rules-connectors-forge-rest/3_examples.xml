@@ -70,7 +70,7 @@
   "$connector_label": "SpaceX API",
   "$connector_description": "Connector for SpaceX public REST API - provides access to rockets, launches, capsules, and more",
   "$hostname": "https://api.spacexdata.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "ROCKETS": {
       "$path": ["/v4/rockets"],
@@ -274,7 +274,7 @@
   "$connector_label": "NBP API",
   "$connector_description": "Connector for Polish National Bank (NBP) public REST API providing exchange rates and gold prices",
   "$hostname": "https://api.nbp.pl",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "GOLD_PRICES": {
       "$path": ["/api/cenyzlota/last/50"],
@@ -734,7 +734,7 @@
   "$connector_label": "Product Catalog",
   "$connector_description": "Product catalog with complex nested structures",
   "$hostname": "https://api.example.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "products": {
       "$path": ["/api/products"],
@@ -1018,7 +1018,7 @@
   "$connector_label": "Products API",
   "$connector_description": "Connector for Products API with offset-based pagination",
   "$hostname": "https://api.example.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "PRODUCTS": {
       "$path": ["/api/products"],

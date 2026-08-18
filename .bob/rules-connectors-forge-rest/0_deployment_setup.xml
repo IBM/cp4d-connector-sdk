@@ -20,7 +20,7 @@
 
       <ask_followup_question>
         <question>Which deployment option would you like to use for this REST API connector?</question>
-        <suggest>Codeless — use the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.6.2), no code generation needed</suggest>
+        <suggest>Codeless — use the pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.6.3), no code generation needed</suggest>
         <suggest>Developer — generate customisable connector code and build my own Docker image</suggest>
       </ask_followup_question>
     </step_1_ask_deployment_option>
@@ -52,7 +52,7 @@
           <message>
             The codeless option will use a pre-built Docker image from GitHub Container Registry.
             
-            Docker Image: ghcr.io/marek-zuwala/connectors-forge:1.0.6.2
+            Docker Image: ghcr.io/marek-zuwala/connectors-forge:1.0.6.3
             
             This pre-built image contains all necessary components to run your REST API connectors.
             When you proceed to deployment (Phase 5), you will use this image instead of building your own.
@@ -256,7 +256,7 @@
     <rule>This phase MUST be completed before any API configuration work begins</rule>
     <rule>Do not skip deployment option selection</rule>
     <rule>Always create the project structure before proceeding</rule>
-    <rule>For codeless option, inform user about pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.6.2)</rule>
+    <rule>For codeless option, inform user about pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.6.3)</rule>
     <rule>For developer option, respect user's choice between auto and manual generation</rule>
     <rule>All DSL files go to: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/</rule>
     <rule>After setup is complete, proceed immediately to Phase 1</rule>
@@ -264,7 +264,7 @@
 
   <important_notes>
     <note>
-      The codeless option uses a pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.6.2) from GitHub Container Registry.
+      The codeless option uses a pre-built Docker image (ghcr.io/marek-zuwala/connectors-forge:1.0.6.3) from GitHub Container Registry.
       This image will be used during deployment instead of building a custom image.
     </note>
     <note>

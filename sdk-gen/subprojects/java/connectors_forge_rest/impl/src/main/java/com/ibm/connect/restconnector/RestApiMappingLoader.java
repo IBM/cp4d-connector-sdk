@@ -133,7 +133,7 @@ public class RestApiMappingLoader
         final ConnectorMetadata metadata = parseConnectorMetadata(root);
         final String baseUrl = parseBaseUrl(root);
         final AuthConfig authConfig = parseAuthConfig(root);
-        final String acceptHeader = requireText(root, ACCEPT_HEADER_KEY, "root configuration");
+        final String acceptHeader = getTextOrDefault(root, ACCEPT_HEADER_KEY, "application/json");
         final Map<String, RestTableDefinition> tables = parseTables(root);
         final Map<String, String> origin = parseOrigin(root);
 
@@ -191,6 +191,14 @@ public class RestApiMappingLoader
             return new AuthConfig();
         }
 
+        // Legacy string form: "$authentication": "api_key" (or "oauth2", "basic", "none")
+        // Expand to the canonical object form with default header definitions.
+        if (authNode.isTextual()) {
+            LOGGER.info("Detected legacy string-form '$authentication': '{}' — expanding to default object form",
+                    authNode.asText());
+            return buildDefaultAuthConfig(authNode.asText());
+        }
+
         // Must be an object: { "type": "...", "headers": [...] }
         if (!authNode.isObject()) {
             throw new IOException(
@@ -230,6 +238,43 @@ public class RestApiMappingLoader
         }
 
         return new AuthConfig(type, headers);
+    }
+
+    /**
+     * Builds a default {@link AuthConfig} from a legacy bare-string authentication type.
+     *
+     * <p>Handles backward compatibility for configs that specify {@code "$authentication": "api_key"}
+     * (or {@code "oauth2"}, {@code "basic"}, {@code "none"}) rather than the current object form.
+     * Each type is expanded to the canonical object form with sensible default header definitions.
+     */
+    private static AuthConfig buildDefaultAuthConfig(String rawType) throws IOException
+    {
+        final AuthenticationType type;
+        try {
+            type = AuthenticationType.fromValue(rawType);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid authentication type in configuration: " + e.getMessage(), e);
+        }
+
+        switch (type) {
+        case NONE:
+            return new AuthConfig();
+        case API_KEY:
+            return new AuthConfig(type, java.util.Arrays.asList(
+                    new HeaderDef("api_key", "API Key", "Your API key",
+                            true, "Authorization", "ApiKey $api_key")));
+        case OAUTH2:
+            return new AuthConfig(type, java.util.Arrays.asList(
+                    new HeaderDef("bearer_token", "Bearer Token", "OAuth 2.0 access token",
+                            true, "Authorization", "Bearer $bearer_token")));
+        case BASIC:
+            return new AuthConfig(type, java.util.Arrays.asList(
+                    new HeaderDef("username", "Username", "Username", false,
+                            "Authorization", "Basic base64($username:$password)"),
+                    new HeaderDef("password", "Password", "Password", true, null, null)));
+        default:
+            throw new IOException("No default header definitions for authentication type: " + rawType);
+        }
     }
 
     private static String requireText(JsonNode node, String key, String context) throws IOException
