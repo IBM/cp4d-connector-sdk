@@ -183,8 +183,14 @@ public class RestInputInteraction implements SdkInputInteraction
         if (authType == AuthenticationType.API_KEY) {
             final Object apiKeyObj = connectionProperties.get("api_key");
             if (apiKeyObj != null) {
-                headers.put("Authorization", "ApiKey " + apiKeyObj.toString());
-                LOGGER.debug("Using API Key authentication");
+                final String customHeader = connector.getApiMapping().getApiKeyHeader();
+                if (customHeader != null && !customHeader.isEmpty()) {
+                    headers.put(customHeader, apiKeyObj.toString());
+                    LOGGER.debug("Using API Key authentication with custom header: {}", customHeader);
+                } else {
+                    headers.put("Authorization", "ApiKey " + apiKeyObj.toString());
+                    LOGGER.debug("Using API Key authentication");
+                }
             } else {
                 LOGGER.warn("API key not provided in connection properties");
             }

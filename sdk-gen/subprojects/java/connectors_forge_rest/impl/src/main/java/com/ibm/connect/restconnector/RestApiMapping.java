@@ -20,6 +20,7 @@ public class RestApiMapping
     private final String connectorDescription;
     private final String baseUrl;
     private final AuthenticationType authenticationType;
+    private final String apiKeyHeader;
     private final Map<String, RestTableDefinition> tables;
     private final Map<String, String> origin;
 
@@ -36,6 +37,8 @@ public class RestApiMapping
      *            the base URL for all API calls (from "$hostname")
      * @param authenticationType
      *            the authentication type: "none", "api_key", "oauth2", or "basic" (from "$authentication")
+     * @param apiKeyHeader
+     *            the custom HTTP header name for API key auth (from "$api_key_header"), null uses "Authorization: ApiKey"
      * @param tables
      *            a map of table name to table definition
      * @param origin
@@ -43,7 +46,7 @@ public class RestApiMapping
      *            optionally version
      */
     public RestApiMapping(String connectorName, String connectorLabel, String connectorDescription,
-            String baseUrl, AuthenticationType authenticationType, Map<String, RestTableDefinition> tables,
+            String baseUrl, AuthenticationType authenticationType, String apiKeyHeader, Map<String, RestTableDefinition> tables,
             Map<String, String> origin)
     {
         this.connectorName = connectorName;
@@ -51,6 +54,7 @@ public class RestApiMapping
         this.connectorDescription = connectorDescription;
         this.baseUrl = baseUrl;
         this.authenticationType = authenticationType != null ? authenticationType : AuthenticationType.NONE;
+        this.apiKeyHeader = apiKeyHeader;
         this.tables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
         this.origin = origin != null
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(origin))
@@ -63,6 +67,7 @@ public class RestApiMapping
     public String getBaseUrl() { return baseUrl; }
     public String getAuthenticationType() { return authenticationType.getValue(); }
     public AuthenticationType getAuthenticationTypeEnum() { return authenticationType; }
+    public String getApiKeyHeader() { return apiKeyHeader; }
     public Map<String, RestTableDefinition> getTables() { return tables; }
 
     /**
