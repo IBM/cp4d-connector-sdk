@@ -60,6 +60,7 @@ public class RestApiMappingLoader
     private static final String ORIGIN_KEY = "$origin";
     private static final String HOSTNAME_KEY = "$hostname";
     private static final String AUTHENTICATION_KEY = "$authentication";
+    private static final String API_KEY_HEADER_KEY = "$api_key_header";
     private static final String TABLES_KEY = "$tables";
     private static final String PATH_KEY = "$path";
     private static final String DATA_PATH_KEY = "$data_path";
@@ -130,13 +131,14 @@ public class RestApiMappingLoader
         final ConnectorMetadata metadata = parseConnectorMetadata(root);
         final String baseUrl = parseBaseUrl(root);
         final AuthenticationType authenticationType = parseAuthenticationType(root);
+        final String apiKeyHeader = parseOptionalText(root, API_KEY_HEADER_KEY);
         final Map<String, RestTableDefinition> tables = parseTables(root);
         final Map<String, String> origin = parseOrigin(root);
 
         LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables",
                 metadata.connectorName, authenticationType.getValue(), tables.size());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authenticationType, tables, origin);
+                baseUrl, authenticationType, apiKeyHeader, tables, origin);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
