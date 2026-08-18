@@ -3,3 +3,7 @@
 .classpath
 .project
 /.settings
+/src/main/webapp
+/node_modules
+package-lock.json
+package.json
