@@ -5,6 +5,8 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
+import static org.slf4j.LoggerFactory.getLogger;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +33,7 @@ import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
  */
 public class RestConnectorFactory implements SdkConnectorFactory
 {
-    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(RestConnectorFactory.class);
+    private static final Logger LOGGER = getLogger(RestConnectorFactory.class);
     private static final RestConnectorFactory INSTANCE = new RestConnectorFactory();
 
     /** Default directory for configuration files */

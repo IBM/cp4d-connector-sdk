@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -26,6 +27,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 
@@ -479,9 +481,9 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    private static String extractLinkHeader(java.net.http.HttpHeaders headers)
+    private static String extractLinkHeader(HttpHeaders headers)
     {
-        final java.util.Optional<String> linkHeader = headers.firstValue("Link");
+        final Optional<String> linkHeader = headers.firstValue("Link");
         if (!linkHeader.isPresent()) {
             return null;
         }

@@ -25,12 +25,8 @@ public enum FlightMsgs implements ResourceBundleHelper.MessageFormatter<FlightMs
     /**
      * Missing data source type name.
      */
-    MISSING_DATASOURCE_TYPE_NAME,
+    MISSING_DATASOURCE_TYPE_NAME;
 
-    /**
-     * No producer found for ticket (cache miss).
-     */
-    NO_PRODUCER_FOR_TICKET;
 
     private static final ResourceBundleHelper<FlightMsgs> BUNDLE = new ResourceBundleHelper<>(FlightMsgs.class);
 
