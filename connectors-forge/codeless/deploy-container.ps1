@@ -23,7 +23,7 @@ param(
 # Configuration & Global Variables
 # ============================================
 
-$Image = "ghcr.io/marek-zuwala/connectors-forge:1.0.6.10"
+$Image = "ghcr.io/marek-zuwala/connectors-forge:1.0.6.11"
 $ContainerId = $null
 $ContainerName = $null
 $TempDir = $null
