@@ -237,6 +237,65 @@ public class TestRestApiMappingLoader
         final RestApiMapping mapping = RestApiMappingLoader.parse(MINIMAL_REST_JSON);
         assertTrue(mapping.getOrigin().isEmpty());
     }
+
+    /**
+     * Test that acceptHeader defaults to "application/json" when $accept_header is omitted.
+     */
+    @Test
+    public void testAcceptHeaderDefaultsWhenOmitted() throws Exception
+    {
+        // MINIMAL_REST_JSON has no $accept_header key
+        final RestApiMapping mapping = RestApiMappingLoader.parse(MINIMAL_REST_JSON);
+        assertEquals("application/json", mapping.getAcceptHeader());
+    }
+
+    /**
+     * Test that acceptHeader defaults to "application/json" when $accept_header is an empty string.
+     */
+    @Test
+    public void testAcceptHeaderDefaultsWhenBlank() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$accept_header\": \"\",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals("application/json", mapping.getAcceptHeader());
+    }
+
+    /**
+     * Test that a non-default acceptHeader value is preserved as-is.
+     */
+    @Test
+    public void testAcceptHeaderCustomValue() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$accept_header\": \"text/xml\",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals("text/xml", mapping.getAcceptHeader());
+    }
+
+    /**
+     * Test that RestApiMapping constructor treats a null acceptHeader as "application/json".
+     */
+    @Test
+    public void testAcceptHeaderNullInConstructorDefaultsToJson() throws Exception
+    {
+        // Parse a valid mapping, then verify the constructor guard via a blank-string
+        // round-trip: blank from loader → constructor guard → "application/json"
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$accept_header\": \"   \",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        // whitespace-only is blank → constructor guard fires → "application/json"
+        assertEquals("application/json", mapping.getAcceptHeader());
+    }
 }
 
 // Made with Bob

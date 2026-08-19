@@ -39,7 +39,8 @@ public class RestApiMapping
      *            the authentication configuration parsed from "$authentication"
      * @param acceptHeader
      *            the value for the HTTP {@code Accept} header sent with every request
-     *            (from "{@code $accept_header}")
+     *            (from "{@code $accept_header}"); defaults to {@code "application/json"} if
+     *            {@code null} or blank
      * @param tables
      *            a map of table name to table definition
      * @param origin
@@ -55,7 +56,8 @@ public class RestApiMapping
         this.connectorDescription = connectorDescription;
         this.baseUrl = baseUrl;
         this.authConfig = authConfig != null ? authConfig : new AuthConfig();
-        this.acceptHeader = acceptHeader;
+        this.acceptHeader = (acceptHeader != null && !acceptHeader.isBlank())
+                ? acceptHeader : "application/json";
         this.tables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
         this.origin = origin != null
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(origin))
