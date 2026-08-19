@@ -174,10 +174,25 @@ public class DelegatingFlightProducer implements FlightProducer
         LOGGER.trace("getStream entry");
         try {
             final FlightProducer producer = producerCache.getIfPresent(ticket);
+            if (producer == null) {
+                throw new IllegalStateException(FlightMsgs.NO_PRODUCER_FOR_TICKET.format());
+            }
             producer.getStream(context, ticket, listener);
         }
         catch (Exception e) {
             LOGGER.error(e.getMessage(), e);
+            // listener.start() must be called before listener.error() on the Liberty
+            // gRPC servlet transport, otherwise the stream is never allocated and the
+            // transport throws "onStreamAllocated was not called".
+            try (org.apache.arrow.vector.VectorSchemaRoot emptyRoot =
+                    org.apache.arrow.vector.VectorSchemaRoot.create(
+                            new org.apache.arrow.vector.types.pojo.Schema(java.util.Collections.emptyList()),
+                            new org.apache.arrow.memory.RootAllocator(0))) {
+                listener.start(emptyRoot);
+            }
+            catch (Exception ignored) {
+                // If start() itself fails, fall through to error() anyway
+            }
             listener.error(CallStatus.INVALID_ARGUMENT.withDescription(e.getMessage()).withCause(e).toRuntimeException());
         }
         finally {

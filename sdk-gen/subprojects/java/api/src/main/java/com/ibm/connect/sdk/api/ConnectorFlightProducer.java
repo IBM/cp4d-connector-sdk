@@ -43,6 +43,7 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeAction;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
@@ -271,8 +272,23 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                                 = discovery.discoverAssets(assetsCriteria);
                         for (final CustomFlightAssetDescriptor sdkAsset : sdkAssets) {
                             completeAsset(sdkAsset);
-                            final FlightDescriptor flightDescriptor = FlightDescriptor.command(modelMapper.toBytes(sdkAsset));
                             final Schema schema = connector.getSchema(sdkAsset);
+                            final List<CustomFlightAssetField> fields = sdkAsset.getFields();
+                            LOGGER.info("[LISTFLIGHTS] asset={} fields={}",
+                                    sdkAsset.getName(), fields == null ? "null" : fields.size());
+                            if (fields != null) {
+                                for (final CustomFlightAssetField f : fields) {
+                                    LOGGER.info("[LISTFLIGHTS]   field name={} type={} length={}",
+                                            f.getName(), f.getType(), f.getLength());
+                                }
+                            }
+                            final byte[] descriptorBytes = modelMapper.toBytes(sdkAsset);
+                            LOGGER.info("[LISTFLIGHTS] serialised descriptor bytes={}", descriptorBytes.length);
+                            final CustomFlightAssetDescriptor deserialised
+                                    = modelMapper.fromBytes(descriptorBytes, CustomFlightAssetDescriptor.class);
+                            LOGGER.info("[LISTFLIGHTS] deserialised fields={}",
+                                    deserialised.getFields() == null ? "null" : deserialised.getFields().size());
+                            final FlightDescriptor flightDescriptor = FlightDescriptor.command(descriptorBytes);
                             final FlightInfo flightInfo = createFlightInfo(flightDescriptor, schema, Collections.emptyList());
                             listener.onNext(flightInfo);
                         }
@@ -335,8 +351,14 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                     connector.connect();
                     try (SdkInputInteraction interaction = connector.getInputInteraction(asset, null)) {
                         final Schema schema = interaction.getSchema();
-                        asset.setFields(Utils.getAssetFields(schema));
+                        // Do NOT call Utils.getAssetFields(schema) here — SDK connectors
+                        // populate fields via discoverAssets (already in the asset descriptor).
+                        // Utils.getAssetFields reads Arrow field metadata which ForgeSchemaBuilder
+                        // does not populate, so calling it would wipe out the correct fields.
                         final List<Ticket> tickets = interaction.getTickets();
+                        final List<CustomFlightAssetField> gfiFields = asset.getFields();
+                        LOGGER.info("[GETFLIGHTINFO] asset={} fields={}",
+                                asset.getName(), gfiFields == null ? "null" : gfiFields.size());
                         return createFlightInfo(FlightDescriptor.command(modelMapper.toBytes(asset)), schema, tickets);
                     }
                 }
