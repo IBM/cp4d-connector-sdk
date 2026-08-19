@@ -217,7 +217,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
 
         // Add authentication headers if provided
         if (authHeaders != null && !authHeaders.isEmpty()) {
-            for (final java.util.Map.Entry<String, String> header : authHeaders.entrySet()) {
+            for (final Map.Entry<String, String> header : authHeaders.entrySet()) {
                 requestBuilder.header(header.getKey(), header.getValue());
                 LOGGER.debug("Adding authentication header: {}", header.getKey());
             }

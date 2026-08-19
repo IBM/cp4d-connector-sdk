@@ -487,6 +487,88 @@ public class TestAdvancedFeatures
         assertEquals("address.city", fields.get(2).getName());
         assertEquals("address.country", fields.get(3).getName());
     }
+    // -------------------------------------------------------------------------
+    // Legacy string-form $authentication backward-compatibility
+    // -------------------------------------------------------------------------
+
+    /**
+     * Legacy: "$authentication": "none" — no headers, type NONE.
+     */
+    @Test
+    public void testLegacyStringFormNone() throws Exception
+    {
+        final String json = "{ \"$hostname\": \"https://api.example.com\","
+                + " \"$authentication\": \"none\","
+                + " \"$tables\": {} }";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(AuthenticationType.NONE, mapping.getAuthConfig().getType());
+        assertTrue(mapping.getAuthConfig().getHeaders().isEmpty());
+    }
+
+    /**
+     * Legacy: "$authentication": "api_key" — expands to Authorization: ApiKey $api_key.
+     */
+    @Test
+    public void testLegacyStringFormApiKey() throws Exception
+    {
+        final String json = "{ \"$hostname\": \"https://api.example.com\","
+                + " \"$authentication\": \"api_key\","
+                + " \"$tables\": {} }";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(AuthenticationType.API_KEY, mapping.getAuthConfig().getType());
+        final List<AuthConfig.HeaderDef> headers = mapping.getAuthConfig().getHeaders();
+        assertEquals(1, headers.size());
+        assertEquals("api_key", headers.get(0).getName());
+        assertEquals("Authorization", headers.get(0).getHeader());
+        assertEquals("ApiKey $api_key", headers.get(0).getValue());
+        assertTrue(headers.get(0).isMasked());
+    }
+
+    /**
+     * Legacy: "$authentication": "oauth2" — expands to Authorization: Bearer $bearer_token.
+     */
+    @Test
+    public void testLegacyStringFormOAuth2() throws Exception
+    {
+        final String json = "{ \"$hostname\": \"https://api.example.com\","
+                + " \"$authentication\": \"oauth2\","
+                + " \"$tables\": {} }";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(AuthenticationType.OAUTH2, mapping.getAuthConfig().getType());
+        final List<AuthConfig.HeaderDef> headers = mapping.getAuthConfig().getHeaders();
+        assertEquals(1, headers.size());
+        assertEquals("bearer_token", headers.get(0).getName());
+        assertEquals("Authorization", headers.get(0).getHeader());
+        assertEquals("Bearer $bearer_token", headers.get(0).getValue());
+        assertTrue(headers.get(0).isMasked());
+    }
+
+    /**
+     * Legacy: "$authentication": "basic" — expands to two header defs:
+     * the username entry with the base64 template, and the UI-only password entry.
+     */
+    @Test
+    public void testLegacyStringFormBasic() throws Exception
+    {
+        final String json = "{ \"$hostname\": \"https://api.example.com\","
+                + " \"$authentication\": \"basic\","
+                + " \"$tables\": {} }";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(AuthenticationType.BASIC, mapping.getAuthConfig().getType());
+        final List<AuthConfig.HeaderDef> headers = mapping.getAuthConfig().getHeaders();
+        assertEquals(2, headers.size());
+
+        // First entry: produces the Authorization header
+        assertEquals("username", headers.get(0).getName());
+        assertEquals("Authorization", headers.get(0).getHeader());
+        assertEquals("Basic base64($username:$password)", headers.get(0).getValue());
+
+        // Second entry: UI-only password field — no HTTP header produced
+        assertEquals("password", headers.get(1).getName());
+        assertNull(headers.get(1).getHeader());
+        assertNull(headers.get(1).getValue());
+        assertTrue(headers.get(1).isMasked());
+    }
 }
 
 // Made with Bob

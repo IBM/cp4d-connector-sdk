@@ -43,7 +43,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeAction;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
-import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;

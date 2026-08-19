@@ -247,7 +247,7 @@ public class RestInputInteraction implements SdkInputInteraction
      *            the connection properties map supplying placeholder values
      * @return the fully-resolved string, or {@code null} if a required placeholder is missing
      */
-    private static String resolveTemplate(String template, Map<String, Object> props)
+    static String resolveTemplate(String template, Map<String, Object> props)
     {
         // Step 1 — substitute all $name placeholders
         final Matcher varMatcher = VAR_PATTERN.matcher(template);

@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -260,15 +261,15 @@ public class RestApiMappingLoader
         case NONE:
             return new AuthConfig();
         case API_KEY:
-            return new AuthConfig(type, java.util.Arrays.asList(
+            return new AuthConfig(type, Arrays.asList(
                     new HeaderDef("api_key", "API Key", "Your API key",
                             true, "Authorization", "ApiKey $api_key")));
         case OAUTH2:
-            return new AuthConfig(type, java.util.Arrays.asList(
+            return new AuthConfig(type, Arrays.asList(
                     new HeaderDef("bearer_token", "Bearer Token", "OAuth 2.0 access token",
                             true, "Authorization", "Bearer $bearer_token")));
         case BASIC:
-            return new AuthConfig(type, java.util.Arrays.asList(
+            return new AuthConfig(type, Arrays.asList(
                     new HeaderDef("username", "Username", "Username", false,
                             "Authorization", "Basic base64($username:$password)"),
                     new HeaderDef("password", "Password", "Password", true, null, null)));

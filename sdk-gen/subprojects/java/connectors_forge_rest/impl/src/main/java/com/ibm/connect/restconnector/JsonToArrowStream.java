@@ -146,7 +146,7 @@ public class JsonToArrowStream implements Closeable
                 throw new IOException("HTTP request failed with status " + response.statusCode());
             }
 
-            final java.net.http.HttpHeaders headers = response.headers();
+            final HttpHeaders headers = response.headers();
 
             // For link_header pagination, extract next URL from response headers
             if (paginationConfig != null && "link_header".equals(paginationConfig.getType())) {
