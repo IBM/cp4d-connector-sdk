@@ -38,6 +38,24 @@ def latestTag = 'latest'
 def latestPullTag = 'latest-pull'
 def personalTagPrefix = 'personal-'
 
+// Validates that a docker image reference (registry host, image name, tag, or prefix)
+// contains only characters legal in OCI image references. Rejects shell metacharacters,
+// whitespace, and other characters that have no place in a registry hostname or image name.
+// Allowed: lowercase/uppercase letters, digits, '.', '-', '_', '/', ':', '@'
+def validateImageRef = { String value, String propertyName ->
+  if (value && !value.matches('[a-zA-Z0-9._\\-/:@]+')) {
+    throw new GradleException(
+    "Invalid value for '${propertyName}': '${value}'. " +
+    "Image references must contain only alphanumerics and [ . - _ / : @ ]."
+    )
+  }
+  value
+}
+
+docker.validateImageRef = validateImageRef
+
+def imageRegistryPrefix = repos.imageRegistryPrefix ? "${validateImageRef(repos.imageRegistryPrefix, 'image.registry.prefix')}/" : ''
+
 docker.dockerCheck = {
   requireExecutablesInPath(containerCli())
 }
@@ -114,11 +132,11 @@ docker.login = { String username, String password, String server ->
 }
 
 docker.hostname = {
-  docker.dockerCommandStdout('run', '--net=host', '--rm', 'busybox:latest', 'hostname', '-s')
+  docker.dockerCommandStdout('run', '--net=host', '--rm', "${imageRegistryPrefix}busybox:latest", 'hostname', '-s')
 }
 
 docker.ipaddress = {
-  docker.dockerCommandStdout('run', '--net=host', '--rm', 'busybox:latest', 'ip', 'route', 'get', '1').tokenize(' ').last()
+  docker.dockerCommandStdout('run', '--net=host', '--rm', "${imageRegistryPrefix}busybox:latest", 'ip', 'route', 'get', '1').tokenize(' ').last()
 }
 
 docker.imageUpToDate = { String imageName, String imageTag ->

@@ -10,6 +10,24 @@ bundle.flight.uri=<external uri reachable from cloud>
 bundle.flight.ssl_certificate=<ssl certificate>
 bundle.flight.ssl_certificate_validation=true
 
+# Configuration properties for file-s3
+file_s3.s3.bucket=<S3 bucket name>
+file_s3.s3.region=<AWS region, e.g. us-east-1>
+file_s3.s3.access_key_id=<AWS access key ID>
+file_s3.s3.secret_access_key=<AWS secret access key>
+# Optional: custom endpoint for S3-compatible stores (MinIO, LocalStack)
+# file_s3.s3.endpoint_url=http://localhost:9000
+# Test data — objects that must already exist in the bucket:
+file_s3.s3.test_folder=<prefix of a non-empty folder, e.g. test-data/>
+file_s3.s3.test_csv_key=<key of a CSV object, e.g. test-data/cars.csv>
+file_s3.s3.test_binary_key=<key of a binary object, e.g. test-data/logo.png>
+file_s3.flight.port=<port number>
+file_s3.flight.ssl=true
+file_s3.flight.createLocal=true
+file_s3.flight.uri=grpc+tls://localhost:443
+file_s3.flight.ssl_certificate=<ssl certificate>
+file_s3.flight.ssl_certificate_validation=true
+
 # Configuration properties for file-github
 file_github.github.host=<GitHub host>
 file_github.github.repository_owner=<repository owner>

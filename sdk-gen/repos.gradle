@@ -54,5 +54,6 @@ def dockerTargetInfo = [
 repos += [
   maven: mavenInfo,
   docker: dockerInfo,
-  dockerTarget: dockerTargetInfo
+  dockerTarget: dockerTargetInfo,
+  imageRegistryPrefix: System.getProperty('image.registry.prefix', '')
 ]

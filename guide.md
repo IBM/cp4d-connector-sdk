@@ -804,23 +804,46 @@ Verify that the project builds successfully:
 
 ## 3. Build a Docker image.
 
-Before you can build a Docker image, the Docker service must be running. Consider starting it in a separate terminal so that its log messages do not clutter your development terminal:
+Before you can build a Docker image, the container runtime must be running.
 
-`systemctl start docker`
+**macOS (Podman — recommended)**
 
-Or for Windows Subsystem for Linux with Ubuntu:
+On macOS, Podman runs inside a lightweight Linux VM called a Podman machine. Check whether it is running and start it if needed:
 
-`sudo dockerd`
+```bash
+# Check status
+podman machine list
 
-Once the Docker service is running, you can build a Docker image:
+# Start if stopped
+podman machine start
+
+# Verify
+podman info | grep -E "host:|os:"
+```
+
+The `docker` command on macOS with Podman Desktop is already aliased to `podman`, so no further configuration is needed.
+
+**Linux (systemd)**
+
+```bash
+systemctl start docker
+```
+
+**Windows Subsystem for Linux (WSL2 / Ubuntu)**
+
+```bash
+sudo dockerd
+```
+
+Once the container runtime is running, build the image:
 
 `./gradlew dockerBuild`
 
-To use Podman instead of Docker:
+To use Podman instead of Docker on Linux or WSL2:
 
 `./gradlew dockerBuild -Pcontainer.cli=podman`
 
-Or to avoid having to specify the option every time, add the following property in the `.gradle/gradle.properties` file of your home directory:
+Or to avoid specifying the option every time, add the following property to the `.gradle/gradle.properties` file in your home directory:
 
 ```
 systemProp.container.cli=podman
@@ -846,9 +869,12 @@ If you have created more than one Flight server project, specify the project of 
 
 ## 5. Register your Flight service in Cloud Pak for Data.
 
-Get the SSL certificate of the deployed Flight service, for example:
+Get the SSL certificate of the deployed Flight service. First, create the output directory if it does not exist, then export the certificate. Replace `<your-flight-project>` with your generated Flight project name (for example `s3-connector-flight-standalone`):
 
-`keytool -printcert -sslserver localhost:443 -rfc > subprojects/flight/flight.pem`
+```bash
+mkdir -p subprojects/<your-flight-project>
+keytool -printcert -sslserver localhost:443 -rfc > subprojects/<your-flight-project>/flight.pem
+```
 
 Create a configuration file that points sdk to a specific environment by duplicating `src/dist/resources/payload/envs/template.properties` filling it with desired properties and giving it a name of your choosing e.g. `myEnv.properties`
 
@@ -1701,6 +1727,19 @@ systemProp.repos.docker.url
 systemProp.repos.docker.username
 systemProp.repos.docker.password
 ```
+
+To pull base images from a specific registry (for example, an internal mirror), set `image.registry.prefix` in `~/.gradle/gradle.properties`:
+
+```
+systemProp.image.registry.prefix=my.internal.registry.com/dockerhub-proxy
+```
+
+Or pass it on the command line:
+
+```bash
+./gradlew dockerBuild -Dimage.registry.prefix=my.internal.registry.com/dockerhub-proxy
+```
+
 ## Registration
 Registration of newly deployed connectors can be done via the connections service API which first queries your Flight server for connectors and then creates a custom datasource type for each. Your Flight server provides the list of available connectors by responding to the `list_datasource_types` action. There is a dedicated Gradle task which can be used to trigger registration.
 

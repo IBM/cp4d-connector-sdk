@@ -96,8 +96,9 @@ spotless {
     target fileTree(dir: "${project.projectDir}", include: '**/*.gradle', excludes: [
       '.gradle/**/*',
       '**/bin/**/*',
-      '**/build/**/*'
-    ]).files
+      '**/build/**/*',
+      '**/node_modules/**/*'
+    ])
     endWithNewline()
     trimTrailingWhitespace()
     def groovyEclipseConfigFile = file("$rootDir/config/spotless/groovy.xml")
@@ -105,6 +106,15 @@ spotless {
     if (groovyEclipseConfigFile.exists() && groovyEclipsePropertiesFile.exists()) {
       greclipse().configFile(groovyEclipseConfigFile.absolutePath, groovyEclipsePropertiesFile.absolutePath)
     }
+  }
+}
+
+// Ensure spotless does not race with npmInstall writing into the sdk-gen subtree
+afterEvaluate {
+  def npmTask = project.tasks.findByPath(':wdp-connect-sdk-gen-java-api-models:npmInstall')
+  if (npmTask) {
+    tasks.named('spotlessGroovyGradle') { mustRunAfter npmTask }
+    tasks.named('spotlessGroovyGradleApply') { mustRunAfter npmTask }
   }
 }
 
@@ -208,13 +218,14 @@ subprojects {
         }
       }
 
-      def imageRegistry = project.properties['image.registry'] ?: 'index.docker.io/v1'
-      def imageTargetRegistry = project.properties['target.image.registry'] ?: imageRegistry
+      def imageRegistry = project.properties['image.registry'] ? docker.validateImageRef(project.properties['image.registry'], 'image.registry') : 'index.docker.io/v1'
+      def imageTargetRegistry = project.properties['target.image.registry'] ? docker.validateImageRef(project.properties['target.image.registry'], 'target.image.registry') : imageRegistry
       def imageTargetProject = project.properties['target.image.project']
       def dockerUrl = project.properties['image.registry'] ? "https://${imageRegistry}" : repos.docker.url ?: "https://${imageRegistry}"
       def dockerTargetUrl = project.properties['target.image.registry'] ? "https://${imageTargetRegistry}" : repos.dockerTarget.url ?: "https://${imageTargetRegistry}"
-      def ubiimageName = project.properties['image.name'] ?: isWarProject ? "ibmcom/websphere-liberty" : "ibm-semeru-runtimes"
-      def ubibaseimageTag = project.properties['image.tag'] ?: isWarProject ? 'kernel-java17-openj9-ubi' : 'open-17-jre'
+      def imageRegistryPrefix = repos.imageRegistryPrefix ? "${repos.imageRegistryPrefix}/" : ''
+      def ubiimageName = project.properties['image.name'] ? docker.validateImageRef(project.properties['image.name'], 'image.name') : isWarProject ? "${imageRegistryPrefix}ibmcom/websphere-liberty" : "${imageRegistryPrefix}ibm-semeru-runtimes"
+      def ubibaseimageTag = project.properties['image.tag'] ? docker.validateImageRef(project.properties['image.tag'], 'image.tag') : isWarProject ? 'kernel-java17-openj9-ubi' : 'open-17-jre'
 
       def microServiceUBIImageName = microServiceAppName
       def microServiceImageTag = project.properties['target.image.tag'] ?: project.version.toString()

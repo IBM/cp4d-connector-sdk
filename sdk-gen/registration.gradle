@@ -116,7 +116,9 @@ subprojects {
                   registrationProperties.setProperty("authToken", resp.token)
                 }
               }else {
-                throw new GradleException(new JsonSlurper().parseText(req.getErrorStream().getText()).toString())
+                def errText = req.getErrorStream().getText("UTF-8")
+                logger.error "HTTP ${req.getResponseCode()} error body: ${errText}"
+                throw new GradleException("Authentication failed (HTTP ${req.getResponseCode()}): ${errText}")
               }
             }
           } finally {
@@ -141,7 +143,6 @@ subprojects {
             req.setRequestProperty("User-Agent","ConnectivitySDK")
             req.setRequestProperty("Authorization", "Bearer "+ registrationProperties.getProperty("authToken"))
             req.setRequestProperty("Accept-Language", "en")
-            req.setRequestProperty("Accept-Encoding", "gzip, deflate, br")
             req.setRequestProperty("Accept", "application/json")
             req.setRequestProperty("Content-Type", "application/json")
             def body = new JsonSlurper().parseText('{ "origin_country":"us", "flight_info": { "flight_uri": "", "ssl_certificate": "","ssl_certificate_validation": false } }')
@@ -162,7 +163,9 @@ subprojects {
             if(100 <= req.getResponseCode() && req.getResponseCode() <= 399) {
               logger.debug "Response: "+ new JsonSlurper().parseText(req.getInputStream().getText().toString())
             }else {
-              throw new GradleException(new JsonSlurper().parseText(req.getErrorStream().getText()).toString())
+              def errText = req.getErrorStream().getText("UTF-8")
+              logger.error "HTTP ${req.getResponseCode()} error body: ${errText}"
+              throw new GradleException("Registration failed (HTTP ${req.getResponseCode()}): ${errText}")
             }
           } finally {
             reinitSSL()
