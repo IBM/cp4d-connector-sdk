@@ -1,0 +1,32 @@
+// Shared Maven publishing configuration for SDK library subprojects.
+//
+// Apply from each subproject that should be published:
+//   apply from: "${rootProject.projectDir}/publish.gradle"
+//
+// Pass Artifactory credentials at publish time via system properties:
+//   -Drepos.maven.url=https://na-public.artifactory.swg-devops.com/artifactory/hyc-ug-team-thirdparty-maven-local
+//   -Drepos.maven.username=<your-user>
+//   -Drepos.maven.password=<your-api-key>
+//
+// Falls back to mavenLocal() when no remote URL is configured (useful for local testing).
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      from components.java
+    }
+  }
+  repositories {
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenLocal()
+    }
+  }
+}
