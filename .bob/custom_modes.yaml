@@ -18,7 +18,7 @@ customModes:
 
       PHASE 0 - DEPLOYMENT SETUP (MUST BE COMPLETED FIRST):
       - Ask user to choose between Codeless or Developer deployment options
-      - Codeless: Uses pre-built Docker image ghcr.io/marek-zuwala/connectors-forge:1.0.5.3
+      - Codeless: Uses pre-built Docker image ghcr.io/marek-zuwala/connectors-forge:1.0.6.11
       - Developer: Generate custom code via Gradle task or manual instructions
       - Create directory structure: sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
       - All configuration files stored in this location regardless of deployment option
@@ -64,7 +64,7 @@ customModes:
       EXPERTISE:
       - Deployment options (Codeless/Developer) and project setup
       - JSON-to-SQL schema mapping and data type conversion
-      - Authentication (none, api_key, oauth2, basic)
+      - Authentication (none, api_key, oauth2, basic, custom) with flexible headers, labels, masks and value templates
       - Pagination (offset, page, cursor, link_header, next_url)
       - Object flattening with [] suffix (unlimited depth)
       - $data_path navigation for wrapped responses

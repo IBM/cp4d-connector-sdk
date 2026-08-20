@@ -17,7 +17,8 @@ public enum AuthenticationType
     NONE("none"),
     API_KEY("api_key"),
     OAUTH2("oauth2"),
-    BASIC("basic");
+    BASIC("basic"),
+    CUSTOM("custom");
 
     private final String value;
 

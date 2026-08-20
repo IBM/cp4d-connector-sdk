@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -26,6 +27,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 
@@ -67,76 +69,34 @@ public class JsonToArrowStream implements Closeable
     private final String dataPath;
     private final List<RestFieldDefinition> fieldDefs;
     private final Map<String, String> authHeaders;
+    private final String acceptHeader;
     private final PaginationConfig paginationConfig;
     private final ObjectMapper objectMapper;
 
     /**
-     * Creates a streaming instance for the given URL and field definitions.
-     *
-     * @param url
-     *            the full URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
-     * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
-     */
-    public JsonToArrowStream(String url, List<RestFieldDefinition> fieldDefs)
-    {
-        this(url, null, fieldDefs, null, null);
-    }
-
-    /**
-     * Creates a streaming instance with authentication headers.
-     *
-     * @param url
-     *            the full URL to fetch
-     * @param fieldDefs
-     *            the field definitions
-     * @param authHeaders
-     *            optional authentication headers (may be null)
-     */
-    public JsonToArrowStream(String url, List<RestFieldDefinition> fieldDefs, Map<String, String> authHeaders)
-    {
-        this(url, null, fieldDefs, authHeaders, null);
-    }
-
-    /**
-     * Creates a streaming instance with data path and authentication headers.
-     *
-     * @param url
-     *            the full URL to fetch
-     * @param dataPath
-     *            optional JSON path to the data array (e.g. "result" for {"result": [...]})
-     * @param fieldDefs
-     *            the field definitions
-     * @param authHeaders
-     *            optional authentication headers (may be null)
-     */
-    public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
-            Map<String, String> authHeaders)
-    {
-        this(url, dataPath, fieldDefs, authHeaders, null);
-    }
-
-    /**
-     * Creates a streaming instance with full configuration including pagination support.
+     * Creates a streaming instance with full configuration.
      *
      * @param url
      *            the base URL to fetch
      * @param dataPath
-     *            optional JSON path to the data array
+     *            optional JSON path to the data array (may be null)
      * @param fieldDefs
      *            the field definitions
      * @param authHeaders
      *            optional authentication headers (may be null)
      * @param paginationConfig
      *            optional pagination configuration (may be null for non-paginated APIs)
+     * @param acceptHeader
+     *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
      */
     public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
-            Map<String, String> authHeaders, PaginationConfig paginationConfig)
+            Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader)
     {
         this.baseUrl = url;
         this.dataPath = dataPath;
         this.fieldDefs = fieldDefs;
         this.authHeaders = authHeaders;
+        this.acceptHeader = acceptHeader;
         this.paginationConfig = paginationConfig;
         this.objectMapper = new ObjectMapper();
     }
@@ -186,7 +146,7 @@ public class JsonToArrowStream implements Closeable
                 throw new IOException("HTTP request failed with status " + response.statusCode());
             }
 
-            final java.net.http.HttpHeaders headers = response.headers();
+            final HttpHeaders headers = response.headers();
 
             // For link_header pagination, extract next URL from response headers
             if (paginationConfig != null && "link_header".equals(paginationConfig.getType())) {
@@ -441,7 +401,7 @@ public class JsonToArrowStream implements Closeable
         final HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .header("Accept", "application/json")
+                .header("Accept", acceptHeader)
                 .header("User-Agent", "CP4D-REST-Connector/1.0")
                 .GET();
         if (authHeaders != null) {
@@ -521,9 +481,9 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    private static String extractLinkHeader(java.net.http.HttpHeaders headers)
+    private static String extractLinkHeader(HttpHeaders headers)
     {
-        final java.util.Optional<String> linkHeader = headers.firstValue("Link");
+        final Optional<String> linkHeader = headers.firstValue("Link");
         if (!linkHeader.isPresent()) {
             return null;
         }

@@ -13,10 +13,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.ibm.connect.restconnector.AuthConfig.HeaderDef;
 
 import org.slf4j.Logger;
 
@@ -60,6 +63,7 @@ public class RestApiMappingLoader
     private static final String ORIGIN_KEY = "$origin";
     private static final String HOSTNAME_KEY = "$hostname";
     private static final String AUTHENTICATION_KEY = "$authentication";
+    private static final String ACCEPT_HEADER_KEY = "$accept_header";
     private static final String TABLES_KEY = "$tables";
     private static final String PATH_KEY = "$path";
     private static final String DATA_PATH_KEY = "$data_path";
@@ -129,14 +133,15 @@ public class RestApiMappingLoader
         final JsonNode root = MAPPER.readTree(jsonContent);
         final ConnectorMetadata metadata = parseConnectorMetadata(root);
         final String baseUrl = parseBaseUrl(root);
-        final AuthenticationType authenticationType = parseAuthenticationType(root);
+        final AuthConfig authConfig = parseAuthConfig(root);
+        final String acceptHeader = getTextOrDefault(root, ACCEPT_HEADER_KEY, "application/json");
         final Map<String, RestTableDefinition> tables = parseTables(root);
         final Map<String, String> origin = parseOrigin(root);
 
-        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables",
-                metadata.connectorName, authenticationType.getValue(), tables.size());
+        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', acceptHeader='{}', {} tables",
+                metadata.connectorName, authConfig.getType().getValue(), acceptHeader, tables.size());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authenticationType, tables, origin);
+                baseUrl, authConfig, acceptHeader, tables, origin);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
@@ -178,14 +183,108 @@ public class RestApiMappingLoader
         return hostnameNode.asText();
     }
 
-    private static AuthenticationType parseAuthenticationType(JsonNode root) throws IOException
+    private static AuthConfig parseAuthConfig(JsonNode root) throws IOException
     {
-        final String rawAuthenticationType = getTextOrDefault(root, AUTHENTICATION_KEY, AuthenticationType.NONE.getValue());
+        final JsonNode authNode = root.get(AUTHENTICATION_KEY);
+
+        // Missing or null → no authentication
+        if (authNode == null || authNode.isNull()) {
+            return new AuthConfig();
+        }
+
+        // Legacy string form: "$authentication": "api_key" (or "oauth2", "basic", "none")
+        // Expand to the canonical object form with default header definitions.
+        if (authNode.isTextual()) {
+            LOGGER.info("Detected legacy string-form '$authentication': '{}' — expanding to default object form",
+                    authNode.asText());
+            return buildDefaultAuthConfig(authNode.asText());
+        }
+
+        // Must be an object: { "type": "...", "headers": [...] }
+        if (!authNode.isObject()) {
+            throw new IOException(
+                    "The '$authentication' field must be a JSON object with a 'type' field.");
+        }
+
+        final String rawType = getTextOrDefault(authNode, "type", AuthenticationType.NONE.getValue());
+        final AuthenticationType type;
         try {
-            return AuthenticationType.fromValue(rawAuthenticationType);
+            type = AuthenticationType.fromValue(rawType);
         } catch (IllegalArgumentException e) {
             throw new IOException("Invalid authentication type in configuration: " + e.getMessage(), e);
         }
+
+        if (type == AuthenticationType.NONE) {
+            return new AuthConfig();
+        }
+
+        final JsonNode headersNode = authNode.get("headers");
+        if (headersNode == null || !headersNode.isArray() || headersNode.size() == 0) {
+            throw new IOException(
+                    "Authentication type '" + rawType + "' requires a non-empty 'headers' array.");
+        }
+
+        final List<HeaderDef> headers = new ArrayList<>();
+        for (final JsonNode hNode : headersNode) {
+            if (!hNode.isObject()) {
+                throw new IOException("Each entry in '$authentication.headers' must be a JSON object.");
+            }
+            final String name   = requireText(hNode, "name",  "'$authentication.headers' entry");
+            final String label  = getTextOrDefault(hNode, "label",  name);
+            final String desc   = getTextOrDefault(hNode, "description", "");
+            final boolean masked = hNode.hasNonNull("masked") && hNode.get("masked").asBoolean();
+            final String header = parseOptionalText(hNode, "header");
+            final String value  = parseOptionalText(hNode, "value");
+            headers.add(new HeaderDef(name, label, desc, masked, header, value));
+        }
+
+        return new AuthConfig(type, headers);
+    }
+
+    /**
+     * Builds a default {@link AuthConfig} from a legacy bare-string authentication type.
+     *
+     * <p>Handles backward compatibility for configs that specify {@code "$authentication": "api_key"}
+     * (or {@code "oauth2"}, {@code "basic"}, {@code "none"}) rather than the current object form.
+     * Each type is expanded to the canonical object form with sensible default header definitions.
+     */
+    private static AuthConfig buildDefaultAuthConfig(String rawType) throws IOException
+    {
+        final AuthenticationType type;
+        try {
+            type = AuthenticationType.fromValue(rawType);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid authentication type in configuration: " + e.getMessage(), e);
+        }
+
+        switch (type) {
+        case NONE:
+            return new AuthConfig();
+        case API_KEY:
+            return new AuthConfig(type, Arrays.asList(
+                    new HeaderDef("api_key", "API Key", "Your API key",
+                            true, "Authorization", "ApiKey $api_key")));
+        case OAUTH2:
+            return new AuthConfig(type, Arrays.asList(
+                    new HeaderDef("bearer_token", "Bearer Token", "OAuth 2.0 access token",
+                            true, "Authorization", "Bearer $bearer_token")));
+        case BASIC:
+            return new AuthConfig(type, Arrays.asList(
+                    new HeaderDef("username", "Username", "Username", false,
+                            "Authorization", "Basic base64($username:$password)"),
+                    new HeaderDef("password", "Password", "Password", true, null, null)));
+        default:
+            throw new IOException("No default header definitions for authentication type: " + rawType);
+        }
+    }
+
+    private static String requireText(JsonNode node, String key, String context) throws IOException
+    {
+        final JsonNode child = node.get(key);
+        if (child == null || child.isNull() || child.asText().isEmpty()) {
+            throw new IOException("Missing required field '" + key + "' in " + context + ".");
+        }
+        return child.asText();
     }
 
     private static Map<String, RestTableDefinition> parseTables(JsonNode root) throws IOException

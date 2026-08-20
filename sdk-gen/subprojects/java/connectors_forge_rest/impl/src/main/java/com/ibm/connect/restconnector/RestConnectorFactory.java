@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
@@ -31,7 +32,7 @@ import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
  */
 public class RestConnectorFactory implements SdkConnectorFactory
 {
-    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(RestConnectorFactory.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(RestConnectorFactory.class);
     private static final RestConnectorFactory INSTANCE = new RestConnectorFactory();
 
     /** Default directory for configuration files */

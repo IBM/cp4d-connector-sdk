@@ -70,7 +70,7 @@
   "$connector_label": "SpaceX API",
   "$connector_description": "Connector for SpaceX public REST API - provides access to rockets, launches, capsules, and more",
   "$hostname": "https://api.spacexdata.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "ROCKETS": {
       "$path": ["/v4/rockets"],
@@ -138,7 +138,9 @@
     <title>API with API Key Authentication</title>
     <description>
       Example API requiring API Key authentication.
-      Demonstrates authentication configuration.
+      The $authentication block uses the uniform headers-array format.
+      The "name" field is the connection-property key (what CP4D asks the user to fill in)
+      and also the $var placeholder used inside the "value" template.
     </description>
 
     <api_info>
@@ -173,9 +175,21 @@
   "$connector_label": "Example API Key Authentication",
   "$connector_description": "Example REST API connector using API Key authentication",
   "$hostname": "https://api.example.com",
-  "$authentication": "api_key",
+  "$authentication": {
+    "type": "api_key",
+    "headers": [
+      {
+        "name": "api_key",
+        "label": "API Key",
+        "description": "Your API key",
+        "masked": true,
+        "header": "Authorization",
+        "value": "ApiKey $api_key"
+      }
+    ]
+  },
   "$tables": {
-    "users": {
+    "USERS": {
       "$path": ["/v1/users"],
       "id": "INTEGER,$key",
       "username": "VARCHAR",
@@ -183,7 +197,6 @@
       "created_at": "TIMESTAMP",
       "is_active": "BOOLEAN",
       "profile[]": {"first_name": "VARCHAR", "last_name": "VARCHAR", "avatar_url": "VARCHAR"}
-      }
     }
   }
 }
@@ -192,10 +205,19 @@
 
     <mapping_decisions>
       <decision>
-        <field>$authentication</field>
+        <field>$authentication.type</field>
         <value>api_key</value>
         <reason>API requires API Key in Authorization header</reason>
-        <note>User will provide api_key when creating connection</note>
+      </decision>
+      <decision>
+        <field>$authentication.headers[0].name</field>
+        <value>api_key</value>
+        <reason>Connection-property key. CP4D will prompt the user for "API Key" and store it under this key.</reason>
+      </decision>
+      <decision>
+        <field>$authentication.headers[0].value</field>
+        <value>"ApiKey $api_key"</value>
+        <reason>Header value template. $api_key is replaced at runtime with the user-supplied connection property.</reason>
       </decision>
       <decision>
         <field>id</field>
@@ -252,7 +274,7 @@
   "$connector_label": "NBP API",
   "$connector_description": "Connector for Polish National Bank (NBP) public REST API providing exchange rates and gold prices",
   "$hostname": "https://api.nbp.pl",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "GOLD_PRICES": {
       "$path": ["/api/cenyzlota/last/50"],
@@ -289,6 +311,8 @@
     <title>API with OAuth2 Bearer Token</title>
     <description>
       Example API using OAuth2 Bearer Token authentication.
+      The bearer_token connection property is placed into the Authorization header
+      via the value template "Bearer $bearer_token".
     </description>
 
     <api_info>
@@ -304,9 +328,21 @@
   "$connector_label": "Example OAuth2 Authentication",
   "$connector_description": "Example REST API connector using OAuth2 Bearer Token authentication",
   "$hostname": "https://api.example.com",
-  "$authentication": "oauth2",
+  "$authentication": {
+    "type": "oauth2",
+    "headers": [
+      {
+        "name": "bearer_token",
+        "label": "Bearer Token",
+        "description": "OAuth 2.0 access token",
+        "masked": true,
+        "header": "Authorization",
+        "value": "Bearer $bearer_token"
+      }
+    ]
+  },
   "$tables": {
-    "customers": {
+    "CUSTOMERS": {
       "$path": ["/v2/customers"],
       "customer_id": "INTEGER,$key",
       "first_name": "VARCHAR",
@@ -329,7 +365,12 @@
   <example name="basic_authentication">
     <title>API with Basic Authentication</title>
     <description>
-      Example API using HTTP Basic authentication (username/password).
+      Example API using HTTP Basic authentication (username + password).
+
+      The password entry has "header": null and "value": null — it is a UI-only field
+      whose value is consumed by the $password placeholder inside the username entry's
+      "Basic base64($username:$password)" template. The engine base64-encodes the
+      interpolated inner expression before writing the Authorization header.
     </description>
 
     <api_info>
@@ -345,9 +386,29 @@
   "$connector_label": "Example Basic Authentication",
   "$connector_description": "Example REST API connector using Basic (username/password) authentication",
   "$hostname": "https://api.example.com",
-  "$authentication": "basic",
+  "$authentication": {
+    "type": "basic",
+    "headers": [
+      {
+        "name": "username",
+        "label": "Username",
+        "description": "Your username",
+        "masked": false,
+        "header": "Authorization",
+        "value": "Basic base64($username:$password)"
+      },
+      {
+        "name": "password",
+        "label": "Password",
+        "description": "Your password",
+        "masked": true,
+        "header": null,
+        "value": null
+      }
+    ]
+  },
   "$tables": {
-    "employees": {
+    "EMPLOYEES": {
       "$path": ["/api/employees"],
       "employee_id": "INTEGER,$key",
       "first_name": "VARCHAR",
@@ -364,9 +425,257 @@
     </configuration>
 
     <note>
-      Connector automatically Base64-encodes username:password combination.
-      User provides username and password separately when creating connection.
+      The connector base64-encodes the username:password combination automatically
+      via the base64(...) template syntax. The password field (header: null, value: null)
+      is collected from the user in the CP4D UI but does not produce a header directly.
     </note>
+  </example>
+
+  <example name="custom_authentication">
+    <title>API with Custom Authentication Headers</title>
+    <description>
+      Some APIs require multiple non-standard authentication headers.
+      Use type "custom" with as many header entries as needed.
+      Each entry maps a connection property to an arbitrary HTTP header.
+    </description>
+
+    <api_info>
+      <base_url>https://api.example.com</base_url>
+      <authentication>custom</authentication>
+      <auth_headers>
+        X-API-Key: YOUR_KEY
+        X-Tenant-ID: YOUR_TENANT
+      </auth_headers>
+    </api_info>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "example-custom-auth-connector",
+  "$connector_label": "Example Custom Authentication",
+  "$connector_description": "Example REST API connector using custom authentication headers",
+  "$hostname": "https://api.example.com",
+  "$authentication": {
+    "type": "custom",
+    "headers": [
+      {
+        "name": "x_api_key",
+        "label": "API Key",
+        "description": "Your primary API key",
+        "masked": true,
+        "header": "X-API-Key",
+        "value": "$x_api_key"
+      },
+      {
+        "name": "x_tenant_id",
+        "label": "Tenant ID",
+        "description": "Your tenant identifier",
+        "masked": false,
+        "header": "X-Tenant-ID",
+        "value": "$x_tenant_id"
+      }
+    ]
+  },
+  "$tables": {
+    "ORDERS": {
+      "$path": ["/api/orders"],
+      "order_id": "INTEGER,$key",
+      "customer_id": "INTEGER",
+      "status": "VARCHAR",
+      "created_at": "TIMESTAMP",
+      "total_amount": "DECIMAL"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>type</field>
+        <value>custom</value>
+        <reason>API uses non-standard headers that don't fit api_key / oauth2 / basic patterns</reason>
+      </decision>
+      <decision>
+        <field>headers[0].name / headers[1].name</field>
+        <reason>
+          Each name is the connection-property key CP4D collects from the user
+          AND the $var placeholder used in the value template.
+        </reason>
+      </decision>
+      <decision>
+        <field>headers[0].value</field>
+        <value>"$x_api_key"</value>
+        <reason>The header value is exactly the connection-property value — no prefix needed.</reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="authentication_reference">
+    <title>Authentication Configuration Reference</title>
+    <description>
+      Complete reference for all supported $authentication formats and the $accept_header field.
+
+      ACCEPT HEADER:
+        "$accept_header" is an optional top-level field that sets the value of the HTTP Accept
+        header sent with every API request. Defaults to "application/json" when omitted.
+        Use it when the API requires a vendor-specific media type, e.g.:
+          "$accept_header": "application/vnd.dwolla.v1.hal+json"
+          "$accept_header": "application/vnd.github.v3+json"
+          "$accept_header": "application/json"   (explicit default)
+
+      STRUCTURE — every non-none type uses:
+        "$authentication": {
+          "type": "...",
+          "headers": [ { header-def }, ... ]
+        }
+
+      HEADER DEF FIELDS:
+        name        — connection-property key; also the $var placeholder in value templates
+        label       — human-readable label shown in the CP4D UI
+        description — optional hint text shown in the CP4D UI (can be empty string)
+        masked      — true to show the field as password dots in the CP4D UI
+        header      — HTTP header name to write into the request (null for UI-only fields)
+        value       — value template string (null for UI-only fields)
+
+      VALUE TEMPLATE SYNTAX:
+        $name              — replaced with the runtime connection-property value for "name"
+        base64(expr)       — base64-encodes expr after all $var substitutions; used for Basic auth
+
+      UI-ONLY FIELDS:
+        A header entry with "header": null, "value": null is shown in the CP4D UI so the user
+        can provide the credential, but it does not produce an HTTP header directly.
+        Its value is referenced via $name inside another entry's value template.
+        Used for the "password" field in Basic authentication.
+    </description>
+
+    <accept_header_examples>
+      <![CDATA[
+// Standard JSON API (default — can be omitted, but being explicit is recommended)
+"$accept_header": "application/json"
+
+// Dwolla HAL+JSON API
+"$accept_header": "application/vnd.dwolla.v1.hal+json"
+
+// GitHub REST API v3
+"$accept_header": "application/vnd.github.v3+json"
+
+// Generic HAL
+"$accept_header": "application/hal+json"
+      ]]>
+    </accept_header_examples>
+
+    <auth_type name="none">
+      <![CDATA[
+"$authentication": { "type": "none" }
+      ]]>
+    </auth_type>
+
+    <auth_type name="api_key_authorization_header">
+      <![CDATA[
+"$authentication": {
+  "type": "api_key",
+  "headers": [
+    {
+      "name": "api_key",
+      "label": "API Key",
+      "description": "Your API key",
+      "masked": true,
+      "header": "Authorization",
+      "value": "ApiKey $api_key"
+    }
+  ]
+}
+      ]]>
+    </auth_type>
+
+    <auth_type name="api_key_custom_header">
+      <![CDATA[
+"$authentication": {
+  "type": "api_key",
+  "headers": [
+    {
+      "name": "api_key",
+      "label": "API Key",
+      "description": "Your API key",
+      "masked": true,
+      "header": "X-API-Key",
+      "value": "$api_key"
+    }
+  ]
+}
+      ]]>
+    </auth_type>
+
+    <auth_type name="oauth2">
+      <![CDATA[
+"$authentication": {
+  "type": "oauth2",
+  "headers": [
+    {
+      "name": "bearer_token",
+      "label": "Bearer Token",
+      "description": "OAuth 2.0 access token",
+      "masked": true,
+      "header": "Authorization",
+      "value": "Bearer $bearer_token"
+    }
+  ]
+}
+      ]]>
+    </auth_type>
+
+    <auth_type name="basic">
+      <![CDATA[
+"$authentication": {
+  "type": "basic",
+  "headers": [
+    {
+      "name": "username",
+      "label": "Username",
+      "description": "Your username",
+      "masked": false,
+      "header": "Authorization",
+      "value": "Basic base64($username:$password)"
+    },
+    {
+      "name": "password",
+      "label": "Password",
+      "description": "Your password",
+      "masked": true,
+      "header": null,
+      "value": null
+    }
+  ]
+}
+      ]]>
+    </auth_type>
+
+    <auth_type name="custom">
+      <![CDATA[
+"$authentication": {
+  "type": "custom",
+  "headers": [
+    {
+      "name": "x_api_key",
+      "label": "API Key",
+      "description": "Primary API key",
+      "masked": true,
+      "header": "X-API-Key",
+      "value": "$x_api_key"
+    },
+    {
+      "name": "x_tenant_id",
+      "label": "Tenant ID",
+      "description": "Your tenant identifier",
+      "masked": false,
+      "header": "X-Tenant-ID",
+      "value": "$x_tenant_id"
+    }
+  ]
+}
+      ]]>
+    </auth_type>
   </example>
 
   <example name="complex_nested_structures">
@@ -425,7 +734,7 @@
   "$connector_label": "Product Catalog",
   "$connector_description": "Product catalog with complex nested structures",
   "$hostname": "https://api.example.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "products": {
       "$path": ["/api/products"],
@@ -709,7 +1018,7 @@
   "$connector_label": "Products API",
   "$connector_description": "Connector for Products API with offset-based pagination",
   "$hostname": "https://api.example.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "PRODUCTS": {
       "$path": ["/api/products"],

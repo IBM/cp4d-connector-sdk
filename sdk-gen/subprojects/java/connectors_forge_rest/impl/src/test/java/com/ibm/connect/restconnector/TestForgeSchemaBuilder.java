@@ -80,10 +80,10 @@ public class TestForgeSchemaBuilder
         assertTrue(created.getType() instanceof ArrowType.Date);
         assertEquals(DateUnit.DAY, ((ArrowType.Date) created.getType()).getUnit());
 
-        // modified — Timestamp(MICROSECOND)
+        // modified — Timestamp(MILLISECOND) — ArrowConversions uses MILLISECOND
         final Field modified = findField(schema, "modified");
         assertTrue(modified.getType() instanceof ArrowType.Timestamp);
-        assertEquals(TimeUnit.MICROSECOND, ((ArrowType.Timestamp) modified.getType()).getUnit());
+        assertEquals(TimeUnit.MILLISECOND, ((ArrowType.Timestamp) modified.getType()).getUnit());
     }
 
     @Test

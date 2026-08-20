@@ -16,9 +16,6 @@ import java.util.TreeMap;
 
 import org.apache.arrow.flight.Action;
 import org.apache.arrow.flight.ActionType;
-import org.apache.arrow.flight.BackpressureStrategy;
-import org.apache.arrow.flight.BackpressureStrategy.CallbackBackpressureStrategy;
-import org.apache.arrow.flight.BackpressureStrategy.WaitResult;
 import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.Criteria;
 import org.apache.arrow.flight.FlightDescriptor;
@@ -170,8 +167,6 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener)
     {
         ThreadLocale.setLocale(context);
-        final BackpressureStrategy bpStrategy = new CallbackBackpressureStrategy();
-        bpStrategy.register(listener);
         try {
             final FlightDescriptor descriptor = descriptorCache.get(ticket);
             if (descriptor == null) {
@@ -193,13 +188,13 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                             if (interaction instanceof SdkColumnarInputInteraction) {
                                 try (ColumnarArrowBatchWriter writer = new ColumnarArrowBatchWriter(
                                         schema, rootAllocator, batchSize,
-                                        batch -> sendBatch(batch, loader, streamRoot, listener, bpStrategy))) {
+                                        batch -> sendBatch(batch, loader, streamRoot, listener))) {
                                     ((SdkColumnarInputInteraction) interaction).stream(writer);
                                 }
                             } else {
                                 try (ArrowBatchWriter writer = new ArrowBatchWriter(
                                         schema, rootAllocator, batchSize,
-                                        batch -> sendBatch(batch, loader, streamRoot, listener, bpStrategy))) {
+                                        batch -> sendBatch(batch, loader, streamRoot, listener))) {
                                     interaction.stream(writer);
                                 }
                             }
@@ -232,13 +227,6 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                                 }
                                 final VectorUnloader unloader = new VectorUnloader(batch);
                                 loader.load(unloader.getRecordBatch());
-                            }
-                            WaitResult wr;
-                            while ((wr = bpStrategy.waitForListener(5000)) == WaitResult.TIMEOUT) {
-                                LOGGER.info("Waiting for ready from client");
-                            }
-                            if (wr == WaitResult.CANCELLED) {
-                                break;
                             }
                             listener.putNext();
                             vectorSchemaRoot.clear();
@@ -283,8 +271,8 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                                 = discovery.discoverAssets(assetsCriteria);
                         for (final CustomFlightAssetDescriptor sdkAsset : sdkAssets) {
                             completeAsset(sdkAsset);
-                            final FlightDescriptor flightDescriptor = FlightDescriptor.command(modelMapper.toBytes(sdkAsset));
                             final Schema schema = connector.getSchema(sdkAsset);
+                            final FlightDescriptor flightDescriptor = FlightDescriptor.command(modelMapper.toBytes(sdkAsset));
                             final FlightInfo flightInfo = createFlightInfo(flightDescriptor, schema, Collections.emptyList());
                             listener.onNext(flightInfo);
                         }
@@ -347,7 +335,10 @@ public abstract class ConnectorFlightProducer implements FlightProducer
                     connector.connect();
                     try (SdkInputInteraction interaction = connector.getInputInteraction(asset, null)) {
                         final Schema schema = interaction.getSchema();
-                        asset.setFields(Utils.getAssetFields(schema));
+                        // Do NOT call Utils.getAssetFields(schema) here — SDK connectors
+                        // populate fields via discoverAssets (already in the asset descriptor).
+                        // Utils.getAssetFields reads Arrow field metadata which ForgeSchemaBuilder
+                        // does not populate, so calling it would wipe out the correct fields.
                         final List<Ticket> tickets = interaction.getTickets();
                         return createFlightInfo(FlightDescriptor.command(modelMapper.toBytes(asset)), schema, tickets);
                     }
@@ -615,27 +606,20 @@ public abstract class ConnectorFlightProducer implements FlightProducer
     }
 
     /**
-     * Sends a single batch to the Flight listener, handling backpressure.
+     * Sends a single batch to the Flight listener.
      * Called directly by the writer's batch consumer so each batch is transmitted
      * as it is produced rather than after the full dataset is buffered.
      */
     @SuppressWarnings("PMD.CloseResource")
     private void sendBatch(VectorSchemaRoot batch, VectorLoader loader,
-            VectorSchemaRoot streamRoot, ServerStreamListener listener,
-            BackpressureStrategy bpStrategy)
+            VectorSchemaRoot streamRoot, ServerStreamListener listener)
     {
         if (listener.isCancelled()) {
             return;
         }
         final VectorUnloader unloader = new VectorUnloader(batch);
         loader.load(unloader.getRecordBatch());
-        WaitResult wr;
-        while ((wr = bpStrategy.waitForListener(5000)) == WaitResult.TIMEOUT) {
-            LOGGER.info("Waiting for ready from client");
-        }
-        if (wr != WaitResult.CANCELLED) {
-            listener.putNext();
-        }
+        listener.putNext();
         streamRoot.clear();
     }
 

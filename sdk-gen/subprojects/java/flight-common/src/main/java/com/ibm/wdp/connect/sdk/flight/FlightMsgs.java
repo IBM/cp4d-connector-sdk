@@ -27,6 +27,7 @@ public enum FlightMsgs implements ResourceBundleHelper.MessageFormatter<FlightMs
      */
     MISSING_DATASOURCE_TYPE_NAME;
 
+
     private static final ResourceBundleHelper<FlightMsgs> BUNDLE = new ResourceBundleHelper<>(FlightMsgs.class);
 
     /**

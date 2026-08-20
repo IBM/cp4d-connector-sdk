@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -40,6 +42,9 @@ import com.ibm.wdp.connect.sdk.connector.SdkInputInteraction;
 public class RestInputInteraction implements SdkInputInteraction
 {
     private static final Logger LOGGER = getLogger(RestInputInteraction.class);
+
+    private static final Pattern BASE64_PATTERN = Pattern.compile("base64\\(([^)]+)\\)");
+    private static final Pattern VAR_PATTERN     = Pattern.compile("\\$([A-Za-z_][A-Za-z0-9_]*)");
 
     private final ModelMapper modelMapper = new ModelMapper();
     private final RestConnector connector;
@@ -118,13 +123,15 @@ public class RestInputInteraction implements SdkInputInteraction
         LOGGER.info("Starting stream for table: {}", tableName);
 
         final Map<String, String> authHeaders = buildAuthHeaders();
+        final String acceptHeader = connector.getApiMapping().getAcceptHeader();
 
         final JsonToArrowStream jsonStream = new JsonToArrowStream(
                 url,
                 tableDef.getDataPath(),
                 tableDef.getFields(),
                 authHeaders,
-                tableDef.getPaginationConfig());
+                tableDef.getPaginationConfig(),
+                acceptHeader);
 
         try {
             jsonStream.streamTo(writer);
@@ -145,30 +152,90 @@ public class RestInputInteraction implements SdkInputInteraction
     private String buildUrl()
     {
         try {
-            final URL configUrl = new URL(connector.getApiMapping().getBaseUrl());
-            final String protocol = configUrl.getProtocol();
-            final String host = configUrl.getHost();
-            final int port = configUrl.getPort();
-            // Preserve the path prefix from $hostname (e.g. "/api/1.0" in "https://host/api/1.0")
-            final String basePath = configUrl.getPath();
-
-            // Omit the port when none was written in the config — avoids sending
-            // explicit default ports (e.g. :443) that some servers reject.
-            final String authority = port == -1 ? host : host + ":" + port;
-            final String url = protocol + "://" + authority + basePath + tableDef.getPath();
+            final String url = buildRequestUrl(
+                    connector.getApiMapping().getBaseUrl(),
+                    tableDef.getPath(),
+                    connectionProperties);
             LOGGER.debug("Built request URL: {}", url);
             return url;
         } catch (MalformedURLException e) {
-            LOGGER.error("Failed to parse base URL from config: {}", connector.getApiMapping().getBaseUrl(), e);
+            LOGGER.error("Failed to build request URL (baseUrl: {}, host: {}, port: {})",
+                    connector.getApiMapping().getBaseUrl(),
+                    connectionProperties.get("host"),
+                    connectionProperties.get("port"), e);
             throw new IllegalStateException("Invalid base URL in configuration", e);
         }
     }
 
+    /**
+     * Builds the full request URL by combining the base URL from the DSL config with an
+     * optional host/port override from the connection properties and the table's path segment.
+     *
+     * <p>The protocol and path prefix are always taken from {@code baseUrl}.  If a {@code host}
+     * or {@code port} connection property is present and non-blank it overrides the corresponding
+     * value from {@code baseUrl}, allowing a single DSL file to target different environments
+     * without editing the JSON.
+     *
+     * @param baseUrl
+     *            the full base URL from the {@code $hostname} DSL field
+     *            (e.g. {@code "https://api.example.com/v1"})
+     * @param tablePath
+     *            the table-specific path segment from the DSL
+     *            (e.g. {@code "/users"})
+     * @param props
+     *            the connection properties map; may contain {@code "host"} and/or {@code "port"}
+     *            overrides (both optional; blank values are ignored)
+     * @return the fully assembled URL string
+     * @throws MalformedURLException
+     *            if {@code baseUrl} cannot be parsed
+     */
+    static String buildRequestUrl(String baseUrl, String tablePath, Map<String, Object> props)
+            throws MalformedURLException
+    {
+        final URL configUrl = new URL(baseUrl);
+        final String protocol = configUrl.getProtocol();
+        // Preserve the path prefix from baseUrl (e.g. "/api/1.0" in "https://host/api/1.0")
+        final String basePath = configUrl.getPath();
+
+        // Use host and port from connection properties if supplied; fall back to the config URL.
+        final Object hostProp = props.get("host");
+        final Object portProp = props.get("port");
+
+        final String host = (hostProp != null && !hostProp.toString().isBlank())
+                ? hostProp.toString()
+                : configUrl.getHost();
+
+        final String authority;
+        if (portProp != null && !portProp.toString().isBlank()) {
+            authority = host + ":" + portProp;
+        } else {
+            final int configPort = configUrl.getPort();
+            authority = configPort == -1 ? host : host + ":" + configPort;
+        }
+
+        return protocol + "://" + authority + basePath + tablePath;
+    }
+
+    /**
+     * Builds the HTTP authentication headers by evaluating each {@link AuthConfig.HeaderDef}
+     * value template against the current connection properties.
+     *
+     * <p><b>Template syntax</b><br>
+     * A value string may contain {@code $name} placeholders.  Each placeholder is replaced
+     * with the corresponding connection-property value.  The special form
+     * {@code base64(expr)} causes the engine to base64-encode the UTF-8 bytes of {@code expr}
+     * after all {@code $name} substitutions inside it have been applied — this is the mechanism
+     * used for HTTP Basic authentication:
+     * <pre>  "Basic base64($username:$password)"</pre>
+     *
+     * <p>Header definitions whose {@code header} or {@code value} fields are {@code null} are
+     * skipped (they are UI-only credential fields used only as inputs to other templates).
+     */
     private Map<String, String> buildAuthHeaders()
     {
-        final AuthenticationType authType = connector.getApiMapping().getAuthenticationTypeEnum();
+        final AuthConfig authConfig = connector.getApiMapping().getAuthConfig();
 
-        if (authType == AuthenticationType.NONE) {
+        if (authConfig.getType() == AuthenticationType.NONE) {
             LOGGER.debug("No authentication configured");
             return null;
         }
@@ -180,38 +247,63 @@ public class RestInputInteraction implements SdkInputInteraction
 
         final Map<String, String> headers = new HashMap<>();
 
-        if (authType == AuthenticationType.API_KEY) {
-            final Object apiKeyObj = connectionProperties.get("api_key");
-            if (apiKeyObj != null) {
-                headers.put("Authorization", "ApiKey " + apiKeyObj.toString());
-                LOGGER.debug("Using API Key authentication");
-            } else {
-                LOGGER.warn("API key not provided in connection properties");
+        for (final AuthConfig.HeaderDef hd : authConfig.getHeaders()) {
+            if (hd.getHeader() == null || hd.getValue() == null) {
+                // UI-only credential field — used as a $var in another entry's template
+                continue;
             }
-        } else if (authType == AuthenticationType.OAUTH2) {
-            final Object tokenObj = connectionProperties.get("bearer_token");
-            if (tokenObj != null) {
-                headers.put("Authorization", "Bearer " + tokenObj.toString());
-                LOGGER.debug("Using OAuth 2.0 Bearer Token authentication");
-            } else {
-                LOGGER.warn("Bearer token not provided in connection properties");
+            final String resolved = resolveTemplate(hd.getValue(), connectionProperties);
+            if (resolved == null) {
+                LOGGER.warn("Could not resolve value template '{}' for header '{}' — skipping",
+                        hd.getValue(), hd.getHeader());
+                continue;
             }
-        } else if (authType == AuthenticationType.BASIC) {
-            final Object usernameObj = connectionProperties.get("username");
-            final Object passwordObj = connectionProperties.get("password");
-            if (usernameObj != null && passwordObj != null) {
-                final String credentials = usernameObj.toString() + ":" + passwordObj.toString();
-                final String encoded = Base64.getEncoder()
-                        .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-                headers.put("Authorization", "Basic " + encoded);
-                LOGGER.debug("Using Basic authentication");
-            } else {
-                LOGGER.warn("Username or password not provided in connection properties");
-            }
-        } else {
-            LOGGER.warn("Unknown authentication type: {}", authType);
+            // Multiple header defs may target the same HTTP header (unusual but allowed);
+            // last writer wins — in practice each header name appears only once.
+            headers.put(hd.getHeader(), resolved);
+            LOGGER.debug("Set auth header '{}' from template '{}'", hd.getHeader(), hd.getValue());
         }
 
         return headers.isEmpty() ? null : headers;
+    }
+
+    /**
+     * Evaluates a value template by substituting {@code $name} placeholders and applying
+     * any {@code base64(expr)} wrappers.
+     *
+     * @param template
+     *            the template string, e.g. {@code "Bearer $bearer_token"} or
+     *            {@code "Basic base64($username:$password)"}
+     * @param props
+     *            the connection properties map supplying placeholder values
+     * @return the fully-resolved string, or {@code null} if a required placeholder is missing
+     */
+    static String resolveTemplate(String template, Map<String, Object> props)
+    {
+        // Step 1 — substitute all $name placeholders
+        final Matcher varMatcher = VAR_PATTERN.matcher(template);
+        final StringBuffer afterVars = new StringBuffer();
+        while (varMatcher.find()) {
+            final String varName = varMatcher.group(1);
+            final Object val = props.get(varName);
+            if (val == null) {
+                return null; // required placeholder missing
+            }
+            varMatcher.appendReplacement(afterVars, Matcher.quoteReplacement(val.toString()));
+        }
+        varMatcher.appendTail(afterVars);
+
+        // Step 2 — apply base64(...) if present
+        final Matcher b64Matcher = BASE64_PATTERN.matcher(afterVars.toString());
+        final StringBuffer result = new StringBuffer();
+        while (b64Matcher.find()) {
+            final String inner   = b64Matcher.group(1);
+            final String encoded = Base64.getEncoder()
+                    .encodeToString(inner.getBytes(StandardCharsets.UTF_8));
+            b64Matcher.appendReplacement(result, Matcher.quoteReplacement(encoded));
+        }
+        b64Matcher.appendTail(result);
+
+        return result.toString();
     }
 }

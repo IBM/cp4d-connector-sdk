@@ -111,8 +111,15 @@
           <value>api_key</value>
           <value>oauth2</value>
           <value>basic</value>
+          <value>custom</value>
         </valid_values>
-        <ask_if_missing>What authentication method does this API use?</ask_if_missing>
+        <ask_if_missing>What authentication method does this API use? (none / api_key / oauth2 / basic / custom)</ask_if_missing>
+        <note>
+          For api_key, oauth2 and basic you should also ask for the exact header name and value format
+          if the defaults do not match (e.g. some APIs use "Token" instead of "ApiKey" as the prefix,
+          or put the key in "X-API-Key" instead of "Authorization").
+          For custom, ask which headers are required, their labels, and whether they are masked.
+        </note>
       </item>
       
       <item priority="critical">
@@ -496,9 +503,23 @@
         </field>
         
         <field name="$authentication" required="true">
-          <description>Authentication method</description>
-          <valid_values>none, api_key, oauth2, basic</valid_values>
-          <default>none</default>
+          <description>Authentication configuration object</description>
+          <structure>
+            Object with a "type" field and, for all non-none types, a "headers" array.
+            Each headers entry has: name, label, description, masked, header, value.
+            See 3_examples.xml / authentication_reference for all patterns.
+          </structure>
+          <valid_types>none, api_key, oauth2, basic, custom</valid_types>
+          <default_patterns>
+            <none>{ "type": "none" }</none>
+            <api_key>{ "type": "api_key", "headers": [{ "name": "api_key", "label": "API Key", "description": "", "masked": true, "header": "Authorization", "value": "ApiKey $api_key" }] }</api_key>
+            <oauth2>{ "type": "oauth2", "headers": [{ "name": "bearer_token", "label": "Bearer Token", "description": "", "masked": true, "header": "Authorization", "value": "Bearer $bearer_token" }] }</oauth2>
+            <basic>{ "type": "basic", "headers": [{ "name": "username", "label": "Username", "description": "", "masked": false, "header": "Authorization", "value": "Basic base64($username:$password)" }, { "name": "password", "label": "Password", "description": "", "masked": true, "header": null, "value": null }] }</basic>
+          </default_patterns>
+          <customisation>
+            Any field (label, header, value, masked) can be changed by the connector author to match
+            the actual API requirements. For custom type, define as many headers entries as needed.
+          </customisation>
         </field>
         
         <field name="$tables" required="true">
@@ -747,7 +768,8 @@
       <check>At least one field is marked with ,$key</check>
       <check>All field names match exact JSON field names</check>
       <check>Data types are valid and appropriate</check>
-      <check>$authentication field is set to valid value</check>
+      <check>$authentication is a valid object with "type" and (for non-none) a non-empty "headers" array</check>
+      <check>Each headers entry has name, label, masked, header (or null), value (or null)</check>
       <check>$hostname includes protocol (https:// or http://)</check>
       <check>JSON is valid and properly formatted</check>
     </checks>

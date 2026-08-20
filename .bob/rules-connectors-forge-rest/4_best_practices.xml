@@ -325,6 +325,7 @@
       <name>Forgetting to Set Authentication</name>
       <description>
         Always explicitly set $authentication field, even for public APIs.
+        The value must be an object with a "type" field.
       </description>
       <wrong>
         <![CDATA[
@@ -340,7 +341,7 @@
 {
   "$connector_name": "My API",
   "$hostname": "https://api.example.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": { ... }
 }
         ]]>
@@ -384,6 +385,38 @@
       <correct>
         <![CDATA[
 "$hostname": "https://api.example.com"
+        ]]>
+      </correct>
+    </pitfall>
+
+    <pitfall>
+      <name>Not Setting $accept_header for Non-Standard APIs</name>
+      <description>
+        Some APIs require a vendor-specific Accept header and will return errors or unexpected
+        responses when sent the default "application/json". Always check the API documentation
+        for the expected Accept header value and set $accept_header accordingly.
+      </description>
+      <wrong>
+        <![CDATA[
+{
+  "$connector_name": "dwolla-connector",
+  "$hostname": "https://api.dwolla.com",
+  "$authentication": { "type": "api_key", "headers": [...] },
+  "$tables": { ... }
+}
+        ]]>
+        <why>Omitting $accept_header means Accept: application/json is sent, but Dwolla requires
+        Accept: application/vnd.dwolla.v1.hal+json</why>
+      </wrong>
+      <correct>
+        <![CDATA[
+{
+  "$connector_name": "dwolla-connector",
+  "$hostname": "https://api.dwolla.com",
+  "$accept_header": "application/vnd.dwolla.v1.hal+json",
+  "$authentication": { "type": "api_key", "headers": [...] },
+  "$tables": { ... }
+}
         ]]>
       </correct>
     </pitfall>
@@ -729,9 +762,14 @@
       </category>
 
       <category name="Authentication">
-        <check>$authentication field is set</check>
-        <check>Value is one of: none, api_key, oauth2, basic</check>
-        <check>Matches actual API authentication method</check>
+        <check>$authentication is an object with a "type" field</check>
+        <check>type is one of: none, api_key, oauth2, basic, custom</check>
+        <check>For non-none types: "headers" array is present and non-empty</check>
+        <check>Each headers entry has: name, label, description, masked, header (or null), value (or null)</check>
+        <check>name values match the $var placeholders used in value templates</check>
+        <check>Matches actual API authentication method and header format</check>
+        <check>$accept_header is set to the media type the API expects (default "application/json")</check>
+        <check>If the API documentation specifies a vendor media type (e.g. application/vnd.*), $accept_header reflects it</check>
       </category>
 
       <category name="Completeness">
