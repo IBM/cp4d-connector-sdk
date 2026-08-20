@@ -1,0 +1,1797 @@
+<jdbc_connector_workflow>
+  <overview>
+    This workflow guides you through creating a custom JDBC connector for any database
+    using the IBM Watson Data Platform Connect SDK. You can choose between two approaches:
+    
+    1. Codeless Mode: Quick setup using a pre-built Docker image (ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest)
+       - Best for standard JDBC connector use cases
+       - No code generation or build process required
+       - Faster deployment
+    
+    2. Developer Mode: Full customizable connector code generation
+       - Complete control over connector implementation
+       - Includes code generation, customization, testing, and building
+       - Best for custom implementations
+    
+    Both modes end with deployment to AWS ECS Fargate.
+  </overview>
+
+  <prerequisites>
+    <requirement>Java 11 or higher installed</requirement>
+    <requirement>Gradle 7.x or higher</requirement>
+    <requirement>Access to the target database for testing</requirement>
+    <requirement>JDBC driver information for the target database</requirement>
+    <requirement>Working directory must be sdk-gen/</requirement>
+  </prerequisites>
+
+  <workflow_phases>
+    <phase number="0" name="deployment_approach_selection">
+      <title>Choose Deployment Approach</title>
+      <description>
+        Select between Codeless mode (using pre-built Docker image) or Developer mode
+        (generating customizable connector code). This choice determines the workflow path.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Ask user to choose deployment approach</action>
+          <tool>ask_followup_question</tool>
+          <question>Choose your deployment approach for the JDBC connector:</question>
+          <suggestions>
+            <suggest>Codeless - Use pre-built Docker image (quick setup, standard use cases)</suggest>
+            <suggest>Developer - Generate customizable connector code (custom implementations)</suggest>
+          </suggestions>
+        </step>
+        <step number="2">
+          <action>Process user selection and set workflow path</action>
+          <conditional_paths>
+            <path name="codeless">
+              <condition>User selected Codeless mode</condition>
+              <actions>
+                <action>Inform user about pre-built Docker image usage</action>
+                <action>Create directory structure for DSL file</action>
+                <action>Skip code generation phases (2-9)</action>
+                <action>Proceed directly to Phase 10 (Flight App) with pre-built image</action>
+              </actions>
+            </path>
+            <path name="developer">
+              <condition>User selected Developer mode</condition>
+              <actions>
+                <action>Inform user about custom code generation</action>
+                <action>Proceed to Phase 1 (Information Gathering)</action>
+                <action>Follow complete workflow through all phases</action>
+              </actions>
+            </path>
+          </conditional_paths>
+        </step>
+      </steps>
+      <codeless_mode_details>
+        <overview>
+          Codeless mode uses the pre-built Docker image: ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
+        </overview>
+        <benefits>
+          <benefit>Quick setup without code generation</benefit>
+          <benefit>No build process required</benefit>
+          <benefit>Best for standard JDBC connector use cases</benefit>
+          <benefit>Faster deployment to AWS</benefit>
+        </benefits>
+        <directory_structure>
+          <create>connectors-forge/codeless/jdbc/driver/</create>
+          <purpose>Store JDBC driver JAR for the connector</purpose>
+          <files>
+            <file>driver.jar - JDBC driver JAR file</file>
+          </files>
+        </directory_structure>
+        <driver_handling>
+          <description>
+            In Codeless mode, the JDBC driver JAR must be provided and saved to
+            connectors-forge/codeless/jdbc/driver/driver.jar
+          </description>
+          <automatic_download>
+            <condition>Driver is available from Maven Central or public repositories</condition>
+            <action>Bob will automatically download the driver JAR</action>
+            <supported_databases>PostgreSQL, MySQL, MariaDB, H2, Derby, SQLite</supported_databases>
+          </automatic_download>
+          <manual_provision>
+            <condition>Driver is proprietary or requires license</condition>
+            <action>Bob will prompt user for local driver JAR path</action>
+            <examples>Oracle, IBM Db2, Microsoft SQL Server (with license)</examples>
+          </manual_provision>
+        </driver_handling>
+        <workflow_impact>
+          <skip>Phase 3: Label Confirmation</skip>
+          <skip>Phase 4: Code Generation</skip>
+          <skip>Phase 5: DSL Relocation</skip>
+          <skip>Phase 6: Connector Customization</skip>
+          <skip>Phase 7: Test Generation</skip>
+          <skip>Phase 8: Code Formatting</skip>
+          <skip>Phase 9: Build</skip>
+          <skip>Phase 10: Flight App Generation (uses pre-built Docker image instead)</skip>
+          <execute>Phase 1: Information Gathering (for DSL creation)</execute>
+          <execute>Phase 2: DSL Creation (includes driver JAR handling)</execute>
+          <execute>Phase 11: Deployment (using pre-built Docker image)</execute>
+        </workflow_impact>
+      </codeless_mode_details>
+      <developer_mode_details>
+        <overview>
+          Developer mode generates full customizable connector code from scratch
+        </overview>
+        <benefits>
+          <benefit>Full control over connector implementation</benefit>
+          <benefit>Ability to customize connector behavior</benefit>
+          <benefit>Best for custom JDBC implementations</benefit>
+          <benefit>Complete test suite generation</benefit>
+        </benefits>
+        <workflow_impact>
+          <execute>All phases (1-11) in sequence</execute>
+        </workflow_impact>
+      </developer_mode_details>
+    </phase>
+
+    <phase number="1" name="information_gathering">
+      <title>Gather Database Information</title>
+      <description>
+        Collect all necessary information about the target database before starting
+        the connector creation process. For Codeless mode, also determine driver availability.
+      </description>
+      <required_information>
+        <item>Connector name (e.g., mysql, postgresql, oracle)</item>
+        <item>Connector label (e.g., MySQL, PostgreSQL, Oracle Database)</item>
+        <item>JDBC driver class name (e.g., com.mysql.cj.jdbc.Driver)</item>
+        <item>JDBC URL template (e.g., jdbc:mysql://{host}:{port}/{database})</item>
+        <item>JDBC driver Maven coordinates (group:artifact:version) - for automatic download</item>
+        <item>Default port number for the database</item>
+        <item>Whether database supports schemas, catalogs, or both</item>
+      </required_information>
+      <steps>
+        <step number="1">
+          <action>Ask user for connector name and label</action>
+          <tool>ask_followup_question</tool>
+          <question>What is the name of the database you want to create a connector for?</question>
+          <suggestions>
+            <suggest>MySQL</suggest>
+            <suggest>PostgreSQL</suggest>
+            <suggest>Oracle</suggest>
+            <suggest>Microsoft SQL Server</suggest>
+          </suggestions>
+        </step>
+        <step number="2">
+          <action>Gather JDBC driver information</action>
+          <description>
+            Collect JDBC driver details needed for DSL creation. This step applies to both
+            Codeless and Developer modes, ensuring driver information is available before
+            DSL generation.
+          </description>
+          <information_to_collect>
+            <item>JDBC driver class name (e.g., com.mysql.cj.jdbc.Driver)</item>
+            <item>JDBC driver Maven coordinates (group:artifact:version) for dependency management</item>
+          </information_to_collect>
+          <tool>ask_followup_question</tool>
+          <question>What is the JDBC driver class name for {database}?</question>
+          <note>This information is required for both Codeless and Developer modes</note>
+        </step>
+        <step number="3">
+          <action>Gather JDBC driver Maven coordinates</action>
+          <tool>ask_followup_question</tool>
+          <question>What are the Maven coordinates for the JDBC driver (format: group:artifact:version)?</question>
+          <examples>
+            <example database="MySQL">com.mysql:mysql-connector-j:8.0.33</example>
+            <example database="PostgreSQL">org.postgresql:postgresql:42.6.0</example>
+            <example database="Oracle">com.oracle.database.jdbc:ojdbc8:21.9.0.0</example>
+          </examples>
+          <note>This will be used in the DSL file for dependency management</note>
+        </step>
+        <step number="4" mode="codeless_only">
+          <action>Handle driver JAR file for Codeless mode</action>
+          <description>
+            For Codeless mode only, obtain the actual driver JAR file that will be
+            bundled with the pre-built Docker image.
+          </description>
+          <tool>ask_followup_question</tool>
+          <question>Do you have the JDBC driver JAR file available on your system, or would you like it to be automatically downloaded?</question>
+          <suggestions>
+            <suggest>I have the driver JAR at a local path</suggest>
+            <suggest>Automatically download the driver (for open-source databases)</suggest>
+          </suggestions>
+          <note>This determines whether to copy from local path or download from Maven Central</note>
+        </step>
+        <step number="5" mode="codeless_only">
+          <action>Obtain driver JAR file based on user selection</action>
+          <conditional_handling>
+            <path name="local_driver">
+              <condition>User has driver at local path</condition>
+              <substeps>
+                <substep>Ask user for the full path to the driver JAR file</substep>
+                <substep>Create directory: mkdir -p connectors-forge/codeless/jdbc/driver/</substep>
+                <substep>Copy driver: cp {user_path} connectors-forge/codeless/jdbc/driver/driver.jar</substep>
+                <substep>Verify file was copied successfully</substep>
+              </substeps>
+            </path>
+            <path name="auto_download">
+              <condition>User wants automatic download</condition>
+              <substeps>
+                <substep>Use Maven coordinates from Step 3</substep>
+                <substep>Create directory: mkdir -p connectors-forge/codeless/jdbc/driver/</substep>
+                <substep>Download driver using curl from Maven Central</substep>
+                <substep>Save to: connectors-forge/codeless/jdbc/driver/driver.jar</substep>
+                <substep>Verify download was successful</substep>
+              </substeps>
+            </path>
+          </conditional_handling>
+        </step>
+        <step number="6">
+          <action>Gather remaining database connection information</action>
+          <information_to_collect>
+            <item>JDBC URL template (e.g., jdbc:mysql://{host}:{port}/{database})</item>
+            <item>Default port number for the database</item>
+            <item>Whether database supports schemas, catalogs, or both</item>
+          </information_to_collect>
+          <note>Driver class name and Maven coordinates were already collected in Steps 2-3</note>
+        </step>
+      </steps>
+    </phase>
+
+    <phase number="2" name="dsl_creation">
+      <title>Create DSL Configuration</title>
+      <description>
+        Create a database-specific DSL configuration file based on DSL-jdbc.json template.
+        This file defines all connector properties, driver information, and customizations.
+        All driver information (class name, Maven coordinates, and JAR file for Codeless mode)
+        has been collected in Phase 1, ensuring the DSL can be created with complete information.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Read the DSL-jdbc.json template file</action>
+          <tool>read_file</tool>
+          <file>connectors-forge/codeless/jdbc/DSL-jdbc.json</file>
+        </step>
+        <step number="2">
+          <action>Create new DSL file in connectors-forge/codeless/jdbc/ directory</action>
+          <tool>write_to_file</tool>
+          <path>connectors-forge/codeless/jdbc/DSL-jdbc-{connector_name}.json</path>
+          <naming_convention>DSL-jdbc-{connector_name}.json (e.g., DSL-jdbc-mysql.json)</naming_convention>
+        </step>
+        <step number="3">
+          <action>Fill in connector metadata using information from Phase 1</action>
+          <fields>
+            <field>connector_name: {connector_name} (e.g., mysql, postgresql)</field>
+            <field>connector_label: {connector_label} (e.g., MySQL, PostgreSQL)</field>
+            <field>connector_description: Brief description of the connector</field>
+          </fields>
+        </step>
+        <step number="4">
+          <action>Configure JDBC driver information using data from Phase 1</action>
+          <fields>
+            <field>driver_class_name: Use the driver class name collected in Phase 1, Step 2</field>
+            <field>jdbc_url: Use the JDBC URL template collected in Phase 1, Step 6</field>
+          </fields>
+          <note>All driver information was gathered before DSL creation to ensure completeness</note>
+        </step>
+        <step number="5">
+          <action>Add driver dependencies using Maven coordinates from Phase 1</action>
+          <location>implementation_notes.dependencies[0].driver_dependencies</location>
+          <format>["group:artifact:version"]</format>
+          <source>Use Maven coordinates collected in Phase 1, Step 3</source>
+          <example>["com.mysql:mysql-connector-j:8.0.33"]</example>
+          <note>For Codeless mode: This is for reference; actual driver JAR is in connectors-forge/codeless/jdbc/driver/</note>
+          <note>For Developer mode: This will be used by Gradle to download the driver during build</note>
+    <phase number="2.5" name="deployment_preparation" mode="codeless_only">
+      <title>Prepare for Deployment (Codeless Mode Only)</title>
+      <description>
+        After DSL creation, prepare for deployment by selecting deployment type and
+        creating the connector-config.env file with values from the DSL.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Ask user to select deployment type</action>
+          <tool>ask_followup_question</tool>
+          <question>Choose your deployment type for the JDBC connector:</question>
+          <suggestions>
+            <suggest>AWS - Deploy to AWS ECS Fargate</suggest>
+            <suggest>OpenShift - Deploy to Red Hat OpenShift</suggest>
+            <suggest>Self hosted - Deploy to your own server via SSH</suggest>
+          </suggestions>
+        </step>
+        <step number="2">
+          <action>Create connector-config.env from template</action>
+          <description>
+            Copy connector-config.env.template to connector-config.env
+            and populate it with values from the DSL file created in Phase 2.
+          </description>
+          <substeps>
+            <substep number="2.1">
+              <action>Read the connector-config.env.template file</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/connector-config.env.template</file>
+            </substep>
+            <substep number="2.2">
+              <action>Read the DSL file to extract connector information</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/DSL-jdbc-{connector_name}.json</file>
+              <note>Extract connector_name, connector_label, connector_description, and driver_class_name</note>
+            </substep>
+            <substep number="2.3">
+              <action>Create connector-config.env with populated values</action>
+              <tool>write_to_file</tool>
+              <file>connectors-forge/codeless/jdbc/connector-config.env</file>
+              <field_mappings>
+                <mapping>
+                  <property>CONNECTOR_DATASOURCE_TYPE</property>
+                  <source>DSL: connector_name (e.g., mysql, postgresql)</source>
+                </mapping>
+                <mapping>
+                  <property>CONNECTOR_LABEL</property>
+                  <source>DSL: connector_label (e.g., MySQL, PostgreSQL)</source>
+                </mapping>
+                <mapping>
+                  <property>CONNECTOR_DESCRIPTION</property>
+                  <source>DSL: connector_description</source>
+                </mapping>
+                <mapping>
+                  <property>JDBC_DRIVER_CLASS</property>
+                  <source>DSL: driver_class_name (e.g., com.mysql.cj.jdbc.Driver)</source>
+                </mapping>
+                <mapping>
+                  <property>JDBC_DRIVER_PATH</property>
+                  <source>Set based on deployment type:
+                    - AWS: /mnt/efs/driver.jar
+                    - OpenShift: /drivers/driver.jar
+                  </source>
+                </mapping>
+              </field_mappings>
+            </substep>
+            <substep number="2.4">
+              <action>Verify connector-config.env was created successfully</action>
+              <validation>
+                <check>File exists at connectors-forge/codeless/jdbc/connector-config.env</check>
+                <check>All required properties are populated</check>
+                <check>JDBC_DRIVER_PATH matches deployment type</check>
+              </validation>
+              <success_message>
+                ✅ connector-config.env created successfully with values from DSL
+              </success_message>
+            </substep>
+          </substeps>
+        </step>
+        <step number="3">
+          <action>Confirm connector configuration with user</action>
+          <description>
+            Display the connector-config.env contents to the user and ask for confirmation
+            that the connector name (CONNECTOR_LABEL) that will be displayed in the UI is acceptable.
+          </description>
+          <substeps>
+            <substep number="3.1">
+              <action>Read the created connector-config.env file</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/connector-config.env</file>
+            </substep>
+            <substep number="3.2">
+              <action>Display contents and ask for confirmation</action>
+              <tool>ask_followup_question</tool>
+              <question>
+                I've created the connector-config.env file with the following configuration:
+                
+                [Display file contents here]
+                
+                The connector will be displayed in the Cloud Pak for Data UI as: "{CONNECTOR_LABEL}"
+                
+                Are you satisfied with this configuration, especially the connector name that will appear in the UI?
+              </question>
+              <suggestions>
+                <suggest>Yes, the configuration looks good</suggest>
+                <suggest>No, I want to change the connector label (CONNECTOR_LABEL)</suggest>
+                <suggest>No, I want to modify other properties</suggest>
+              </suggestions>
+            </substep>
+            <substep number="3.3">
+              <action>Handle user response</action>
+              <conditional_handling>
+                <path name="approved">
+                  <condition>User approves the configuration</condition>
+                  <action>Proceed to next phase</action>
+                </path>
+                <path name="change_label">
+                  <condition>User wants to change connector label</condition>
+                  <actions>
+                    <action>Ask user for new connector label</action>
+                    <action>Update CONNECTOR_LABEL in connector-config.env</action>
+                    <action>Update connector_label in DSL file for consistency</action>
+                    <action>Show updated configuration and confirm again</action>
+                  </actions>
+                </path>
+                <path name="modify_properties">
+                  <condition>User wants to modify other properties</condition>
+                  <actions>
+                    <action>Ask which property to modify</action>
+                    <action>Update the specified property in connector-config.env</action>
+                    <action>If driver-related, also update DSL file</action>
+                    <action>Show updated configuration and confirm again</action>
+                  </actions>
+                </path>
+              </conditional_handling>
+            </substep>
+          </substeps>
+        </step>
+        <step number="4" deployment_type="openshift">
+          <action>Create and review deploy.env for OpenShift deployment</action>
+          <description>
+            For OpenShift deployment only, generate deploy.env from deploy.env.template
+            with OpenShift-specific configuration, then ask user to review and update the values.
+          </description>
+          <condition>Only execute if user selected OpenShift deployment in Step 1</condition>
+          <substeps>
+            <substep number="4.1">
+              <action>Read the deploy.env.template file</action>
+              <tool>read_file</tool>
+              <file>connectors-forge/codeless/jdbc/deploy.env.template</file>
+            </substep>
+            <substep number="4.2">
+              <action>Create deploy.env from template</action>
+              <tool>write_to_file</tool>
+              <file>connectors-forge/codeless/jdbc/deploy.env</file>
+              <note>Copy template content as-is initially, user will update values for their OpenShift environment</note>
+            </substep>
+            <substep number="4.3">
+              <action>Display deploy.env and ask user to review</action>
+              <tool>ask_followup_question</tool>
+              <question>
+                I've created the deploy.env file from the template for OpenShift deployment.
+                This file contains OpenShift-specific deployment configuration.
+                
+                [Display deploy.env contents here]
+                
+                Please review the following key OpenShift settings:
+                - OPENSHIFT_PROJECT: OpenShift project/namespace name
+                - OPENSHIFT_REGISTRY: OpenShift container registry URL
+                - IMAGE_NAME: Container image name
+                - IMAGE_TAG: Container image tag
+                - REPLICAS: Number of pod replicas
+                - MEMORY_LIMIT: Memory limit for pods
+                - CPU_LIMIT: CPU limit for pods
+                
+                Do you need to update any values in deploy.env for your OpenShift environment?
+              </question>
+              <suggestions>
+                <suggest>Yes, I need to update OpenShift configuration values</suggest>
+                <suggest>No, the default values are fine (for testing only)</suggest>
+                <suggest>Let me update the file manually and continue</suggest>
+              </suggestions>
+            </substep>
+            <substep number="4.4">
+              <action>Handle user response</action>
+              <conditional_handling>
+                <path name="update_values">
+                  <condition>User wants to update values</condition>
+                  <actions>
+                    <action>Ask which property to update</action>
+                    <action>Ask for new value</action>
+                    <action>Update the property in deploy.env</action>
+                    <action>Show updated file and ask if more changes needed</action>
+                    <action>Repeat until user is satisfied</action>
+                  </actions>
+                </path>
+                <path name="manual_update">
+                  <condition>User will update manually</condition>
+                  <actions>
+                    <action>Inform user: "The file is located at connectors-forge/codeless/jdbc/deploy.env"</action>
+                    <action>Wait for user confirmation that updates are complete</action>
+                    <action>Read and display updated file for verification</action>
+                  </actions>
+                </path>
+                <path name="use_defaults">
+                  <condition>User accepts defaults</condition>
+                  <action>Proceed with current values</action>
+                  <warning>Warn user if using defaults for production deployment</warning>
+                </path>
+              </conditional_handling>
+            </substep>
+            <substep number="4.5">
+              <action>Verify deploy.env is ready</action>
+              <validation>
+                <check>File exists at connectors-forge/codeless/jdbc/deploy.env</check>
+                <check>Required OpenShift properties are present</check>
+                <check>OPENSHIFT_PROJECT is not empty</check>
+              </validation>
+              <success_message>
+                ✅ deploy.env configured and ready for OpenShift deployment
+              </success_message>
+            </substep>
+          </substeps>
+        </step>
+      </steps>
+      <output>
+        <deployment_type>Selected deployment type (AWS or OpenShift)</deployment_type>
+        <config_file>connectors-forge/codeless/jdbc/connector-config.env</config_file>
+        <deploy_config_openshift>connectors-forge/codeless/jdbc/deploy.env (if OpenShift selected)</deploy_config_openshift>
+        <user_confirmed>Configuration confirmed by user</user_confirmed>
+      </output>
+    </phase>
+
+        </step>
+        <step number="6" mode="codeless_only">
+          <action>Verify driver JAR is in place from Phase 1</action>
+          <validation>
+            <check>File exists at connectors-forge/codeless/jdbc/driver/driver.jar</check>
+            <check>File size is greater than 0 bytes</check>
+            <check>File has .jar extension</check>
+          </validation>
+          <success_message>
+            ✅ Driver JAR verified at connectors-forge/codeless/jdbc/driver/driver.jar
+          </success_message>
+        </step>
+      </steps>
+      <validation>
+        <check>Verify connector_label is user-friendly and descriptive</check>
+        <check>Ensure driver_class_name is correct for the database</check>
+        <check>Confirm jdbc_url template uses correct syntax</check>
+        <check>Validate driver_dependencies array is properly formatted</check>
+        <check>Confirm DSL file is saved in connectors-forge/codeless/jdbc/ directory</check>
+      </validation>
+    </phase>
+
+    <phase number="3" name="label_confirmation">
+      <title>Confirm Connector Label</title>
+      <description>
+        Ask the user to confirm the connector_label before proceeding, as this will
+        be visible in the UI and should be user-friendly.
+      </description>
+      <actions>
+        <action>Extract connector_label from the created DSL file</action>
+        <action>Use ask_followup_question to confirm with user</action>
+        <action>If user wants to change it, update the DSL file</action>
+      </actions>
+      <example_question>
+        I've set the connector label to "{label}". This will be displayed in the
+        Cloud Pak for Data UI. Is this label acceptable, or would you like to change it?
+      </example_question>
+    </phase>
+
+    <phase number="4" name="code_generation">
+      <title>Generate Connector Template Code</title>
+      <description>
+        Run the autoGenerateJavaJdbc Gradle task to generate the connector skeleton code
+        from the DSL configuration.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Change to sdk-gen directory if not already there</action>
+          <command>cd sdk-gen</command>
+        </step>
+        <step number="2">
+          <action>Run the autoGenerateJavaJdbc task</action>
+          <command>./gradlew autoGenerateJavaJdbc -PdslFile=../DSL-jdbc-{database}.json</command>
+          <note>The DSL file path is relative to sdk-gen directory</note>
+        </step>
+        <step number="3">
+          <action>Wait for task completion and verify success</action>
+          <success_indicators>
+            <indicator>BUILD SUCCESSFUL message</indicator>
+            <indicator>New directory created in subprojects/</indicator>
+            <indicator>Java source files generated</indicator>
+          </success_indicators>
+        </step>
+      </steps>
+      <output>
+        <location>sdk-gen/subprojects/jdbc_{database}/</location>
+        <generated_files>
+          <file>src/main/java/.../Connector.java</file>
+          <file>src/main/java/.../ConnectorFactory.java</file>
+          <file>src/main/java/.../DatasourceType.java</file>
+          <file>src/main/java/.../FlightProducer.java</file>
+          <file>src/main/java/.../SourceInteraction.java</file>
+          <file>src/main/java/.../TargetInteraction.java</file>
+          <file>src/main/resources/.../Labels.properties</file>
+          <file>src/main/resources/.../Msgs.properties</file>
+          <file>build.gradle</file>
+        </generated_files>
+      </output>
+    </phase>
+
+    <phase number="5" name="dsl_relocation">
+      <title>Move DSL to Connector Directory</title>
+      <description>
+        Move the DSL configuration file to the generated connector's resources directory
+        for use in subsequent customization steps.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Identify the generated connector directory</action>
+          <pattern>sdk-gen/subprojects/jdbc_{database}/</pattern>
+        </step>
+        <step number="2">
+          <action>Create the target directory if it doesn't exist</action>
+          <command>mkdir -p sdk-gen/subprojects/jdbc_{database}/src/dist/resources/payload/etc/</command>
+        </step>
+        <step number="3">
+          <action>Copy DSL file to connector directory</action>
+          <source>DSL-jdbc-{database}.json</source>
+          <destination>sdk-gen/subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json</destination>
+          <tool>execute_command with cp or use read_file + write_to_file</tool>
+        </step>
+      </steps>
+    </phase>
+
+    <phase number="6" name="connector_customization">
+      <title>Customize Connector Code</title>
+      <description>
+        Run the customizeJdbcConnector task to apply DSL configuration to the generated
+        connector code, updating driver class names, connection URLs, and properties.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Run customizeJdbcConnector task</action>
+          <command>./gradlew customizeJdbcConnector -PdslFile=subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json -PconnectorDir=subprojects/jdbc_{database}</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+        <step number="2">
+          <action>Verify customization success</action>
+          <success_indicators>
+            <indicator>✅ Updated DRIVER_CLASS_NAME message</indicator>
+            <indicator>✅ Updated getConnectionURL() method message</indicator>
+            <indicator>✅ Created CUSTOMIZATION_SUMMARY.md</indicator>
+          </success_indicators>
+        </step>
+      </steps>
+      <what_it_does>
+        <update>Updates Connector.java with correct JDBC driver class name</update>
+        <update>Modifies getConnectionURL() method to build correct JDBC URL</update>
+        <update>Adds driver dependencies to build.gradle</update>
+        <update>Updates DatasourceType.java with metadata</update>
+        <update>Creates CUSTOMIZATION_SUMMARY.md documentation</update>
+      </what_it_does>
+    </phase>
+
+    <phase number="7" name="test_generation">
+      <title>Generate Test Suite</title>
+      <description>
+        Generate comprehensive property validation tests for the connector using the
+        generateJdbcTests task.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Run generateJdbcTests task</action>
+          <command>./gradlew generateJdbcTests -PdslFile=subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json -PconnectorDir=subprojects/jdbc_{database}</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+        <step number="2">
+          <action>Verify test file generation</action>
+          <expected_file>sdk-gen/subprojects/jdbc_{database}/src/test/java/.../TestPropertyValidation.java</expected_file>
+        </step>
+      </steps>
+      <generated_tests>
+        <test>Basic connection property validation</test>
+        <test>Missing required properties (negative tests)</test>
+        <test>Source properties validation</test>
+        <test>Target properties validation</test>
+        <test>Filter properties validation</test>
+        <test>Additional custom properties validation</test>
+      </generated_tests>
+    </phase>
+
+    <phase number="8" name="code_formatting">
+      <title>Apply Code Formatting</title>
+      <description>
+        Run spotlessApply to format all generated and customized code according to
+        project standards.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Run spotlessApply task</action>
+          <command>./gradlew spotlessApply</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+      </steps>
+    </phase>
+
+    <phase number="9" name="build">
+      <title>Build Connector</title>
+      <description>
+        Build the connector without running tests to verify compilation and packaging.
+      </description>
+      <steps>
+        <step number="1">
+          <action>Run build task excluding tests</action>
+          <command>./gradlew build -x test</command>
+          <working_directory>sdk-gen/</working_directory>
+        </step>
+        <step number="2">
+          <action>Verify build success</action>
+          <success_indicators>
+            <indicator>BUILD SUCCESSFUL message</indicator>
+            <indicator>JAR file created in build/libs/</indicator>
+          </success_indicators>
+        </step>
+      </steps>
+      <output>
+        <jar_location>sdk-gen/subprojects/jdbc_{database}/build/libs/jdbc_{database}.jar</jar_location>
+      </output>
+    </phase>
+
+    <phase number="10" name="flight_app_generation">
+      <title>Generate Flight App</title>
+      <description>
+        Automatically generate a Flight app project that includes the newly created connector.
+        This creates a deployable application with the connector integrated.
+        
+        NOTE: This phase is ONLY executed in Developer mode. In Codeless mode, the pre-built
+        Docker image (gloria2000/wdp-connect-sdk-gen-flight:latest) is used instead, so this
+        phase is skipped.
+      </description>
+      <mode_applicability>developer_only</mode_applicability>
+      <steps>
+        <step number="1">
+          <action>Run autoGenerateFlightApp task</action>
+          <command>./gradlew autoGenerateFlightApp -PdslFile=subprojects/jdbc_{database}/src/dist/resources/payload/etc/DSL-jdbc-{database}.json</command>
+          <working_directory>sdk-gen/</working_directory>
+          <note>This task automatically determines the connector name from the DSL file</note>
+        </step>
+        <step number="2">
+          <action>Verify flight app generation</action>
+          <success_indicators>
+            <indicator>✅ Flight app created successfully! message</indicator>
+            <indicator>Flight app directory created at subprojects/flight/</indicator>
+            <indicator>Connector dependency added to flight app build.gradle</indicator>
+          </success_indicators>
+        </step>
+        <step number="3">
+          <action>Verify flight app can be built</action>
+          <command>./gradlew :wdp-connect-sdk-gen-flight:build -x test</command>
+          <working_directory>sdk-gen/</working_directory>
+          <optional>true</optional>
+          <note>This step is optional but recommended to verify the flight app is properly configured</note>
+        </step>
+      </steps>
+      <what_it_does>
+        <action>Creates flight app at sdk-gen/subprojects/flight/</action>
+        <action>Adds connector as runtimeOnly dependency</action>
+        <action>Configures flight app for deployment</action>
+        <action>Makes connector ready for Cloud Pak for Data integration</action>
+      </what_it_does>
+      <output>
+        <location>sdk-gen/subprojects/flight/</location>
+        <gradle_project>:wdp-connect-sdk-gen-flight</gradle_project>
+        <connector_dependency>runtimeOnly project(path: ':wdp-connect-sdk-gen-jdbc_{database}')</connector_dependency>
+      </output>
+    </phase>
+
+    <phase number="11" name="deployment">
+      <title>Deployment</title>
+      <description>
+        Deploy the connector to your chosen platform. This phase first asks the user
+        to select their deployment type, then guides them through the appropriate
+        deployment process based on their selection and mode (Codeless vs Developer).
+      </description>
+      <steps>
+        <step number="1" mode="codeless_only">
+          <action>Execute deployment based on selection from Phase 2.5</action>
+          <description>
+            For Codeless mode, deployment type was already selected in Phase 2.5.
+            Now execute the appropriate deployment script.
+          </description>
+          <conditional_execution>
+            <aws_deployment>
+              <condition>User selected AWS deployment in Phase 2.5</condition>
+              <substeps>
+                <substep number="1">
+                  <action>Inform user about AWS deployment execution</action>
+                  <message>
+                    Executing AWS deployment using the pre-built Docker image:
+                    ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
+                    
+                    The deployment script will:
+                    1. Pull the pre-built Docker image
+                    2. Push it to your AWS ECR
+                    3. Deploy to ECS Fargate with your connector configuration
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Execute AWS deployment script</action>
+                  <tool>execute_command</tool>
+                  <command>bash connectors-forge/codeless/jdbc/deploy-to-aws.sh</command>
+                  <working_directory>Project root</working_directory>
+                  <note>
+                    The script uses:
+                    - connector-config.properties for connector configuration
+                    - aws-deployment.properties for AWS settings
+                    - driver.jar from connectors-forge/codeless/lib/
+                  </note>
+                </substep>
+                <substep number="3">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Docker image pulled successfully</indicator>
+                    <indicator>Image pushed to ECR</indicator>
+                    <indicator>Security group created</indicator>
+                    <indicator>CloudWatch log group created</indicator>
+                    <indicator>IAM role created</indicator>
+                    <indicator>Task definition registered</indicator>
+                    <indicator>ECS service deployed</indicator>
+                    <indicator>Public IP retrieved</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+              </substeps>
+            </aws_deployment>
+            <openshift_deployment>
+              <condition>User selected OpenShift deployment in Phase 2.5</condition>
+              <substeps>
+                <substep number="1">
+                  <action>Inform user about OpenShift deployment execution</action>
+                  <message>
+                    Executing OpenShift deployment using the pre-built Docker image:
+                    ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
+                    
+                    The deployment script will:
+                    1. Pull the pre-built Docker image
+                    2. Push it to your OpenShift registry
+                    3. Deploy to OpenShift with your connector configuration
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Execute OpenShift deployment script</action>
+                  <tool>execute_command</tool>
+                  <command>bash connectors-forge/codeless/jdbc/deploy-openshift.sh</command>
+                  <working_directory>Project root</working_directory>
+                  <note>
+                    The script uses:
+                    - connector-config.properties for connector configuration
+                    - openshift-deployment.properties for OpenShift settings
+                    - driver.jar from connectors-forge/codeless/lib/
+                  </note>
+                </substep>
+                <substep number="3">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Docker image pulled successfully</indicator>
+                    <indicator>Image pushed to OpenShift registry</indicator>
+                    <indicator>OpenShift project created/verified</indicator>
+                    <indicator>Deployment configuration created</indicator>
+                    <indicator>Service created</indicator>
+                    <indicator>Route created</indicator>
+                    <indicator>Pods running successfully</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+              </substeps>
+            </openshift_deployment>
+            <self_hosted_deployment>
+              <condition>User selected Self hosted deployment in Phase 2.5</condition>
+              <substeps>
+                <substep number="1">
+                  <action>Inform user about Self hosted deployment execution</action>
+                  <message>
+                    Executing Self hosted deployment using the pre-built Docker image:
+                    ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest
+                    
+                    The deployment script will:
+                    1. Connect to your remote server via SSH
+                    2. Pull the pre-built Docker image on the remote server
+                    3. Create and start a container with your connector configuration
+                    4. Upload the JDBC driver and connector configuration files
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Create deploy-container.env from template</action>
+                  <description>
+                    Guide user to create the deploy-container.env file from the template.
+                    This file contains SSH connection details and deployment configuration.
+                  </description>
+                  <substeps>
+                    <substep number="2.1">
+                      <action>Read the deploy-container.env.template file</action>
+                      <tool>read_file</tool>
+                      <file>connectors-forge/codeless/jdbc/deploy-container.env.template</file>
+                    </substep>
+                    <substep number="2.2">
+                      <action>Ask user for SSH connection details</action>
+                      <tool>ask_followup_question</tool>
+                      <question>
+                        To deploy to your self-hosted server, I need the following information:
+                        
+                        1. SSH Host (remote server hostname or IP)
+                        2. SSH User (username for SSH connection)
+                        3. SSH Port (default: 22)
+                        4. Port to expose the connector (e.g., 9443)
+                        
+                        Would you like me to create the deploy-container.env file with these values?
+                      </question>
+                      <suggestions>
+                        <suggest>Yes, I'll provide the SSH connection details</suggest>
+                        <suggest>No, I'll create the file manually</suggest>
+                      </suggestions>
+                    </substep>
+                    <substep number="2.3">
+                      <action>Create deploy-container.env file</action>
+                      <conditional_handling>
+                        <path name="automatic">
+                          <condition>User wants automatic creation</condition>
+                          <actions>
+                            <action>Ask for SSH_HOST value</action>
+                            <action>Ask for SSH_USER value</action>
+                            <action>Ask for SSH_PORT value (default: 22)</action>
+                            <action>Ask for PORT value (default: 9443)</action>
+                            <action>Create deploy-container.env with provided values</action>
+                            <action>Set IMAGE to ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest</action>
+                            <action>Set ENV_FILE to ./connector-config.env</action>
+                            <action>Set DRIVER_DIR to ./driver</action>
+                            <action>Set REPLACE to false</action>
+                          </actions>
+                        </path>
+                        <path name="manual">
+                          <condition>User wants manual creation</condition>
+                          <actions>
+                            <action>Provide instructions to copy template to deploy-container.env</action>
+                            <action>List required fields to fill in</action>
+                            <action>Wait for user confirmation that file is ready</action>
+                          </actions>
+                        </path>
+                      </conditional_handling>
+                      <tool>write_to_file</tool>
+                      <file>connectors-forge/codeless/jdbc/deploy-container.env</file>
+                      <field_mappings>
+                        <mapping>
+                          <property>SSH_HOST</property>
+                          <source>User-provided remote server hostname or IP</source>
+                          <example>remote.example.com or 192.168.1.100</example>
+                        </mapping>
+                        <mapping>
+                          <property>SSH_USER</property>
+                          <source>User-provided SSH username</source>
+                          <example>ubuntu, ec2-user, admin</example>
+                        </mapping>
+                        <mapping>
+                          <property>SSH_PORT</property>
+                          <source>User-provided SSH port (default: 22)</source>
+                          <example>22</example>
+                        </mapping>
+                        <mapping>
+                          <property>PORT</property>
+                          <source>User-provided port to expose connector</source>
+                          <example>9443</example>
+                        </mapping>
+                        <mapping>
+                          <property>IMAGE</property>
+                          <source>Pre-built Docker image for codeless mode</source>
+                          <value>ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest</value>
+                        </mapping>
+                        <mapping>
+                          <property>ENV_FILE</property>
+                          <source>Path to connector configuration file</source>
+                          <value>./connector-config.env</value>
+                        </mapping>
+                        <mapping>
+                          <property>DRIVER_DIR</property>
+                          <source>Directory containing JDBC driver JAR</source>
+                          <value>./driver</value>
+                        </mapping>
+                        <mapping>
+                          <property>REPLACE</property>
+                          <source>Whether to replace existing container</source>
+                          <value>false</value>
+                        </mapping>
+                      </field_mappings>
+                    </substep>
+                    <substep number="2.4">
+                      <action>Verify deploy-container.env was created successfully</action>
+                      <validation>
+                        <check>File exists at connectors-forge/codeless/jdbc/deploy-container.env</check>
+                        <check>All required SSH properties are populated</check>
+                        <check>IMAGE points to pre-built Docker image</check>
+                        <check>ENV_FILE and DRIVER_DIR paths are correct</check>
+                      </validation>
+                      <success_message>
+                        ✅ deploy-container.env created successfully with SSH connection details
+                      </success_message>
+                    </substep>
+                  </substeps>
+                </substep>
+                <substep number="3">
+                  <action>Verify SSH connectivity with private key authentication</action>
+                  <description>
+                    Before deployment, verify that SSH connection to the remote server works using private key authentication.
+                  </description>
+                  <important_requirement>
+                    ⚠️ CRITICAL: You MUST be logged into your SSH server using private key authentication before running the deployment script.
+                    
+                    The deployment script requires:
+                    - SSH private key authentication (password authentication is NOT supported)
+                    - Private key must be loaded in ssh-agent OR available at default locations (~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.)
+                    - No password prompts during SSH connection
+                    
+                    If you haven't set up SSH key authentication yet, you must do so before proceeding.
+                  </important_requirement>
+                  <note>
+                    SSH authentication uses default SSH keys (~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.)
+                    or keys loaded in ssh-agent. Ensure SSH keys are properly configured.
+                  </note>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    ⚠️ IMPORTANT: Before deploying, you MUST ensure you are logged into your SSH server using private key authentication.
+                    
+                    Please verify:
+                    1. You have SSH private key authentication configured (NOT password-based)
+                    2. You can SSH to the remote server without password prompts: ssh -p {SSH_PORT} {SSH_USER}@{SSH_HOST}
+                    3. Docker is installed and running on the remote server
+                    4. Your SSH user has permissions to run Docker commands
+                    
+                    Have you verified SSH private key authentication is working and Docker is available?
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, I'm logged in with SSH private key authentication and Docker is ready</suggest>
+                    <suggest>No, I need help setting up SSH private key authentication</suggest>
+                    <suggest>No, I need to install Docker on the remote server</suggest>
+                  </suggestions>
+                </substep>
+                <substep number="4">
+                  <action>Execute Self hosted deployment script</action>
+                  <tool>execute_command</tool>
+                  <command>bash connectors-forge/codeless/deploy-container.sh</command>
+                  <working_directory>Project root</working_directory>
+                  <note>
+                    The script uses:
+                    - deploy-container.env for SSH connection and deployment settings
+                    - connector-config.env for connector configuration
+                    - driver/driver.jar for JDBC driver
+                    
+                    The script will automatically load deploy-container.env on startup.
+                  </note>
+                </substep>
+                <substep number="5">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>SSH connection established</indicator>
+                    <indicator>Docker image pulled on remote server</indicator>
+                    <indicator>Container created successfully</indicator>
+                    <indicator>Configuration files uploaded</indicator>
+                    <indicator>JDBC driver uploaded</indicator>
+                    <indicator>Container started successfully</indicator>
+                    <indicator>Container is running</indicator>
+                    <indicator>Port mapping configured</indicator>
+                    <indicator>Deployment summary displayed with connection details</indicator>
+                  </success_indicators>
+                  <error_handling>
+                    <error type="ssh_connection_failed">
+                      <description>Cannot connect to remote server via SSH</description>
+                      <troubleshooting>
+                        <step>⚠️ CRITICAL: Ensure you are logged into your SSH server using private key authentication (NOT password-based)</step>
+                        <step>Verify SSH_HOST, SSH_USER, and SSH_PORT in deploy-container.env</step>
+                        <step>Check SSH private key authentication is configured and working</step>
+                        <step>Ensure your SSH private key is loaded in ssh-agent or available at default locations (~/.ssh/id_rsa, ~/.ssh/id_ed25519)</step>
+                        <step>Verify you can connect without password prompts: ssh -p {SSH_PORT} {SSH_USER}@{SSH_HOST}</step>
+                        <step>Ensure remote server is accessible from your network</step>
+                        <step>If using ssh-agent, verify keys are loaded: ssh-add -l</step>
+                      </troubleshooting>
+                    </error>
+                    <error type="docker_not_available">
+                      <description>Docker is not installed or not running on remote server</description>
+                      <troubleshooting>
+                        <step>SSH to remote server and check Docker: docker version</step>
+                        <step>Install Docker if not present</step>
+                        <step>Start Docker service if not running</step>
+                        <step>Ensure SSH user has Docker permissions (add to docker group)</step>
+                      </troubleshooting>
+                    </error>
+                    <error type="port_already_in_use">
+                      <description>The specified port is already in use by another container</description>
+                      <troubleshooting>
+                        <step>Check which container is using the port on remote server</step>
+                        <step>Either stop the existing container or choose a different port</step>
+                        <step>Set REPLACE=true in deploy-container.env to replace existing container</step>
+                        <step>Or pass --replace flag when running the script</step>
+                      </troubleshooting>
+                    </error>
+                    <error type="file_upload_failed">
+                      <description>Failed to upload configuration files or driver to remote server</description>
+                      <troubleshooting>
+                        <step>Verify connector-config.env exists in connectors-forge/codeless/jdbc/</step>
+                        <step>Verify driver.jar exists in connectors-forge/codeless/jdbc/driver/</step>
+                        <step>Check SSH connection stability</step>
+                        <step>Ensure remote server has sufficient disk space</step>
+                      </troubleshooting>
+                    </error>
+                  </error_handling>
+                </substep>
+                <substep number="6">
+                  <action>Display deployment summary</action>
+                  <information_to_display>
+                    <item>Container ID and name</item>
+                    <item>Remote server hostname/IP</item>
+                    <item>Port mapping (remote port → container port 9443)</item>
+                    <item>Connection URL for CP4D registration</item>
+                    <item>Instructions for verifying deployment</item>
+                  </information_to_display>
+                  <example_output>
+                    ==========================================
+                    Deployment Successful!
+                    ==========================================
+                    Container ID:   abc123def456
+                    Container Name: connector-20260622-062500
+                    Remote Server:  remote.example.com
+                    Port Mapping:   9443:9443
+                    
+                    Connection URL: https://remote.example.com:9443
+                    
+                    Next Steps:
+                    1. Verify connector is accessible: curl https://remote.example.com:9443/health
+                    2. Register with CP4D using the connection URL above
+                    ==========================================
+                  </example_output>
+                </substep>
+                <substep number="7">
+                  <action>Ask if user wants to proceed to registration</action>
+                  <description>
+                    After successful self-hosted deployment, ask the user if they want to
+                    register the connector with Cloud Pak for Data.
+                  </description>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    Your JDBC connector has been successfully deployed to your self-hosted server.
+                    
+                    Would you like to register it with Cloud Pak for Data now?
+                    
+                    Registration will:
+                    - Make the connector available in your CP4D environment
+                    - Allow users to create database connections using this connector
+                    - Enable data discovery and access through CP4D
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, register the connector with CP4D now</suggest>
+                    <suggest>No, I'll register it later manually</suggest>
+                  </suggestions>
+                  <next_phase>
+                    <if_yes>Proceed to Phase 12 (CP4D Registration)</if_yes>
+                    <if_no>Complete workflow with attempt_completion</if_no>
+                  </next_phase>
+                </substep>
+              </substeps>
+            </self_hosted_deployment>
+          </conditional_execution>
+        </step>
+        <step number="1" mode="developer_only">
+          <action>Ask user to select deployment type</action>
+          <tool>ask_followup_question</tool>
+          <question>Choose your deployment type for the JDBC connector:</question>
+          <suggestions>
+            <suggest>Local Docker - Test on local machine</suggest>
+            <suggest>Serverless - Cloud deployment (placeholder)</suggest>
+            <suggest>Self-Hosted - Your own server</suggest>
+            <suggest>OpenShift - Enterprise platform</suggest>
+          </suggestions>
+        </step>
+        <step number="2" mode="developer_only">
+          <action>Process deployment type selection and execute appropriate deployment workflow</action>
+          <deployment_paths>
+            <path name="local_docker" mode="developer_only">
+              <title>Local Docker Deployment</title>
+              <description>Build and run connector locally using Docker for testing</description>
+              <substeps>
+                <substep>Build Docker image locally</substep>
+                <substep>Run container with appropriate port mappings</substep>
+                <substep>Verify connector is accessible on localhost</substep>
+                <substep>Provide connection details for testing</substep>
+              </substeps>
+            </path>
+            <path name="serverless" mode="both">
+              <title>Serverless Deployment</title>
+              <description>Deploy to cloud serverless platform (AWS ECS Fargate, etc.)</description>
+              <substeps>
+                <substep>Inform user about serverless deployment</substep>
+                <substep>Guide user to configure cloud provider settings</substep>
+                <substep>Execute deployment script</substep>
+                <substep>Monitor deployment progress</substep>
+                <substep>Retrieve and display connection details</substep>
+              </substeps>
+              <aws_fargate_details>
+                <substep number="1">
+                  <action>Inform user about AWS ECS Fargate deployment</action>
+                  <message>
+                    The connector will be deployed to AWS ECS Fargate. You need to configure
+                    your AWS deployment settings in the aws-deployment.properties file.
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Guide user to configure AWS properties</action>
+                  <instructions>
+                    The deployment requires AWS configuration. You need to:
+                    1. Copy aws-deployment.properties.template to aws-deployment.properties
+                    2. Fill in your AWS details in aws-deployment.properties
+                    3. Run the deployment script
+                  </instructions>
+                </substep>
+                <substep number="3">
+                  <action>Instruct user to configure aws-deployment.properties</action>
+                  <message>
+                    Please fill in the following required fields in aws-deployment.properties:
+                    - AWS_ACCOUNT_ID: Your 12-digit AWS account ID
+                    - AWS_REGION: AWS region (e.g., us-east-1)
+                    - VPC_ID: Your VPC ID (e.g., vpc-xxxxxxxxxxxxxxxxx)
+                    - SUBNET_ID: Your subnet ID (e.g., subnet-xxxxxxxxxxxxxxxxx)
+                    - ECR_IMAGE_URI: ECR image URI (format: account-id.dkr.ecr.region.amazonaws.com/repository-name:tag)
+                    - ECS_CLUSTER: ECS cluster name (will be created if it doesn't exist)
+                    
+                    Optional: You can also configure AWS credentials in the file, or use AWS CLI configured credentials.
+                  </message>
+                </substep>
+                <substep number="4">
+                  <action>Wait for user confirmation that properties are configured</action>
+                  <tool>ask_followup_question</tool>
+                  <question>Have you filled in all the required AWS configuration details in aws-deployment.properties?</question>
+                  <suggestions>
+                    <suggest>Yes, configuration is complete and ready to deploy</suggest>
+                    <suggest>No, I need more time to configure</suggest>
+                  </suggestions>
+                </substep>
+                <substep number="5">
+                  <action>Run the appropriate AWS deployment script based on mode</action>
+                  <conditional_execution>
+                    <codeless_mode>
+                      <command>cd sdk-gen && ./deploy-to-aws-codeless.sh</command>
+                      <note>The script will pull the pre-built Docker image (gloria2000/wdp-connect-sdk-gen-flight:latest), push it to ECR, and deploy to ECS Fargate with connector configuration from connector-config.env</note>
+                    </codeless_mode>
+                    <developer_mode>
+                      <command>cd sdk-gen && ./deploy-to-aws.sh</command>
+                      <note>The script will build the Docker image from your custom connector code, push it to ECR, and deploy to ECS Fargate</note>
+                    </developer_mode>
+                  </conditional_execution>
+                  <working_directory>sdk-gen/</working_directory>
+                </substep>
+                <substep number="6">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Docker image built successfully</indicator>
+                    <indicator>Image pushed to ECR</indicator>
+                    <indicator>Security group created</indicator>
+                    <indicator>CloudWatch log group created</indicator>
+                    <indicator>IAM role created</indicator>
+                    <indicator>Task definition registered</indicator>
+                    <indicator>ECS service deployed</indicator>
+                    <indicator>Public IP retrieved</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+                <substep number="7">
+                  <action>Ask if user wants to proceed to registration</action>
+                  <description>
+                    After successful AWS deployment, ask the user if they want to
+                    register the connector with Cloud Pak for Data.
+                  </description>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    Your JDBC connector has been successfully deployed to AWS ECS Fargate.
+                    
+                    Would you like to register it with Cloud Pak for Data now?
+                    
+                    Registration will:
+                    - Make the connector available in your CP4D environment
+                    - Allow users to create database connections using this connector
+                    - Enable data discovery and access through CP4D
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, register the connector with CP4D now</suggest>
+                    <suggest>No, I'll register it later manually</suggest>
+                  </suggestions>
+                  <next_phase>
+                    <if_yes>Proceed to Phase 12 (CP4D Registration)</if_yes>
+                    <if_no>Complete workflow with attempt_completion</if_no>
+                  </next_phase>
+                </substep>
+              </aws_fargate_details>
+              <prerequisites>
+                <requirement>Cloud provider CLI installed and configured</requirement>
+                <requirement>Docker installed and running</requirement>
+                <requirement>Valid cloud provider credentials with appropriate permissions</requirement>
+                <requirement>Network configuration (VPC, subnet, etc.) set up</requirement>
+                <requirement>Connector built successfully (previous phases completed)</requirement>
+              </prerequisites>
+            </path>
+            <path name="self_hosted" mode="both">
+              <title>Self-Hosted Deployment</title>
+              <description>Deploy to your own server infrastructure</description>
+              <substeps>
+                <substep>Build Docker image</substep>
+                <substep>Push image to your private registry</substep>
+                <substep>Provide deployment instructions for your server</substep>
+                <substep>Guide configuration of environment variables</substep>
+                <substep>Provide connection verification steps</substep>
+              </substeps>
+            </path>
+            <path name="openshift" mode="both">
+              <title>OpenShift Deployment</title>
+              <description>Deploy to Red Hat OpenShift platform</description>
+              <substeps>
+                <substep>Build container image for OpenShift</substep>
+                <substep>Create OpenShift deployment configuration</substep>
+                <substep>Deploy to OpenShift cluster</substep>
+                <substep>Configure routes and services</substep>
+                <substep>Verify deployment and provide access details</substep>
+              </substeps>
+              <openshift_deployment_details>
+                <substep number="1">
+                  <action>Inform user about OpenShift deployment</action>
+                  <message>
+                    The connector will be deployed to Red Hat OpenShift. You need to configure
+                    your OpenShift deployment settings in the openshift-deployment.properties file.
+                  </message>
+                </substep>
+                <substep number="2">
+                  <action>Guide user to configure OpenShift properties</action>
+                  <instructions>
+                    The deployment requires OpenShift configuration. You need to:
+                    1. Ensure you have access to an OpenShift cluster
+                    2. Configure openshift-deployment.properties with your cluster details
+                    3. Run the deployment script
+                  </instructions>
+                </substep>
+                <substep number="3">
+                  <action>Instruct user to configure openshift-deployment.properties</action>
+                  <message>
+                    Please fill in the following required fields in openshift-deployment.properties:
+                    - OPENSHIFT_SERVER: OpenShift API server URL
+                    - OPENSHIFT_TOKEN: Authentication token for OpenShift
+                    - OPENSHIFT_PROJECT: Project/namespace name
+                    - IMAGE_REGISTRY: Container image registry URL
+                    - APP_NAME: Application name for the connector
+                    
+                    Optional: Additional configuration for routes, resource limits, etc.
+                  </message>
+                </substep>
+                <substep number="4">
+                  <action>Wait for user confirmation that properties are configured</action>
+                  <tool>ask_followup_question</tool>
+                  <question>Have you filled in all the required OpenShift configuration details in openshift-deployment.properties?</question>
+                  <suggestions>
+                    <suggest>Yes, configuration is complete and ready to deploy</suggest>
+                    <suggest>No, I need more time to configure</suggest>
+                  </suggestions>
+                </substep>
+                <substep number="5">
+                  <action>Run the OpenShift deployment script</action>
+                  <command>cd sdk-gen && ./deploy-to-openshift.sh</command>
+                  <working_directory>sdk-gen/</working_directory>
+                  <note>The script will build the container image, push it to the registry, and deploy to OpenShift</note>
+                </substep>
+                <substep number="6">
+                  <action>Monitor deployment progress</action>
+                  <success_indicators>
+                    <indicator>Container image built successfully</indicator>
+                    <indicator>Image pushed to registry</indicator>
+                    <indicator>OpenShift project created/verified</indicator>
+                    <indicator>Deployment configuration created</indicator>
+                    <indicator>Service created</indicator>
+                    <indicator>Route created</indicator>
+                    <indicator>Pods running successfully</indicator>
+                    <indicator>Deployment summary displayed</indicator>
+                  </success_indicators>
+                </substep>
+                <substep number="7">
+                  <action>Ask if user wants to proceed to registration</action>
+                  <description>
+                    After successful OpenShift deployment, ask the user if they want to
+                    register the connector with Cloud Pak for Data.
+                  </description>
+                  <tool>ask_followup_question</tool>
+                  <question>
+                    Your JDBC connector has been successfully deployed to OpenShift.
+                    
+                    Would you like to register it with Cloud Pak for Data now?
+                    
+                    Registration will:
+                    - Make the connector available in your CP4D environment
+                    - Allow users to create database connections using this connector
+                    - Enable data discovery and access through CP4D
+                  </question>
+                  <suggestions>
+                    <suggest>Yes, register the connector with CP4D now</suggest>
+                    <suggest>No, I'll register it later manually</suggest>
+                  </suggestions>
+                  <next_phase>
+                    <if_yes>Proceed to Phase 12 (CP4D Registration)</if_yes>
+                    <if_no>Complete workflow with attempt_completion</if_no>
+                  </next_phase>
+                </substep>
+              </openshift_deployment_details>
+              <prerequisites>
+                <requirement>OpenShift CLI (oc) installed and configured</requirement>
+                <requirement>Docker or Podman installed and running</requirement>
+                <requirement>Valid OpenShift cluster access with appropriate permissions</requirement>
+                <requirement>Container image registry access</requirement>
+                <requirement>Connector built successfully (previous phases completed)</requirement>
+              </prerequisites>
+            </path>
+          </deployment_paths>
+        </step>
+      </steps>
+      <output>
+        <deployment_summary>
+          <item>Deployment type selected</item>
+          <item>Deployment platform details</item>
+          <item>Connection endpoint (IP/hostname:port)</item>
+          <item>Access credentials (if applicable)</item>
+          <item>Monitoring/logging information</item>
+        </deployment_summary>
+      </output>
+    </phase>
+
+    <phase number="12" name="cp4d_registration">
+      <title>Cloud Pak for Data Registration (Optional)</title>
+      <description>
+        After successful deployment, optionally register the JDBC connector with Cloud Pak for Data.
+        This makes the connector available for use in the CP4D environment.
+      </description>
+      
+      <step number="1">
+        <action>Ask if user wants to register connector with CP4D</action>
+        <description>
+          After deployment completes successfully, ask the user if they want to proceed
+          with registering the connector in Cloud Pak for Data.
+        </description>
+        <tool>ask_followup_question</tool>
+        <question>
+          Your JDBC connector has been successfully deployed.
+          
+          Would you like to register it with Cloud Pak for Data now?
+          
+          Registration will:
+          - Make the connector available in your CP4D environment
+          - Allow users to create database connections using this connector
+          - Enable data discovery and access through CP4D
+        </question>
+        <suggestions>
+          <suggest>Yes, register the connector with CP4D now</suggest>
+          <suggest>No, I'll register it later manually</suggest>
+          <suggest>Help - I need more information about registration</suggest>
+        </suggestions>
+      </step>
+      
+      <step number="2" condition="user_chooses_yes">
+        <action>Determine registration approach based on deployment mode</action>
+        <conditional_paths>
+          <path name="developer_mode">
+            <condition>Developer mode was selected in Phase 0</condition>
+            <substeps>
+              <substep number="2.1">
+                <action>Verify properties file creation</action>
+                <description>
+                  Before registration, you need to create a properties file with your CP4D environment configuration.
+                  This file is not visible to me (it's in .bobignore), so you need to create it manually.
+                </description>
+                <instructions>
+                  Create a properties file in: sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
+                  
+                  Use a descriptive name like: myenv.properties, production.properties, or dev.properties
+                  
+                  Base your file on the template at:
+                  sdk-gen/subprojects/flight/src/dist/resources/payload/envs/template.properties
+                  
+                  Required properties:
+                  - apikey: Your IBM Cloud API key
+                  - auth_uri: Authentication endpoint (default: https://iam.cloud.ibm.com/identity/token)
+                  - datasource_types_uri: Datasource types API endpoint
+                  - flight_uri: URI of your deployed Flight service (grpc://host:port)
+                  - ssl_certificate_validation: Set to true/false
+                </instructions>
+                <confirmation_question>
+                  Have you created the properties file with your CP4D environment configuration?
+                  Please provide the name of your properties file (without .properties extension).
+                </confirmation_question>
+              </substep>
+              
+              <substep number="2.2">
+                <action>Ask execution preference</action>
+                <tool>ask_followup_question</tool>
+                <question>Would you like me to execute the registration, or would you prefer to do it yourself?</question>
+                <suggestions>
+                  <suggest>Automatic - Execute registration for me</suggest>
+                  <suggest>Manual - I'll do it myself with instructions</suggest>
+                </suggestions>
+              </substep>
+              
+              <substep number="2.3a" condition="automatic">
+                <action>Execute registration task</action>
+                <command>cd sdk-gen && ./gradlew register -Penv={env_name}</command>
+                <working_directory>sdk-gen/</working_directory>
+                <note>Replace {env_name} with the properties file name provided by user</note>
+                <success_message>
+                  ✅ Registration complete!
+                  
+                  Your JDBC connector has been registered with Cloud Pak for Data.
+                  The connector is now available for use in your CP4D environment.
+                </success_message>
+              </substep>
+              
+              <substep number="2.3b" condition="manual">
+                <action>Provide manual registration instructions</action>
+                <instructions>
+                  To register your JDBC connector with Cloud Pak for Data:
+                  
+                  1. Ensure you have created your properties file in:
+                     sdk-gen/subprojects/flight/src/dist/resources/payload/envs/{your_env_name}.properties
+                  
+                  2. Navigate to the sdk-gen directory:
+                     cd sdk-gen
+                  
+                  3. Run the registration task with your environment name:
+                     ./gradlew register -Penv={your_env_name}
+                     
+                     Replace {your_env_name} with your properties file name (without .properties extension)
+                     For example, if your file is myenv.properties, use: -Penv=myenv
+                  
+                  The registration task will:
+                  - Authenticate with IBM Cloud using your API key
+                  - Register the connector datasource type with CP4D
+                  - Configure the Flight service endpoint
+                  - Make the connector available in your CP4D environment
+                  
+                  Let me know once you've completed the registration or if you encounter any issues.
+                </instructions>
+              </substep>
+            </substeps>
+          </path>
+          
+          <path name="codeless_mode">
+            <condition>Codeless mode was selected in Phase 0</condition>
+            <substeps>
+              <substep number="2.1">
+                <action>Create properties file from template</action>
+                <description>
+                  Before registration, you need to create a properties file based on the provided template.
+                  This file is not visible to me (it's in .bobignore), so you need to create it manually.
+                </description>
+                <openshift_deployment_note deployment_type="openshift">
+                  <important>
+                    If you deployed to OpenShift (Phase 11), the deploy-openshift.sh script displayed
+                    the Flight hostname in the deployment details output. You'll need this for the
+                    flight_hostname configuration below.
+                    
+                    Look for the "Flight Hostname" in the deployment output from deploy-openshift.sh.
+                    Use this hostname value (without grpc:// or grpc+tls:// prefix) for flight_hostname.
+                  </important>
+                </openshift_deployment_note>
+                <instructions>
+                  1. Review the template file at:
+                     connectors-forge/scripts/register-envs.properties.template
+                  
+                  2. Copy the template to create your configuration:
+                     cp connectors-forge/scripts/register-envs.properties.template connectors-forge/scripts/register-envs.properties
+                  
+                  3. Edit register-envs.properties and configure:
+                     
+                     AUTHENTICATION (choose ONE):
+                     - Option 1: IBM Cloud API Key
+                       apikey=your_ibm_cloud_api_key_here
+                     - Option 2: Username/Password (on-premises)
+                       username=your_username
+                       password=your_password
+                     
+                     FLIGHT SERVICE (required):
+                     - flight_hostname=your-flight-hostname (just the hostname, no grpc:// or grpc+tls:// prefix)
+                     - flight_port=your-flight-port
+                     
+                     NOTE FOR OPENSHIFT DEPLOYMENT:
+                     If you deployed to OpenShift, use the Flight hostname from the deployment output.
+                     The deploy-openshift.sh script displayed this in the deployment details.
+                     
+                     ENDPOINTS:
+                     - auth_uri=https://iam.cloud.ibm.com/identity/token (or your CP4D auth endpoint)
+                     - datasource_types_uri=https://api.dataplatform.cloud.ibm.com:443/v2/datasource_types (or your CP4D endpoint)
+                </instructions>
+                <confirmation_question>
+                  Have you created register-envs.properties from the template and configured all required values?
+                </confirmation_question>
+              </substep>
+              
+              <substep number="2.2">
+                <action>Ask execution preference</action>
+                <tool>ask_followup_question</tool>
+                <question>Would you like me to execute the registration, or would you prefer to do it yourself?</question>
+                <suggestions>
+                  <suggest>Automatic - Execute registration for me</suggest>
+                  <suggest>Manual - I'll do it myself with instructions</suggest>
+                </suggestions>
+              </substep>
+              
+              <substep number="2.3a" condition="automatic">
+                <action>Execute registration script</action>
+                <command_unix>connectors-forge/scripts/register-connector.sh</command_unix>
+                <command_windows>connectors-forge\scripts\register-connector.ps1</command_windows>
+                <description>
+                  Runs the OS-specific registration script that handles authentication,
+                  connector registration, and Flight service configuration.
+                </description>
+                <success_message>
+                  ✅ Registration complete!
+                  
+                  Your JDBC connector has been registered with Cloud Pak for Data.
+                  The connector is now available for use in your CP4D environment.
+                </success_message>
+              </substep>
+              
+              <substep number="2.3b" condition="manual">
+                <action>Provide manual registration instructions</action>
+                <instructions>
+                  To register your JDBC connector with Cloud Pak for Data:
+                  
+                  1. Ensure you have configured the properties file at:
+                     connectors-forge/scripts/register-envs.properties
+                  
+                  For Unix/Linux/macOS:
+                  2. Ensure the script has execute permissions:
+                     chmod +x connectors-forge/scripts/register-connector.sh
+                  
+                  3. Run the registration script:
+                     connectors-forge/scripts/register-connector.sh
+                  
+                  For Windows:
+                  2. Run the PowerShell registration script:
+                     .\connectors-forge\scripts\register-connector.ps1
+                  
+                  The registration script will:
+                  - Read your configuration from register-envs.properties
+                  - Authenticate with IBM Cloud or CP4D
+                  - Register the connector datasource type
+                  - Configure the Flight service endpoint
+                  - Make the connector available in your CP4D environment
+                  
+                  Let me know once you've completed the registration or if you encounter any issues.
+                </instructions>
+              </substep>
+            </substeps>
+          </path>
+        </conditional_paths>
+      </step>
+      
+      <step number="3" condition="user_chooses_help">
+        <action>Provide registration information</action>
+        <information>
+          Registration Process Overview:
+          
+          Registration makes your JDBC connector available in Cloud Pak for Data by:
+          1. Registering the connector as a datasource type in CP4D
+          2. Configuring the connection to your deployed Flight service
+          3. Making the connector discoverable to CP4D users
+          
+          After registration, users can:
+          - Create database connections using your connector
+          - Browse database schemas and tables
+          - Query data through CP4D
+          - Use the connector in data integration workflows
+          
+          Requirements:
+          - Successfully deployed Flight service (from Phase 11)
+          - CP4D environment access (IBM Cloud or on-premises)
+          - Valid credentials (API key or username/password)
+          - Network connectivity between CP4D and your Flight service
+          
+          You can register now or later. The registration scripts can be run manually at any time.
+        </information>
+      </step>
+      
+      <output>
+        <registration_status>Completed, Skipped, or Deferred</registration_status>
+        <connector_availability>Available in CP4D (if registered)</connector_availability>
+      </output>
+    </phase>
+  </workflow_phases>
+
+  <completion_criteria>
+    <criterion>Deployment approach selected (Codeless or Developer)</criterion>
+    <criterion>DSL configuration file created and validated</criterion>
+    <criterion_conditional mode="developer">
+      <criterion>Connector code generated successfully</criterion>
+      <criterion>DSL moved to connector resources directory</criterion>
+      <criterion>Connector customization completed</criterion>
+      <criterion>Test suite generated</criterion>
+      <criterion>Code formatted with spotlessApply</criterion>
+      <criterion>Connector builds successfully</criterion>
+      <criterion>Flight app generated with connector integrated</criterion>
+    </criterion_conditional>
+    <criterion_conditional mode="codeless">
+      <criterion>Directory structure created for DSL file and driver JAR</criterion>
+      <criterion>Driver JAR obtained (downloaded or copied from local)</criterion>
+      <criterion>Driver JAR saved to sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar</criterion>
+      <criterion>Pre-built Docker image identified (gloria2000/wdp-connect-sdk-gen-flight:latest)</criterion>
+    </criterion_conditional>
+    <criterion>Deployment completed successfully</criterion>
+  </completion_criteria>
+
+  <next_steps_for_user>
+    <developer_mode>
+      <step>Review generated connector code in subprojects/jdbc_{database}/</step>
+      <step>Review generated flight app in subprojects/flight/</step>
+      <step>Update test credentials in TestPropertyValidation.java</step>
+      <step>Run connector tests: ./gradlew :wdp-connect-sdk-gen-jdbc_{database}:test</step>
+      <step>Build flight app: ./gradlew :wdp-connect-sdk-gen-flight:build</step>
+      <step>Build Docker image: ./gradlew dockerBuild</step>
+    </developer_mode>
+    <codeless_mode>
+      <step>Review DSL configuration in sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</step>
+      <step>Verify pre-built Docker image: gloria2000/wdp-connect-sdk-gen-flight:latest</step>
+    </codeless_mode>
+    <common_steps>
+      <step>AWS deployment completed automatically</step>
+      <step>Test connectivity: telnet [PUBLIC_IP] 3443</step>
+      <step>View logs: aws logs tail [LOG_GROUP_NAME] --follow</step>
+      <step>Configure connector in Cloud Pak for Data using the gRPC endpoint</step>
+    </common_steps>
+  </next_steps_for_user>
+
+  <error_handling>
+    <error type="gradle_task_failure">
+      <action>Check Gradle output for specific error messages</action>
+      <action>Verify DSL file syntax is valid JSON</action>
+      <action>Ensure all required fields are filled in DSL</action>
+      <action>Check that working directory is correct (sdk-gen/)</action>
+    </error>
+    <error type="missing_driver_info">
+      <action>Consult database documentation for JDBC driver details</action>
+      <action>Check Maven Central for driver coordinates</action>
+      <action>Refer to DSL-jdbc.json examples section</action>
+    </error>
+    <error type="driver_download_failure">
+      <description>Driver JAR could not be downloaded from Maven Central (Codeless mode)</description>
+      <actions>
+        <action>Verify driver coordinates are correct (group:artifact:version)</action>
+        <action>Check internet connectivity</action>
+        <action>Verify Maven Central is accessible (https://repo1.maven.org/maven2/)</action>
+        <action>Try alternative download method (curl/wget directly)</action>
+        <action>Check if driver requires authentication or license acceptance</action>
+        <action>If driver is proprietary, request local path from user</action>
+      </actions>
+      <fallback>Ask user to provide driver JAR from local system</fallback>
+    </error>
+    <error type="driver_copy_failure">
+      <description>Driver JAR could not be copied to target location (Codeless mode)</description>
+      <actions>
+        <action>Verify source file path exists and is accessible</action>
+        <action>Check file is a valid JAR file (not corrupted)</action>
+        <action>Verify target directory exists: sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</action>
+        <action>Create target directory if missing: mkdir -p sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/</action>
+        <action>Check file permissions for read/write access</action>
+        <action>Verify sufficient disk space available</action>
+        <action>Try copying with explicit permissions: cp -f source destination</action>
+      </actions>
+    </error>
+    <error type="missing_driver_jar">
+      <description>Driver JAR not found at expected location for Codeless mode deployment</description>
+      <actions>
+        <action>Verify driver.jar exists at: sdk-gen/subprojects/connectors_forge_jdbc/src/main/resources/driver.jar</action>
+        <action>Check if driver download/copy step completed successfully</action>
+        <action>Review previous step outputs for errors</action>
+        <action>Re-run driver provisioning step (Phase 2, Step 6)</action>
+        <action>Verify file was not accidentally deleted or moved</action>
+        <action>Check file permissions and ownership</action>
+      </actions>
+    </error>
+    <error type="invalid_driver_jar">
+      <description>Provided driver JAR is invalid, corrupted, or incompatible (Codeless mode)</description>
+      <actions>
+        <action>Verify file is a valid JAR file (check file extension is .jar)</action>
+        <action>Check file size is greater than 0 bytes</action>
+        <action>Try extracting JAR contents to verify integrity: jar -tf driver.jar</action>
+        <action>Verify JAR contains expected JDBC driver class</action>
+        <action>Check if JAR is compatible with Java version being used</action>
+        <action>Request user to provide a different driver JAR from official source</action>
+        <action>Download driver from official vendor website if available</action>
+      </actions>
+    </error>
+    <error type="build_failure">
+      <action>Check for compilation errors in generated code</action>
+      <action>Verify JDBC driver dependency is correct</action>
+      <action>Run ./gradlew clean and retry</action>
+    </error>
+    <error type="deployment_failure">
+      <description>Deployment to selected platform failed</description>
+      <actions>
+        <action>Verify deployment platform CLI/tools are installed and configured</action>
+        <action>Check credentials and permissions for the selected platform</action>
+        <action>Ensure network configuration is correct (VPC, subnet, firewall rules, etc.)</action>
+        <action>Verify Docker is running (if applicable)</action>
+        <action>Review deployment script/command output for specific errors</action>
+        <action>Check image registry access and URI format</action>
+        <action>Verify resource quotas and limits on the platform</action>
+        <action>Consult platform-specific documentation for troubleshooting</action>
+      </actions>
+    </error>
+  </error_handling>
+</jdbc_connector_workflow>
+
+<!-- Made with Bob -->
