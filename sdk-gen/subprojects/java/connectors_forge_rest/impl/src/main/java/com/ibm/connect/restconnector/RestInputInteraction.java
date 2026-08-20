@@ -152,28 +152,10 @@ public class RestInputInteraction implements SdkInputInteraction
     private String buildUrl()
     {
         try {
-            final URL configUrl = new URL(connector.getApiMapping().getBaseUrl());
-            final String protocol = configUrl.getProtocol();
-            // Preserve the path prefix from baseUrl (e.g. "/api/1.0" in "https://host/api/1.0")
-            final String basePath = configUrl.getPath();
-
-            // Use host and port from connection properties if supplied; fall back to the config URL.
-            final Object hostProp = connectionProperties.get("host");
-            final Object portProp = connectionProperties.get("port");
-
-            final String host = (hostProp != null && !hostProp.toString().isBlank())
-                    ? hostProp.toString()
-                    : configUrl.getHost();
-
-            final String authority;
-            if (portProp != null && !portProp.toString().isBlank()) {
-                authority = host + ":" + portProp;
-            } else {
-                final int configPort = configUrl.getPort();
-                authority = configPort == -1 ? host : host + ":" + configPort;
-            }
-
-            final String url = protocol + "://" + authority + basePath + tableDef.getPath();
+            final String url = buildRequestUrl(
+                    connector.getApiMapping().getBaseUrl(),
+                    tableDef.getPath(),
+                    connectionProperties);
             LOGGER.debug("Built request URL: {}", url);
             return url;
         } catch (MalformedURLException e) {
@@ -183,6 +165,55 @@ public class RestInputInteraction implements SdkInputInteraction
                     connectionProperties.get("port"), e);
             throw new IllegalStateException("Invalid base URL in configuration", e);
         }
+    }
+
+    /**
+     * Builds the full request URL by combining the base URL from the DSL config with an
+     * optional host/port override from the connection properties and the table's path segment.
+     *
+     * <p>The protocol and path prefix are always taken from {@code baseUrl}.  If a {@code host}
+     * or {@code port} connection property is present and non-blank it overrides the corresponding
+     * value from {@code baseUrl}, allowing a single DSL file to target different environments
+     * without editing the JSON.
+     *
+     * @param baseUrl
+     *            the full base URL from the {@code $hostname} DSL field
+     *            (e.g. {@code "https://api.example.com/v1"})
+     * @param tablePath
+     *            the table-specific path segment from the DSL
+     *            (e.g. {@code "/users"})
+     * @param props
+     *            the connection properties map; may contain {@code "host"} and/or {@code "port"}
+     *            overrides (both optional; blank values are ignored)
+     * @return the fully assembled URL string
+     * @throws MalformedURLException
+     *            if {@code baseUrl} cannot be parsed
+     */
+    static String buildRequestUrl(String baseUrl, String tablePath, Map<String, Object> props)
+            throws MalformedURLException
+    {
+        final URL configUrl = new URL(baseUrl);
+        final String protocol = configUrl.getProtocol();
+        // Preserve the path prefix from baseUrl (e.g. "/api/1.0" in "https://host/api/1.0")
+        final String basePath = configUrl.getPath();
+
+        // Use host and port from connection properties if supplied; fall back to the config URL.
+        final Object hostProp = props.get("host");
+        final Object portProp = props.get("port");
+
+        final String host = (hostProp != null && !hostProp.toString().isBlank())
+                ? hostProp.toString()
+                : configUrl.getHost();
+
+        final String authority;
+        if (portProp != null && !portProp.toString().isBlank()) {
+            authority = host + ":" + portProp;
+        } else {
+            final int configPort = configUrl.getPort();
+            authority = configPort == -1 ? host : host + ":" + configPort;
+        }
+
+        return protocol + "://" + authority + basePath + tablePath;
     }
 
     /**
