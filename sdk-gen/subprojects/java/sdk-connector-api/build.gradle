@@ -12,6 +12,7 @@ apply plugin: 'maven-publish'
 
 group = 'com.ibm.wdp.connect'
 archivesBaseName = 'wdp-connect-sdk-connector-api'
+version = project['sdk.gen.version']
 
 //
 // Declare project dependencies
@@ -42,6 +43,29 @@ dependencies {
   testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
   testRuntimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version']
   testRuntimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version']
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      groupId 'com.ibm.wdp.connect'
+      artifactId 'wdp-connect-sdk-connector-api'
+      from components.java
+    }
+  }
+  repositories {
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    } else {
+      mavenLocal()
+    }
+  }
 }
 
 // Made with Bob

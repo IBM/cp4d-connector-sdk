@@ -4,6 +4,8 @@
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 
+version = project['sdk.gen.version']
+
 //
 // Declare project dependencies
 //
@@ -35,3 +37,5 @@ dependencies {
   testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
 }
+
+apply from: "${rootProject.projectDir}/publish.gradle"
