@@ -134,10 +134,13 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
             try {
                 initialize();
             }
-            catch (Exception e) {
-                LOGGER.error("Failed to initialize HTTP stream", e);
-                done = true;
-                return false;
+            catch (final IOException e) {
+                // Propagate HTTP errors (e.g. 401 Unauthorized, 403 Forbidden) so that
+                // CP4D surfaces a meaningful error instead of silently returning empty data.
+                throw new java.io.UncheckedIOException(e);
+            }
+            catch (final Exception e) {
+                throw new RuntimeException("Failed to initialize HTTP stream: " + e.getMessage(), e);
             }
         }
         if (nextRecord != null) {
