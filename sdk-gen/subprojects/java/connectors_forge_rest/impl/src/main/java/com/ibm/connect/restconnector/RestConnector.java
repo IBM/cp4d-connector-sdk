@@ -7,6 +7,15 @@ package com.ibm.connect.restconnector;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
@@ -34,6 +43,7 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
     private static final Logger LOGGER = getLogger(RestConnector.class);
 
     private final String datasourceTypeName;
+    private final ConnectionProperties connectionProperties;
     private RestApiMapping apiMapping;
 
     /**
@@ -44,10 +54,10 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
      * @param properties
      *            connection properties (currently unused, reserved for future use)
      */
-    @SuppressWarnings("PMD.UnusedFormalParameter")
     public RestConnector(String datasourceTypeName, ConnectionProperties properties)
     {
         this.datasourceTypeName = datasourceTypeName;
+        this.connectionProperties = properties;
     }
 
     /**
@@ -61,10 +71,10 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
      *            a pre-built {@link RestApiMapping} to use instead of the factory cache;
      *            may be {@code null}, in which case behaviour is identical to the two-arg constructor
      */
-    @SuppressWarnings("PMD.UnusedFormalParameter")
     public RestConnector(String datasourceTypeName, ConnectionProperties properties, RestApiMapping apiMapping)
     {
         this.datasourceTypeName = datasourceTypeName;
+        this.connectionProperties = properties;
         this.apiMapping = apiMapping;
     }
 
@@ -90,6 +100,94 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
 
         LOGGER.debug("Connected: loaded {} tables for connector '{}' ({})",
                 apiMapping.getTables().size(), datasourceTypeName, apiMapping.getConnectorLabel());
+
+        // Verify credentials by making a real HTTP request to the data source.
+        // This ensures CP4D "Test Connection" actually validates against the API,
+        // not just that the connector pod is reachable.
+        probeConnectivity();
+    }
+
+    /**
+     * Makes a lightweight authenticated HTTP GET to the first configured table endpoint
+     * to verify that the supplied credentials are accepted by the data source.
+     *
+     * <p>Throws {@link IOException} with a clear human-readable message on:
+     * <ul>
+     *   <li>HTTP 401 — credentials are missing or invalid</li>
+     *   <li>HTTP 403 — credentials are valid but lack permission</li>
+     *   <li>HTTP 5xx — the data source returned a server error</li>
+     * </ul>
+     * HTTP 200, 404, 400 and similar responses are accepted — they confirm the host
+     * is reachable and the credentials were not rejected.
+     *
+     * @throws IOException if the HTTP request fails or the data source rejects the credentials
+     */
+    private void probeConnectivity() throws Exception
+    {
+        if (apiMapping.getTables().isEmpty()) {
+            LOGGER.warn("No tables configured — skipping connectivity probe");
+            return;
+        }
+
+        // Use the first table's path as the probe endpoint
+        final RestTableDefinition probeTable = apiMapping.getTables().values().iterator().next();
+
+        // Build the probe URL using the same logic as RestInputInteraction
+        final Map<String, Object> props = new HashMap<>();
+        if (connectionProperties != null) {
+            props.putAll(connectionProperties);
+        }
+        final String probeUrl = RestInputInteraction.buildRequestUrl(
+                apiMapping.getBaseUrl(), probeTable.getPath(), props);
+
+        LOGGER.info("Probing connectivity to data source: {}", apiMapping.getConnectorLabel());
+
+        // Build auth headers using AuthConfig (same mechanism as actual data reads)
+        final Map<String, String> authHeaders = new HashMap<>();
+        final AuthConfig authConfig = apiMapping.getAuthConfig();
+        if (authConfig.getType() != AuthenticationType.NONE) {
+            for (final AuthConfig.HeaderDef hd : authConfig.getHeaders()) {
+                if (hd.getHeader() == null || hd.getValue() == null) {
+                    continue;
+                }
+                final String resolved = RestInputInteraction.resolveTemplate(hd.getValue(), props);
+                if (resolved != null) {
+                    authHeaders.put(hd.getHeader(), resolved);
+                }
+            }
+        }
+
+        // Execute the probe — discard the body, we only care about the status code
+        final HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        final HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(probeUrl))
+                .timeout(Duration.ofSeconds(10))
+                .header("User-Agent", "CP4D-REST-Connector/1.0")
+                .GET();
+        for (final Map.Entry<String, String> h : authHeaders.entrySet()) {
+            reqBuilder.header(h.getKey(), h.getValue());
+        }
+
+        final int status = client.send(reqBuilder.build(),
+                HttpResponse.BodyHandlers.discarding()).statusCode();
+        LOGGER.info("Connectivity probe returned HTTP {}", status);
+
+        if (status == 401) {
+            throw new IOException(
+                "Authentication failed (HTTP 401). The supplied credentials are missing or invalid.");
+        }
+        if (status == 403) {
+            throw new IOException(
+                "Access denied (HTTP 403). The credentials do not have permission to access this resource.");
+        }
+        if (status >= 500) {
+            throw new IOException(
+                "Data source returned a server error (HTTP " + status
+                + "). Check the host and port settings.");
+        }
+        LOGGER.info("Connectivity probe successful — data source is reachable and credentials accepted");
     }
 
     /**
