@@ -9,6 +9,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty.TypeEnum;
@@ -121,6 +122,19 @@ public class RestDatasourceType extends CustomFlightDatasourceType
             properties.addConnectionItem(prop);
         }
 
+        // Register path variables found in endpoint paths (e.g. "workspace", "repo_slug")
+        final Set<String> pathVars = mapping.getPathVariables();
+        for (final String pathVar : pathVars) {
+            properties.addConnectionItem(
+                    new CustomDatasourceTypeProperty()
+                            .name(pathVar)
+                            .label(toLabel(pathVar))
+                            .description("Value for ${" + pathVar + "} in API endpoint paths")
+                            .type(TypeEnum.STRING)
+                            .required(true)
+                            .group("domain"));
+        }
+
         // Define the source interaction properties.
         // table_name: the name of the table (endpoint) to read from
         properties.addSourceItem(
@@ -165,6 +179,26 @@ public class RestDatasourceType extends CustomFlightDatasourceType
     public String getConfigFilePath()
     {
         return configFilePath;
+    }
+
+    /**
+     * Converts a snake_case variable name to a Title Case label.
+     * e.g. {@code repo_slug} → {@code Repo Slug}
+     */
+    private static String toLabel(String varName)
+    {
+        final String[] parts = varName.split("_");
+        final StringBuilder sb = new StringBuilder();
+        for (final String part : parts) {
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
+            if (!part.isEmpty()) {
+                sb.append(Character.toUpperCase(part.charAt(0)));
+                sb.append(part.substring(1));
+            }
+        }
+        return sb.toString();
     }
 
 }
