@@ -799,13 +799,14 @@ function Get-EnvVariables {
 }
 
 function Update-AppWithTimestamp {
-    Write-Log "Updating application with timestamp to force new revision..."
+    Write-Log "Updating application with timestamp and image version to force new revision..."
     
     $apiUrl = "https://api.$REGION.codeengine.cloud.ibm.com/v2/projects/$PROJECT_ID/apps/${APP_NAME}?version=$API_VERSION"
     $envVariables = Get-EnvVariables
     
-    # Build payload with environment variables
+    # Build payload with image reference and environment variables
     $payload = @{
+        image_reference   = $IMAGE
         run_env_variables = $envVariables
     } | ConvertTo-Json -Compress -Depth 10
     

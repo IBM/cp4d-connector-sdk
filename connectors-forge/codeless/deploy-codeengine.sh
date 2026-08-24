@@ -704,14 +704,15 @@ EOF
 }
 
 update_app_with_timestamp() {
-    log "Updating application with timestamp to force new revision..."
+    log "Updating application with timestamp and image version to force new revision..."
     
     local api_url="https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects/${PROJECT_ID}/apps/${APP_NAME}?version=${API_VERSION}"
     local env_variables=$(build_env_variables)
     
-    # Build payload with environment variables
+    # Build payload with image reference and environment variables
     local payload=$(cat <<EOF
 {
+  "image_reference": "${IMAGE}",
   "run_env_variables": ${env_variables}
 }
 EOF
