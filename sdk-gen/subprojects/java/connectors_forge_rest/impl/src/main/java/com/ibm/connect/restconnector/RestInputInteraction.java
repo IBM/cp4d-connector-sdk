@@ -122,7 +122,8 @@ public class RestInputInteraction implements SdkInputInteraction
         final String url = buildUrl();
         LOGGER.info("Starting stream for table: {}", tableName);
 
-        final Map<String, String> authHeaders = buildAuthHeaders();
+        final Map<String, String> authHeaders = buildAuthHeaders(
+                connector.getApiMapping().getAuthConfig(), connectionProperties);
         final String acceptHeader = connector.getApiMapping().getAcceptHeader();
 
         final JsonToArrowStream jsonStream = new JsonToArrowStream(
@@ -217,30 +218,24 @@ public class RestInputInteraction implements SdkInputInteraction
     }
 
     /**
-     * Builds the HTTP authentication headers by evaluating each {@link AuthConfig.HeaderDef}
-     * value template against the current connection properties.
+     * Builds the HTTP authentication headers from the given {@link AuthConfig} and connection
+     * properties. Package-visible so that {@link RestConnector} can reuse it during connection
+     * testing.
      *
-     * <p><b>Template syntax</b><br>
-     * A value string may contain {@code $name} placeholders.  Each placeholder is replaced
-     * with the corresponding connection-property value.  The special form
-     * {@code base64(expr)} causes the engine to base64-encode the UTF-8 bytes of {@code expr}
-     * after all {@code $name} substitutions inside it have been applied — this is the mechanism
-     * used for HTTP Basic authentication:
-     * <pre>  "Basic base64($username:$password)"</pre>
-     *
-     * <p>Header definitions whose {@code header} or {@code value} fields are {@code null} are
-     * skipped (they are UI-only credential fields used only as inputs to other templates).
+     * @param authConfig
+     *            the authentication configuration from the API mapping
+     * @param props
+     *            the connection properties supplying placeholder values
+     * @return a map of header name to resolved value, or {@code null} if no auth headers apply
      */
-    private Map<String, String> buildAuthHeaders()
+    static Map<String, String> buildAuthHeaders(AuthConfig authConfig, Map<String, Object> props)
     {
-        final AuthConfig authConfig = connector.getApiMapping().getAuthConfig();
-
         if (authConfig.getType() == AuthenticationType.NONE) {
             LOGGER.debug("No authentication configured");
             return null;
         }
 
-        if (connectionProperties.isEmpty()) {
+        if (props.isEmpty()) {
             LOGGER.warn("No connection properties provided for configured authentication");
             return null;
         }
@@ -252,7 +247,7 @@ public class RestInputInteraction implements SdkInputInteraction
                 // UI-only credential field — used as a $var in another entry's template
                 continue;
             }
-            final String resolved = resolveTemplate(hd.getValue(), connectionProperties);
+            final String resolved = resolveTemplate(hd.getValue(), props);
             if (resolved == null) {
                 LOGGER.warn("Could not resolve value template '{}' for header '{}' — skipping",
                         hd.getValue(), hd.getHeader());

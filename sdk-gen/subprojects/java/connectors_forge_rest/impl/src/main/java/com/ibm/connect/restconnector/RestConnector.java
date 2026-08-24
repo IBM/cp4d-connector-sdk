@@ -7,6 +7,16 @@ package com.ibm.connect.restconnector;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
+
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
@@ -33,7 +43,16 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
 {
     private static final Logger LOGGER = getLogger(RestConnector.class);
 
+    private static final int HTTP_TIMEOUT_SECONDS = 30;
+    private static final int HTTP_STATUS_2XX = 2;
+
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
+
     private final String datasourceTypeName;
+    private final Map<String, Object> connectionProperties;
     private RestApiMapping apiMapping;
 
     /**
@@ -44,10 +63,10 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
      * @param properties
      *            connection properties (currently unused, reserved for future use)
      */
-    @SuppressWarnings("PMD.UnusedFormalParameter")
     public RestConnector(String datasourceTypeName, ConnectionProperties properties)
     {
         this.datasourceTypeName = datasourceTypeName;
+        this.connectionProperties = properties != null ? properties : Collections.emptyMap();
     }
 
     /**
@@ -61,10 +80,10 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
      *            a pre-built {@link RestApiMapping} to use instead of the factory cache;
      *            may be {@code null}, in which case behaviour is identical to the two-arg constructor
      */
-    @SuppressWarnings("PMD.UnusedFormalParameter")
     public RestConnector(String datasourceTypeName, ConnectionProperties properties, RestApiMapping apiMapping)
     {
         this.datasourceTypeName = datasourceTypeName;
+        this.connectionProperties = properties != null ? properties : Collections.emptyMap();
         this.apiMapping = apiMapping;
     }
 
@@ -74,22 +93,46 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
     @Override
     public void connect() throws Exception
     {
-        if (apiMapping != null) {
-            LOGGER.debug("Skipped factory lookup. API mapping already set for connector '{}'",
-                    datasourceTypeName);
-            return;
+        if (apiMapping == null) {
+            LOGGER.info("Connecting: loading REST API configuration for connector '{}'", datasourceTypeName);
+            apiMapping = RestConnectorFactory.getInstance().getConfiguration(datasourceTypeName);
         }
-
-        LOGGER.info("Connecting: loading REST API configuration for connector '{}'", datasourceTypeName);
-        apiMapping = RestConnectorFactory.getInstance().getConfiguration(datasourceTypeName);
 
         if (apiMapping == null) {
             throw new IllegalStateException(
                 RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
         }
 
-        LOGGER.debug("Connected: loaded {} tables for connector '{}' ({})",
+        LOGGER.debug("Loaded {} tables for connector '{}' ({})",
                 apiMapping.getTables().size(), datasourceTypeName, apiMapping.getConnectorLabel());
+
+        // Verify connectivity by sending a real HTTP request to the first configured table.
+        final Map.Entry<String, RestTableDefinition> firstEntry = apiMapping.getTables().entrySet().iterator().next();
+        final String tableName = firstEntry.getKey();
+        final RestTableDefinition tableDef = firstEntry.getValue();
+
+        final String url = RestInputInteraction.buildRequestUrl(
+                apiMapping.getBaseUrl(), tableDef.getPath(), connectionProperties);
+        final Map<String, String> authHeaders = RestInputInteraction.buildAuthHeaders(
+                apiMapping.getAuthConfig(), connectionProperties);
+
+        final HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
+                .header("Accept", apiMapping.getAcceptHeader())
+                .header("User-Agent", "CP4D-REST-Connector/1.0")
+                .GET();
+        if (authHeaders != null) {
+            authHeaders.forEach(builder::header);
+        }
+
+        LOGGER.info("Test connection: pinging '{}' (table '{}')", url, tableName);
+        final HttpResponse<Void> response = HTTP_CLIENT.send(builder.build(), BodyHandlers.discarding());
+        if (response.statusCode() / 100 != HTTP_STATUS_2XX) {
+            throw new IOException("Connection test failed: HTTP " + response.statusCode()
+                    + " from " + url);
+        }
+        LOGGER.debug("Connection test passed: HTTP {} from '{}'", response.statusCode(), url);
     }
 
     /**
