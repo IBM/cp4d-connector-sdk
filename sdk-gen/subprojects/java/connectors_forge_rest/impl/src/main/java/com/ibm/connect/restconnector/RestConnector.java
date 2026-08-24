@@ -106,8 +106,25 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
         LOGGER.debug("Loaded {} tables for connector '{}' ({})",
                 apiMapping.getTables().size(), datasourceTypeName, apiMapping.getConnectorLabel());
 
-        // Verify connectivity by sending a real HTTP request to the first configured table.
-        final Map.Entry<String, RestTableDefinition> firstEntry = apiMapping.getTables().entrySet().iterator().next();
+        pingFirstTable();
+    }
+
+    /**
+     * Verifies connectivity by sending a real HTTP GET to the first table endpoint defined
+     * in the API mapping and asserting a 2xx response.
+     *
+     * <p>Authentication and custom headers declared in the DSL are applied via
+     * {@link RestInputInteraction#buildAuthHeaders}, so any headers configured in the
+     * JSON mapping are included automatically.
+     *
+     * @throws Exception
+     *             if the URL cannot be built, the HTTP request fails, or the server returns
+     *             a non-2xx status
+     */
+    protected void pingFirstTable() throws Exception
+    {
+        final Map.Entry<String, RestTableDefinition> firstEntry =
+                apiMapping.getTables().entrySet().iterator().next();
         final String tableName = firstEntry.getKey();
         final RestTableDefinition tableDef = firstEntry.getValue();
 
