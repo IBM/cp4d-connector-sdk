@@ -3,8 +3,8 @@
 // Apply from each subproject that should be published:
 //   apply from: "${rootProject.projectDir}/publish.gradle"
 //
-// Pass Artifactory credentials at publish time via system properties:
-//   -Drepos.maven.url=https://na-public.artifactory.swg-devops.com/artifactory/hyc-ug-team-thirdparty-maven-local
+// Pass Maven credentials via system properties (same as dependency resolution):
+//   -Drepos.maven.url=https://...
 //   -Drepos.maven.username=<your-user>
 //   -Drepos.maven.password=<your-api-key>
 //

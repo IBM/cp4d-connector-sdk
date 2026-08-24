@@ -40,11 +40,7 @@ def mavenInfo = [
   username: System.getProperty('repos.maven.username'),
   password: System.getProperty('repos.maven.password')
 ]
-def mavenPublishInfo = [
-  url: System.getProperty('gradle.afaasPublishUrl'),
-  username: System.getProperty('gradle.afaasPublishUsername'),
-  password: System.getProperty('gradle.afaasPublishPassword')
-]
+def mavenPublishInfo = mavenInfo
 def dockerInfo = [
   url: System.getProperty('repos.docker.url'),
   username: System.getProperty('repos.docker.username'),
