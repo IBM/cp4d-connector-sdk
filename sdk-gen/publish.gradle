@@ -17,12 +17,12 @@ publishing {
     }
   }
   repositories {
-    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+    if (repos.mavenPublish.url && repos.mavenPublish.username && repos.mavenPublish.password) {
       maven {
-        url repos.maven.url
+        url repos.mavenPublish.url
         credentials {
-          username = repos.maven.username
-          password = repos.maven.password
+          username = repos.mavenPublish.username
+          password = repos.mavenPublish.password
         }
       }
     } else {

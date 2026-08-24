@@ -11,7 +11,7 @@ allprojects {
     mavenLocal()
     if (repos.maven.url && repos.maven.username && repos.maven.password) {
       maven {
-        url repos.maven.url
+        url repos.maven.url  // used for dependency resolution only
         credentials {
           username = repos.maven.username
           password = repos.maven.password
