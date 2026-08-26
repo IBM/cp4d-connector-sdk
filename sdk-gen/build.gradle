@@ -55,6 +55,21 @@ gradle.rootProject {
 //
 allprojects {
 
+  repositories {
+    mavenLocal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    }
+    mavenCentral() // fallback for build-time codegen deps (jackson-annotations, gson, swagger-annotations) not mirrored in Artifactory
+  }
+
+
   tasks.withType(JavaCompile) {
     options.release = 11
   }
