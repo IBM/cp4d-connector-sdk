@@ -4,6 +4,8 @@
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 
+version = project['sdk.gen.version']
+
 allprojects {
   repositories {
     mavenLocal()
@@ -87,5 +89,7 @@ dependencies {
 
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
 }
+
+apply from: "${rootProject.projectDir}/publish.gradle"
 
 // Made with Bob

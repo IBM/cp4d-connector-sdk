@@ -40,6 +40,7 @@ def mavenInfo = [
   username: System.getProperty('repos.maven.username'),
   password: System.getProperty('repos.maven.password')
 ]
+def mavenPublishInfo = mavenInfo
 def dockerInfo = [
   url: System.getProperty('repos.docker.url'),
   username: System.getProperty('repos.docker.username'),
@@ -53,6 +54,7 @@ def dockerTargetInfo = [
 
 repos += [
   maven: mavenInfo,
+  mavenPublish: mavenPublishInfo,
   docker: dockerInfo,
   dockerTarget: dockerTargetInfo,
   imageRegistryPrefix: System.getProperty('image.registry.prefix', '')
