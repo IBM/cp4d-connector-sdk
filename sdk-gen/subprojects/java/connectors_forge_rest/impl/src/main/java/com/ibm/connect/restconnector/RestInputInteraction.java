@@ -150,6 +150,37 @@ public class RestInputInteraction implements SdkInputInteraction
 
     // ---- private helpers ----
 
+    private static final Pattern PATH_VAR_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
+
+    /**
+     * Replaces {@code ${varName}} tokens in {@code pathTemplate} with the
+     * corresponding values from {@code connectionProperties}.
+     *
+     * <p>Tokens whose name has no matching connection property are left
+     * untouched and a WARN is emitted so the caller can surface a
+     * meaningful error rather than silently producing a bad URL.
+     *
+     * @param pathTemplate the path string that may contain {@code ${…}} tokens
+     * @return the path with all known tokens substituted
+     */
+    private String substitutePathParams(String pathTemplate)
+    {
+        final Matcher m = PATH_VAR_PATTERN.matcher(pathTemplate);
+        final StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            final String varName = m.group(1);
+            final Object value = connectionProperties.get(varName);
+            if (value != null) {
+                m.appendReplacement(sb, Matcher.quoteReplacement(value.toString()));
+            } else {
+                LOGGER.warn("No connection property found for path variable '{}' in table '{}'", varName, tableName);
+                m.appendReplacement(sb, m.group(0)); // leave token intact
+            }
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
     private String buildUrl()
     {
         try {
@@ -213,8 +244,7 @@ public class RestInputInteraction implements SdkInputInteraction
             final int configPort = configUrl.getPort();
             authority = configPort == -1 ? host : host + ":" + configPort;
         }
-
-        return protocol + "://" + authority + basePath + tablePath;
+        return protocol + "://" + authority + basePath + substitutePathParams(tablePath);
     }
 
     /**

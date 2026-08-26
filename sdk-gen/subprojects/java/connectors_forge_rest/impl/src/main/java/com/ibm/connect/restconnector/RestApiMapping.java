@@ -7,7 +7,11 @@ package com.ibm.connect.restconnector;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Represents the full API mapping parsed from a JSON configuration file.
@@ -15,6 +19,8 @@ import java.util.Map;
  */
 public class RestApiMapping
 {
+    private static final Pattern PATH_VAR_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
+
     private final String connectorName;
     private final String connectorLabel;
     private final String connectorDescription;
@@ -23,6 +29,7 @@ public class RestApiMapping
     private final String acceptHeader;
     private final Map<String, RestTableDefinition> tables;
     private final Map<String, String> origin;
+    private final Set<String> pathVariables;
 
     /**
      * Creates an API mapping.
@@ -62,6 +69,7 @@ public class RestApiMapping
         this.origin = origin != null
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(origin))
                 : Collections.emptyMap();
+        this.pathVariables = Collections.unmodifiableSet(extractPathVariables(tables));
     }
 
     public String getConnectorName() { return connectorName; }
@@ -99,6 +107,32 @@ public class RestApiMapping
     public Map<String, String> getOrigin()
     {
         return origin;
+    }
+
+    /**
+     * Returns the set of path variable names found across all table paths
+     * (e.g. {@code workspace} and {@code repo_slug} from
+     * {@code /2.0/repositories/${workspace}/${repo_slug}/commits}).
+     *
+     * @return an unmodifiable, insertion-ordered set of variable names
+     */
+    public Set<String> getPathVariables()
+    {
+        return pathVariables;
+    }
+
+    private static Set<String> extractPathVariables(Map<String, RestTableDefinition> tables)
+    {
+        final Set<String> vars = new LinkedHashSet<>();
+        for (final RestTableDefinition table : tables.values()) {
+            if (table.getPath() != null) {
+                final Matcher m = PATH_VAR_PATTERN.matcher(table.getPath());
+                while (m.find()) {
+                    vars.add(m.group(1));
+                }
+            }
+        }
+        return vars;
     }
 
     @Override
