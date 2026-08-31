@@ -16,7 +16,7 @@ PORT=""
 REPLACE_MODE=false
 ENV_FILE="${SCRIPT_DIR}/connector-config.env"
 DRIVER_DIR="${SCRIPT_DIR}/driver"
-IMAGE="ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest"
+IMAGE="ghcr.io/thomasgloria/wdp-connect-sdk-gen-flight-image:latest"
 CONTAINER_ID=""
 CONTAINER_NAME=""
 TEMP_DIR=""
@@ -68,7 +68,7 @@ load_env() {
     SSH_USER="${SSH_USER:-}"
     SSH_PORT="${SSH_PORT:-22}"
     PORT="${PORT:-}"
-    IMAGE="${IMAGE:-ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest}"
+    IMAGE="${IMAGE:-ghcr.io/thomasgloria/wdp-connect-sdk-gen-flight-image:latest}"
     ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/connector-config.env}"
     DRIVER_DIR="${DRIVER_DIR:-${SCRIPT_DIR}/driver}"
     if [ "${REPLACE:-false}" = "true" ]; then
