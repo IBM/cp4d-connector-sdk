@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{IMAGE_NAME}}
+  namespace: {{OC_NAMESPACE}}
+  labels:
+    app: {{IMAGE_NAME}}
+spec:
+  to:
+    kind: Service
+    name: {{IMAGE_NAME}}
+    weight: 100
+  port:
+    targetPort: grpcs
+  tls:
+    termination: passthrough
+  wildcardPolicy: None
