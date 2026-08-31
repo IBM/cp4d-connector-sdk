@@ -246,7 +246,7 @@ pull_docker_image() {
     log_step "Step 0a: Pulling Docker Image from GitHub Container Registry"
     
     # Define the source image from GHCR
-    GHCR_IMAGE="ghcr.io/thomasgloria/wdp-connect-sdk-gen-jdbc-connectors-forge:latest"
+    GHCR_IMAGE="ghcr.io/thomasgloria/wdp-connect-sdk-gen-flight-image:latest"
     
     log_info "Pulling image from GHCR: ${GHCR_IMAGE}"
     
