@@ -33,10 +33,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 
 import com.google.common.collect.Table;
-import com.ibm.connect.sdk.test.ConnectorTestSuite;
 import com.ibm.connect.sdk.test.TestConfig;
 import com.ibm.connect.sdk.test.TestFlight;
-import com.ibm.connect.sdk.util.ModelMapper;
+import com.ibm.connect.sdk.test.file.FileTestSuite;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionConfiguration;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
@@ -46,12 +45,16 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionProperties;
 
 /**
- * Tests a Flight producer for the Amazon S3 connector.
+ * Tests the Arrow Flight producer for the Amazon S3 connector.
  *
- * <p>
- * To run against a real S3 bucket, create the file
+ * <p>All standard file connector tests (discovery contract, metadata, read,
+ * paging) are inherited from {@link FileTestSuite}.
+ * S3 is read-only, so {@code createWriteInteractionProperties} returns
+ * {@code null} and all {@code testPutStream*} tests are skipped.
+ *
+ * <p>To run against a real S3 bucket, create the file
  * {@code sdk-gen/tests.properties} (gitignored) and populate it:
- * 
+ *
  * <pre>
  *   # S3 Flight server settings
  *   file_s3.flight.createLocal=true
@@ -72,11 +75,10 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
  *   file_s3.s3.test_binary_key=test-data/logo.png  # any binary object
  * </pre>
  *
- * <p>
- * All tests are skipped automatically when {@code file_s3.s3.access_key_id} is
- * not set.
+ * <p>All tests are skipped automatically when {@code file_s3.s3.access_key_id}
+ * is not set.
  */
-public class TestAWSS3FlightProducer extends ConnectorTestSuite
+public class TestAWSS3FlightProducer extends FileTestSuite
 {
     private static final Logger LOGGER = getLogger(TestAWSS3FlightProducer.class);
 
@@ -106,7 +108,6 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     // -----------------------------------------------------------------------
     private static final String NO_SCHEMA_MSG = "Expected a schema but none was present";
 
-    private static final ModelMapper MODEL_MAPPER = new ModelMapper();
     private static TestFlight testFlight;
     private static FlightClient client;
 
@@ -187,6 +188,77 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     }
 
     // -----------------------------------------------------------------------
+    // FileTestSuite abstract hooks
+    // -----------------------------------------------------------------------
+
+    /** Root "/" lists all objects and common-prefix folders at the bucket root. */
+    @Override
+    protected String getRootPath()
+    {
+        return "/";
+    }
+
+    /**
+     * A non-empty folder path used by container listing tests.
+     * Skipped gracefully if {@code file_s3.s3.test_folder} is not configured.
+     */
+    @Override
+    protected String getContainerPath()
+    {
+        return S3_TEST_FOLDER != null ? "/" + S3_TEST_FOLDER : "/";
+    }
+
+    /**
+     * Interaction properties for reading the known CSV test object.
+     * Requires {@code file_s3.s3.test_csv_key} to be set in tests.properties.
+     * Tests that call this are guarded by {@code assumeNotNull(S3_TEST_CSV_KEY)}
+     * via the {@link #setUp()} method (which checks {@code S3_ACCESS_KEY_ID})
+     * and via the inherited suite's own {@code assumeNotNull} on these props.
+     */
+    @Override
+    protected DiscoveredAssetInteractionProperties createReadInteractionProperties()
+    {
+        final DiscoveredAssetInteractionProperties props = new DiscoveredAssetInteractionProperties();
+        if (S3_TEST_CSV_KEY != null) {
+            props.put("file_name", "/" + S3_TEST_CSV_KEY);
+        }
+        return props;
+    }
+
+    /**
+     * Full discovery path for the CSV test object (used by {@code testDiscoverKnownFile}).
+     * Returns {@code null} when {@code file_s3.s3.test_csv_key} is not configured;
+     * the inherited test is then skipped automatically.
+     */
+    @Override
+    protected String getKnownFilePath()
+    {
+        return S3_TEST_CSV_KEY != null ? "/" + S3_TEST_CSV_KEY : null;
+    }
+
+    /**
+     * File-name segment (last path component) of the CSV test object.
+     */
+    @Override
+    protected String getKnownFileName()
+    {
+        if (S3_TEST_CSV_KEY == null) {
+            return null;
+        }
+        final int slash = S3_TEST_CSV_KEY.lastIndexOf('/');
+        return slash >= 0 ? S3_TEST_CSV_KEY.substring(slash + 1) : S3_TEST_CSV_KEY;
+    }
+
+    /**
+     * S3 is source-only — write tests are skipped automatically.
+     */
+    @Override
+    protected DiscoveredAssetInteractionProperties createWriteInteractionProperties(String uniqueSuffix)
+    {
+        return null;
+    }
+
+    // -----------------------------------------------------------------------
     // Validation tests
     // -----------------------------------------------------------------------
 
@@ -210,56 +282,8 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     }
 
     // -----------------------------------------------------------------------
-    // Discovery tests
+    // Discovery tests — S3-specific
     // -----------------------------------------------------------------------
-
-    /**
-     * List objects at the bucket root — verify at least one entry is returned.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testDiscoverRoot() throws Exception
-    {
-        final CustomFlightAssetsCriteria criteria = new CustomFlightAssetsCriteria();
-        criteria.setDatasourceTypeName(getDatasourceTypeName());
-        criteria.setConnectionProperties(createConnectionProperties());
-        criteria.setPath("/");
-        final List<String> names = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
-            final CustomFlightAssetDescriptor descriptor
-                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
-            assertNotNull(descriptor.getAssetType());
-            assertNotNull(descriptor.getId());
-            assertNotNull(descriptor.getName());
-            names.add(descriptor.getName());
-        }
-        assertFalse("Expected at least one asset at the root", names.isEmpty());
-    }
-
-    /**
-     * List objects with paging — offset 0, limit 2 should return exactly 2 entries
-     * (assumes the bucket root has at least 2 entries).
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testDiscoverRootWithPaging() throws Exception
-    {
-        final CustomFlightAssetsCriteria criteria = new CustomFlightAssetsCriteria();
-        criteria.setDatasourceTypeName(getDatasourceTypeName());
-        criteria.setConnectionProperties(createConnectionProperties());
-        criteria.setPath("/");
-        criteria.setOffset(0);
-        criteria.setLimit(2);
-        final List<String> names = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
-            final CustomFlightAssetDescriptor descriptor
-                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
-            names.add(descriptor.getName());
-        }
-        assertTrue("Expected at most 2 results", names.size() <= 2);
-    }
 
     /**
      * List the contents of a specific folder (prefix). Requires
@@ -324,58 +348,6 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
     }
 
     // -----------------------------------------------------------------------
-    // Structured read (CSV)
-    // -----------------------------------------------------------------------
-
-    /**
-     * getFlightInfo for a CSV object — verify schema and interaction properties are
-     * populated. Requires {@code file_s3.s3.test_csv_key} to be set in
-     * tests.properties.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testGetFlightInfoCsv() throws Exception
-    {
-        assumeNotNull(S3_TEST_CSV_KEY);
-        final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-        final DiscoveredAssetInteractionProperties interactionProperties = new DiscoveredAssetInteractionProperties();
-        descriptor.setDatasourceTypeName(getDatasourceTypeName());
-        descriptor.setConnectionProperties(createConnectionProperties());
-        descriptor.setInteractionProperties(interactionProperties);
-        interactionProperties.put("file_name", "/" + S3_TEST_CSV_KEY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
-        final CustomFlightAssetDescriptor returned
-                = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
-        assertEquals("/" + S3_TEST_CSV_KEY, returned.getInteractionProperties().get("file_name"));
-        assertEquals("csv", returned.getInteractionProperties().get("file_format"));
-        final Schema schema = info.getSchemaOptional()
-                .orElseThrow(() -> new AssertionError(NO_SCHEMA_MSG));
-        assertFalse("Schema must have at least one field", schema.getFields().isEmpty());
-    }
-
-    /**
-     * getStream for a CSV object — read all rows and verify the data is non-empty.
-     * Requires {@code file_s3.s3.test_csv_key} to be set in tests.properties.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testGetStreamCsv() throws Exception
-    {
-        assumeNotNull(S3_TEST_CSV_KEY);
-        final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-        final DiscoveredAssetInteractionProperties interactionProperties = new DiscoveredAssetInteractionProperties();
-        descriptor.setDatasourceTypeName(getDatasourceTypeName());
-        descriptor.setConnectionProperties(createConnectionProperties());
-        descriptor.setInteractionProperties(interactionProperties);
-        interactionProperties.put("file_name", "/" + S3_TEST_CSV_KEY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
-        final Table<Integer, Integer, Object> data = getTableData(info);
-        assertFalse("Expected at least one data row", data.isEmpty());
-    }
-
-    // -----------------------------------------------------------------------
     // Raw / unstructured read (binary)
     // -----------------------------------------------------------------------
 
@@ -433,46 +405,6 @@ public class TestAWSS3FlightProducer extends ConnectorTestSuite
         assertNotNull("content field must not be null", content);
         assertTrue("content field must be a byte array", content instanceof byte[]);
         assertTrue("content must be non-empty", ((byte[]) content).length > 0);
-    }
-
-    // -----------------------------------------------------------------------
-    // ListFlights (discovery) tests — already exercised above; this test
-    // explicitly validates the asset-type contract from the guide.
-    // -----------------------------------------------------------------------
-
-    /**
-     * ListFlights at the root must return descriptors with non-null id, name,
-     * assetType, and path attributes as required by the guide.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testListFlightsContractRoot() throws Exception
-    {
-        final CustomFlightAssetsCriteria criteria = new CustomFlightAssetsCriteria();
-        criteria.setDatasourceTypeName(getDatasourceTypeName());
-        criteria.setConnectionProperties(createConnectionProperties());
-        criteria.setPath("/");
-        int count = 0;
-        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
-            final CustomFlightAssetDescriptor descriptor
-                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
-            // Guide requires id, name, path, and asset_type on every returned descriptor.
-            assertNotNull("descriptor.id must not be null", descriptor.getId());
-            assertNotNull("descriptor.name must not be null", descriptor.getName());
-            assertNotNull("descriptor.path must not be null", descriptor.getPath());
-            assertNotNull("descriptor.assetType must not be null", descriptor.getAssetType());
-            assertNotNull("assetType.type must not be null", descriptor.getAssetType().getType());
-            assertNotNull("assetType.dataset must not be null", descriptor.getAssetType().isDataset());
-            assertNotNull("assetType.datasetContainer must not be null", descriptor.getAssetType().isDatasetContainer());
-            // Containers must have an empty schema; data assets may have fields.
-            if (Boolean.TRUE.equals(descriptor.getAssetType().isDatasetContainer())) {
-                assertTrue("Schema for container must have no fields",
-                        info.getSchemaOptional().map(s -> s.getFields().isEmpty()).orElse(true));
-            }
-            count++;
-        }
-        assertTrue("Expected at least one asset at the root", count > 0);
     }
 
     // -----------------------------------------------------------------------
