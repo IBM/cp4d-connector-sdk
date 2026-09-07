@@ -27,9 +27,10 @@ dependencies {
   api group: 'org.apache.httpcomponents', name: 'httpcore', version: project['httpcore.version'], transitive: false
   api group: 'org.apache.httpcomponents', name: 'httpmime', version: project['httpmime.version'], transitive: false
   implementation group: 'com.auth0', name: 'java-jwt', version: project['jwt.version']
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: project['jackson.version']
   implementation group: 'commons-codec', name: 'commons-codec', version: project['commons.codec.version']
   implementation group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
-  implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15to18', version: project['bouncycastle.version']
+  implementation group: 'org.bouncycastle', name: 'bcpkix-jdk18on', version: project['bouncycastle.version']
   implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
   testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
