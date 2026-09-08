@@ -132,7 +132,8 @@ public class RestInputInteraction implements SdkInputInteraction
                 tableDef.getFields(),
                 authHeaders,
                 tableDef.getPaginationConfig(),
-                acceptHeader);
+                acceptHeader,
+                tableDef.getRequestBody());
 
         try {
             jsonStream.streamTo(writer);
