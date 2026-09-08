@@ -10,7 +10,8 @@ import java.util.List;
 
 /**
  * Represents a table (endpoint) definition parsed from a JSON mapping file.
- * Holds the API path, optional data path for nested responses, optional pagination configuration,
+ * Holds the API path, optional data path for nested responses, optional request body
+ * (for POST-based APIs such as GraphQL), optional pagination configuration,
  * an ordered list of path-key definitions for foreign-key-style dynamic paths, and the list of
  * field definitions.
  */
@@ -18,6 +19,7 @@ public class RestTableDefinition
 {
     private final String path;
     private final String dataPath;
+    private final String requestBody;
     private final PaginationConfig paginationConfig;
     private final List<PathKeyDef> pathKeys;
     private final List<RestFieldDefinition> fields;
@@ -45,6 +47,7 @@ public class RestTableDefinition
     {
         this.path             = path;
         this.dataPath         = dataPath;
+        this.requestBody      = requestBody;
         this.paginationConfig = paginationConfig;
         this.pathKeys         = (pathKeys != null && !pathKeys.isEmpty())
                 ? Collections.unmodifiableList(pathKeys)
@@ -54,6 +57,8 @@ public class RestTableDefinition
 
     public String getPath()                        { return path;             }
     public String getDataPath()                    { return dataPath;         }
+    /** Returns the JSON request body for POST requests, or {@code null} for GET requests. */
+    public String getRequestBody() { return requestBody; }
     public PaginationConfig getPaginationConfig()  { return paginationConfig; }
 
     /**
@@ -72,6 +77,7 @@ public class RestTableDefinition
     {
         return "RestTableDefinition{path='" + path + "', dataPath='" + dataPath
                 + "', paginationConfig=" + paginationConfig
+                + "', requestBody=" + (requestBody != null ? "'<body>'" : "null")
                 + ", pathKeys=" + pathKeys
                 + ", fields=" + fields + "}";
     }
