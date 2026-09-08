@@ -200,9 +200,6 @@ public abstract class FileConnector extends RowBasedConnector<FileSourceInteract
             break;
         case "char":
         case "nchar":
-            dataType = assetField.getLength() != null && assetField.getLength() > 0 ? DataTypes.createCharType(assetField.getLength())
-                    : DataTypes.StringType;
-            break;
         case "varchar":
         case "nvarchar":
         case "longvarchar":
@@ -210,8 +207,10 @@ public abstract class FileConnector extends RowBasedConnector<FileSourceInteract
         case "clob":
         case "nclob":
         default:
-            dataType = assetField.getLength() != null && assetField.getLength() > 0 ? DataTypes.createVarcharType(assetField.getLength())
-                    : DataTypes.StringType;
+            // File formats do not enforce string length; always use StringType.
+            // VarcharType/CharType are SQL DDL concepts that Spark 3.3+ rejects
+            // when writing DataFrames to files.
+            dataType = DataTypes.StringType;
             break;
         }
         return dataType;
