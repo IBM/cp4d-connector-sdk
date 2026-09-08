@@ -1,0 +1,102 @@
+################################################################################
+# AWS ECS Deployment Configuration Template
+#
+# Copy this file to aws-deployment.properties and fill in your values
+# Usage: ./deploy-to-aws.sh [path-to-properties-file]
+#
+# IMPORTANT: Also create connector-config.properties in the same directory with:
+#   CONNECTOR_DATASOURCE_TYPE=your-datasource-type
+#   CONNECTOR_LABEL=Your Connector Label
+#   CONNECTOR_DESCRIPTION=Your connector description
+#   JDBC_DRIVER_CLASS=com.example.Driver
+#   JDBC_DRIVER_PATH=/path/to/driver.jar
+################################################################################
+
+# ============================================================================
+# AWS Credentials (Optional - if not using AWS CLI configured credentials)
+# ============================================================================
+# Option 1: Use AWS CLI configured credentials (recommended)
+#   Run: aws configure
+#
+# Option 2: Provide credentials directly in this file
+#   Uncomment and fill in the following:
+# AWS_ACCESS_KEY_ID=your-access-key-id
+# AWS_SECRET_ACCESS_KEY=your-secret-access-key
+# AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentials
+
+# ============================================================================
+# Required AWS Configuration (Only 4 parameters needed!)
+# ============================================================================
+# Your AWS Account ID (12-digit number)
+AWS_ACCOUNT_ID=123456789012
+
+# AWS Region where resources will be created
+AWS_REGION=us-east-1
+
+# Existing VPC ID where the connector will be deployed
+VPC_ID=vpc-xxxxxxxxxxxxxxxxx
+
+# Existing Subnet ID within the VPC (must have internet access)
+SUBNET_ID=subnet-xxxxxxxxxxxxxxxxx
+
+# ============================================================================
+# Optional Configuration (smart defaults provided)
+# ============================================================================
+# ECR Image URI - Auto-generated if not provided
+# Default: {AWS_ACCOUNT_ID}.dkr.ecr.{AWS_REGION}.amazonaws.com/jdbc-connector:latest
+# ECR_IMAGE_URI=123456789012.dkr.ecr.us-east-1.amazonaws.com/jdbc-connector:latest
+
+# ECS Cluster name - Default: jdbc-connector-cluster
+# ECS_CLUSTER=jdbc-connector-cluster
+
+# ============================================================================
+# EFS Configuration (for JDBC Driver Storage)
+# ============================================================================
+# Enable EFS for JDBC driver mounting (true/false)
+# When enabled, the JDBC driver will be loaded from EFS instead of being baked into the image
+# Default: false
+ENABLE_EFS=true
+
+# EFS File System name - Default: jdbc-connector-efs
+# EFS_NAME=jdbc-connector-efs
+
+# Note: When ENABLE_EFS=true, ensure your JDBC driver is at:
+#   connectors-forge/codeless/lib/driver.jar
+# The script will guide you through uploading it to EFS
+
+# Security Group name for the connector
+SECURITY_GROUP_NAME=jdbc-connector-sg
+
+# CloudWatch Log Group name
+LOG_GROUP_NAME=/ecs/jdbc-connector
+
+# IAM Role name for ECS task execution
+IAM_ROLE_NAME=ecsTaskExecutionRole-jdbc-connector
+
+# ECS Task Definition family name
+TASK_FAMILY=jdbc-connector-task
+
+# ECS Service name
+SERVICE_NAME=jdbc-connector-service
+
+# Container port (gRPC default: 3443)
+CONTAINER_PORT=3443
+
+# Task CPU units (256 = 0.25 vCPU, 512 = 0.5 vCPU, 1024 = 1 vCPU)
+TASK_CPU=256
+
+# Task Memory in MB (512, 1024, 2048, etc.)
+TASK_MEMORY=512
+
+# Number of tasks to run
+DESIRED_COUNT=1
+
+# ============================================================================
+# Testing and Cleanup Options
+# ============================================================================
+# Enable gRPC connectivity testing after deployment (true/false)
+ENABLE_GRPC_TESTING=false
+
+# Enable cleanup of resources after deployment (true/false)
+# WARNING: Setting this to true will delete all created resources
+ENABLE_CLEANUP=false
