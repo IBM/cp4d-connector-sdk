@@ -296,6 +296,117 @@ public class TestRestApiMappingLoader
         // whitespace-only is blank → constructor guard fires → "application/json"
         assertEquals("application/json", mapping.getAcceptHeader());
     }
+    // -------------------------------------------------------------------------
+    // $path_properties parsing
+    // -------------------------------------------------------------------------
+
+    /**
+     * $path_properties absent → getPathProperties() returns an empty list.
+     */
+    @Test
+    public void testPathPropertiesAbsentReturnsEmptyList() throws Exception
+    {
+        final RestApiMapping mapping = RestApiMappingLoader.parse(MINIMAL_REST_JSON);
+        assertNotNull(mapping.getPathProperties());
+        assertTrue(mapping.getPathProperties().isEmpty());
+    }
+
+    /**
+     * A single $path_properties entry is parsed correctly.
+     */
+    @Test
+    public void testPathPropertiesSingleEntry() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"name\": \"merchant_id\", \"label\": \"Merchant ID\","
+                + "     \"description\": \"Your merchant ID\", \"masked\": false}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/merchants/$merchant_id/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(1, mapping.getPathProperties().size());
+        final PathPropertyDef def = mapping.getPathProperties().get(0);
+        assertEquals("merchant_id", def.getName());
+        assertEquals("Merchant ID", def.getLabel());
+        assertEquals("Your merchant ID", def.getDescription());
+        assertFalse(def.isMasked());
+    }
+
+    /**
+     * Multiple $path_properties entries are all parsed in order.
+     */
+    @Test
+    public void testPathPropertiesMultipleEntries() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"name\": \"org_id\",     \"label\": \"Org ID\"},\n"
+                + "    {\"name\": \"project_id\", \"label\": \"Project ID\", \"masked\": true}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/orgs/$org_id/projects/$project_id/t\"],"
+                + "                        \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final List<PathPropertyDef> props = mapping.getPathProperties();
+        assertEquals(2, props.size());
+        assertEquals("org_id",     props.get(0).getName());
+        assertEquals("project_id", props.get(1).getName());
+        assertTrue(props.get(1).isMasked());
+    }
+
+    /**
+     * When label is omitted, it defaults to the name value.
+     */
+    @Test
+    public void testPathPropertiesLabelDefaultsToName() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"name\": \"company_id\"}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/$company_id/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final PathPropertyDef def = mapping.getPathProperties().get(0);
+        assertEquals("company_id", def.getName());
+        assertEquals("company_id", def.getLabel());
+        assertEquals("",           def.getDescription());
+        assertFalse(def.isMasked());
+    }
+
+    /**
+     * A $path_properties entry missing a name throws IOException.
+     */
+    @Test(expected = java.io.IOException.class)
+    public void testPathPropertiesMissingNameThrows() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"label\": \"No Name\"}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        RestApiMappingLoader.parse(json);
+    }
+
+    /**
+     * $path_properties being a non-array value throws IOException.
+     */
+    @Test(expected = java.io.IOException.class)
+    public void testPathPropertiesNotArrayThrows() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": \"not-an-array\",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        RestApiMappingLoader.parse(json);
+    }
 }
 
 // Made with Bob

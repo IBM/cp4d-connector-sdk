@@ -7,6 +7,7 @@ package com.ibm.connect.restconnector;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,6 +24,7 @@ public class RestApiMapping
     private final String acceptHeader;
     private final Map<String, RestTableDefinition> tables;
     private final Map<String, String> origin;
+    private final List<PathPropertyDef> pathProperties;
 
     /**
      * Creates an API mapping.
@@ -46,10 +48,13 @@ public class RestApiMapping
      * @param origin
      *            origin fields from the "$origin" directive: name and
      *            optionally version
+     * @param pathProperties
+     *            connection properties declared via {@code $path_properties}; may be null
      */
     public RestApiMapping(String connectorName, String connectorLabel, String connectorDescription,
             String baseUrl, AuthConfig authConfig, String acceptHeader,
-            Map<String, RestTableDefinition> tables, Map<String, String> origin)
+            Map<String, RestTableDefinition> tables, Map<String, String> origin,
+            List<PathPropertyDef> pathProperties)
     {
         this.connectorName = connectorName;
         this.connectorLabel = connectorLabel;
@@ -62,6 +67,9 @@ public class RestApiMapping
         this.origin = origin != null
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(origin))
                 : Collections.emptyMap();
+        this.pathProperties = pathProperties != null
+                ? Collections.unmodifiableList(pathProperties)
+                : Collections.emptyList();
     }
 
     public String getConnectorName() { return connectorName; }
@@ -72,6 +80,8 @@ public class RestApiMapping
     /** Returns the value for the HTTP {@code Accept} header. */
     public String getAcceptHeader() { return acceptHeader; }
     public Map<String, RestTableDefinition> getTables() { return tables; }
+    /** Returns the list of path property definitions declared via {@code $path_properties}. */
+    public List<PathPropertyDef> getPathProperties() { return pathProperties; }
 
     /**
      * Returns the table definition for the given table name.

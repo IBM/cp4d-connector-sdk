@@ -65,6 +65,7 @@ public class RestApiMappingLoader
     private static final String AUTHENTICATION_KEY = "$authentication";
     private static final String ACCEPT_HEADER_KEY = "$accept_header";
     private static final String TABLES_KEY = "$tables";
+    private static final String PATH_PROPERTIES_KEY = "$path_properties";
     private static final String PATH_KEY = "$path";
     private static final String DATA_PATH_KEY = "$data_path";
     private static final String PAGINATION_KEY = "$pagination";
@@ -137,11 +138,12 @@ public class RestApiMappingLoader
         final String acceptHeader = getTextOrDefault(root, ACCEPT_HEADER_KEY, "application/json");
         final Map<String, RestTableDefinition> tables = parseTables(root);
         final Map<String, String> origin = parseOrigin(root);
+        final List<PathPropertyDef> pathProperties = parsePathProperties(root);
 
-        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', acceptHeader='{}', {} tables",
-                metadata.connectorName, authConfig.getType().getValue(), acceptHeader, tables.size());
+        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', acceptHeader='{}', {} tables, {} path properties",
+                metadata.connectorName, authConfig.getType().getValue(), acceptHeader, tables.size(), pathProperties.size());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authConfig, acceptHeader, tables, origin);
+                baseUrl, authConfig, acceptHeader, tables, origin, pathProperties);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
@@ -172,6 +174,42 @@ public class RestApiMappingLoader
         }
 
         return origin;
+    }
+
+    /**
+     * Parses the optional {@code $path_properties} array from the root JSON node.
+     *
+     * <p>Each element must be a JSON object with at minimum a {@code name} field.
+     * {@code label}, {@code description}, and {@code masked} are optional.
+     *
+     * @param root
+     *            the root JSON node of the configuration file
+     * @return an unmodifiable list of {@link PathPropertyDef}; empty if the key is absent
+     * @throws IOException
+     *             if any entry is malformed
+     */
+    private static List<PathPropertyDef> parsePathProperties(JsonNode root) throws IOException
+    {
+        final JsonNode node = root.get(PATH_PROPERTIES_KEY);
+        if (node == null || node.isNull()) {
+            return new ArrayList<>();
+        }
+        if (!node.isArray()) {
+            throw new IOException("'$path_properties' must be a JSON array.");
+        }
+        final List<PathPropertyDef> result = new ArrayList<>();
+        for (final JsonNode entry : node) {
+            if (!entry.isObject()) {
+                throw new IOException("Each entry in '$path_properties' must be a JSON object.");
+            }
+            final String name        = requireText(entry, "name", "'$path_properties' entry");
+            final String label       = getTextOrDefault(entry, "label", name);
+            final String description = getTextOrDefault(entry, "description", "");
+            final boolean masked     = entry.hasNonNull("masked") && entry.get("masked").asBoolean();
+            result.add(new PathPropertyDef(name, label, description, masked));
+        }
+        LOGGER.debug("Parsed {} path properties", result.size());
+        return result;
     }
 
     private static String parseBaseUrl(JsonNode root) throws IOException

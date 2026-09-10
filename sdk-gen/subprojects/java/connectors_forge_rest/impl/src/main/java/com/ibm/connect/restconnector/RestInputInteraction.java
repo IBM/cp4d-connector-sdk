@@ -214,7 +214,15 @@ public class RestInputInteraction implements SdkInputInteraction
             authority = configPort == -1 ? host : host + ":" + configPort;
         }
 
-        return protocol + "://" + authority + basePath + tablePath;
+        // Resolve any $variable placeholders in the table path (e.g. /merchants/$merchant_id/customers)
+        final String resolvedTablePath = resolveTemplate(tablePath, props);
+        if (resolvedTablePath == null) {
+            throw new IllegalStateException(
+                    "Could not resolve all path variables in '" + tablePath
+                    + "'. Ensure all required path properties are set in the connection configuration.");
+        }
+
+        return protocol + "://" + authority + basePath + resolvedTablePath;
     }
 
     /**
