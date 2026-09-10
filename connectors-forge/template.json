@@ -5,6 +5,14 @@
   "$origin": { "name": "forge", "version": "1.0.0" },
   "$hostname": "https://api.example.com",
   "$accept_header": "application/json",
+  "$path_properties": [
+    {
+      "name": "account_id",
+      "label": "Account ID",
+      "description": "Your unique account identifier, found in the account settings. Used in API URL paths.",
+      "masked": false
+    }
+  ],
   "$authentication": {
     "type": "api_key",
     "headers": [
@@ -25,6 +33,12 @@
       "name": "VARCHAR",
       "email": "VARCHAR",
       "created_at": "TIMESTAMP"
+    },
+    "TABLE_WITH_PATH_VARIABLE": {
+      "$path": ["/api/$account_id/items"],
+      "id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "status": "VARCHAR"
     },
     "TABLE_WITH_DATA_PATH": {
       "$path": ["/api/wrapped-data"],
