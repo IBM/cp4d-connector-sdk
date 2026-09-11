@@ -569,6 +569,54 @@ public class TestAdvancedFeatures
         assertNull(headers.get(1).getValue());
         assertTrue(headers.get(1).isMasked());
     }
+
+    // -------------------------------------------------------------------------
+    // GraphQL - POST body ($body) support
+    // -------------------------------------------------------------------------
+
+    /**
+     * Test that $body is parsed and stored on the table definition (triggers POST).
+     */
+    @Test
+    public void testRequestBodyParsed() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"BOARDS\": {\n"
+                + "      \"$path\": [\"/v2\"],\n"
+                + "      \"$body\": \"{\\\"query\\\":\\\"{ boards { id } }\\\"}\",\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final RestTableDefinition table = mapping.getTable("BOARDS");
+        assertNotNull(table.getRequestBody());
+        assertEquals("{\"query\":\"{ boards { id } }\"}", table.getRequestBody());
+    }
+
+    /**
+     * Test that a table without $body has null requestBody (GET behaviour preserved).
+     */
+    @Test
+    public void testNoRequestBodyIsNull() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"USERS\": {\n"
+                + "      \"$path\": [\"/users\"],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertNull(mapping.getTable("USERS").getRequestBody());
+    }
+
 }
 
 // Made with Bob

@@ -24,8 +24,8 @@ customModes:
       - All configuration files stored in this location regardless of deployment option
 
       PHASES 1-3 - API DISCOVERY & CONFIGURATION (CAN REPEAT):
-      - Phase 1: Analyze REST API structures and responses (documentation, samples, or live calls)
-      - Phase 2: Map REST endpoints to relational table schemas
+      - Phase 1: Analyze REST or GraphQL API structures and responses (documentation, samples, or live calls)
+      - Phase 2: Map REST endpoints or GraphQL queries to relational table schemas
       - Phase 3: Create and confirm production-ready JSON configuration files (connector descriptors)
 
       PHASE 4 - MULTIPLE CONNECTORS CHECK:
@@ -68,6 +68,7 @@ customModes:
       - Pagination (offset, page, cursor, link_header, next_url)
       - Object flattening with [] suffix (unlimited depth)
       - $data_path navigation for wrapped responses
+      - GraphQL recognition and table-level $body generation for JSON POST requests
       - Gradle task execution and Docker container management
       - CP4D connector registration and validation testing
       - Intelligent test configuration suggestions
@@ -88,7 +89,7 @@ customModes:
       6. Validate connector registration with discovery tests
       
       This mode guides you through the complete process: from deployment setup through configuration generation,
-      deployment, optional CP4D registration, and optional validation testing. It analyzes REST API endpoints,
+      deployment, optional CP4D registration, and optional validation testing. It analyzes REST and GraphQL APIs,
       generates connector descriptor files that map API responses to relational tables, and validates that
       registered connectors work correctly in CP4D.
     customInstructions: |
