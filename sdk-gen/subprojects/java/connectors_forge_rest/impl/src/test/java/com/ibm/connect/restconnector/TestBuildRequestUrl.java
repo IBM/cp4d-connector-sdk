@@ -200,6 +200,72 @@ public class TestBuildRequestUrl
     }
 
     // -------------------------------------------------------------------------
+    // Path variable substitution
+    // -------------------------------------------------------------------------
+
+    /**
+     * A single $variable in the path is replaced from connection properties.
+     */
+    @Test
+    public void testPathVariableSubstitution() throws Exception
+    {
+        final String result = RestInputInteraction.buildRequestUrl(
+                "https://api.braintreegateway.com",
+                "/merchants/$merchant_id/customers",
+                props("merchant_id", "MY-MERCHANT-ID"));
+        assertEquals("https://api.braintreegateway.com/merchants/MY-MERCHANT-ID/customers", result);
+    }
+
+    /**
+     * Multiple distinct $variables in the path are all replaced.
+     */
+    @Test
+    public void testMultiplePathVariablesSubstituted() throws Exception
+    {
+        final String result = RestInputInteraction.buildRequestUrl(
+                "https://api.example.com",
+                "/orgs/$org_id/projects/$project_id/items",
+                props("org_id", "acme", "project_id", "p-42"));
+        assertEquals("https://api.example.com/orgs/acme/projects/p-42/items", result);
+    }
+
+    /**
+     * A path without any $variable placeholders is passed through unchanged.
+     */
+    @Test
+    public void testNoPathVariables() throws Exception
+    {
+        final String result = RestInputInteraction.buildRequestUrl(
+                "https://api.example.com", "/static/path", Collections.emptyMap());
+        assertEquals("https://api.example.com/static/path", result);
+    }
+
+    /**
+     * A missing path variable value throws {@link IllegalStateException}.
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testMissingPathVariableThrows() throws Exception
+    {
+        RestInputInteraction.buildRequestUrl(
+                "https://api.example.com",
+                "/merchants/$merchant_id/customers",
+                Collections.emptyMap());
+    }
+
+    /**
+     * Path variable substitution works together with a host override.
+     */
+    @Test
+    public void testPathVariableWithHostOverride() throws Exception
+    {
+        final String result = RestInputInteraction.buildRequestUrl(
+                "https://api.example.com",
+                "/merchants/$merchant_id/customers",
+                props("host", "sandbox.example.com", "merchant_id", "SANDBOX-ID"));
+        assertEquals("https://sandbox.example.com/merchants/SANDBOX-ID/customers", result);
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

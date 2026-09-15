@@ -105,6 +105,21 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                         .defaultValue(String.valueOf(defaultPort))
                         .group("domain"));
 
+        // Add one connection property per path property definition in $path_properties.
+        // These carry connection-scoped URL variables (e.g. merchant_id) that are substituted
+        // into $path placeholders at request time.
+        for (final PathPropertyDef pd : mapping.getPathProperties()) {
+            properties.addConnectionItem(
+                    new CustomDatasourceTypeProperty()
+                            .name(pd.getName())
+                            .label(pd.getLabel())
+                            .description(pd.getDescription())
+                            .type(TypeEnum.STRING)
+                            .required(true)
+                            .masked(pd.isMasked())
+                            .group("domain"));
+        }
+
         // Add one connection property per header definition in the auth config.
         // UI-only fields (header == null) are still shown so the user can supply
         // credentials that are referenced inside another entry's value template.
