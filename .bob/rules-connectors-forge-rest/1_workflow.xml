@@ -307,6 +307,11 @@
           - Identify path parameters (e.g., /api/users/{id})
           - Note query parameters if relevant
           - Understand endpoint semantics (collection vs single item)
+          - IMPORTANT: Check whether any path segment is a single, account-wide constant
+            (e.g., merchant_id, company_id, org_id, account_id).
+            These are NOT row-level foreign keys — they are the same for every request
+            the user will ever make from this connection.
+            Such values MUST become $path_properties, not hard-coded path literals.
         </details>
       </step>
       
@@ -502,6 +507,46 @@
           <example>https://api.spacexdata.com</example>
         </field>
         
+        <field name="$path_properties" required="false">
+          <description>
+            Optional array declaring connection-scoped URL path variables.
+            Use this whenever the API URL contains a constant, account-wide identifier
+            (e.g., merchant_id in /merchants/{merchant_id}/customers).
+            Each entry becomes a connection property in CP4D (shown in the connection UI)
+            and its value is substituted into every $path that contains the matching $var placeholder.
+          </description>
+          <when_to_use>
+            When one or more URL path segments carry a value that:
+            - Is unique to the user's account / tenant / organization
+            - Is the same for ALL requests from a given connection (not row-level data)
+            - Must be supplied by the user at connection-creation time
+            Common examples: merchant_id, company_id, org_id, account_id, tenant_id, workspace_id
+          </when_to_use>
+          <entry_fields>
+            <field name="name">Property key — also the $var placeholder used in $path strings. Use snake_case.</field>
+            <field name="label">Human-readable label shown in CP4D connection UI.</field>
+            <field name="description">Hint text explaining where the user can find this value.</field>
+            <field name="masked">true to hide value in UI (rare — most identifiers are not secrets).</field>
+          </entry_fields>
+          <path_placeholder_syntax>
+            In the table's $path array, reference the property with a leading dollar sign: $name
+            Example: "$path": ["/merchants/$merchant_id/customers"]
+            The engine replaces $merchant_id with the connection-property value at request time.
+          </path_placeholder_syntax>
+          <example>
+            <![CDATA[
+"$path_properties": [
+  {
+    "name": "merchant_id",
+    "label": "Merchant ID",
+    "description": "Your Braintree merchant ID, found in Account > Business > Merchant Account ID",
+    "masked": false
+  }
+]
+            ]]>
+          </example>
+        </field>
+
         <field name="$authentication" required="true">
           <description>Authentication configuration object</description>
           <structure>
@@ -763,6 +808,9 @@
       <check>created_by is populated (or "unknown")</check>
       <check>forge_version follows semantic versioning</check>
       <check>Each table has exactly one $path entry (array with single element)</check>
+      <check>If any $path contains a $variable placeholder, a matching $path_properties entry exists</check>
+      <check>Each $path_properties entry has name, label, description, masked</check>
+      <check>No account-wide path constants are hard-coded as literals in $path strings</check>
       <check>All nested objects are mapped with "[]" syntax</check>
       <check>All nested arrays are mapped as VARCHAR</check>
       <check>At least one field is marked with ,$key</check>

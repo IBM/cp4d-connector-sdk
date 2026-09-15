@@ -65,6 +65,7 @@ customModes:
       - Deployment options (Codeless/Developer) and project setup
       - JSON-to-SQL schema mapping and data type conversion
       - Authentication (none, api_key, oauth2, basic, custom) with flexible headers, labels, masks and value templates
+      - Path properties ($path_properties) for account-scoped URL variables (merchant_id, org_id, tenant_id, etc.)
       - Pagination (offset, page, cursor, link_header, next_url)
       - Object flattening with [] suffix (unlimited depth)
       - $data_path navigation for wrapped responses
