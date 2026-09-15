@@ -134,6 +134,100 @@
     </mapping_decisions>
   </example>
 
+  <example name="graphql_api">
+    <title>GraphQL API with JSON POST Body</title>
+    <description>
+      Demonstrates recognizing a GraphQL API and mapping a query to a relational table.
+      The table-level $body causes the connector to use HTTP POST with Content-Type application/json.
+      The $data_path selects the result collection from the standard GraphQL response envelope.
+    </description>
+
+    <api_info>
+      <base_url>https://api.example.com</base_url>
+      <endpoint>/graphql</endpoint>
+      <authentication>oauth2</authentication>
+      <protocol>GraphQL over HTTP POST</protocol>
+    </api_info>
+
+    <request_body>
+      <![CDATA[
+{"query":"query { boards { id name state } }"}
+      ]]>
+    </request_body>
+
+    <sample_response endpoint="/graphql">
+      <![CDATA[
+{
+  "data": {
+    "boards": [
+      {"id": "board-1", "name": "Product", "state": "active"},
+      {"id": "board-2", "name": "Engineering", "state": "active"}
+    ]
+  }
+}
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "example-graphql-connector",
+  "$connector_label": "Example GraphQL API",
+  "$connector_description": "Connector for an example GraphQL boards query",
+  "$hostname": "https://api.example.com",
+  "$accept_header": "application/json",
+  "$authentication": {
+    "type": "oauth2",
+    "headers": [
+      {
+        "name": "bearer_token",
+        "label": "Bearer Token",
+        "description": "GraphQL API access token",
+        "masked": true,
+        "header": "Authorization",
+        "value": "Bearer $bearer_token"
+      }
+    ]
+  },
+  "$tables": {
+    "BOARDS": {
+      "$path": ["/graphql"],
+      "$body": "{\"query\":\"query { boards { id name state } }\"}",
+      "$data_path": "data.boards",
+      "id": "VARCHAR,$key",
+      "name": "VARCHAR",
+      "state": "VARCHAR"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$body</field>
+        <reason>GraphQL query is encoded as a JSON string; its presence selects HTTP POST.</reason>
+      </decision>
+      <decision>
+        <field>$data_path</field>
+        <value>data.boards</value>
+        <reason>The result array is nested under the GraphQL data envelope.</reason>
+      </decision>
+      <decision>
+        <field>$path</field>
+        <value>/graphql</value>
+        <reason>GraphQL operations share the API's GraphQL endpoint.</reason>
+      </decision>
+    </mapping_decisions>
+
+    <important>
+      <rule>Use $body only when the endpoint requires a static JSON POST body.</rule>
+      <rule>Do not add $body to ordinary REST GET tables.</rule>
+      <rule>Escape the inner JSON because $body itself is a JSON string.</rule>
+      <rule>Select only fields that are requested by the GraphQL query.</rule>
+    </important>
+  </example>
+
   <example name="api_with_authentication">
     <title>API with API Key Authentication</title>
     <description>
@@ -914,7 +1008,7 @@
         <type>page-based</type>
         <reason>
           GitHub API uses page numbers for pagination.
-          Requests look like: ?page=1&per_page=100, ?page=2&per_page=100, etc.
+          Requests look like: ?page=1&amp;per_page=100, ?page=2&amp;per_page=100, etc.
           Connector automatically fetches all pages until no more data is returned.
         </reason>
       </decision>
@@ -1046,7 +1140,7 @@
         <value>offset</value>
         <reason>
           API uses numeric offset for pagination.
-          Requests: ?offset=0&limit=100, ?offset=100&limit=100, etc.
+          Requests: ?offset=0&amp;limit=100, ?offset=100&amp;limit=100, etc.
         </reason>
       </decision>
       <decision>

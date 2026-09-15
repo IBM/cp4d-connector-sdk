@@ -33,6 +33,13 @@
       "username": "VARCHAR",
       "is_active": "BOOLEAN"
     },
+    "GRAPHQL_TABLE": {
+      "$path": ["/graphql"],
+      "$body": "{\"query\":\"query { boards { id name } }\"}",
+      "$data_path": "data.boards",
+      "id": "VARCHAR,$key",
+      "name": "VARCHAR"
+    },
     "TABLE_WITH_NESTED_OBJECT": {
       "$path": ["/api/profiles"],
       "id": "VARCHAR,$key",

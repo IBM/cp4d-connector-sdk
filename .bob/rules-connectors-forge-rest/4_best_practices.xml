@@ -422,6 +422,27 @@
     </pitfall>
 
     <pitfall>
+      <name>Omitting $body for GraphQL</name>
+      <description>
+        GraphQL operations are sent to a shared endpoint using a JSON POST body. When the API is
+        GraphQL, add a table-level $body containing the JSON-encoded query and use $data_path to
+        select the returned collection, commonly data.&lt;queryField&gt;.
+      </description>
+      <correct>
+        <![CDATA[
+"BOARDS": {
+  "$path": ["/graphql"],
+  "$body": "{\"query\":\"query { boards { id name } }\"}",
+  "$data_path": "data.boards",
+  "id": "VARCHAR,$key",
+  "name": "VARCHAR"
+}
+        ]]>
+      </correct>
+      <note>Do not add $body to ordinary GET tables. Its presence changes the request method to POST.</note>
+    </pitfall>
+
+    <pitfall>
       <name>Inventing API Behavior</name>
       <description>
         Never guess or assume API behavior. Always ask for clarification.
@@ -520,6 +541,8 @@
         <check>target_service is populated and accurate</check>
         <check>created_at is valid ISO 8601 timestamp</check>
         <check>Each table has exactly one $path entry</check>
+        <check>GraphQL tables have a valid JSON string in $body and the correct $data_path</check>
+        <check>GET tables omit $body</check>
         <check>At least one field per table is marked with ,$key</check>
         <check>All nested objects/arrays are VARCHAR</check>
         <check>Field names match JSON exactly</check>
@@ -749,6 +772,8 @@
 
       <category name="Tables">
         <check>Each table has $path field with array containing single endpoint</check>
+        <check>GraphQL tables include a valid JSON string in $body and correct response collection in $data_path</check>
+        <check>Tables that use GET do not include $body</check>
         <check>Table names are descriptive and clear</check>
         <check>No duplicate endpoint mappings</check>
       </category>

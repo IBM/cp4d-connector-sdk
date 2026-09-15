@@ -133,12 +133,19 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
         final Map<String, String> authHeaders = RestInputInteraction.buildAuthHeaders(
                 apiMapping.getAuthConfig(), connectionProperties);
 
+        final String requestBody = tableDef.getRequestBody();
         final HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
                 .header("Accept", apiMapping.getAcceptHeader())
-                .header("User-Agent", "CP4D-REST-Connector/1.0")
-                .GET();
+                .header("User-Agent", "CP4D-REST-Connector/1.0");
+        if (requestBody != null) {
+            builder.header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody,
+                        java.nio.charset.StandardCharsets.UTF_8));
+        } else {
+            builder.GET();
+        }
         if (authHeaders != null) {
             authHeaders.forEach(builder::header);
         }

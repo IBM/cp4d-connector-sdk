@@ -123,10 +123,10 @@
       </item>
       
       <item priority="critical">
-        <name>Endpoints to Map</name>
-        <description>List of specific endpoints the user wants to map</description>
-        <important>Only map endpoints explicitly requested by the user</important>
-        <ask_if_missing>Which specific endpoints do you want to map to tables?</ask_if_missing>
+        <name>Endpoints or GraphQL Queries to Map</name>
+        <description>List of specific REST endpoints or GraphQL queries the user wants to map</description>
+        <important>Only map endpoints or queries explicitly requested by the user</important>
+        <ask_if_missing>Which specific REST endpoints or GraphQL queries do you want to map to tables?</ask_if_missing>
       </item>
     </required_information>
 
@@ -171,7 +171,9 @@
             <name>Analyze Documentation</name>
             <description>
               Read the documentation to extract:
-              - Response schemas for each endpoint
+              - Whether the API is REST or GraphQL
+              - Response schemas for each endpoint or GraphQL query
+              - GraphQL endpoint and query text when applicable
               - Field names and data types
               - Nested object structures
               - Array fields
@@ -326,6 +328,7 @@
           <category>Entity-returning (single object)</category>
           <category>Collection-returning (array of objects)</category>
           <category>Parameterized access paths</category>
+          <category>GraphQL endpoint requiring a JSON POST body</category>
         </categories>
       </step>
     </analysis_steps>
@@ -534,6 +537,19 @@
           <when_to_use>API wraps data in parent objects (e.g., {"result": {"users": [...]}})</when_to_use>
           <example>"$data_path": "result.users"</example>
         </feature>
+        <feature name="$body">
+          <description>JSON request body sent by HTTP POST instead of GET</description>
+          <when_to_use>Use for GraphQL APIs and other endpoints that require a static JSON POST body</when_to_use>
+          <graphql_rules>
+            <rule>Recognize GraphQL from its documentation, endpoint, query language, or response envelope</rule>
+            <rule>Set $path to the GraphQL endpoint, commonly /graphql or /v2</rule>
+            <rule>Set $body to a JSON-encoded string containing the GraphQL query, for example {"query":"query { boards { id name } }"}</rule>
+            <rule>Use $data_path to select the returned collection, commonly data.&lt;queryField&gt;</rule>
+            <rule>Define columns from the objects selected by the GraphQL query</rule>
+            <rule>Do not add $body to ordinary GET tables</rule>
+          </graphql_rules>
+          <runtime_behavior>Presence of $body selects POST with Content-Type application/json; absence of $body preserves GET behavior</runtime_behavior>
+        </feature>
         <feature name="$pagination">
           <description>Configure pagination for APIs that return data across multiple pages</description>
           <when_to_use>API returns large datasets split across multiple pages</when_to_use>
@@ -557,6 +573,12 @@
             <description>Add ,$key suffix to mark primary key field</description>
             <example>id: "VARCHAR,$key"</example>
           </key_marker>
+        </field>
+
+        <field name="$body" required="false">
+          <description>JSON-encoded request body that changes the table request from GET to POST</description>
+          <format>String containing valid JSON</format>
+          <example>"$body": "{\"query\":\"query { boards { id name } }\"}"</example>
         </field>
       </table_definition>
     </structure>
@@ -763,6 +785,8 @@
       <check>created_by is populated (or "unknown")</check>
       <check>forge_version follows semantic versioning</check>
       <check>Each table has exactly one $path entry (array with single element)</check>
+      <check>GraphQL tables include a valid JSON string in $body and use $data_path for the response collection when needed</check>
+      <check>Ordinary GET tables omit $body</check>
       <check>All nested objects are mapped with "[]" syntax</check>
       <check>All nested arrays are mapped as VARCHAR</check>
       <check>At least one field is marked with ,$key</check>

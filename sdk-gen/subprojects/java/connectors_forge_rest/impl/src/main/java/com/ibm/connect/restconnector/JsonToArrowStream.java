@@ -70,6 +70,7 @@ public class JsonToArrowStream implements Closeable
     private final List<RestFieldDefinition> fieldDefs;
     private final Map<String, String> authHeaders;
     private final String acceptHeader;
+    private final String requestBody;
     private final PaginationConfig paginationConfig;
     private final ObjectMapper objectMapper;
 
@@ -90,13 +91,15 @@ public class JsonToArrowStream implements Closeable
      *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
      */
     public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
-            Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader)
+            Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader,
+            String requestBody)
     {
         this.baseUrl = url;
         this.dataPath = dataPath;
         this.fieldDefs = fieldDefs;
         this.authHeaders = authHeaders;
         this.acceptHeader = acceptHeader;
+        this.requestBody = requestBody;
         this.paginationConfig = paginationConfig;
         this.objectMapper = new ObjectMapper();
     }
@@ -402,8 +405,15 @@ public class JsonToArrowStream implements Closeable
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
                 .header("Accept", acceptHeader)
-                .header("User-Agent", "CP4D-REST-Connector/1.0")
-                .GET();
+                .header("User-Agent", "CP4D-REST-Connector/1.0");
+
+        if (requestBody != null) {
+            builder.header("Content-Type", "application/json")
+                   .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8));
+        } else {
+            builder.GET();
+        }
+
         if (authHeaders != null) {
             authHeaders.forEach(builder::header);
         }
