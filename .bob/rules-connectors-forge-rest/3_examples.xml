@@ -511,6 +511,132 @@
     </mapping_decisions>
   </example>
 
+  <example name="path_properties_account_scoped_id">
+    <title>API with Account-Scoped Path Variable (Braintree)</title>
+    <description>
+      Braintree Payments API — the merchant_id is a single, constant value that identifies
+      the user's merchant account. It appears in EVERY endpoint URL under
+      /merchants/{merchant_id}/... and must be supplied by the user at connection time.
+
+      This is the canonical use case for $path_properties: the value is not row-level data,
+      it is not an auth credential, and it is the same for every request the connection ever makes.
+    </description>
+
+    <api_info>
+      <base_url>https://api.braintreegateway.com</base_url>
+      <authentication>basic (Public Key / Private Key)</authentication>
+      <path_variable>merchant_id — unique to each Braintree merchant account</path_variable>
+      <endpoints>
+        <endpoint>/merchants/{merchant_id}/customers</endpoint>
+        <endpoint>/merchants/{merchant_id}/transactions</endpoint>
+      </endpoints>
+    </api_info>
+
+    <recognition_signal>
+      The Braintree API documentation shows every URL as:
+        https://api.braintreegateway.com/merchants/YOUR_MERCHANT_ID/...
+      The phrase "YOUR_MERCHANT_ID" is a placeholder the user replaces with their own value.
+      It is the same for all API calls. → Use $path_properties.
+    </recognition_signal>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "braintree-connector",
+  "$connector_label": "Braintree",
+  "$connector_description": "Connector for Braintree Payments REST API — provides access to customers, transactions, and more",
+  "$origin": { "name": "connector_forge", "version": "1.0.0" },
+  "$hostname": "https://api.braintreegateway.com",
+  "$path_properties": [
+    {
+      "name": "merchant_id",
+      "label": "Merchant ID",
+      "description": "Your Braintree merchant ID, found in Account > Business > Merchant Account ID",
+      "masked": false
+    }
+  ],
+  "$authentication": {
+    "type": "basic",
+    "headers": [
+      {
+        "name": "username",
+        "label": "Public Key",
+        "description": "Your Braintree public key",
+        "masked": false,
+        "header": "Authorization",
+        "value": "Basic base64($username:$password)"
+      },
+      {
+        "name": "password",
+        "label": "Private Key",
+        "description": "Your Braintree private key",
+        "masked": true,
+        "header": null,
+        "value": null
+      }
+    ]
+  },
+  "$tables": {
+    "CUSTOMERS": {
+      "$path": ["/merchants/$merchant_id/customers"],
+      "id": "VARCHAR,$key",
+      "first_name": "VARCHAR",
+      "last_name": "VARCHAR",
+      "email": "VARCHAR",
+      "created_at": "TIMESTAMP",
+      "updated_at": "TIMESTAMP"
+    },
+    "TRANSACTIONS": {
+      "$path": ["/merchants/$merchant_id/transactions"],
+      "id": "VARCHAR,$key",
+      "amount": "DECIMAL",
+      "status": "VARCHAR",
+      "currency_iso_code": "VARCHAR",
+      "created_at": "TIMESTAMP",
+      "updated_at": "TIMESTAMP"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$path_properties[0].name</field>
+        <value>merchant_id</value>
+        <reason>
+          The merchant_id appears in every Braintree URL path. It is the same value for all
+          requests from a given connection — it identifies the user's merchant account.
+          Declaring it in $path_properties causes CP4D to prompt the user for it at connection time,
+          and the engine substitutes $merchant_id into every $path at request time.
+        </reason>
+      </decision>
+      <decision>
+        <field>$path values</field>
+        <value>"/merchants/$merchant_id/customers" and "/merchants/$merchant_id/transactions"</value>
+        <reason>
+          The $merchant_id placeholder is replaced at runtime with the connection-property value.
+          All tables under this connector share the same placeholder — only one $path_properties
+          entry is needed even when multiple tables use it.
+        </reason>
+      </decision>
+      <decision>
+        <field>$authentication.type</field>
+        <value>basic</value>
+        <reason>
+          Braintree uses HTTP Basic Auth with Public Key as username and Private Key as password.
+          The public key is not masked (it is not a secret on its own); the private key is masked.
+        </reason>
+      </decision>
+    </mapping_decisions>
+
+    <key_lesson>
+      When you see a URL documented as /resource/{someId}/sub-resource and the API documentation
+      describes {someId} as "your merchant ID" / "your organization" / "your account ID",
+      that is always a $path_properties candidate — not a hard-coded literal and not a table column.
+    </key_lesson>
+  </example>
+
   <example name="authentication_reference">
     <title>Authentication Configuration Reference</title>
     <description>
