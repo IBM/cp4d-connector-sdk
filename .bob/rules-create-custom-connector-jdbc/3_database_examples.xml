@@ -1,0 +1,502 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<database_specific_examples>
+  <overview>
+    Complete DSL configuration examples for common databases. Use these as
+    references when creating connectors for specific database systems.
+  </overview>
+
+  <mysql_example>
+    <database_name>MySQL</database_name>
+    <connector_name>jdbc_mysql</connector_name>
+    <dsl_configuration><![CDATA[
+{
+  "connector_metadata": {
+    "connector_name": "jdbc_mysql",
+    "connector_label": "MySQL",
+    "connector_description": "JDBC connector for MySQL databases"
+  },
+  "jdbc_driver": {
+    "driver_class_name": "com.mysql.cj.jdbc.Driver"
+  },
+  "connection_properties": {
+    "additional_properties": [
+      {
+        "name": "ssl",
+        "label": "Use SSL",
+        "description": "Enable SSL/TLS encrypted connection",
+        "type": "boolean",
+        "required": false,
+        "default_value": "false"
+      },
+      {
+        "name": "server_timezone",
+        "label": "Server Timezone",
+        "description": "Server timezone (e.g., UTC, America/New_York)",
+        "type": "string",
+        "required": false,
+        "default_value": "UTC"
+      }
+    ]
+  },
+  "authentication": {
+    "methods": [
+      {
+        "type": "basic",
+        "enabled": true
+      }
+    ]
+  },
+  "database_specific_features": {
+    "supports_schemas": false,
+    "supports_catalogs": true,
+    "default_schema": null,
+    "system_schemas": ["information_schema", "mysql", "performance_schema", "sys"],
+    "identifier_quote_char": "`"
+  },
+  "url_template": {
+    "template": "jdbc:mysql://{host}:{port}/{database}"
+  },
+  "validation_rules": {
+    "rules": [
+      {
+        "property": "port",
+        "rule": "range",
+        "min": 1,
+        "max": 65535
+      }
+    ]
+  }
+}
+    ]]></dsl_configuration>
+    <maven_dependency>
+      implementation 'mysql:mysql-connector-java:8.0.33'
+    </maven_dependency>
+    <default_port>3306</default_port>
+  </mysql_example>
+
+  <postgresql_example>
+    <database_name>PostgreSQL</database_name>
+    <connector_name>jdbc_postgres</connector_name>
+    <dsl_configuration><![CDATA[
+{
+  "connector_metadata": {
+    "connector_name": "jdbc_postgres",
+    "connector_label": "PostgreSQL",
+    "connector_description": "JDBC connector for PostgreSQL databases"
+  },
+  "jdbc_driver": {
+    "driver_class_name": "org.postgresql.Driver"
+  },
+  "connection_properties": {
+    "additional_properties": [
+      {
+        "name": "ssl",
+        "label": "Use SSL",
+        "description": "Enable SSL/TLS encrypted connection",
+        "type": "boolean",
+        "required": false,
+        "default_value": "false"
+      },
+      {
+        "name": "ssl_mode",
+        "label": "SSL Mode",
+        "description": "SSL mode (disable, allow, prefer, require, verify-ca, verify-full)",
+        "type": "string",
+        "required": false,
+        "default_value": "prefer"
+      }
+    ]
+  },
+  "authentication": {
+    "methods": [
+      {
+        "type": "basic",
+        "enabled": true
+      }
+    ]
+  },
+  "database_specific_features": {
+    "supports_schemas": true,
+    "supports_catalogs": false,
+    "default_schema": "public",
+    "system_schemas": ["information_schema", "pg_catalog", "pg_toast"],
+    "identifier_quote_char": "\""
+  },
+  "url_template": {
+    "template": "jdbc:postgresql://{host}:{port}/{database}"
+  },
+  "validation_rules": {
+    "rules": [
+      {
+        "property": "port",
+        "rule": "range",
+        "min": 1,
+        "max": 65535
+      }
+    ]
+  }
+}
+    ]]></dsl_configuration>
+    <maven_dependency>
+      implementation 'org.postgresql:postgresql:42.6.0'
+    </maven_dependency>
+    <default_port>5432</default_port>
+  </postgresql_example>
+
+  <oracle_example>
+    <database_name>Oracle Database</database_name>
+    <connector_name>jdbc_oracle</connector_name>
+    <dsl_configuration><![CDATA[
+{
+  "connector_metadata": {
+    "connector_name": "jdbc_oracle",
+    "connector_label": "Oracle Database",
+    "connector_description": "JDBC connector for Oracle databases"
+  },
+  "jdbc_driver": {
+    "driver_class_name": "oracle.jdbc.OracleDriver"
+  },
+  "connection_properties": {
+    "additional_properties": [
+      {
+        "name": "service_name",
+        "label": "Service Name",
+        "description": "Oracle service name (alternative to SID)",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "connection_type",
+        "label": "Connection Type",
+        "description": "Connection type: SID or SERVICE_NAME",
+        "type": "string",
+        "required": false,
+        "default_value": "SID"
+      }
+    ]
+  },
+  "authentication": {
+    "methods": [
+      {
+        "type": "basic",
+        "enabled": true
+      }
+    ]
+  },
+  "database_specific_features": {
+    "supports_schemas": true,
+    "supports_catalogs": false,
+    "default_schema": null,
+    "system_schemas": ["SYS", "SYSTEM", "SYSAUX", "CTXSYS", "MDSYS", "OLAPSYS"],
+    "identifier_quote_char": "\""
+  },
+  "url_template": {
+    "template": "jdbc:oracle:thin:@{host}:{port}:{database}"
+  },
+  "validation_rules": {
+    "rules": [
+      {
+        "property": "port",
+        "rule": "range",
+        "min": 1,
+        "max": 65535
+      }
+    ]
+  }
+}
+    ]]></dsl_configuration>
+    <maven_dependency>
+      implementation 'com.oracle.database.jdbc:ojdbc8:21.9.0.0'
+    </maven_dependency>
+    <default_port>1521</default_port>
+    <notes>
+      Oracle JDBC driver may need to be downloaded manually from Oracle website
+      if not available in Maven Central. Place in lib/ directory.
+    </notes>
+  </oracle_example>
+
+  <sqlserver_example>
+    <database_name>Microsoft SQL Server</database_name>
+    <connector_name>jdbc_sqlserver</connector_name>
+    <dsl_configuration><![CDATA[
+{
+  "connector_metadata": {
+    "connector_name": "jdbc_sqlserver",
+    "connector_label": "SQL Server",
+    "connector_description": "JDBC connector for Microsoft SQL Server databases"
+  },
+  "jdbc_driver": {
+    "driver_class_name": "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+  },
+  "connection_properties": {
+    "additional_properties": [
+      {
+        "name": "encrypt",
+        "label": "Encrypt Connection",
+        "description": "Enable connection encryption",
+        "type": "boolean",
+        "required": false,
+        "default_value": "false"
+      },
+      {
+        "name": "trust_server_certificate",
+        "label": "Trust Server Certificate",
+        "description": "Trust server certificate without validation",
+        "type": "boolean",
+        "required": false,
+        "default_value": "false"
+      },
+      {
+        "name": "instance_name",
+        "label": "Instance Name",
+        "description": "SQL Server instance name",
+        "type": "string",
+        "required": false
+      }
+    ]
+  },
+  "authentication": {
+    "methods": [
+      {
+        "type": "basic",
+        "enabled": true
+      }
+    ]
+  },
+  "database_specific_features": {
+    "supports_schemas": true,
+    "supports_catalogs": true,
+    "default_schema": "dbo",
+    "system_schemas": ["sys", "INFORMATION_SCHEMA"],
+    "identifier_quote_char": "\""
+  },
+  "url_template": {
+    "template": "jdbc:sqlserver://{host}:{port};databaseName={database}"
+  },
+  "validation_rules": {
+    "rules": [
+      {
+        "property": "port",
+        "rule": "range",
+        "min": 1,
+        "max": 65535
+      }
+    ]
+  }
+}
+    ]]></dsl_configuration>
+    <maven_dependency>
+      implementation 'com.microsoft.sqlserver:mssql-jdbc:12.2.0.jre11'
+    </maven_dependency>
+    <default_port>1433</default_port>
+  </sqlserver_example>
+
+  <db2_example>
+    <database_name>IBM DB2</database_name>
+    <connector_name>jdbc_db2</connector_name>
+    <dsl_configuration><![CDATA[
+{
+  "connector_metadata": {
+    "connector_name": "jdbc_db2",
+    "connector_label": "IBM DB2",
+    "connector_description": "JDBC connector for IBM DB2 databases"
+  },
+  "jdbc_driver": {
+    "driver_class_name": "com.ibm.db2.jcc.DB2Driver"
+  },
+  "connection_properties": {
+    "additional_properties": [
+      {
+        "name": "ssl",
+        "label": "Use SSL",
+        "description": "Enable SSL/TLS encrypted connection",
+        "type": "boolean",
+        "required": false,
+        "default_value": "false"
+      },
+      {
+        "name": "connection_timeout",
+        "label": "Connection Timeout",
+        "description": "Connection timeout in seconds",
+        "type": "integer",
+        "required": false,
+        "default_value": "30"
+      }
+    ]
+  },
+  "authentication": {
+    "methods": [
+      {
+        "type": "basic",
+        "enabled": true
+      }
+    ]
+  },
+  "database_specific_features": {
+    "supports_schemas": true,
+    "supports_catalogs": false,
+    "default_schema": null,
+    "system_schemas": ["SYSIBM", "SYSCAT", "SYSSTAT", "SYSPUBLIC"],
+    "identifier_quote_char": "\""
+  },
+  "url_template": {
+    "template": "jdbc:db2://{host}:{port}/{database}"
+  },
+  "validation_rules": {
+    "rules": [
+      {
+        "property": "port",
+        "rule": "range",
+        "min": 1,
+        "max": 65535
+      }
+    ]
+  }
+}
+    ]]></dsl_configuration>
+    <maven_dependency>
+      implementation 'com.ibm.db2:jcc:11.5.8.0'
+    </maven_dependency>
+    <default_port>50000</default_port>
+  </db2_example>
+
+  <mariadb_example>
+    <database_name>MariaDB</database_name>
+    <connector_name>jdbc_mariadb</connector_name>
+    <dsl_configuration><![CDATA[
+{
+  "connector_metadata": {
+    "connector_name": "jdbc_mariadb",
+    "connector_label": "MariaDB",
+    "connector_description": "JDBC connector for MariaDB databases"
+  },
+  "jdbc_driver": {
+    "driver_class_name": "org.mariadb.jdbc.Driver"
+  },
+  "connection_properties": {
+    "additional_properties": [
+      {
+        "name": "ssl",
+        "label": "Use SSL",
+        "description": "Enable SSL/TLS encrypted connection",
+        "type": "boolean",
+        "required": false,
+        "default_value": "false"
+      }
+    ]
+  },
+  "authentication": {
+    "methods": [
+      {
+        "type": "basic",
+        "enabled": true
+      }
+    ]
+  },
+  "database_specific_features": {
+    "supports_schemas": false,
+    "supports_catalogs": true,
+    "default_schema": null,
+    "system_schemas": ["information_schema", "mysql", "performance_schema"],
+    "identifier_quote_char": "`"
+  },
+  "url_template": {
+    "template": "jdbc:mariadb://{host}:{port}/{database}"
+  },
+  "validation_rules": {
+    "rules": [
+      {
+        "property": "port",
+        "rule": "range",
+        "min": 1,
+        "max": 65535
+      }
+    ]
+  }
+}
+    ]]></dsl_configuration>
+    <maven_dependency>
+      implementation 'org.mariadb.jdbc:mariadb-java-client:3.1.4'
+    </maven_dependency>
+    <default_port>3306</default_port>
+  </mariadb_example>
+
+  <usage_guidelines>
+    <guideline>
+      <title>Selecting the Right Example</title>
+      <description>
+        Choose the example that matches your target database. If your database
+        is not listed, find the closest match and adapt the configuration.
+      </description>
+    </guideline>
+
+    <guideline>
+      <title>Adapting Examples</title>
+      <description>
+        When adapting an example for a similar database:
+        1. Update connector_name and connector_label
+        2. Change driver_class_name to match your database
+        3. Adjust url_template for your database's URL format
+        4. Update system_schemas list
+        5. Modify identifier_quote_char if different
+        6. Add/remove additional_properties as needed
+      </description>
+    </guideline>
+
+    <guideline>
+      <title>Finding Driver Information</title>
+      <resources>
+        <resource>Official database documentation</resource>
+        <resource>JDBC driver documentation</resource>
+        <resource>Maven Central repository search</resource>
+        <resource>Database vendor websites</resource>
+      </resources>
+    </guideline>
+  </usage_guidelines>
+
+  <common_url_patterns>
+    <pattern database="MySQL/MariaDB">
+      jdbc:mysql://{host}:{port}/{database}
+      jdbc:mariadb://{host}:{port}/{database}
+    </pattern>
+    <pattern database="PostgreSQL">
+      jdbc:postgresql://{host}:{port}/{database}
+    </pattern>
+    <pattern database="Oracle (SID)">
+      jdbc:oracle:thin:@{host}:{port}:{database}
+    </pattern>
+    <pattern database="Oracle (Service Name)">
+      jdbc:oracle:thin:@//{host}:{port}/{service_name}
+    </pattern>
+    <pattern database="SQL Server">
+      jdbc:sqlserver://{host}:{port};databaseName={database}
+    </pattern>
+    <pattern database="DB2">
+      jdbc:db2://{host}:{port}/{database}
+    </pattern>
+    <pattern database="H2 (embedded)">
+      jdbc:h2:file:{database_path}
+    </pattern>
+    <pattern database="H2 (server)">
+      jdbc:h2:tcp://{host}:{port}/{database}
+    </pattern>
+    <pattern database="SQLite">
+      jdbc:sqlite:{database_path}
+    </pattern>
+  </common_url_patterns>
+
+  <common_driver_classes>
+    <driver database="MySQL (modern)">com.mysql.cj.jdbc.Driver</driver>
+    <driver database="MySQL (legacy)">com.mysql.jdbc.Driver</driver>
+    <driver database="MariaDB">org.mariadb.jdbc.Driver</driver>
+    <driver database="PostgreSQL">org.postgresql.Driver</driver>
+    <driver database="Oracle">oracle.jdbc.OracleDriver</driver>
+    <driver database="SQL Server">com.microsoft.sqlserver.jdbc.SQLServerDriver</driver>
+    <driver database="DB2">com.ibm.db2.jcc.DB2Driver</driver>
+    <driver database="H2">org.h2.Driver</driver>
+    <driver database="SQLite">org.sqlite.JDBC</driver>
+    <driver database="Sybase">com.sybase.jdbc4.jdbc.SybDriver</driver>
+  </common_driver_classes>
+</database_specific_examples>
+
+<!-- Made with Bob -->

@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<user_interaction_guidelines>
+  <overview>
+    Guidelines for interacting with users when creating JDBC connectors.
+    Focus on gathering information efficiently and providing clear guidance.
+  </overview>
+
+  <information_gathering>
+    <initial_assessment>
+      <title>Determine What User Knows</title>
+      <description>
+        Assess how much information the user has provided about their database
+      </description>
+      <scenarios>
+        <scenario type="minimal_info">
+          <user_input>Create a MySQL connector</user_input>
+          <what_you_know>Database type only</what_you_know>
+          <what_to_ask>
+            <question>Confirm database details and gather any specific requirements</question>
+            <use_database_examples>Reference the MySQL example from database_examples.xml</use_database_examples>
+          </what_to_ask>
+        </scenario>
+
+        <scenario type="partial_info">
+          <user_input>Create a connector for PostgreSQL with SSL support</user_input>
+          <what_you_know>Database type and one requirement</what_you_know>
+          <what_to_ask>
+            <question>Confirm if standard configuration is acceptable or if other customizations needed</question>
+          </what_to_ask>
+        </scenario>
+
+        <scenario type="complete_info">
+          <user_input>Create jdbc_oracle connector with driver oracle.jdbc.OracleDriver</user_input>
+          <what_you_know>Database type, connector name, and driver class</what_you_know>
+          <what_to_ask>
+            <question>Minimal - just confirm and proceed</question>
+          </what_to_ask>
+        </scenario>
+
+        <scenario type="custom_database">
+          <user_input>Create a connector for Vertica database</user_input>
+          <what_you_know>Database type not in common examples</what_you_know>
+          <what_to_ask>
+            <question>JDBC driver class name</question>
+            <question>JDBC URL template pattern</question>
+            <question>Default port number</question>
+            <question>Schema/catalog support</question>
+            <question>System schemas to exclude</question>
+          </what_to_ask>
+        </scenario>
+      </scenarios>
+    </initial_assessment>
+
+    <question_strategy>
+      <principle>Ask only what you need to know</principle>
+      <principle>Use database examples when available</principle>
+      <principle>Provide intelligent defaults based on database type</principle>
+      <principle>Offer 2-4 specific suggestions for each question</principle>
+
+      <example_good_question>
+        <ask_followup_question>
+          <question>I'll create a MySQL connector. Should I use the standard configuration or do you need any customizations?</question>
+          <follow_up>
+            <suggest>Use standard MySQL configuration (driver: com.mysql.cj.jdbc.Driver, port: 3306)</suggest>
+            <suggest>Standard configuration with SSL support enabled</suggest>
+            <suggest>Custom configuration - I'll specify the details</suggest>
+          </follow_up>
+        </ask_followup_question>
+      </example_good_question>
+
+      <example_bad_question>
+        <description>Too many questions at once</description>
+        <bad_approach>
+          What is the driver class? What is the port? What is the URL template?
+          Do you need SSL? What about schemas?
+        </bad_approach>
+        <why_bad>Overwhelming and inefficient</why_bad>
+      </example_bad_question>
+    </question_strategy>
+
+    <using_database_examples>
+      <when_to_use>
+        User mentions a common database (MySQL, PostgreSQL, Oracle, SQL Server, DB2, MariaDB)
+      </when_to_use>
+      <how_to_use>
+        <step>Reference the appropriate example from database_examples.xml</step>
+        <step>Use the example values as defaults</step>
+        <step>Only ask about customizations if user indicates special needs</step>
+      </how_to_use>
+      <example>
+        User says: "Create a PostgreSQL connector"
+        Your response: "I'll create a PostgreSQL connector using the standard configuration:
+        - Driver: org.postgresql.Driver
+        - Default port: 5432
+        - With SSL support option
+        
+        Proceeding with connector creation..."
+      </example>
+    </using_database_examples>
+  </information_gathering>
+
+  <progress_communication>
+    <principle>Keep user informed at each major step</principle>
+    <principle>Explain what each command does</principle>
+    <principle>Show clear progress through the workflow</principle>
+
+    <phase_announcements>
+      <phase name="dsl_creation">
+        <announcement>
+          Creating DSL configuration file for {database_name} connector...
+        </announcement>
+        <completion>
+          ✅ Created DSL-jdbc-{connector_name}.json with {database_name} configuration
+        </completion>
+      </phase>
+
+      <phase name="code_generation">
+        <announcement>
+          Generating connector skeleton code...
+          Running: ./gradlew generateJavaJdbc
+        </announcement>
+        <completion>
+          ✅ Generated connector skeleton in sdk-gen/subprojects/{connector_name}/
+        </completion>
+      </phase>
+
+      <phase name="customization">
+        <announcement>
+          Customizing connector with DSL configuration...
+          Running: ./gradlew customizeJdbcConnector
+        </announcement>
+        <completion>
+          ✅ Connector customized with {database_name}-specific settings
+        </completion>
+      </phase>
+
+      <phase name="test_generation">
+        <announcement>
+          Generating comprehensive test suite...
+          Running: ./gradlew generateJdbcTests
+        </announcement>
+        <completion>
+          ✅ Generated TestPropertyValidation.java with {test_count} test methods
+        </completion>
+      </phase>
+
+      <phase name="build">
+        <announcement>
+          Building connector...
+          Running: ./gradlew :{connector_name}:build
+        </announcement>
+        <completion>
+          ✅ Connector built successfully
+          JAR location: sdk-gen/subprojects/{connector_name}/build/libs/
+        </completion>
+      </phase>
+    </phase_announcements>
+
+    <error_communication>
+      <principle>Explain what went wrong clearly</principle>
+      <principle>Provide specific solutions</principle>
+      <principle>Offer to retry or adjust approach</principle>
+
+      <example_error_handling>
+        <error>Gradle task fails with "DSL file not found"</error>
+        <bad_response>The DSL file wasn't found.</bad_response>
+        <good_response>
+          The customization task couldn't find the DSL file. This is likely because:
+          1. The path needs ../ prefix since DSL is in parent directory
+          2. The file name doesn't match exactly
+          
+          I'll retry with the correct path: -PdslFile=../DSL-jdbc-{name}.json
+        </good_response>
+      </example_error_handling>
+    </error_communication>
+  </progress_communication>
+
+  <completion_guidance>
+    <final_summary>
+      <title>Provide Clear Summary</title>
+      <what_to_include>
+        <item>What was created (connector name, database type)</item>
+        <item>Location of generated files</item>
+        <item>Current status (built successfully, ready for testing, etc.)</item>
+        <item>Clear next steps</item>
+      </what_to_include>
+
+      <example_summary><![CDATA[
+✅ MySQL JDBC connector created successfully!
+
+Created files:
+- DSL-jdbc-mysql.json - Configuration file
+- sdk-gen/subprojects/jdbc_mysql/ - Connector source code
+- TestPropertyValidation.java - Comprehensive test suite
+- CUSTOMIZATION_SUMMARY.md - Documentation
+
+Build status: ✅ Compiled successfully
+
+Next steps:
+1. Add JDBC driver dependency to build.gradle:
+   implementation 'mysql:mysql-connector-java:8.0.33'
+
+2. Update test credentials in TestPropertyValidation.java with real database details
+
+3. Run tests:
+   cd sdk-gen && ./gradlew :jdbc_mysql:test
+
+4. Build Flight server image when ready:
+   ./gradlew dockerBuild
+      ]]></example_summary>
+    </final_summary>
+
+    <next_steps_clarity>
+      <principle>Provide actionable, ordered steps</principle>
+      <principle>Include exact commands to run</principle>
+      <principle>Explain why each step is needed</principle>
+
+      <step_template>
+        <number>1</number>
+        <action>Add JDBC driver dependency</action>
+        <why>The connector needs the database driver to connect</why>
+        <how>
+          Edit sdk-gen/subprojects/{connector_name}/build.gradle
+          Add to dependencies section: implementation '{driver_artifact}'
+        </how>
+      </step_template>
+    </next_steps_clarity>
+  </completion_guidance>
+
+  <handling_special_cases>
+    <case name="unknown_database">
+      <description>User wants connector for database not in examples</description>
+      <approach>
+        <step>Acknowledge the database type</step>
+        <step>Ask for essential information systematically</step>
+        <step>Use ask_followup_question with specific prompts</step>
+        <step>Offer to research if user is unsure</step>
+      </approach>
+      <example_interaction>
+        <ask_followup_question>
+          <question>I'll create a connector for {database_name}. I need some information about the JDBC driver. What is the fully qualified driver class name?</question>
+          <follow_up>
+            <suggest>com.{vendor}.jdbc.Driver (standard pattern)</suggest>
+            <suggest>I'll look it up in the database documentation</suggest>
+            <suggest>I'm not sure - can you help me find it?</suggest>
+          </follow_up>
+        </ask_followup_question>
+      </example_interaction>
+    </case>
+
+    <case name="user_has_dsl_file">
+      <description>User already has a DSL configuration file</description>
+      <approach>
+        <step>Ask for the DSL file path</step>
+        <step>Read and validate the DSL file</step>
+        <step>Skip DSL creation phase</step>
+        <step>Proceed directly to code generation</step>
+      </approach>
+    </case>
+
+    <case name="modifying_existing_connector">
+      <description>User wants to modify an existing connector</description>
+      <approach>
+        <step>Identify what needs to be changed</step>
+        <step>Update the DSL file if it exists</step>
+        <step>Re-run customization task</step>
+        <step>Rebuild the connector</step>
+      </approach>
+    </case>
+
+    <case name="build_errors">
+      <description>Build fails during process</description>
+      <approach>
+        <step>Read the error output carefully</step>
+        <step>Identify the root cause</step>
+        <step>Explain the issue to user</step>
+        <step>Provide specific fix</step>
+        <step>Offer to retry after fix</step>
+      </approach>
+    </case>
+  </handling_special_cases>
+
+  <tone_and_style>
+    <guideline>Be direct and technical, not conversational</guideline>
+    <guideline>Use clear, concise language</guideline>
+    <guideline>Avoid phrases like "Great!", "Certainly!", "Sure!"</guideline>
+    <guideline>Focus on actions and results</guideline>
+
+    <good_examples>
+      <example>Creating MySQL connector with standard configuration...</example>
+      <example>Running generateJavaJdbc task to create connector skeleton</example>
+      <example>Connector built successfully. JAR created in build/libs/</example>
+    </good_examples>
+
+    <bad_examples>
+      <example>Great! I'll help you create a MySQL connector!</example>
+      <example>Sure thing! Let me get started on that for you!</example>
+      <example>Awesome! The connector is ready to go!</example>
+    </bad_examples>
+  </tone_and_style>
+
+  <efficiency_principles>
+    <principle>
+      <name>Minimize Questions</name>
+      <description>
+        Use database examples and intelligent defaults to avoid unnecessary questions
+      </description>
+    </principle>
+
+    <principle>
+      <name>Batch Related Operations</name>
+      <description>
+        Complete related steps together rather than asking for confirmation at each step
+      </description>
+    </principle>
+
+    <principle>
+      <name>Provide Context</name>
+      <description>
+        Explain what you're doing and why, so user understands the process
+      </description>
+    </principle>
+
+    <principle>
+      <name>Anticipate Needs</name>
+      <description>
+        Proactively address common next steps and potential issues
+      </description>
+    </principle>
+  </efficiency_principles>
+</user_interaction_guidelines>
+
+<!-- Made with Bob -->
