@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mode_switching_guide>
+  <overview>
+    Detailed guidance on when and how to switch to the appropriate specialized mode
+    (connectors-forge-rest or connectors-forge-jdbc).
+  </overview>
+
+  <switching_criteria>
+    <switch_to_rest>
+      <title>When to Switch to REST Connector Forge Mode</title>
+      
+      <clear_indicators>
+        <indicator priority="high">
+          User explicitly mentions REST API, HTTP endpoints, or web service
+        </indicator>
+        <indicator priority="high">
+          Data source is a known REST API (GitHub, Salesforce API, ServiceNow, etc.)
+        </indicator>
+        <indicator priority="high">
+          User provides API documentation URL
+        </indicator>
+        <indicator priority="medium">
+          User mentions JSON/XML responses
+        </indicator>
+        <indicator priority="medium">
+          User talks about OAuth2, API keys, or bearer tokens
+        </indicator>
+        <indicator priority="medium">
+          User mentions using curl, Postman, or HTTP clients
+        </indicator>
+      </clear_indicators>
+
+      <confidence_levels>
+        <high_confidence>
+          <description>Switch immediately with explanation</description>
+          <conditions>
+            - 2+ high priority indicators present
+            - OR 1 high + 2 medium priority indicators
+            - OR well-known REST API mentioned
+          </conditions>
+          <example>
+            User says: "I want to connect to the GitHub API"
+            Action: Immediately switch to connectors-forge-rest
+          </example>
+        </high_confidence>
+
+        <medium_confidence>
+          <description>Confirm before switching</description>
+          <conditions>
+            - 1 high priority indicator
+            - OR 2-3 medium priority indicators
+          </conditions>
+          <example>
+            User says: "I need to connect to a service that returns JSON"
+            Action: Ask "Is this a REST API with HTTP endpoints?" then switch
+          </example>
+        </medium_confidence>
+
+        <low_confidence>
+          <description>Ask clarifying questions</description>
+          <conditions>
+            - Only 1 medium priority indicator
+            - OR vague/generic description
+          </conditions>
+          <example>
+            User says: "I need to connect to our data source"
+            Action: Ask targeted questions to determine type
+          </example>
+        </low_confidence>
+      </confidence_levels>
+    </switch_to_rest>
+
+    <switch_to_jdbc>
+      <title>When to Switch to JDBC Connector Forge Mode</title>
+      
+      <clear_indicators>
+        <indicator priority="high">
+          User explicitly mentions JDBC, database, or SQL
+        </indicator>
+        <indicator priority="high">
+          Data source is a known database (PostgreSQL, MySQL, Oracle, etc.)
+        </indicator>
+        <indicator priority="high">
+          User mentions connection strings or JDBC drivers
+        </indicator>
+        <indicator priority="medium">
+          User talks about tables, schemas, or SQL queries
+        </indicator>
+        <indicator priority="medium">
+          User mentions database username/password authentication
+        </indicator>
+        <indicator priority="medium">
+          User mentions using SQL clients (pgAdmin, DBeaver, etc.)
+        </indicator>
+      </clear_indicators>
+
+      <confidence_levels>
+        <high_confidence>
+          <description>Switch immediately with explanation</description>
+          <conditions>
+            - 2+ high priority indicators present
+            - OR 1 high + 2 medium priority indicators
+            - OR well-known database mentioned
+          </conditions>
+          <example>
+            User says: "I need to connect to our PostgreSQL database"
+            Action: Immediately switch to connectors-forge-jdbc
+          </example>
+        </high_confidence>
+
+        <medium_confidence>
+          <description>Confirm before switching</description>
+          <conditions>
+            - 1 high priority indicator
+            - OR 2-3 medium priority indicators
+          </conditions>
+          <example>
+            User says: "I need to query tables in our data warehouse"
+            Action: Ask "Is this a database you connect to via JDBC?" then switch
+          </example>
+        </medium_confidence>
+
+        <low_confidence>
+          <description>Ask clarifying questions</description>
+          <conditions>
+            - Only 1 medium priority indicator
+            - OR vague/generic description
+          </conditions>
+          <example>
+            User says: "I need to access our data"
+            Action: Ask targeted questions to determine type
+          </example>
+        </low_confidence>
+      </confidence_levels>
+    </switch_to_jdbc>
+  </switching_criteria>
+
+  <switching_process>
+    <step number="1">
+      <title>Analyze User Input</title>
+      <description>
+        Evaluate the user's message against the indicator lists above.
+        Count high and medium priority indicators for each type (REST vs JDBC).
+      </description>
+    </step>
+
+    <step number="2">
+      <title>Determine Confidence Level</title>
+      <description>
+        Based on the indicators present, determine your confidence level:
+        - High: Can switch immediately
+        - Medium: Should confirm first
+        - Low: Need more information
+      </description>
+    </step>
+
+    <step number="3">
+      <title>Provide Explanation</title>
+      <description>
+        Before switching, always explain to the user:
+        - Why you determined this is REST or JDBC
+        - What indicators led to this decision
+        - What they can expect in the target mode
+      </description>
+      <example_explanation>
+        Based on your description, this is a REST API connector scenario because:
+        - You mentioned HTTP endpoints
+        - The data source returns JSON responses
+        - You're using API key authentication
+        
+        The REST Connector Forge mode will guide you through creating JSON
+        configuration files that map your API endpoints to relational tables.
+      </example_explanation>
+    </step>
+
+    <step number="4">
+      <title>Execute Mode Switch</title>
+      <description>
+        Use the switch_mode tool with appropriate parameters
+      </description>
+      <tool_usage>
+        <switch_mode>
+          <mode_slug>connectors-forge-rest OR connectors-forge-jdbc</mode_slug>
+          <reason>Clear explanation of why this mode was selected</reason>
+        </switch_mode>
+      </tool_usage>
+    </step>
+  </switching_process>
+
+  <special_cases>
+    <case name="hybrid_sources">
+      <description>
+        Data sources that support both REST and JDBC (Snowflake, BigQuery, Salesforce, etc.)
+      </description>
+      <handling>
+        <step>Acknowledge that both options are available</step>
+        <step>Explain the trade-offs of each approach</step>
+        <step>Ask user for their preference</step>
+        <step>Switch based on their choice</step>
+      </handling>
+      <example>
+        User mentions: "Snowflake"
+        
+        Response:
+        "Snowflake supports both REST API and JDBC connectivity.
+        
+        REST API approach:
+        - Configuration-based connector
+        - OAuth2 authentication
+        - Good for specific API operations
+        
+        JDBC approach:
+        - Full SQL query capabilities
+        - Standard database connectivity
+        - Better for complex queries and joins
+        
+        Which approach would you prefer?"
+        
+        Then switch based on their answer.
+      </example>
+    </case>
+
+    <case name="unclear_after_questions">
+      <description>
+        User has answered questions but it's still unclear
+      </description>
+      <handling>
+        <step>Summarize what you know</step>
+        <step>Present a binary choice</step>
+        <step>Offer to help research if they're unsure</step>
+      </handling>
+      <example>
+        "Based on our conversation, I understand you want to connect to [data source],
+        but I'm not certain whether it uses REST API or JDBC connectivity.
+        
+        Can you tell me which of these is true:
+        A) It has HTTP endpoints that return JSON/XML (REST API)
+        B) It's a database you query using SQL (JDBC)
+        C) I'm not sure - can you help me find out?
+        
+        If you choose C, I can help you research the data source documentation."
+      </example>
+    </case>
+
+    <case name="user_explicitly_unsure">
+      <description>
+        User states they don't know which type to use
+      </description>
+      <handling>
+        <step>Provide educational context about REST vs JDBC</step>
+        <step>Ask about how they currently access the data</step>
+        <step>Ask about tools they use or plan to use</step>
+        <step>Make a recommendation based on their answers</step>
+      </handling>
+      <example>
+        "Let me help you understand the difference:
+        
+        REST API connectors are for web services that:
+        - Have HTTP/HTTPS endpoints
+        - Return JSON or XML data
+        - Use API keys or OAuth2 for authentication
+        
+        JDBC connectors are for databases that:
+        - You connect to using SQL
+        - Have tables and schemas
+        - Use database drivers
+        
+        How do you currently access or plan to access your data source?"
+      </example>
+    </case>
+
+    <case name="conflicting_indicators">
+      <description>
+        User's description has indicators for both REST and JDBC
+      </description>
+      <handling>
+        <step>Point out the conflicting information</step>
+        <step>Ask for clarification</step>
+        <step>Determine if it's a hybrid source</step>
+      </handling>
+      <example>
+        "I notice you mentioned both 'API endpoints' and 'SQL queries' in your
+        description. Does your data source support both REST API and JDBC
+        connectivity, or did you mean one specific approach?"
+      </example>
+    </case>
+  </special_cases>
+
+  <communication_templates>
+    <template name="high_confidence_rest_switch">
+      <message>
+        Based on your description, this is a REST API connector scenario because:
+        - [List specific indicators from user's input]
+        
+        I'll switch you to the REST Connector Forge mode, which will guide you through:
+        1. Analyzing your API endpoints
+        2. Creating JSON configuration files
+        3. Mapping API responses to relational tables
+        4. Deploying your connector
+      </message>
+      <action>
+        <switch_mode>
+          <mode_slug>connectors-forge-rest</mode_slug>
+          <reason>Data source is a REST API requiring endpoint configuration</reason>
+        </switch_mode>
+      </action>
+    </template>
+
+    <template name="high_confidence_jdbc_switch">
+      <message>
+        Based on your description, this is a JDBC database connector scenario because:
+        - [List specific indicators from user's input]
+        
+        I'll switch you to the JDBC Connector Forge mode, which will guide you through:
+        1. Setting up database connectivity
+        2. Configuring JDBC driver and connection properties
+        3. Defining table access and queries
+        4. Deploying your connector
+      </message>
+      <action>
+        <switch_mode>
+          <mode_slug>connectors-forge-jdbc</mode_slug>
+          <reason>Data source is a JDBC database requiring driver configuration</reason>
+        </switch_mode>
+      </action>
+    </template>
+
+    <template name="hybrid_source_choice">
+      <message>
+        Your data source ([name]) supports both REST API and JDBC connectivity.
+        
+        REST API approach:
+        - [List REST-specific benefits for this source]
+        
+        JDBC approach:
+        - [List JDBC-specific benefits for this source]
+        
+        Which approach would you prefer for your use case?
+      </message>
+      <follow_up_suggestions>
+        <suggest>REST API - I want to use the API endpoints</suggest>
+        <suggest>JDBC - I need SQL query capabilities</suggest>
+        <suggest>I'm not sure - which do you recommend?</suggest>
+      </follow_up_suggestions>
+    </template>
+
+    <template name="need_more_info">
+      <message>
+        To help you create the right connector, I need to understand more about
+        your data source.
+        
+        [Ask specific question based on what's unclear]
+      </message>
+      <follow_up_suggestions>
+        [Provide 2-4 specific, actionable suggestions]
+      </follow_up_suggestions>
+    </template>
+  </communication_templates>
+
+  <error_prevention>
+    <rule>Never switch modes without explaining why</rule>
+    <rule>Never assume - always confirm when confidence is medium or low</rule>
+    <rule>Never switch modes if user hasn't provided enough information</rule>
+    <rule>Always acknowledge hybrid sources and ask for preference</rule>
+    <rule>Always provide context about what the target mode will do</rule>
+  </error_prevention>
+
+  <quality_checklist>
+    <before_switching>
+      <item>Have I identified clear indicators for REST or JDBC?</item>
+      <item>Is my confidence level high enough to switch?</item>
+      <item>Have I explained my reasoning to the user?</item>
+      <item>Have I considered if this might be a hybrid source?</item>
+      <item>Does the user understand what will happen next?</item>
+    </before_switching>
+
+    <after_switching>
+      <item>Did I provide a clear reason in the switch_mode tool?</item>
+      <item>Did I set appropriate expectations for the target mode?</item>
+      <item>Did I preserve relevant context for the target mode?</item>
+    </after_switching>
+  </quality_checklist>
+</mode_switching_guide>
+
+<!-- Made with Bob -->
