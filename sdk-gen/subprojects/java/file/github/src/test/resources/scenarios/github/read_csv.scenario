@@ -1,0 +1,16 @@
+# ============================================================
+# GitHub — read the canonical cars.csv from apache/spark
+# and verify at least one row is returned
+# ============================================================
+# NOTE: Requires file_github.github.access_token in tests.properties.
+
+# ── Step 1: Read and assert non-empty ───────────────────────
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars.csv
+# cars.csv has 3 data rows + header
+ExpectedRowCount=3
+# Spot-check first row — "Nico Rosberg" is row 0, year column (col 1) = 2012
+ExpectedCell.0.0=Nico Rosberg
+ExpectedCell.0.1=2012

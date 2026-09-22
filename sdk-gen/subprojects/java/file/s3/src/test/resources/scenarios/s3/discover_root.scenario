@@ -1,0 +1,11 @@
+# ============================================================
+# S3 — discover root bucket listing
+# ============================================================
+# NOTE: Requires file_s3.s3.* credentials in tests.properties.
+# The test is skipped automatically when credentials are absent.
+
+# ── Step 1: Root must return at least one entry ─────────────
+[Step]
+Type=Discover
+Path=/
+ExpectedNotEmpty=true

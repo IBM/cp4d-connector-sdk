@@ -1,0 +1,10 @@
+# ============================================================
+# GitHub — discover repository root (branches)
+# ============================================================
+# NOTE: Requires file_github.github.access_token in tests.properties.
+
+# ── Step 1: Root must return at least one branch ────────────
+[Step]
+Type=Discover
+Path=/
+ExpectedNotEmpty=true

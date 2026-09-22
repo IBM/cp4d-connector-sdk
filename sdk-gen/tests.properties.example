@@ -1,0 +1,109 @@
+# =============================================================================
+# tests.properties — SDK test configuration template
+#
+# Copy this file to sdk-gen/tests.properties (gitignored) and fill in real
+# values.  Only the settings for the connectors you want to test are needed.
+#
+# INTERPOLATION: values may reference other keys with the #key# syntax:
+#   file_s3.s3.test_base=test-data/
+#   file_s3.s3.test_csv_key=#file_s3.s3.test_base#cars.csv
+#
+# ENCRYPTION: wrap secrets with the encrypted.{{ }} marker (produced by
+#   EncryptUtil -e <plaintext>):
+#   file_s3.s3.secret_access_key=encrypted.{{<base64-ciphertext>}}
+#
+# =============================================================================
+
+# =============================================================================
+# Amazon S3 file connector
+# =============================================================================
+
+# ── Connection ────────────────────────────────────────────────────────────────
+# file_s3.s3.access_key_id=AKIA...
+# file_s3.s3.secret_access_key=...
+# file_s3.s3.bucket=my-test-bucket
+# file_s3.s3.region=us-east-1
+# Optional — for S3-compatible stores (MinIO, LocalStack):
+# file_s3.s3.endpoint_url=http://localhost:9000
+
+# ── Test data (objects that must exist in the bucket before running) ──────────
+# Use #ref# interpolation to avoid repeating the prefix:
+# file_s3.s3.test_base=test-data/
+# file_s3.s3.test_folder=#file_s3.s3.test_base#        # non-empty prefix ending in /
+# file_s3.s3.test_csv_key=#file_s3.s3.test_base#cars.csv
+# file_s3.s3.test_binary_key=#file_s3.s3.test_base#logo.png
+
+# ── Flight server ─────────────────────────────────────────────────────────────
+file_s3.flight.createLocal=true
+file_s3.flight.ssl=true
+# file_s3.flight.port=                         # blank = random free port
+# file_s3.flight.uri=grpc+tls://host:port      # used when createLocal=false
+# file_s3.flight.ssl_certificate=              # PEM certificate content
+file_s3.flight.ssl_certificate_validation=true
+
+# =============================================================================
+# GitHub file connector
+# =============================================================================
+
+# ── Connection ────────────────────────────────────────────────────────────────
+file_github.github.host=github.com
+file_github.github.repository_owner=apache
+file_github.github.repository_name=spark
+# file_github.github.access_token=            # PAT — required to avoid rate limits
+
+# ── Flight server ─────────────────────────────────────────────────────────────
+file_github.flight.createLocal=true
+file_github.flight.ssl=true
+# file_github.flight.port=
+# file_github.flight.uri=grpc+tls://host:port
+# file_github.flight.ssl_certificate=
+file_github.flight.ssl_certificate_validation=true
+
+# =============================================================================
+# LocalFS file connector (no credentials needed)
+# =============================================================================
+
+file_localfs.flight.createLocal=true
+file_localfs.flight.ssl=true
+# file_localfs.flight.port=
+# file_localfs.flight.uri=grpc+tls://host:port
+# file_localfs.flight.ssl_certificate=
+file_localfs.flight.ssl_certificate_validation=true
+
+# =============================================================================
+# Derby JDBC connector (no external service needed)
+# =============================================================================
+
+jdbc_derby.flight.createLocal=true
+jdbc_derby.flight.ssl=true
+# jdbc_derby.flight.port=
+jdbc_derby.flight.ssl_certificate_validation=true
+
+# =============================================================================
+# Generic JDBC connector
+# =============================================================================
+
+jdbc_generic.flight.createLocal=true
+jdbc_generic.flight.ssl=true
+# jdbc_generic.flight.port=
+jdbc_generic.flight.ssl_certificate_validation=true
+
+# =============================================================================
+# Cloud test suite (optional — for running against a deployed CP4D instance)
+# =============================================================================
+
+cloud.type=private
+# cloud.private.host=
+# cloud.private.flight.host=
+# cloud.private.ssl_certificate=
+cloud.private.ssl_certificate_validation=true
+# cloud.private.user_name=
+# cloud.private.user_pass=
+cloud.private.container_type=project
+# cloud.private.container_id=
+
+# cloud.public.host=api.dataplatform.cloud.ibm.com
+# cloud.public.iam_url=https://iam.cloud.ibm.com
+# cloud.public.api_key=
+# cloud.public.container_type=project
+# cloud.public.container_id=
