@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2025                        */
+/* (C) Copyright IBM Corp. 2025, 2026                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.file.localfs;
@@ -14,6 +14,7 @@ import static org.junit.Assume.assumeTrue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -45,6 +47,7 @@ import com.ibm.connect.sdk.api.ArrowConversions;
 import com.ibm.connect.sdk.test.TestConfig;
 import com.ibm.connect.sdk.test.TestFlight;
 import com.ibm.connect.sdk.test.file.FileTestSuite;
+import com.ibm.connect.sdk.test.file.TestScenario;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
@@ -55,13 +58,35 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
  *
  * <p>All standard file connector tests (discovery, metadata, read, write,
  * paging) are inherited from {@link FileTestSuite}. This class adds
- * LocalFS-specific tests for individual file formats and LocalFS-specific
- * write scenarios.
+ * LocalFS-specific tests for individual file formats and write scenarios.
+ *
+ * <h3>Configuration</h3>
+ * <p>All settings are loaded from {@code tests.properties} (gitignored) located in
+ * the project working directory, or from the classpath resource of the same name.
+ * No properties are required for LocalFS — the connector writes to a per-process
+ * temp directory and needs no external infrastructure.
+ *
+ * <p>Optional properties (all under the {@code file_localfs.*} namespace):
+ * <pre>
+ *   # Flight server
+ *   file_localfs.flight.createLocal=true       # set false to point at a remote server
+ *   file_localfs.flight.ssl=true
+ *   file_localfs.flight.port=                  # blank = random free port
+ *   # Remote server (only when createLocal=false)
+ *   file_localfs.flight.uri=grpc+tls://host:port
+ *   file_localfs.flight.ssl_certificate=       # PEM content
+ *   file_localfs.flight.ssl_certificate_validation=true
+ * </pre>
+ *
+ * <h3>Scenario-based tests</h3>
+ * <p>Scenario files placed under {@code src/test/resources/scenarios/localfs/}
+ * are automatically discovered and run via {@link FileTestSuite#testScenarios()}.
+ * Add a new {@code *.scenario} file and list it in {@link #getScenarioPaths()} to
+ * include it in the suite without writing Java code.
  */
 public class TestLocalFSFlightProducer extends FileTestSuite
 {
     private static final Logger LOGGER = getLogger(TestLocalFSFlightProducer.class);
-
     private static final String DATASOURCE_TYPE_NAME = LocalFSDatasourceType.DATASOURCE_TYPE_NAME;
 
     /** Number of columns in the shared test file written by {@link #createTestFile}. */
@@ -69,7 +94,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
 
     /**
      * Total number of non-null cell values across all 3 data rows and 12 columns
-     * (row 1=12, row 2=1 varchar + 11 nulls, row 3=12 → 25 non-null cells).
+     * (row 0=12, row 1=1 varchar + 11 nulls, row 2=12 → 25 non-null cells).
      */
     static final int TEST_FILE_VALUES_COUNT = 25;
 
@@ -77,21 +102,18 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     private static final String KNOWN_FILE_NAME = "suite_known_read.csv";
     private static final String KNOWN_FILE_PATH = "/" + KNOWN_FILE_NAME;
 
+    // -----------------------------------------------------------------------
+    // Flight server / client lifecycle
+    // -----------------------------------------------------------------------
+
     private static TestFlight testFlight;
     private static FlightClient client;
     private static TimeZone defaultTimeZone;
-
-    // -----------------------------------------------------------------------
-    // Lifecycle
-    // -----------------------------------------------------------------------
+    private static final LocalFSConfig CONFIG = new LocalFSConfig();
 
     /**
-     * Skip on Windows unless HADOOP_HOME is set (Spark needs winutils.exe).
-     *
-     * <p>Also writes the shared known file and container seed file before each
-     * test. Because LocalFS uses a connector pool with per-instance temp
-     * directories, files must be written immediately before each read so the
-     * same connector that accepted the write is still idle when the read arrives.
+     * Skip on Windows unless {@code HADOOP_HOME} is set, and write the
+     * canonical seed files that each test reads from.
      */
     @Before
     public void setUp() throws Exception
@@ -104,21 +126,14 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     @BeforeClass
     public static void setUpOnce() throws Exception
     {
-        if (Boolean.parseBoolean(TestConfig.get("file_localfs.flight.createLocal", "true"))) {
-            final boolean useSSL = Boolean.parseBoolean(TestConfig.get("file_localfs.flight.ssl", "true"));
-            testFlight
-                    = TestFlight.createLocal(TestConfig.getPort("file_localfs.flight.port"), useSSL, new LocalFSFlightProducer(), null);
+        if (CONFIG.createLocal) {
+            testFlight = TestFlight.createLocal(CONFIG.port, CONFIG.useSSL, new LocalFSFlightProducer(), null);
         } else {
-            final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("file_localfs.flight.ssl_certificate_validation", "true"));
-            testFlight = TestFlight.createRemote(
-                    TestConfig.get("file_localfs.flight.uri.internal", TestConfig.get("file_localfs.flight.uri")),
-                    TestConfig.get("file_localfs.flight.ssl_certificate"), verifyCert, null);
+            testFlight = TestFlight.createRemote(CONFIG.remoteUri, CONFIG.sslCertificate, CONFIG.verifyCert, null);
         }
         client = testFlight.getClient();
         defaultTimeZone = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
-
-        // No pre-created files: each test that needs state writes it inline.
     }
 
     @AfterClass
@@ -164,7 +179,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
 
     /**
      * Container path for listing tests: the same folder that
-     * {@link #testDiscoverContainer()} writes a seed file into before listing.
+     * {@link #setUp()} seeds with a file before each test.
      */
     @Override
     protected String getContainerPath()
@@ -192,10 +207,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         return KNOWN_FILE_NAME;
     }
 
-    /**
-     * LocalFS supports writing — provide a unique target path per test so that
-     * concurrent test runs don't collide.
-     */
+    /** LocalFS supports writing — provide a unique target path per test. */
     @Override
     protected DiscoveredAssetInteractionProperties createWriteInteractionProperties(String uniqueSuffix)
     {
@@ -209,18 +221,14 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     // FileTestSuite data-validating hooks
     // -----------------------------------------------------------------------
 
-    /**
-     * The canonical test file has 3 rows: Low values / Null values / High values.
-     */
+    /** The canonical test file has 3 rows: Low values / Null values / High values. */
     @Override
     protected int getExpectedRowCount()
     {
         return 3;
     }
 
-    /**
-     * Column order matches the field order used by {@link #createTestFile}.
-     */
+    /** Column order matches the field order used by {@link #createTestFile}. */
     @Override
     protected List<String> getExpectedColumnNames()
     {
@@ -232,9 +240,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
 
     /**
      * Spot-checks for {@code suite_known_read.csv}.
-     *
-     * <p>CSV (without {@code infer_schema=true}) returns all values as strings.
-     * Null cells (row 1, columns 1-11) must be absent from the table.
+     * CSV returns all values as strings; null cells are absent from the table.
      */
     @Override
     protected Map<int[], Object> getExpectedCellValues()
@@ -255,6 +261,92 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         expected.put(new int[]{2, 2}, "127");
         expected.put(new int[]{2, 3}, "32767");
         return expected;
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario support
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns scenario files to run via {@link FileTestSuite#testScenarios()}.
+     *
+     * <p>Add entries here to enable scenario-based testing without writing Java.
+     * Each path is relative to the test classpath root.
+     */
+    @Override
+    protected List<String> getScenarioPaths()
+    {
+        return Arrays.asList(
+                "scenarios/localfs/readwrite_csv.scenario",
+                "scenarios/localfs/discover_root.scenario");
+    }
+
+    @Override
+    protected TestScenario.WriteHook createScenarioWriteHook()
+    {
+        return (flightClient, modelMapper, dsTypeName, connProps, iprops, schemaSpec, rows, nullToken) -> {
+            final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
+            descriptor.setDatasourceTypeName(dsTypeName);
+            descriptor.setConnectionProperties(connProps);
+            descriptor.setInteractionProperties(iprops);
+            for (final String colDef : schemaSpec) {
+                final String[] parts = colDef.split("\\|");
+                if (parts.length >= 2) {
+                    descriptor.addFieldsItem(new CustomFlightAssetField()
+                            .name(parts[0].trim()).type(parts[1].trim()).nullable(true).signed(true));
+                }
+            }
+            try (BufferAllocator alloc = new RootAllocator()) {
+                final Schema arrowSchema = ArrowConversions.toArrow(descriptor.getFields());
+                try (VectorSchemaRoot root = VectorSchemaRoot.create(arrowSchema, alloc)) {
+                    final ArrowConversions.ArrowFieldSetter setter = new ArrowConversions.ArrowFieldSetter(root);
+                    for (int ri = 0; ri < rows.size(); ri++) {
+                        setter.setVectorIndex(ri);
+                        final String[] cols = rows.get(ri);
+                        for (int ci = 0; ci < cols.length; ci++) {
+                            final String val = cols[ci];
+                            if (nullToken.equals(val)) {
+                                setter.setNull(ci);
+                            } else {
+                                final String type = schemaSpec.get(ci).split("\\|").length > 1
+                                        ? schemaSpec.get(ci).split("\\|")[1].trim() : "varchar";
+                                setter.setValue(ci, coerceValue(val, type));
+                            }
+                        }
+                    }
+                    root.setRowCount(rows.size());
+                    final FlightClient.ClientStreamListener put = flightClient.startPut(
+                            FlightDescriptor.command(modelMapper.toBytes(descriptor)), root,
+                            new AsyncPutListener());
+                    put.putNext();
+                    root.clear();
+                    put.completed();
+                    put.getResult();
+                }
+            }
+        };
+    }
+
+    @SuppressWarnings("PMD.CyclomaticComplexity")
+    private static Serializable coerceValue(final String value, final String type)
+    {
+        switch (type.toLowerCase(Locale.ENGLISH)) {
+        case "integer":
+        case "int":      return Integer.parseInt(value);
+        case "bigint":   return Long.parseLong(value);
+        case "smallint": return Short.parseShort(value);
+        case "tinyint":  return Byte.parseByte(value);
+        case "boolean":
+        case "bool":     return Boolean.parseBoolean(value);
+        case "real":
+        case "float":    return Float.parseFloat(value);
+        case "double":   return Double.parseDouble(value);
+        case "date":     return Date.valueOf(value);
+        case "timestamp": return Timestamp.valueOf(value);
+        case "varbinary":
+        case "binary":   return value.getBytes(StandardCharsets.UTF_8);
+        default:         return value;
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -385,8 +477,6 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     /**
      * Discover files and folders at a non-root folder path.
      * Verifies the full asset-type contract for folder entries.
-     *
-     * @throws Exception
      */
     @Test
     public void testDiscoverFolderFiles() throws Exception
@@ -440,12 +530,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     // Metadata — per-format discover-columns tests
     // -----------------------------------------------------------------------
 
-    /**
-     * Discover a CSV file: verify mime type, field_delimiter, first_line_header,
-     * and column names.
-     *
-     * @throws Exception
-     */
+    /** Discover a CSV file: verify mime type, field_delimiter, first_line_header, and column names. */
     @Test
     public void testDiscoverColumnsCsv() throws Exception
     {
@@ -456,8 +541,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         criteria.setDatasourceTypeName(getDatasourceTypeName());
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
-        for (final FlightInfo info : getClient()
-                .listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor d
                     = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertEquals("csv", d.getInteractionProperties().get("file_format"));
@@ -472,11 +556,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         }
     }
 
-    /**
-     * Discover a delimited text file: verify mime type and format.
-     *
-     * @throws Exception
-     */
+    /** Discover a delimited text file: verify mime type and format. */
     @Test
     public void testDiscoverColumnsDelimited() throws Exception
     {
@@ -487,8 +567,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         criteria.setDatasourceTypeName(getDatasourceTypeName());
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
-        for (final FlightInfo info : getClient()
-                .listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor d
                     = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertEquals("delimited", d.getInteractionProperties().get("file_format"));
@@ -498,11 +577,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         }
     }
 
-    /**
-     * Discover a JSON file: verify mime type and column count.
-     *
-     * @throws Exception
-     */
+    /** Discover a JSON file: verify mime type and column count. */
     @Test
     public void testDiscoverColumnsJson() throws Exception
     {
@@ -513,8 +588,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         criteria.setDatasourceTypeName(getDatasourceTypeName());
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
-        for (final FlightInfo info : getClient()
-                .listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor d
                     = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertEquals("json", d.getInteractionProperties().get("file_format"));
@@ -523,11 +597,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         }
     }
 
-    /**
-     * Discover an ORC file: verify mime type and column count.
-     *
-     * @throws Exception
-     */
+    /** Discover an ORC file: verify mime type and column count. */
     @Test
     public void testDiscoverColumnsOrc() throws Exception
     {
@@ -538,8 +608,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         criteria.setDatasourceTypeName(getDatasourceTypeName());
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
-        for (final FlightInfo info : getClient()
-                .listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor d
                     = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertEquals("orc", d.getInteractionProperties().get("file_format"));
@@ -548,11 +617,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         }
     }
 
-    /**
-     * Discover a Parquet file: verify mime type and column count.
-     *
-     * @throws Exception
-     */
+    /** Discover a Parquet file: verify mime type and column count. */
     @Test
     public void testDiscoverColumnsParquet() throws Exception
     {
@@ -563,8 +628,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         criteria.setDatasourceTypeName(getDatasourceTypeName());
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
-        for (final FlightInfo info : getClient()
-                .listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor d
                     = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertEquals("parquet", d.getInteractionProperties().get("file_format"));
@@ -573,11 +637,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         }
     }
 
-    /**
-     * Discover an XML file: verify mime type and column count.
-     *
-     * @throws Exception
-     */
+    /** Discover an XML file: verify mime type and column count. */
     @Test
     public void testDiscoverColumnsXml() throws Exception
     {
@@ -588,8 +648,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         criteria.setDatasourceTypeName(getDatasourceTypeName());
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
-        for (final FlightInfo info : getClient()
-                .listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final CustomFlightAssetDescriptor d
                     = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
             assertEquals("xml", d.getInteractionProperties().get("file_format"));
@@ -602,11 +661,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     // Read — per-format getStream tests
     // -----------------------------------------------------------------------
 
-    /**
-     * Read a CSV with first_line_header=true: verify column names and cell values.
-     *
-     * @throws Exception
-     */
+    /** Read a CSV with first_line_header=true: verify column names and cell values. */
     @Test
     public void testGetStreamCsv() throws Exception
     {
@@ -635,8 +690,6 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     /**
      * Read a CSV written without a header row (first_line_header=false): verify
      * that columns are named _c0, _c1, … and data includes the header as row 0.
-     *
-     * @throws Exception
      */
     @Test
     public void testGetStreamCsvFirstLineHeader() throws Exception
@@ -656,11 +709,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertEquals("Low values", data.get(0, 0));
     }
 
-    /**
-     * Read a CSV with infer_schema=false: all values returned as strings.
-     *
-     * @throws Exception
-     */
+    /** Read a CSV with infer_schema=false: all values returned as strings. */
     @Test
     public void testGetStreamCsvInferSchemaFalse() throws Exception
     {
@@ -676,12 +725,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertEquals("-128", data.get(0, 2));
     }
 
-    /**
-     * Read a CSV with infer_schema=true: numeric/boolean values are returned with
-     * native types.
-     *
-     * @throws Exception
-     */
+    /** Read a CSV with infer_schema=true: numeric/boolean values are returned with native types. */
     @Test
     public void testGetStreamCsvInferSchemaTrue() throws Exception
     {
@@ -702,11 +746,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertEquals(32767, data.get(2, 3));
     }
 
-    /**
-     * Read a delimited text file: verify column count and cell values.
-     *
-     * @throws Exception
-     */
+    /** Read a delimited text file: verify column count and cell values. */
     @Test
     public void testGetStreamDelimited() throws Exception
     {
@@ -722,11 +762,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertEquals("High values", data.get(2, 0));
     }
 
-    /**
-     * Read a JSON file: verify column ordering (JSON sorts alphabetically) and values.
-     *
-     * @throws Exception
-     */
+    /** Read a JSON file: verify column ordering (JSON sorts alphabetically) and values. */
     @Test
     public void testGetStreamJson() throws Exception
     {
@@ -737,7 +773,6 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         final FlightInfo info = getFlightInfo(props);
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(TEST_FILE_COLUMN_COUNT, schema.getFields().size());
-        // JSON reader returns columns in alphabetical order.
         assertEquals("bigint_type", schema.getFields().get(0).getName());
         assertEquals("boolean_type", schema.getFields().get(1).getName());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -749,11 +784,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertTrue((Boolean) data.get(2, 1));
     }
 
-    /**
-     * Read an ORC file: verify typed values (not string) for boolean/int columns.
-     *
-     * @throws Exception
-     */
+    /** Read an ORC file: verify typed values for boolean/int columns. */
     @Test
     public void testGetStreamOrc() throws Exception
     {
@@ -773,11 +804,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertEquals(Short.MAX_VALUE, data.get(2, 3));
     }
 
-    /**
-     * Read an ORC file written with Snappy compression.
-     *
-     * @throws Exception
-     */
+    /** Read an ORC file written with Snappy compression. */
     @Test
     public void testGetStreamOrcSnappy() throws Exception
     {
@@ -795,11 +822,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertTrue((Boolean) data.get(2, 1));
     }
 
-    /**
-     * Read a Parquet file: verify typed values for boolean/int columns.
-     *
-     * @throws Exception
-     */
+    /** Read a Parquet file: verify typed values for boolean/int columns. */
     @Test
     public void testGetStreamParquet() throws Exception
     {
@@ -816,11 +839,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertTrue((Boolean) data.get(2, 1));
     }
 
-    /**
-     * Read a Parquet file written with Snappy compression.
-     *
-     * @throws Exception
-     */
+    /** Read a Parquet file written with Snappy compression. */
     @Test
     public void testGetStreamParquetSnappy() throws Exception
     {
@@ -838,12 +857,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertTrue((Boolean) data.get(2, 1));
     }
 
-    /**
-     * Read an XML file: verify column ordering (alphabetical, as with JSON)
-     * and cell values.
-     *
-     * @throws Exception
-     */
+    /** Read an XML file: verify column ordering (alphabetical, as with JSON) and cell values. */
     @Test
     public void testGetStreamXml() throws Exception
     {
@@ -870,11 +884,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     // Read — limit tests with exact cell-value assertions
     // -----------------------------------------------------------------------
 
-    /**
-     * row_limit=1 must return exactly the first row (12 cells).
-     *
-     * @throws Exception
-     */
+    /** row_limit=1 must return exactly the first row (12 cells). */
     @Test
     public void testGetStreamRowLimitExact() throws Exception
     {
@@ -884,18 +894,14 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         props.put("file_name", filePath);
         props.put("row_limit", "1");
         final Table<Integer, Integer, Object> data = getTableData(getFlightInfo(props));
-        assertEquals(TEST_FILE_COLUMN_COUNT, data.size()); // 1 row × 12 columns
+        assertEquals(TEST_FILE_COLUMN_COUNT, data.size());
         assertEquals("Low values", data.get(0, 0));
         assertEquals("false", data.get(0, 1));
         assertEquals("-128", data.get(0, 2));
         assertEquals("-32768", data.get(0, 3));
     }
 
-    /**
-     * byte_limit=10 must return exactly the first row (truncated at 10 bytes).
-     *
-     * @throws Exception
-     */
+    /** byte_limit=10 must return exactly the first row (truncated at 10 bytes). */
     @Test
     public void testGetStreamByteLimitExact() throws Exception
     {
@@ -910,5 +916,33 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         assertEquals("false", data.get(0, 1));
         assertEquals("-128", data.get(0, 2));
         assertEquals("-32768", data.get(0, 3));
+    }
+
+    // -----------------------------------------------------------------------
+    // Flight configuration — all from tests.properties
+    // -----------------------------------------------------------------------
+
+    /**
+     * All LocalFS Flight-server settings, resolved from {@code tests.properties}.
+     *
+     * <p>Because LocalFS needs no external credentials, {@link #isConfigured()} is
+     * always {@code true}.
+     */
+    private static final class LocalFSConfig
+    {
+        final boolean createLocal = TestConfig.getBoolean("file_localfs.flight.createLocal", true);
+        final boolean useSSL = TestConfig.getBoolean("file_localfs.flight.ssl", true);
+        final int port = TestConfig.getPort("file_localfs.flight.port");
+
+        // Remote-server settings (used when createLocal=false)
+        final String remoteUri = TestConfig.get("file_localfs.flight.uri");
+        final String sslCertificate = TestConfig.get("file_localfs.flight.ssl_certificate");
+        final boolean verifyCert = TestConfig.getBoolean("file_localfs.flight.ssl_certificate_validation", true);
+
+        boolean isConfigured()
+        {
+            // LocalFS always works — no external service required.
+            return true;
+        }
     }
 }

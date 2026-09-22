@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2025                        */
+/* (C) Copyright IBM Corp. 2025, 2026                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.file.github;
@@ -20,6 +20,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,16 +56,41 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
  * GitHub is read-only, so {@code createWriteInteractionProperties} returns
  * {@code null} and all {@code testPutStream*} tests are skipped.
  */
+/**
+ * Tests the Arrow Flight producer for the GitHub connector.
+ *
+ * <p>All standard file connector tests (discovery contract, metadata,
+ * read, paging) are inherited from {@link FileTestSuite}.
+ * GitHub is read-only, so {@code createWriteInteractionProperties} returns
+ * {@code null} and all {@code testPutStream*} tests are skipped.
+ *
+ * <h3>Configuration — {@code tests.properties}</h3>
+ * <p>Create the file {@code sdk-gen/tests.properties} (gitignored) and populate
+ * it with the settings below.  The {@code access_token} is optional for public
+ * repos but required to avoid anonymous API rate limits.
+ *
+ * <pre>
+ * # ── GitHub connection ─────────────────────────────────────────────────────
+ * file_github.github.host=github.com        # or your GitHub Enterprise hostname
+ * file_github.github.repository_owner=apache
+ * file_github.github.repository_name=spark
+ * file_github.github.access_token=          # PAT — required to avoid rate limits
+ *
+ * # ── Flight server ─────────────────────────────────────────────────────────
+ * file_github.flight.createLocal=true
+ * file_github.flight.ssl=true
+ * # file_github.flight.port=                # blank = random free port
+ * # file_github.flight.uri=grpc+tls://host:port  (used when createLocal=false)
+ * # file_github.flight.ssl_certificate=          (PEM)
+ * file_github.flight.ssl_certificate_validation=true
+ * </pre>
+ *
+ * <p>All tests are skipped when {@code file_github.github.access_token} is absent.
+ */
 public class TestGitHubFlightProducer extends FileTestSuite
 {
     private static final Logger LOGGER = getLogger(TestGitHubFlightProducer.class);
-
     private static final String DATASOURCE_TYPE_NAME = GitHubDatasourceType.DATASOURCE_TYPE_NAME;
-
-    private static final String GITHUB_HOST = TestConfig.get("file_github.github.host", "github.com");
-    private static final String GITHUB_REPOSITORY_OWNER = TestConfig.get("file_github.github.repository_owner", "apache");
-    private static final String GITHUB_REPOSITORY_NAME = TestConfig.get("file_github.github.repository_name", "spark");
-    private static final String GITHUB_ACCESS_TOKEN = TestConfig.get("file_github.github.access_token");
 
     private static final String BRANCH_NAME = "master";
     private static final String BRANCH_PATH = "/" + BRANCH_NAME;
@@ -107,14 +133,14 @@ public class TestGitHubFlightProducer extends FileTestSuite
     private static TestFlight testFlight;
     private static FlightClient client;
     private static TimeZone defaultTimeZone;
+    private static final GitHubConfig GH = new GitHubConfig();
 
-    /**
-     * Verifies that test configuration has been specified before running tests.
-     */
+    /** Skip every test when no GitHub access token is configured. */
     @Before
     public void setUp()
     {
-        assumeNotNull(GITHUB_ACCESS_TOKEN);
+        assumeNotNull("GitHub access token not configured — set file_github.github.access_token in tests.properties",
+                GH.accessToken);
     }
 
     /**
@@ -125,37 +151,16 @@ public class TestGitHubFlightProducer extends FileTestSuite
     @BeforeClass
     public static void setUpOnce() throws Exception
     {
-        if (Boolean.parseBoolean(TestConfig.get("file_github.flight.createLocal", "true"))) {
-            final boolean useSSL = Boolean.parseBoolean(TestConfig.get("file_github.flight.ssl", "true"));
-            testFlight = TestFlight.createLocal(TestConfig.getPort("file_github.flight.port"), useSSL, new GitHubFlightProducer(), null);
+        if (GH.createLocal) {
+            testFlight = TestFlight.createLocal(GH.port, GH.useSSL, new GitHubFlightProducer(), null);
         } else {
-            final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("file_github.flight.ssl_certificate_validation", "true"));
-            testFlight
-                    = TestFlight.createRemote(TestConfig.get("file_github.flight.uri.internal", TestConfig.get("file_github.flight.uri")),
-                            TestConfig.get("file_github.flight.ssl_certificate"), verifyCert, null);
+            testFlight = TestFlight.createRemote(GH.remoteUri, GH.sslCert, GH.verifyCert, null);
         }
         client = testFlight.getClient();
         defaultTimeZone = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
     }
 
-    private static ConnectionProperties createGitHubConnectionProperties()
-    {
-        final ConnectionProperties connectionProperties = new ConnectionProperties();
-        connectionProperties.put("host", GITHUB_HOST);
-        connectionProperties.put("repository_owner", GITHUB_REPOSITORY_OWNER);
-        connectionProperties.put("repository_name", GITHUB_REPOSITORY_NAME);
-        if (GITHUB_ACCESS_TOKEN != null) {
-            connectionProperties.put("access_token", GITHUB_ACCESS_TOKEN);
-        }
-        return connectionProperties;
-    }
-
-    /**
-     * Cleanup after tests.
-     *
-     * @throws Exception
-     */
     @AfterClass
     public static void tearDownOnce()
     {
@@ -183,7 +188,14 @@ public class TestGitHubFlightProducer extends FileTestSuite
     @Override
     protected ConnectionProperties createConnectionProperties()
     {
-        return createGitHubConnectionProperties();
+        final ConnectionProperties props = new ConnectionProperties();
+        props.put("host", GH.host);
+        props.put("repository_owner", GH.repositoryOwner);
+        props.put("repository_name", GH.repositoryName);
+        if (GH.accessToken != null) {
+            props.put("access_token", GH.accessToken);
+        }
+        return props;
     }
 
     // -----------------------------------------------------------------------
@@ -240,6 +252,25 @@ public class TestGitHubFlightProducer extends FileTestSuite
     protected DiscoveredAssetInteractionProperties createWriteInteractionProperties(String uniqueSuffix)
     {
         return null;
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario support
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns scenario files to run via {@link FileTestSuite#testScenarios()}.
+     * Skipped automatically when credentials are absent.
+     */
+    @Override
+    protected List<String> getScenarioPaths()
+    {
+        if (!GH.isConfigured()) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList(
+                "scenarios/github/discover_root.scenario",
+                "scenarios/github/read_csv.scenario");
     }
 
     // -----------------------------------------------------------------------
@@ -1409,5 +1440,38 @@ public class TestGitHubFlightProducer extends FileTestSuite
         assertEquals(100, data.size());
         assertEquals("row 000000", data.get(0, 0));
         assertEquals("row 000099", data.get(99, 0));
+    }
+
+    // -----------------------------------------------------------------------
+    // Connector-scoped configuration — all sourced from tests.properties
+    // -----------------------------------------------------------------------
+
+    /**
+     * All GitHub test settings resolved from {@code tests.properties} at
+     * class-load time.
+     */
+    private static final class GitHubConfig
+    {
+        // Connection
+        final String host            = TestConfig.get("file_github.github.host", "github.com");
+        final String repositoryOwner = TestConfig.get("file_github.github.repository_owner", "apache");
+        final String repositoryName  = TestConfig.get("file_github.github.repository_name", "spark");
+        final String accessToken     = TestConfig.get("file_github.github.access_token");
+
+        // Flight server
+        final boolean createLocal = TestConfig.getBoolean("file_github.flight.createLocal", true);
+        final boolean useSSL      = TestConfig.getBoolean("file_github.flight.ssl", true);
+        final int     port        = TestConfig.getPort("file_github.flight.port");
+
+        // Remote server (only when createLocal=false)
+        final String remoteUri   = TestConfig.get("file_github.flight.uri");
+        final String sslCert     = TestConfig.get("file_github.flight.ssl_certificate");
+        final boolean verifyCert = TestConfig.getBoolean("file_github.flight.ssl_certificate_validation", true);
+
+        /** Returns true when an access token is present. */
+        boolean isConfigured()
+        {
+            return accessToken != null;
+        }
     }
 }

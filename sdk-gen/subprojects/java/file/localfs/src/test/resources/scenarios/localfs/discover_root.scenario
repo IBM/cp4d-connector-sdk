@@ -1,0 +1,9 @@
+# ============================================================
+# LocalFS — discover root and verify non-empty asset listing
+# ============================================================
+
+# ── Step 1: Root must return at least one entry ─────────────
+[Step]
+Type=Discover
+Path=/
+ExpectedNotEmpty=true

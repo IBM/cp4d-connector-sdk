@@ -1,0 +1,35 @@
+# ============================================================
+# LocalFS — write then read back a small CSV and check values
+# ============================================================
+
+# ── Step 1: Write a 3-row CSV ──────────────────────────────
+[Step]
+Type=Write
+# Interaction properties (stripped of "Interaction." prefix)
+Interaction.file_name=/scenario_write_csv.csv
+Interaction.first_line_header=true
+# Schema: name|type (varchar, integer, boolean, bigint, real, double, decimal, date, timestamp, varbinary)
+Schema=id|integer; label|varchar; active|boolean
+# Rows: pipe-separated values; <NULL> for SQL NULL
+Row.0=1|Alice|true
+Row.1=2|Bob|false
+Row.2=3|<NULL>|true
+
+# ── Step 2: Read back and verify ───────────────────────────
+[Step]
+Type=Read
+Interaction.file_name=/scenario_write_csv.csv
+# Expected column names in order (CSV + first_line_header → all string)
+ExpectedColumns=id|label|active
+# Exact row count
+ExpectedRowCount=3
+# Spot-checks: ExpectedCell.<row>.<col>=<value>  (0-based; <NULL> for SQL NULL)
+ExpectedCell.0.0=1
+ExpectedCell.0.1=Alice
+ExpectedCell.0.2=true
+ExpectedCell.1.0=2
+ExpectedCell.1.1=Bob
+ExpectedCell.1.2=false
+ExpectedCell.2.0=3
+ExpectedCell.2.1=<NULL>
+ExpectedCell.2.2=true

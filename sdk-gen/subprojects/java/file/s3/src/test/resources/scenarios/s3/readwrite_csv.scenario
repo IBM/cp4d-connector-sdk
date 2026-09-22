@@ -1,0 +1,20 @@
+# ============================================================
+# S3 — read the configured CSV test object and verify content
+# ============================================================
+# NOTE: Requires file_s3.s3.test_csv_key in tests.properties.
+# The test is skipped automatically when credentials are absent.
+#
+# The #ref# token below is resolved by TestConfig interpolation:
+#   file_s3.s3.test_base=test-data/
+#   file_s3.s3.test_csv_key=#file_s3.s3.test_base#cars.csv
+
+# ── Step 1: Read and assert non-empty ───────────────────────
+[Step]
+Type=Read
+# file_name will be empty if test_csv_key is not configured;
+# the suite @Before guard (assumeNotNull) fires first.
+# ExpectedRowCount is omitted here — the suite asserts at least one row by default.
+Interaction.file_name=/test-data/cars.csv
+# Exact assertions below — update when your bucket and file are known:
+# ExpectedRowCount=3
+# ExpectedCell.0.0=some_value
