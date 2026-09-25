@@ -40,11 +40,13 @@ public class FlightService implements AutoCloseable
     private static final Logger LOGGER = getLogger(FlightService.class);
 
     // Configuration environment variables
+    private static final String ENV_ENABLE_AUTH = "ENABLE_AUTH";
     private static final String ENV_ENABLE_SSL = "ENABLE_SSL";
     private static final String ENV_FLIGHT_PORT = "FLIGHT_PORT";
     private static final String ENV_FLIGHT_CERTS_DIR = "FLIGHT_CERTS_DIR";
 
     // Configuration defaults
+    private static final String ENABLE_AUTH_DEFAULT = "true";
     private static final String ENABLE_SSL_DEFAULT = "true";
     private static final String FLIGHT_PORT_DEFAULT = "9443";
     private static final String FLIGHT_CERTS_DIR_DEFAULT = "etc/flight_certs";
@@ -72,10 +74,13 @@ public class FlightService implements AutoCloseable
      */
     public FlightService(BufferAllocator allocator) throws Exception
     {
+        final String envEnableAuth = getEnv(ENV_ENABLE_AUTH, ENABLE_AUTH_DEFAULT);
         final String envEnableSsl = getEnv(ENV_ENABLE_SSL, ENABLE_SSL_DEFAULT);
         final String envFlightPort = getEnv(ENV_FLIGHT_PORT, FLIGHT_PORT_DEFAULT);
+        LOGGER.info(ENV_ENABLE_AUTH + " = " + envEnableAuth);
         LOGGER.info(ENV_ENABLE_SSL + " = " + envEnableSsl);
         LOGGER.info(ENV_FLIGHT_PORT + " = " + envFlightPort);
+        final boolean authEnabled = Boolean.parseBoolean(envEnableAuth);
         final boolean sslEnabled = Boolean.parseBoolean(envEnableSsl);
         final int flightPort = Integer.parseInt(envFlightPort);
         LOGGER.info("Creating executor");
@@ -86,7 +91,12 @@ public class FlightService implements AutoCloseable
                 = sslEnabled ? Location.forGrpcTls(FLIGHT_IP_ADDRESS, flightPort) : Location.forGrpcInsecure(FLIGHT_IP_ADDRESS, flightPort);
         LOGGER.info("Starting Flight service at " + location.getUri());
         final FlightServer.Builder serverBuilder
-                = FlightServer.builder(allocator, location, producer).executor(executor).authHandler(ServerTokenAuthHandler.getInstance());
+                = FlightServer.builder(allocator, location, producer).executor(executor);
+        if (authEnabled) {
+            serverBuilder.authHandler(ServerTokenAuthHandler.getInstance());
+        } else {
+            LOGGER.info("Authentication is disabled (standalone open-source mode)");
+        }
         if (sslEnabled) {
             final Path certPath = Paths.get(FLIGHT_CERTS_DIR, FLIGHT_CERT_FILENAME).toAbsolutePath();
             final Path certKeyPath = Paths.get(FLIGHT_CERTS_DIR, FLIGHT_KEY_FILENAME).toAbsolutePath();
