@@ -43,6 +43,13 @@ public class RestInputInteraction implements SdkInputInteraction
 {
     private static final Logger LOGGER = getLogger(RestInputInteraction.class);
 
+    /**
+     * Interaction-property key under which the concrete path-key value is stored for tables
+     * that declare a {@code $path_key}. Set by {@link RestDiscoveryInteraction} at discovery
+     * time; read back here at read time to substitute the variable in the URL path.
+     */
+    static final String INTERACTION_PROP_PATH_KEY_VALUE = "path_key_value";
+
     private static final Pattern BASE64_PATTERN = Pattern.compile("base64\\(([^)]+)\\)");
     private static final Pattern VAR_PATTERN     = Pattern.compile("\\$([A-Za-z_][A-Za-z0-9_]*)");
 
@@ -51,6 +58,7 @@ public class RestInputInteraction implements SdkInputInteraction
     private final String tableName;
     private final RestTableDefinition tableDef;
     private final Map<String, Object> connectionProperties;
+    private final Map<String, Object> interactionProperties;
 
     /**
      * Creates a REST input interaction.
@@ -73,6 +81,8 @@ public class RestInputInteraction implements SdkInputInteraction
         this.tableName = RestConnectorUtils.resolveTableName(asset);
         this.connectionProperties = asset.getConnectionProperties() != null
                 ? asset.getConnectionProperties() : Collections.emptyMap();
+        this.interactionProperties = asset.getInteractionProperties() != null
+                ? asset.getInteractionProperties() : Collections.emptyMap();
         LOGGER.debug("Creating input interaction for table: {}", tableName);
 
         final RestApiMapping apiMapping = connector.getApiMapping();
@@ -153,10 +163,31 @@ public class RestInputInteraction implements SdkInputInteraction
     private String buildUrl()
     {
         try {
+            // For tables with a $path_key, merge the concrete key value into the props map
+            // so that resolveTemplate() in buildRequestUrl() can substitute it.
+            final Map<String, Object> propsForUrl;
+            final PathKeyDef pathKey = tableDef.getPathKey();
+            if (pathKey != null) {
+                final Object keyValue = interactionProperties.get(INTERACTION_PROP_PATH_KEY_VALUE);
+                if (keyValue == null || keyValue.toString().isBlank()) {
+                    throw new IllegalStateException(
+                            "Table '" + tableName + "' has a $path_key (variable '" + pathKey.getVariable()
+                            + "') but the interaction property '" + INTERACTION_PROP_PATH_KEY_VALUE
+                            + "' is missing. Ensure the asset was discovered through the normal "
+                            + "discovery flow so the key value is set.");
+                }
+                // Build a combined map: connection properties + the resolved key variable
+                final java.util.HashMap<String, Object> combined = new java.util.HashMap<>(connectionProperties);
+                combined.put(pathKey.getVariable(), keyValue.toString());
+                propsForUrl = combined;
+            } else {
+                propsForUrl = connectionProperties;
+            }
+
             final String url = buildRequestUrl(
                     connector.getApiMapping().getBaseUrl(),
                     tableDef.getPath(),
-                    connectionProperties);
+                    propsForUrl);
             LOGGER.debug("Built request URL: {}", url);
             return url;
         } catch (MalformedURLException e) {

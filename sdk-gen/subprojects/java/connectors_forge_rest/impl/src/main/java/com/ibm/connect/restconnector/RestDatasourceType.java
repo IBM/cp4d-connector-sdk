@@ -155,6 +155,16 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                         .type(TypeEnum.INTEGER)
                         .required(false));
 
+        // path_key_value: holds the concrete key value for tables with a $path_key.
+        // Set automatically by the discovery interaction; not entered by the user directly.
+        properties.addSourceItem(
+                new CustomDatasourceTypeProperty()
+                        .name(RestInputInteraction.INTERACTION_PROP_PATH_KEY_VALUE)
+                        .label("Path Key Value")
+                        .description("The resolved value of the $path_key variable for this asset, set automatically during discovery")
+                        .type(TypeEnum.STRING)
+                        .required(false));
+
         // Define the discovery configuration.
         final DatasourceTypeDiscovery discovery = new DatasourceTypeDiscovery();
         setDiscovery(discovery);

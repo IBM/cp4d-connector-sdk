@@ -111,7 +111,12 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
 
     /**
      * Verifies connectivity by sending a real HTTP GET to the first table endpoint defined
-     * in the API mapping and asserting a 2xx response.
+     * in the API mapping that does not require a path-key value, and asserting a 2xx response.
+     *
+     * <p>Tables with a {@link PathKeyDef} are skipped because their paths contain an
+     * unresolved {@code $variable} that can only be filled in after a lookup fetch — which
+     * is beyond the scope of a simple connectivity test.  If every table has a path-key,
+     * connectivity verification is skipped gracefully.
      *
      * <p>Authentication and custom headers declared in the DSL are applied via
      * {@link RestInputInteraction#buildAuthHeaders}, so any headers configured in the
@@ -123,8 +128,19 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
      */
     protected void pingFirstTable() throws Exception
     {
-        final Map.Entry<String, RestTableDefinition> firstEntry =
-                apiMapping.getTables().entrySet().iterator().next();
+        // Find first table that does not have a $path_key (its path is fully resolvable)
+        Map.Entry<String, RestTableDefinition> firstEntry = null;
+        for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
+            if (entry.getValue().getPathKey() == null) {
+                firstEntry = entry;
+                break;
+            }
+        }
+        if (firstEntry == null) {
+            LOGGER.info("All tables have a $path_key — skipping connectivity ping");
+            return;
+        }
+
         final String tableName = firstEntry.getKey();
         final RestTableDefinition tableDef = firstEntry.getValue();
 

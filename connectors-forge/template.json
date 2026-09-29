@@ -40,6 +40,17 @@
       "name": "VARCHAR",
       "status": "VARCHAR"
     },
+    "TABLE_WITH_PATH_KEY": {
+      "$path": ["/api/$org_slug/items"],
+      "$path_key": {
+        "variable": "org_slug",
+        "source_path": "/api/organizations/",
+        "source_field": "slug"
+      },
+      "id": "INTEGER,$key",
+      "title": "VARCHAR",
+      "status": "VARCHAR"
+    },
     "TABLE_WITH_DATA_PATH": {
       "$path": ["/api/wrapped-data"],
       "$data_path": "result.users",

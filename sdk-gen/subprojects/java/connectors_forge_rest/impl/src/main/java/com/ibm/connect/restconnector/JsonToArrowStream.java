@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -210,6 +211,89 @@ public class JsonToArrowStream implements Closeable
     public void close()
     {
         // No persistent resources to close in this stateless implementation
+    }
+
+    // ---- package-visible static helpers ----
+
+    /**
+     * Fetches all values of a single field from a lookup endpoint.
+     *
+     * <p>Used by {@link RestDiscoveryInteraction} when a table declares a {@code $path_key}:
+     * the engine calls this method against the lookup {@code source_path} to collect the set of
+     * possible key values, then emits one discovered asset per value.
+     *
+     * <p>Pagination is not supported for lookup endpoints — they are expected to return all
+     * values in a single response.
+     *
+     * @param url
+     *            the fully-assembled lookup URL (base URL + source_path)
+     * @param dataPath
+     *            optional dot-notation path to the array inside the response; {@code null} for
+     *            top-level arrays
+     * @param fieldName
+     *            the JSON field name whose value to collect from each object
+     * @param authHeaders
+     *            optional HTTP authentication headers; may be {@code null}
+     * @param acceptHeader
+     *            value for the HTTP {@code Accept} header
+     * @return a list of string values (may be empty; never {@code null})
+     * @throws IOException
+     *             if the HTTP request fails or the response cannot be parsed
+     * @throws InterruptedException
+     *             if the thread is interrupted during the HTTP request
+     */
+    static List<String> fetchStringValues(String url, String dataPath, String fieldName,
+            Map<String, String> authHeaders, String acceptHeader)
+            throws IOException, InterruptedException
+    {
+        final ObjectMapper mapper = new ObjectMapper();
+        final HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
+                .header("Accept", acceptHeader != null ? acceptHeader : "application/json")
+                .header("User-Agent", "CP4D-REST-Connector/1.0")
+                .GET();
+        if (authHeaders != null) {
+            authHeaders.forEach(builder::header);
+        }
+
+        final HttpResponse<InputStream> response =
+                HTTP_CLIENT.send(builder.build(), BodyHandlers.ofInputStream());
+        if (response.statusCode() / 100 != HTTP_STATUS_2XX) {
+            throw new IOException("Lookup request failed with HTTP " + response.statusCode()
+                    + " for URL: " + url);
+        }
+
+        JsonNode root = mapper.readTree(response.body());
+
+        // Navigate to the data array if a data path is given
+        if (dataPath != null && !dataPath.isEmpty()) {
+            root = extractJsonPath(root, dataPath);
+            if (root == null) {
+                throw new IOException("source_data_path '" + dataPath + "' not found in lookup response from: " + url);
+            }
+        }
+
+        final List<String> values = new ArrayList<>();
+        if (root.isArray()) {
+            for (final JsonNode item : root) {
+                if (item.isObject() && item.hasNonNull(fieldName)) {
+                    final String val = item.get(fieldName).asText(null);
+                    if (val != null && !val.isEmpty()) {
+                        values.add(val);
+                    }
+                }
+            }
+        } else if (root.isObject() && root.hasNonNull(fieldName)) {
+            // Single-object response — unlikely for a lookup but handle gracefully
+            final String val = root.get(fieldName).asText(null);
+            if (val != null && !val.isEmpty()) {
+                values.add(val);
+            }
+        }
+
+        LOGGER.debug("Fetched {} value(s) of field '{}' from {}", values.size(), fieldName, url);
+        return values;
     }
 
     // ---- private helpers ----
