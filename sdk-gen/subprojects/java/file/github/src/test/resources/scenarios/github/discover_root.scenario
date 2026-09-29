@@ -1,10 +1,12 @@
 # ============================================================
-# GitHub — discover repository root (branches)
+# GitHub — discover root (branches)
 # ============================================================
-# NOTE: Requires file_github.github.access_token in tests.properties.
+# Reads the repository root, which lists all branches.
+# All checks work against the public apache/spark repo.
 
-# ── Step 1: Root must return at least one branch ────────────
 [Step]
 Type=Discover
 Path=/
 ExpectedNotEmpty=true
+# "master" branch must always exist in apache/spark
+ExpectedContains=master

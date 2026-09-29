@@ -1,0 +1,19 @@
+# ============================================================
+# GitHub — read CRLF-delimited CSV (cars-crlf.csv)
+# ============================================================
+
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars-crlf.csv
+ExpectedInteractionProperty.row_delimiter_value=\r\n
+ExpectedSchemaFields=year|make|model|comment|blank
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars-crlf.csv
+ExpectedColumns=year|make|model|comment|blank
+ExpectedRowCount=3
+ExpectedRows.0=2012|Tesla|S|No comment|<NULL>
+ExpectedRows.2=2015|Chevy|Volt|<NULL>|<NULL>

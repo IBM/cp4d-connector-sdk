@@ -1,0 +1,11 @@
+# ============================================================
+# S3 — discover a specific test folder
+# ============================================================
+# Uses ${file_s3.s3.test_folder} injected at runtime via
+# TestAWSS3FlightProducer.scenario().withVars(...).
+# Skipped automatically if test_folder is not configured.
+
+[Step]
+Type=Discover
+Path=/${file_s3.s3.test_folder}
+ExpectedNotEmpty=true

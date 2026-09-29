@@ -1,0 +1,15 @@
+# ============================================================
+# GitHub — read ISO-8859-1 encoded CSV
+# ============================================================
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars_iso-8859-1.csv
+Interaction.encoding=iso-8859-1
+Interaction.first_line_header=true
+Interaction.field_delimiter_value=\u00FE
+ExpectedColumns=year|make|model|comment|blank
+ExpectedRowCount=3
+ExpectedRows.0=2012|Tesla|S|No comment|<NULL>
+ExpectedRows.2=2015|Chevy|Volt|<NULL>|<NULL>

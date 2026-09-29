@@ -1,0 +1,13 @@
+# ============================================================
+# S3 — getFlightInfo for the configured CSV test object
+# ============================================================
+# Verifies that the returned descriptor carries the correct
+# interaction properties, mime_type detail, and a schema.
+# Uses ${file_s3.s3.test_csv_key} injected at runtime.
+
+[Step]
+Type=Metadata
+Interaction.file_name=/${file_s3.s3.test_csv_key}
+ExpectedInteractionProperty.file_name=/${file_s3.s3.test_csv_key}
+ExpectedInteractionProperty.file_format=csv
+ExpectedDetail.mime_type=text/csv

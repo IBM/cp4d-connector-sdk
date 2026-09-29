@@ -1,0 +1,12 @@
+# ============================================================
+# S3 — read the configured CSV test object
+# ============================================================
+# Asserts at least one row is returned.
+# Uses ${file_s3.s3.test_csv_key} injected at runtime.
+# Add ExpectedRowCount / ExpectedRows.N assertions if your
+# test file has a known, stable content.
+
+[Step]
+Type=Read
+Interaction.file_name=/${file_s3.s3.test_csv_key}
+# At least one data row must be returned

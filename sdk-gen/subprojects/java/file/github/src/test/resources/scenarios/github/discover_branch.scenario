@@ -1,10 +1,10 @@
 # ============================================================
-# S3 — discover bucket root
+# GitHub — discover branch contents (files and folders)
 # ============================================================
-# Lists all top-level objects and common-prefix folders in
-# the bucket. No hardcoded paths needed.
 
 [Step]
 Type=Discover
-Path=/
+Path=/master
 ExpectedNotEmpty=true
+# "sql" directory must always exist at the root of apache/spark master
+ExpectedContains=sql

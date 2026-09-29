@@ -21,9 +21,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.TimeZone;
 
 import org.apache.arrow.flight.Action;
@@ -270,53 +268,25 @@ public class TestGitHubFlightProducer extends FileTestSuite
         }
         return Arrays.asList(
                 "scenarios/github/discover_root.scenario",
-                "scenarios/github/read_csv.scenario");
-    }
-
-    // -----------------------------------------------------------------------
-    // FileTestSuite data-validating hooks
-    // -----------------------------------------------------------------------
-
-    /**
-     * cars.csv in apache/spark has 3 data rows (+ 1 header).
-     */
-    @Override
-    protected int getExpectedRowCount()
-    {
-        return 3;
-    }
-
-    /**
-     * cars.csv column order: year, make, model, comment, blank.
-     */
-    @Override
-    protected List<String> getExpectedColumnNames()
-    {
-        return Arrays.asList("year", "make", "model", "comment", "blank");
-    }
-
-    /**
-     * Spot-checks from cars.csv.
-     *
-     * <p>All values are strings (CSV default, no infer_schema).
-     * Row 0: 2012, Tesla, S, "No comment", null
-     * Row 2: 2015, Chevy, Volt, null, null
-     */
-    @Override
-    protected Map<int[], Object> getExpectedCellValues()
-    {
-        final Map<int[], Object> expected = new LinkedHashMap<>();
-        expected.put(new int[]{0, 0}, "2012");
-        expected.put(new int[]{0, 1}, "Tesla");
-        expected.put(new int[]{0, 2}, "S");
-        expected.put(new int[]{0, 3}, "No comment");
-        expected.put(new int[]{0, 4}, null);
-        expected.put(new int[]{2, 0}, "2015");
-        expected.put(new int[]{2, 1}, "Chevy");
-        expected.put(new int[]{2, 2}, "Volt");
-        expected.put(new int[]{2, 3}, null);
-        expected.put(new int[]{2, 4}, null);
-        return expected;
+                "scenarios/github/discover_branch.scenario",
+                "scenarios/github/read_csv.scenario",
+                "scenarios/github/read_csv_no_header.scenario",
+                "scenarios/github/read_csv_comment.scenario",
+                "scenarios/github/read_csv_encoding.scenario",
+                "scenarios/github/read_csv_null_value.scenario",
+                "scenarios/github/read_csv_row_delimiter.scenario",
+                "scenarios/github/read_delimited_pipe.scenario",
+                "scenarios/github/read_csv_infer_schema.scenario",
+                "scenarios/github/read_json.scenario",
+                "scenarios/github/read_orc.scenario",
+                "scenarios/github/read_parquet.scenario",
+                "scenarios/github/read_xml.scenario",
+                "scenarios/github/metadata_csv.scenario",
+                "scenarios/github/metadata_json.scenario",
+                "scenarios/github/metadata_orc.scenario",
+                "scenarios/github/metadata_parquet.scenario",
+                "scenarios/github/metadata_xml.scenario",
+                "scenarios/github/negative_missing_file.scenario");
     }
 
     /**

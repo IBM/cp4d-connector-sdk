@@ -278,6 +278,9 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     {
         return Arrays.asList(
                 "scenarios/localfs/readwrite_csv.scenario",
+                "scenarios/localfs/readwrite_limits.scenario",
+                "scenarios/localfs/metadata_csv.scenario",
+                "scenarios/localfs/negative_missing_file.scenario",
                 "scenarios/localfs/discover_root.scenario");
     }
 

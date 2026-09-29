@@ -1,0 +1,22 @@
+# ============================================================
+# LocalFS — getFlightInfo metadata assertions
+# Verifies that the returned descriptor carries the right
+# interaction properties and a non-empty schema.
+# ============================================================
+
+# ── Write a known CSV first ─────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=/scenario_meta.csv
+Interaction.first_line_header=true
+Schema=id|integer; label|varchar
+Row.0=1|hello
+
+# ── Check returned interaction properties ──────────────────
+[Step]
+Type=Metadata
+Interaction.file_name=/scenario_meta.csv
+ExpectedInteractionProperty.file_name=/scenario_meta.csv
+ExpectedInteractionProperty.file_format=csv
+ExpectedInteractionProperty.first_line_header=true
+ExpectedSchemaFields=id|label

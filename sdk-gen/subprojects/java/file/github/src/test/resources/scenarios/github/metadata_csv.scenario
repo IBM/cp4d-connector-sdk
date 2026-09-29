@@ -1,0 +1,16 @@
+# ============================================================
+# GitHub — getFlightInfo for cars.csv (metadata + schema)
+# ============================================================
+
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars.csv
+ExpectedInteractionProperty.branch_name=master
+ExpectedInteractionProperty.file_name=sql/core/src/test/resources/test-data/cars.csv
+ExpectedInteractionProperty.file_format=csv
+ExpectedInteractionProperty.first_line_header=true
+ExpectedInteractionProperty.field_delimiter_value=,
+ExpectedInteractionProperty.row_delimiter_value=\n
+ExpectedDetail.mime_type=text/csv
+ExpectedSchemaFields=year|make|model|comment|blank

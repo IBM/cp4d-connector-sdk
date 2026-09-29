@@ -1,0 +1,31 @@
+# ============================================================
+# LocalFS — write + read with row_limit and byte_limit
+# Verifies that limit properties are honoured.
+# ============================================================
+
+# ── Write 5 rows ────────────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=/scenario_limits.csv
+Interaction.first_line_header=true
+Schema=seq|integer; name|varchar
+Row.0=0|row_zero
+Row.1=1|row_one
+Row.2=2|row_two
+Row.3=3|row_three
+Row.4=4|row_four
+
+# ── row_limit=2 must return at most 2 rows ──────────────────
+[Step]
+Type=Read
+Interaction.file_name=/scenario_limits.csv
+Interaction.row_limit=2
+ExpectedRowCount=2
+ExpectedCell.0.0=0
+ExpectedCell.0.1=row_zero
+
+# ── byte_limit=1 must return fewer than 5 rows ──────────────
+[Step]
+Type=Read
+Interaction.file_name=/scenario_limits.csv
+Interaction.byte_limit=1

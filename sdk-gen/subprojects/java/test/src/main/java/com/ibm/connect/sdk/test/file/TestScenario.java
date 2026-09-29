@@ -58,8 +58,12 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
  * and/or cell values.</li>
  * <li>{@code Type=Discover} — list assets at a path and verify the descriptor
  * contract (presence and optionally exact values).</li>
+ * <li>{@code Type=Metadata} — call {@code getFlightInfo} and assert returned
+ * interaction properties, details, and schema fields.</li>
  * <li>{@code Type=FileCompare} — read a file connector object as raw bytes and
  * compare it to a classpath reference file.</li>
+ * <li>{@code Type=NegativeRead} — assert that {@code getFlightInfo} throws an
+ * exception whose message contains {@code ExpectedError}.</li>
  * </ul>
  *
  * <h3>Scenario file format</h3>
@@ -116,6 +120,7 @@ public final class TestScenario
     private static final String COL_DELIM = "\\|";
 
     private WriteHook writeHook;
+    private java.util.Map<String, String> scenarioVars = java.util.Collections.emptyMap();
 
     private final FlightClient client;
     private final String datasourceTypeName;
@@ -158,7 +163,7 @@ public final class TestScenario
             stepIdx++;
             final String context = "[" + resourcePath + " step " + stepIdx + "]";
             try {
-                runStep(step, context);
+                runStep(resolveVars(step), context);
             }
             catch (AssertionError | Exception e) {
                 fail(context + " failed: " + e.getMessage());
@@ -183,8 +188,14 @@ public final class TestScenario
         case "Discover":
             runDiscover(step, context);
             break;
+        case "Metadata":
+            runMetadata(step, context);
+            break;
         case "FileCompare":
             runFileCompare(step, context);
+            break;
+        case "NegativeRead":
+            runNegativeRead(step, context);
             break;
         default:
             fail(context + ": unknown step type '" + type + "'");
@@ -264,6 +275,24 @@ public final class TestScenario
                 }
             }
         }
+
+        // -- multi-row checks: ExpectedRows.N=val0|val1|val2  (0-based row index)
+        for (final String key : step.stringPropertyNames()) {
+            if (key.startsWith("ExpectedRows.")) {
+                final int row = Integer.parseInt(key.substring("ExpectedRows.".length()).trim());
+                final String[] colVals = step.getProperty(key).split(COL_DELIM, -1);
+                for (int ci = 0; ci < colVals.length; ci++) {
+                    final String expected = colVals[ci].trim();
+                    if (NULL_TOKEN.equals(expected)) {
+                        assertNull(context + ": row[" + row + "][" + ci + "] should be null", data.get(row, ci));
+                    } else {
+                        final Object actual = data.get(row, ci);
+                        assertNotNull(context + ": row[" + row + "][" + ci + "] should not be null", actual);
+                        assertEquals(context + ": row[" + row + "][" + ci + "]", expected, actual.toString());
+                    }
+                }
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -307,6 +336,86 @@ public final class TestScenario
             assertNotNull(context + ": descriptor.id must not be null", d.getId());
             assertNotNull(context + ": descriptor.name must not be null", d.getName());
             assertNotNull(context + ": descriptor.assetType must not be null", d.getAssetType());
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Metadata step — getFlightInfo + assert returned descriptor fields
+    // -----------------------------------------------------------------------
+
+    private void runMetadata(Properties step, String context) throws Exception
+    {
+        final DiscoveredAssetInteractionProperties iprops = collectInteractionProps(step);
+        final FlightInfo info = getFlightInfo(iprops);
+        final CustomFlightAssetDescriptor returned
+                = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
+
+        // -- ExpectedInteractionProperty.<key>=<value>
+        for (final String key : step.stringPropertyNames()) {
+            if (key.startsWith("ExpectedInteractionProperty.")) {
+                final String propKey = key.substring("ExpectedInteractionProperty.".length());
+                final String expected = step.getProperty(key).trim();
+                assertNotNull(context + ": interactionProperties must not be null", returned.getInteractionProperties());
+                assertEquals(context + ": interactionProperty[" + propKey + "]",
+                        expected, returned.getInteractionProperties().get(propKey));
+            }
+        }
+
+        // -- ExpectedDetail.<key>=<value>
+        for (final String key : step.stringPropertyNames()) {
+            if (key.startsWith("ExpectedDetail.")) {
+                final String propKey = key.substring("ExpectedDetail.".length());
+                final String expected = step.getProperty(key).trim();
+                assertNotNull(context + ": details must not be null", returned.getDetails());
+                assertEquals(context + ": detail[" + propKey + "]",
+                        expected, returned.getDetails().get(propKey));
+            }
+        }
+
+        // -- ExpectedSchemaFieldCount=N
+        final String fieldCount = step.getProperty("ExpectedSchemaFieldCount");
+        if (fieldCount != null) {
+            final Schema schema = info.getSchemaOptional()
+                    .orElseThrow(() -> new AssertionError(context + ": schema must be present"));
+            assertEquals(context + ": schema field count",
+                    Integer.parseInt(fieldCount.trim()), schema.getFields().size());
+        }
+
+        // -- ExpectedSchemaFields=col0|col1|col2
+        final String schemaFields = step.getProperty("ExpectedSchemaFields");
+        if (schemaFields != null) {
+            final Schema schema = info.getSchemaOptional()
+                    .orElseThrow(() -> new AssertionError(context + ": schema must be present"));
+            final String[] names = schemaFields.split("\\|", -1);
+            assertEquals(context + ": schema field count", names.length, schema.getFields().size());
+            for (int i = 0; i < names.length; i++) {
+                assertEquals(context + ": schema field[" + i + "]",
+                        names[i].trim(), schema.getFields().get(i).getName());
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // NegativeRead step — assert exception is thrown with expected message
+    // -----------------------------------------------------------------------
+
+    private void runNegativeRead(Properties step, String context) throws Exception
+    {
+        final DiscoveredAssetInteractionProperties iprops = collectInteractionProps(step);
+        final String expectedError = step.getProperty("ExpectedError", "");
+        try {
+            getFlightInfo(iprops);
+            fail(context + ": expected an exception but none was thrown");
+        }
+        catch (AssertionError e) {
+            throw e; // re-throw our own assertion failures
+        }
+        catch (Exception e) {
+            if (!expectedError.isEmpty()) {
+                assertTrue(context + ": expected error message to contain '" + expectedError
+                        + "' but got: " + e.getMessage(),
+                        e.getMessage() != null && e.getMessage().contains(expectedError));
+            }
         }
     }
 
@@ -425,6 +534,51 @@ public final class TestScenario
     {
         this.writeHook = hook;
         return this;
+    }
+
+    /**
+     * Registers runtime variable substitutions applied to every property value in
+     * the scenario file before the step is executed. Variables are written as
+     * {@code ${key}} in the scenario file and replaced with the corresponding value.
+     *
+     * <p>Example — S3 path resolved from {@code tests.properties}:
+     * <pre>
+     *   Interaction.file_name=/${file_s3.s3.test_csv_key}
+     * </pre>
+     * with {@code vars = {"file_s3.s3.test_csv_key": "test-data/cars.csv"}} becomes
+     * {@code Interaction.file_name=/test-data/cars.csv}.
+     *
+     * @param vars
+     *            map of variable name → replacement value
+     * @return {@code this} for fluent chaining
+     */
+    public TestScenario withVars(java.util.Map<String, String> vars)
+    {
+        this.scenarioVars = vars != null ? vars : java.util.Collections.emptyMap();
+        return this;
+    }
+
+    /**
+     * Returns a copy of {@code step} with every {@code ${key}} token in property
+     * values replaced by the corresponding entry in {@link #scenarioVars}.
+     * Tokens whose key is absent in the map are left unchanged.
+     */
+    private Properties resolveVars(Properties step)
+    {
+        if (scenarioVars.isEmpty()) {
+            return step;
+        }
+        final Properties resolved = new Properties();
+        for (final String key : step.stringPropertyNames()) {
+            String value = step.getProperty(key);
+            for (final java.util.Map.Entry<String, String> entry : scenarioVars.entrySet()) {
+                if (entry.getValue() != null) {
+                    value = value.replace("${" + entry.getKey() + "}", entry.getValue());
+                }
+            }
+            resolved.setProperty(key, value);
+        }
+        return resolved;
     }
 
     private static DiscoveredAssetInteractionProperties collectInteractionProps(Properties step)

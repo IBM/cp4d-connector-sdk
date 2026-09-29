@@ -1,0 +1,19 @@
+# ============================================================
+# S3 — read a binary object (e.g. PNG/JPG) in binary mode
+# ============================================================
+# Verifies the schema has a single "content" field and that
+# at least one non-empty byte[] record is returned.
+# Uses ${file_s3.s3.test_binary_key} injected at runtime.
+
+[Step]
+Type=Metadata
+Interaction.file_name=/${file_s3.s3.test_binary_key}
+Interaction.file_format=binary
+ExpectedInteractionProperty.file_format=binary
+ExpectedSchemaFields=content
+
+[Step]
+Type=Read
+Interaction.file_name=/${file_s3.s3.test_binary_key}
+Interaction.file_format=binary
+ExpectedRowCount=1

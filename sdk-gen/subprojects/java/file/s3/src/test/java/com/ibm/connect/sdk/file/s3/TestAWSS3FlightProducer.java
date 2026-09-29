@@ -14,26 +14,21 @@ import static org.junit.Assume.assumeNotNull;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.arrow.flight.Action;
-import org.apache.arrow.flight.Criteria;
 import org.apache.arrow.flight.FlightClient;
-import org.apache.arrow.flight.FlightDescriptor;
-import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.Result;
-import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 
-import com.google.common.collect.Table;
 import com.ibm.connect.sdk.test.TestConfig;
 import com.ibm.connect.sdk.test.TestFlight;
 import com.ibm.connect.sdk.test.file.FileTestSuite;
@@ -41,8 +36,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionConfiguration;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionResponse;
-import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
-import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionProperties;
 
 /**
@@ -218,6 +211,29 @@ public class TestAWSS3FlightProducer extends FileTestSuite
     // -----------------------------------------------------------------------
 
     /**
+     * Builds a {@link com.ibm.connect.sdk.test.file.TestScenario} pre-loaded with
+     * S3 runtime variables so scenario files can reference config keys with
+     * {@code ${key}} tokens instead of hardcoding environment-specific values.
+     */
+    @Override
+    protected com.ibm.connect.sdk.test.file.TestScenario scenario()  // NOPMD – return type must match override
+    {
+        final Map<String, String> vars = new LinkedHashMap<>();
+        putIfNotNull(vars, "file_s3.s3.test_folder",     S3.testFolder);
+        putIfNotNull(vars, "file_s3.s3.test_csv_key",    S3.testCsvKey);
+        putIfNotNull(vars, "file_s3.s3.test_binary_key", S3.testBinaryKey);
+        putIfNotNull(vars, "file_s3.s3.bucket",          S3.bucket);
+        return super.scenario().withVars(vars);
+    }
+
+    private static void putIfNotNull(Map<String, String> map, String key, String value)
+    {
+        if (value != null) {
+            map.put(key, value);
+        }
+    }
+
+    /**
      * Returns scenario files for S3-specific behaviour.
      * Tests are skipped automatically when credentials are absent
      * (the {@link #setUp()} guard fires before {@code testScenarios} runs).
@@ -230,7 +246,11 @@ public class TestAWSS3FlightProducer extends FileTestSuite
         }
         return Arrays.asList(
                 "scenarios/s3/discover_root.scenario",
-                "scenarios/s3/readwrite_csv.scenario");
+                "scenarios/s3/discover_folder.scenario",
+                "scenarios/s3/metadata_csv.scenario",
+                "scenarios/s3/read_csv.scenario",
+                "scenarios/s3/read_binary.scenario",
+                "scenarios/s3/negative_missing_key.scenario");
     }
 
     // -----------------------------------------------------------------------
@@ -254,122 +274,6 @@ public class TestAWSS3FlightProducer extends FileTestSuite
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Discovery tests — S3-specific
-    // -----------------------------------------------------------------------
-
-    /**
-     * List the contents of a specific folder (prefix).
-     * Requires {@code file_s3.s3.test_folder} in tests.properties.
-     */
-    @Test
-    public void testDiscoverFolder() throws Exception
-    {
-        assumeNotNull(S3.testFolder);
-        final CustomFlightAssetsCriteria criteria = new CustomFlightAssetsCriteria();
-        criteria.setDatasourceTypeName(getDatasourceTypeName());
-        criteria.setConnectionProperties(createConnectionProperties());
-        criteria.setPath("/" + S3.testFolder);
-        final List<String> names = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
-            final CustomFlightAssetDescriptor descriptor
-                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
-            assertNotNull(descriptor.getAssetType());
-            assertNotNull(descriptor.getId());
-            names.add(descriptor.getName());
-        }
-        assertFalse("Expected at least one asset in the test folder", names.isEmpty());
-    }
-
-    /**
-     * Discover a specific CSV object — verify schema and interaction properties.
-     * Requires {@code file_s3.s3.test_csv_key} in tests.properties.
-     */
-    @Test
-    public void testDiscoverColumnsCsv() throws Exception
-    {
-        assumeNotNull(S3.testCsvKey);
-        final CustomFlightAssetsCriteria criteria = new CustomFlightAssetsCriteria();
-        criteria.setDatasourceTypeName(getDatasourceTypeName());
-        criteria.setConnectionProperties(createConnectionProperties());
-        criteria.setPath("/" + S3.testCsvKey);
-        final List<CustomFlightAssetDescriptor> assets = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
-            final CustomFlightAssetDescriptor descriptor
-                    = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
-            assertNotNull(descriptor.getAssetType());
-            assertEquals("file", descriptor.getAssetType().getType());
-            assertTrue(descriptor.getAssetType().isDataset());
-            assertFalse(descriptor.getAssetType().isDatasetContainer());
-            assertNotNull(descriptor.getInteractionProperties());
-            assertEquals("/" + S3.testCsvKey, descriptor.getInteractionProperties().get("file_name"));
-            assertEquals("csv", descriptor.getInteractionProperties().get("file_format"));
-            assertNotNull(descriptor.getDetails());
-            assertNotNull(descriptor.getDetails().get("file_size"));
-            assertEquals("text/csv", descriptor.getDetails().get("mime_type"));
-            final Schema schema = info.getSchemaOptional()
-                    .orElseThrow(() -> new AssertionError("Expected a schema but none was present"));
-            assertFalse("Schema must have at least one field", schema.getFields().isEmpty());
-            assets.add(descriptor);
-        }
-        assertEquals(1, assets.size());
-    }
-
-    // -----------------------------------------------------------------------
-    // Raw / unstructured read (binary)
-    // -----------------------------------------------------------------------
-
-    /**
-     * getFlightInfo for a binary object — verify schema has a single {@code content}
-     * field of type varbinary.
-     * Requires {@code file_s3.s3.test_binary_key} in tests.properties.
-     */
-    @Test
-    public void testGetFlightInfoBinary() throws Exception
-    {
-        assumeNotNull(S3.testBinaryKey);
-        final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-        final DiscoveredAssetInteractionProperties interactionProperties = new DiscoveredAssetInteractionProperties();
-        descriptor.setDatasourceTypeName(getDatasourceTypeName());
-        descriptor.setConnectionProperties(createConnectionProperties());
-        descriptor.setInteractionProperties(interactionProperties);
-        interactionProperties.put("file_name", "/" + S3.testBinaryKey);
-        interactionProperties.put("file_format", AWSS3DatasourceType.FILE_FORMAT_BINARY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
-        final CustomFlightAssetDescriptor returned
-                = MODEL_MAPPER.fromBytes(info.getDescriptor().getCommand(), CustomFlightAssetDescriptor.class);
-        assertEquals("/" + S3.testBinaryKey, returned.getInteractionProperties().get("file_name"));
-        assertEquals(AWSS3DatasourceType.FILE_FORMAT_BINARY, returned.getInteractionProperties().get("file_format"));
-        final Schema schema = info.getSchemaOptional()
-                .orElseThrow(() -> new AssertionError("Expected a schema but none was present"));
-        assertEquals("Schema for binary mode must have exactly one field", 1, schema.getFields().size());
-        assertEquals("content", schema.getFields().get(0).getName());
-    }
-
-    /**
-     * getStream for a binary object — verify one record is returned with non-empty
-     * raw bytes.
-     * Requires {@code file_s3.s3.test_binary_key} in tests.properties.
-     */
-    @Test
-    public void testGetStreamBinary() throws Exception
-    {
-        assumeNotNull(S3.testBinaryKey);
-        final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-        final DiscoveredAssetInteractionProperties interactionProperties = new DiscoveredAssetInteractionProperties();
-        descriptor.setDatasourceTypeName(getDatasourceTypeName());
-        descriptor.setConnectionProperties(createConnectionProperties());
-        descriptor.setInteractionProperties(interactionProperties);
-        interactionProperties.put("file_name", "/" + S3.testBinaryKey);
-        interactionProperties.put("file_format", AWSS3DatasourceType.FILE_FORMAT_BINARY);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
-        final Table<Integer, Integer, Object> data = getTableData(info);
-        assertEquals("Binary read must produce exactly one record", 1, data.rowKeySet().size());
-        final Object content = data.get(0, 0);
-        assertNotNull("content field must not be null", content);
-        assertTrue("content field must be a byte array", content instanceof byte[]);
-        assertTrue("content must be non-empty", ((byte[]) content).length > 0);
-    }
 
     // -----------------------------------------------------------------------
     // get_acl action tests

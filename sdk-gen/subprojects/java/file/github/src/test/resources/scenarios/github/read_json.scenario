@@ -1,0 +1,17 @@
+# ============================================================
+# GitHub — read with-map-fields.json
+# ============================================================
+# The file has 2 schema fields and 5 data rows.
+# Column 0: long  (id)
+# Column 1: string (map rendered as string)
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/with-map-fields.json
+ExpectedSchemaFieldCount=2
+ExpectedRowCount=5
+ExpectedCell.0.0=1
+ExpectedCell.0.1=[[211,111],[221,121]]
+ExpectedCell.4.0=5
+ExpectedCell.4.1=<NULL>
