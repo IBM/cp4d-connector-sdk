@@ -43,7 +43,37 @@ dependencies {
 test {
   systemProperties = System.properties
   systemProperties.remove("java.endorsed.dirs")
+  systemProperties['buildDir'] = project.buildDir.absolutePath
   testLogging {
     events "PASSED", "SKIPPED", "FAILED"
   }
 }
+
+task verifyTestWorkDir(type: JavaExec) {
+  description = 'Verify (or provision) the test work directory before running tests.'
+  group = 'verification'
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'com.ibm.connect.sdk.test.file.VerifyWorkDir'
+  systemProperties = System.properties
+  args = [
+    project.buildDir.absolutePath,
+    'file_localfs.test_work_dir',
+    'HIERARCHICAL_FS'
+  ]
+}
+
+task cleanTestWorkDir(type: JavaExec) {
+  description = 'Clean (or destroy) the test work directory after running tests.'
+  group = 'verification'
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'com.ibm.connect.sdk.test.file.CleanTestWorkDir'
+  systemProperties = System.properties
+  args = [
+    project.buildDir.absolutePath,
+    'file_localfs.test_work_dir',
+    'HIERARCHICAL_FS'
+  ]
+}
+
+test.dependsOn verifyTestWorkDir
+test.finalizedBy cleanTestWorkDir

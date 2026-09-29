@@ -10,15 +10,16 @@ for file connectors in the CP4D Connector SDK.
 1. [Architecture overview](#architecture-overview)
 2. [Quick start — run LocalFS tests](#quick-start--run-localfs-tests)
 3. [Configuration (`tests.properties`)](#configuration-testsproperties)
-4. [Writing a new Java test method](#writing-a-new-java-test-method)
-5. [Scenario-based tests](#scenario-based-tests)
+4. [Work directory isolation](#work-directory-isolation)
+5. [Writing a new Java test method](#writing-a-new-java-test-method)
+6. [Scenario-based tests](#scenario-based-tests)
    - [Scenario file format](#scenario-file-format)
    - [Step types reference](#step-types-reference)
    - [Registering scenarios](#registering-scenarios)
    - [Enabling Write steps](#enabling-write-steps)
-6. [Adding a new file connector test class](#adding-a-new-file-connector-test-class)
-7. [Running PMD and the full check](#running-pmd-and-the-full-check)
-8. [Troubleshooting](#troubleshooting)
+7. [Adding a new file connector test class](#adding-a-new-file-connector-test-class)
+8. [Running PMD and the full check](#running-pmd-and-the-full-check)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -121,6 +122,113 @@ Use `EncryptUtil -e <plaintext>` to produce the ciphertext, and set the
 | LocalFS | `file_localfs.*` |
 | Amazon S3 | `file_s3.*` |
 | GitHub | `file_github.*` |
+
+---
+
+## Work directory isolation
+
+Any test that writes or deletes data must confine its activity to a **dedicated,
+isolated work segment** so it can never accidentally corrupt user data.
+
+### Concept
+
+| Storage model | Isolation unit | Managed by |
+|---|---|---|
+| Hierarchical FS (LocalFS) | A dedicated directory | `WorkDirManager` + Java `Files` |
+| Object store (S3) | A dedicated bucket | `WorkDirManager` + `S3WorkDirOps` |
+| Read-only (GitHub) | — not applicable — | no-op Gradle tasks |
+
+### Configuration
+
+Add one line to `tests.properties` per connector:
+
+```properties
+# LocalFS — auto-provision a temp directory (recommended)
+file_localfs.test_work_dir=TEMP
+
+# S3 — auto-provision a dedicated bucket (recommended)
+file_s3.test_work_dir=TEMP
+
+# S3 — or supply a pre-created empty bucket you own
+# file_s3.test_work_dir=my-scratch-bucket
+```
+
+`TEMP` instructs the framework to create a new uniquely-named container
+(`/tmp/sdk-test-<uuid>` for LocalFS, `sdk-test-<uuid>` bucket for S3) at the
+start of the run and destroy it entirely afterwards.
+
+A named value (non-`TEMP`) must point to an existing, **empty** container that
+you own. The framework empties it after the run but does not delete it.
+
+### Gradle task lifecycle
+
+```
+./gradlew :wdp-connect-sdk-gen-java-file-localfs:test
+```
+
+This chain runs automatically:
+
+```
+verifyTestWorkDir   →   test   →   cleanTestWorkDir
+```
+
+| Task | What it does |
+|---|---|
+| `verifyTestWorkDir` | Checks the container is empty (or creates it when `TEMP`). Fails the build with a clear message if the container is not empty or not configured. |
+| `test` | Runs JUnit. All writes go to `${work_dir}`. |
+| `cleanTestWorkDir` | Empties or destroys the container. Runs with `finalizedBy` so it executes even when tests fail. |
+
+The resolved container name is written to `build/test-work-dir.txt` by
+`verifyTestWorkDir` and is read back by the test classes through
+`FileTestSuite.getWorkDir()`.
+
+### `${work_dir}` in scenario files
+
+Every scenario step that references a path should use `${work_dir}`:
+
+```properties
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/myfile.csv
+```
+
+`FileTestSuite.scenario()` auto-injects `${work_dir}` into every
+`TestScenario` instance; no manual `withVars()` call is needed in the test
+class.
+
+### Read-only connectors (GitHub)
+
+GitHub has no write operations so there is no work directory.
+The `verifyTestWorkDir` and `cleanTestWorkDir` Gradle tasks are defined as
+no-ops to keep the task-name contract uniform across all connectors.
+
+Tests use **Mode A** by default: they verify structural invariants against the
+public `apache/spark` repository (branch listing, well-known file parsing) that
+are stable over time and require no user-owned data.
+
+**Mode B** (optional) points at a private repository you control:
+
+```properties
+file_github.test_repo_owner=my-org
+file_github.test_repo_name=connector-test-data
+file_github.test_branch=main
+file_github.test_csv_path=data/cars.csv
+```
+
+### Implementing `WorkDirOperations` for a new connector
+
+For connectors with non-standard storage (e.g. JDBC schemas, SFTP servers),
+implement `WorkDirManager.WorkDirOperations` and pass it to the `WorkDirManager`
+constructor:
+
+```java
+WorkDirManager mgr = new WorkDirManager(
+    "my_connector.test_work_dir",
+    WorkDirManager.ConnectorType.OBJECT_STORE,
+    buildDir,
+    new MyConnectorWorkDirOps(client));
+mgr.provision();
+```
 
 ---
 

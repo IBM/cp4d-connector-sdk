@@ -1,9 +1,11 @@
 # ============================================================
-# LocalFS — discover root and verify non-empty asset listing
+# LocalFS — discover the test work directory
 # ============================================================
+# The test work dir is seeded by setUp() before each test;
+# the Discover step verifies it appears in the root listing.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
 
-# ── Step 1: Root must return at least one entry ─────────────
 [Step]
 Type=Discover
-Path=/
+Path=${work_dir}
 ExpectedNotEmpty=true

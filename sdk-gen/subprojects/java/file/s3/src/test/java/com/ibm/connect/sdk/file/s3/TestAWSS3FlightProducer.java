@@ -14,9 +14,9 @@ import static org.junit.Assume.assumeNotNull;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import com.ibm.connect.sdk.test.TestConfig;
 import com.ibm.connect.sdk.test.TestFlight;
 import com.ibm.connect.sdk.test.file.FileTestSuite;
+import com.ibm.connect.sdk.test.file.WorkDirManager;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionConfiguration;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
@@ -42,9 +43,8 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionPrope
  * Tests the Arrow Flight producer for the Amazon S3 connector.
  *
  * <p>All standard file connector tests (discovery contract, metadata, read,
- * paging) are inherited from {@link FileTestSuite}.
- * S3 is read-only, so {@code createWriteInteractionProperties} returns
- * {@code null} and all {@code testPutStream*} tests are skipped.
+ * write, paging) are inherited from {@link FileTestSuite}.
+ * Write tests require {@code file_s3.test_work_dir} in {@code tests.properties}.
  *
  * <h3>Configuration — {@code tests.properties}</h3>
  * <p>Create the file {@code sdk-gen/tests.properties} (gitignored) and populate
@@ -199,11 +199,28 @@ public class TestAWSS3FlightProducer extends FileTestSuite
         return slash >= 0 ? S3.testCsvKey.substring(slash + 1) : S3.testCsvKey;
     }
 
-    /** S3 is source-only — write tests are skipped automatically. */
+    /**
+     * S3 write tests are enabled when a test work bucket is configured.
+     * Returns {@code null} (skip) when credentials or work dir are absent.
+     */
     @Override
     protected DiscoveredAssetInteractionProperties createWriteInteractionProperties(String uniqueSuffix)
     {
-        return null;
+        final String workDir = getWorkDir();
+        if (workDir == null) {
+            return null;
+        }
+        final DiscoveredAssetInteractionProperties props = new DiscoveredAssetInteractionProperties();
+        props.put("file_name", "/" + workDir + "/suite_write_" + uniqueSuffix + ".csv");
+        props.put("first_line_header", "true");
+        return props;
+    }
+
+    /** Opts into the work-directory isolation feature (test bucket). */
+    @Override
+    protected String getWorkDirConfigKey()
+    {
+        return "file_s3.test_work_dir";
     }
 
     // -----------------------------------------------------------------------
@@ -211,32 +228,10 @@ public class TestAWSS3FlightProducer extends FileTestSuite
     // -----------------------------------------------------------------------
 
     /**
-     * Builds a {@link com.ibm.connect.sdk.test.file.TestScenario} pre-loaded with
-     * S3 runtime variables so scenario files can reference config keys with
-     * {@code ${key}} tokens instead of hardcoding environment-specific values.
-     */
-    @Override
-    protected com.ibm.connect.sdk.test.file.TestScenario scenario()  // NOPMD – return type must match override
-    {
-        final Map<String, String> vars = new LinkedHashMap<>();
-        putIfNotNull(vars, "file_s3.s3.test_folder",     S3.testFolder);
-        putIfNotNull(vars, "file_s3.s3.test_csv_key",    S3.testCsvKey);
-        putIfNotNull(vars, "file_s3.s3.test_binary_key", S3.testBinaryKey);
-        putIfNotNull(vars, "file_s3.s3.bucket",          S3.bucket);
-        return super.scenario().withVars(vars);
-    }
-
-    private static void putIfNotNull(Map<String, String> map, String key, String value)
-    {
-        if (value != null) {
-            map.put(key, value);
-        }
-    }
-
-    /**
      * Returns scenario files for S3-specific behaviour.
      * Tests are skipped automatically when credentials are absent
      * (the {@link #setUp()} guard fires before {@code testScenarios} runs).
+     * Write scenarios additionally require a configured test work bucket.
      */
     @Override
     protected List<String> getScenarioPaths()
@@ -244,13 +239,99 @@ public class TestAWSS3FlightProducer extends FileTestSuite
         if (!S3.isConfigured()) {
             return java.util.Collections.emptyList();
         }
-        return Arrays.asList(
+        final List<String> paths = new ArrayList<>(Arrays.asList(
                 "scenarios/s3/discover_root.scenario",
-                "scenarios/s3/discover_folder.scenario",
-                "scenarios/s3/metadata_csv.scenario",
-                "scenarios/s3/read_csv.scenario",
-                "scenarios/s3/read_binary.scenario",
-                "scenarios/s3/negative_missing_key.scenario");
+                "scenarios/s3/negative_missing_key.scenario"));
+        // Write-dependent scenarios require a test work bucket
+        if (getWorkDir() != null) {
+            paths.addAll(Arrays.asList(
+                    "scenarios/s3/discover_folder.scenario",
+                    "scenarios/s3/metadata_csv.scenario",
+                    "scenarios/s3/read_csv.scenario",
+                    "scenarios/s3/read_binary.scenario",
+                    "scenarios/s3/readwrite_csv.scenario"));
+        }
+        return paths;
+    }
+
+    // -----------------------------------------------------------------------
+    // S3 WorkDirOperations — creates/empties/destroys a dedicated test bucket
+    // -----------------------------------------------------------------------
+
+    /**
+     * {@link WorkDirManager.WorkDirOperations} implementation that uses the
+     * AWS SDK v2 S3 client already created for the connector under test.
+     *
+     * <p>
+     * This is called by {@link com.ibm.connect.sdk.test.file.VerifyWorkDir} and
+     * {@link com.ibm.connect.sdk.test.file.CleanTestWorkDir} via a subclass-provided
+     * factory registered in the build-specific Gradle tasks.
+     * For the default case (HIERARCHICAL_FS / no custom operations) the
+     * {@link WorkDirManager} handles everything itself. This inner class is
+     * provided so that future Gradle task configuration for S3 can supply it.
+     */
+    static final class S3WorkDirOps implements WorkDirManager.WorkDirOperations
+    {
+        private final software.amazon.awssdk.services.s3.S3Client s3;
+
+        S3WorkDirOps(software.amazon.awssdk.services.s3.S3Client s3)
+        {
+            this.s3 = s3;
+        }
+
+        @Override
+        public void create(String name) throws Exception
+        {
+            s3.createBucket(b -> b.bucket(name));
+        }
+
+        @Override
+        public boolean isEmpty(String name) throws Exception
+        {
+            final software.amazon.awssdk.services.s3.model.ListObjectsV2Response resp
+                    = s3.listObjectsV2(b -> b.bucket(name).maxKeys(1));
+            return resp.contents().isEmpty();
+        }
+
+        @Override
+        public void emptyContainer(String name) throws Exception
+        {
+            deleteAllObjects(name);
+        }
+
+        @Override
+        public void destroyContainer(String name) throws Exception
+        {
+            deleteAllObjects(name);
+            s3.deleteBucket(b -> b.bucket(name));
+        }
+
+        private void deleteAllObjects(String bucket)
+        {
+            String continuationToken = null;
+            do {
+                final String token = continuationToken;
+                final software.amazon.awssdk.services.s3.model.ListObjectsV2Response resp = s3.listObjectsV2(
+                        b -> {
+                            b.bucket(bucket);
+                            if (token != null) {
+                                b.continuationToken(token);
+                            }
+                        });
+                if (!resp.contents().isEmpty()) {
+                    final List<software.amazon.awssdk.services.s3.model.ObjectIdentifier> ids
+                            = new ArrayList<>();
+                    for (final software.amazon.awssdk.services.s3.model.S3Object obj : resp.contents()) {
+                        ids.add(software.amazon.awssdk.services.s3.model.ObjectIdentifier.builder()
+                                .key(obj.key()).build());
+                    }
+                    s3.deleteObjects(b -> b.bucket(bucket)
+                            .delete(d -> d.objects(ids)));
+                }
+                continuationToken = resp.isTruncated() ? resp.nextContinuationToken() : null;
+            }
+            while (continuationToken != null);
+        }
     }
 
     // -----------------------------------------------------------------------

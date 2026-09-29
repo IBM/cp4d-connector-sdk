@@ -1,12 +1,26 @@
 # ============================================================
-# S3 — read the configured CSV test object
+# S3 — write + read back a CSV and verify content
 # ============================================================
-# Asserts at least one row is returned.
-# Uses ${file_s3.s3.test_csv_key} injected at runtime.
-# Add ExpectedRowCount / ExpectedRows.N assertions if your
-# test file has a known, stable content.
+# Writes a known CSV into the test work bucket then reads it
+# back and verifies row count and cell values.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
 
+# ── Step 1: Write ─────────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/read_csv_test.csv
+Interaction.first_line_header=true
+Schema=year|integer; make|varchar; model|varchar
+Row.0=2012|Tesla|S
+Row.1=1997|Ford|E350
+Row.2=2015|Chevy|Volt
+
+# ── Step 2: Read and assert content ───────────────────────
 [Step]
 Type=Read
-Interaction.file_name=/${file_s3.s3.test_csv_key}
-# At least one data row must be returned
+Interaction.file_name=/${work_dir}/read_csv_test.csv
+ExpectedColumns=year|make|model
+ExpectedRowCount=3
+ExpectedRows.0=2012|Tesla|S
+ExpectedRows.1=1997|Ford|E350
+ExpectedRows.2=2015|Chevy|Volt

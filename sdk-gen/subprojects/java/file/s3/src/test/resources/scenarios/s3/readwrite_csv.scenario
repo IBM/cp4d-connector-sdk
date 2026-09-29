@@ -1,20 +1,32 @@
 # ============================================================
-# S3 — read the configured CSV test object and verify content
+# S3 — write + read back a CSV in the test work bucket
 # ============================================================
-# NOTE: Requires file_s3.s3.test_csv_key in tests.properties.
-# The test is skipped automatically when credentials are absent.
-#
-# The #ref# token below is resolved by TestConfig interpolation:
-#   file_s3.s3.test_base=test-data/
-#   file_s3.s3.test_csv_key=#file_s3.s3.test_base#cars.csv
+# Verifies round-trip write and read within the isolated
+# test work directory.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
 
-# ── Step 1: Read and assert non-empty ───────────────────────
+# ── Write a typed CSV ──────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/readwrite_test.csv
+Interaction.first_line_header=true
+Schema=id|integer; label|varchar; flag|boolean
+Row.0=1|Alice|true
+Row.1=2|Bob|false
+Row.2=3|<NULL>|true
+
+# ── Read back and verify full content ──────────────────────
 [Step]
 Type=Read
-# file_name will be empty if test_csv_key is not configured;
-# the suite @Before guard (assumeNotNull) fires first.
-# ExpectedRowCount is omitted here — the suite asserts at least one row by default.
-Interaction.file_name=/test-data/cars.csv
-# Exact assertions below — update when your bucket and file are known:
-# ExpectedRowCount=3
-# ExpectedCell.0.0=some_value
+Interaction.file_name=/${work_dir}/readwrite_test.csv
+ExpectedColumns=id|label|flag
+ExpectedRowCount=3
+ExpectedRows.0=1|Alice|true
+ExpectedRows.1=2|Bob|false
+ExpectedRows.2=3|<NULL>|true
+
+# ── Discover: file must appear in work-dir listing ─────────
+[Step]
+Type=Discover
+Path=/${work_dir}
+ExpectedContains=readwrite_test.csv

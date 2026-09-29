@@ -207,14 +207,23 @@ public class TestLocalFSFlightProducer extends FileTestSuite
         return KNOWN_FILE_NAME;
     }
 
-    /** LocalFS supports writing — provide a unique target path per test. */
+    /** LocalFS supports writing — files are isolated to the test work directory. */
     @Override
     protected DiscoveredAssetInteractionProperties createWriteInteractionProperties(String uniqueSuffix)
     {
         final DiscoveredAssetInteractionProperties props = new DiscoveredAssetInteractionProperties();
-        props.put("file_name", "/suite_write_" + uniqueSuffix + ".csv");
+        final String workDir = getWorkDir();
+        final String prefix = workDir != null ? workDir : "";
+        props.put("file_name", prefix + "/suite_write_" + uniqueSuffix + ".csv");
         props.put("first_line_header", "true");
         return props;
+    }
+
+    /** Opts into the work-directory isolation feature. */
+    @Override
+    protected String getWorkDirConfigKey()
+    {
+        return "file_localfs.test_work_dir";
     }
 
     // -----------------------------------------------------------------------

@@ -1,6 +1,10 @@
 # ============================================================
 # GitHub — getFlightInfo for cars.csv (metadata + schema)
 # ============================================================
+# Mode A: reads a stable well-known test file that has been in
+# apache/spark since Spark 1.x. The schema and field_delimiter
+# are part of the connector's parsing contract and are
+# unlikely to change even if the file content changes.
 
 [Step]
 Type=Metadata

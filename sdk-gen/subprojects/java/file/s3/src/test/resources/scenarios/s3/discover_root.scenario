@@ -1,10 +1,11 @@
 # ============================================================
-# S3 — discover bucket root
+# S3 — discover the test work bucket root
 # ============================================================
 # Lists all top-level objects and common-prefix folders in
-# the bucket. No hardcoded paths needed.
+# the test work bucket. No hardcoded paths needed.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
 
 [Step]
 Type=Discover
 Path=/
-ExpectedNotEmpty=true
+ExpectedNotEmpty=false

@@ -12,8 +12,12 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNotNull;
 import static org.junit.Assume.assumeTrue;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +34,7 @@ import org.junit.Test;
 
 import com.google.common.collect.Table;
 import com.ibm.connect.sdk.test.ConnectorTestSuite;
+import com.ibm.connect.sdk.test.TestConfig;
 import com.ibm.connect.sdk.util.ModelMapper;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
@@ -95,7 +100,86 @@ public abstract class FileTestSuite extends ConnectorTestSuite
         if (hook != null) {
             s.withWriteHook(hook);
         }
+        // Auto-inject ${work_dir} so scenario files can reference it without
+        // manual withVars() calls in every subclass.
+        final String workDir = getWorkDir();
+        if (workDir != null) {
+            final Map<String, String> vars = new LinkedHashMap<>();
+            vars.put("work_dir", workDir);
+            s.withVars(vars);
+        }
         return s;
+    }
+
+    // -----------------------------------------------------------------------
+    // Work directory — isolation segment for writable tests
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns the {@code tests.properties} key that holds the work-directory
+     * (or work-bucket) value for this connector, e.g.
+     * {@code "file_localfs.test_work_dir"}.
+     *
+     * <p>
+     * The default implementation returns {@code null}, which disables automatic
+     * work-directory injection. Override in a subclass to opt in.
+     *
+     * <p>
+     * <strong>Note:</strong> connectors that are read-only (where
+     * {@link #createWriteInteractionProperties(String)} returns {@code null})
+     * should not override this method.
+     */
+    @SuppressWarnings("PMD.EmptyMethodInAbstractClassShouldBeAbstract")
+    protected String getWorkDirConfigKey()
+    {
+        return null;
+    }
+
+    /**
+     * Returns the resolved work-directory name for this test run.
+     *
+     * <p>
+     * The value is read from {@code <buildDir>/test-work-dir.txt}, which is
+     * written by the {@code verifyTestWorkDir} Gradle task (via
+     * {@link WorkDirManager#provision()}). If that file is absent the method
+     * falls back to reading the raw {@code tests.properties} value (useful
+     * when running tests directly from an IDE without invoking Gradle).
+     *
+     * <p>
+     * Returns {@code null} when {@link #getWorkDirConfigKey()} is not
+     * configured or when neither the build-dir file nor the property is set.
+     */
+    protected String getWorkDir()
+    {
+        final String configKey = getWorkDirConfigKey();
+        if (configKey == null) {
+            return null;
+        }
+
+        // 1. Prefer the file written by verifyTestWorkDir (covers TEMP names)
+        final String buildDir = System.getProperty("buildDir");
+        if (buildDir != null) {
+            final java.nio.file.Path resolvedFile = Paths.get(buildDir, WorkDirManager.RESOLVED_FILE_NAME);
+            if (Files.exists(resolvedFile)) {
+                try {
+                    final String value = Files.readString(resolvedFile).trim();
+                    if (!value.isEmpty()) {
+                        return value;
+                    }
+                }
+                catch (IOException e) {
+                    // fall through to config lookup
+                }
+            }
+        }
+
+        // 2. Fall back to tests.properties (IDE / manual run without Gradle tasks)
+        final String configured = TestConfig.get(configKey);
+        if (configured == null || configured.isBlank() || WorkDirManager.TEMP_KEYWORD.equalsIgnoreCase(configured.trim())) {
+            // TEMP without the Gradle task means no container was created; skip injection
+            return null;
+        }
+        return configured.trim();
     }
 
     /**

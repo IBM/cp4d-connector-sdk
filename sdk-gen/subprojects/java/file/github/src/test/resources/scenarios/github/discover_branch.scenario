@@ -1,10 +1,13 @@
 # ============================================================
 # GitHub — discover branch contents (files and folders)
 # ============================================================
+# Mode A: verifies a well-known branch in the apache/spark repo
+# contains at least one entry. The "sql" directory has existed
+# in apache/spark master since Spark 1.x and is extremely
+# unlikely to be removed.
 
 [Step]
 Type=Discover
 Path=/master
 ExpectedNotEmpty=true
-# "sql" directory must always exist at the root of apache/spark master
 ExpectedContains=sql

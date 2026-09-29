@@ -1,19 +1,26 @@
 # ============================================================
-# S3 — read a binary object (e.g. PNG/JPG) in binary mode
+# S3 — read a binary object written to the test work bucket
 # ============================================================
-# Verifies the schema has a single "content" field and that
-# at least one non-empty byte[] record is returned.
-# Uses ${file_s3.s3.test_binary_key} injected at runtime.
+# Writes a small binary payload, then reads it back in binary
+# mode and verifies the schema has a single "content" field.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/test_binary.bin
+Interaction.file_format=binary
+Schema=content|varbinary
+Row.0=aGVsbG8=
 
 [Step]
 Type=Metadata
-Interaction.file_name=/${file_s3.s3.test_binary_key}
+Interaction.file_name=/${work_dir}/test_binary.bin
 Interaction.file_format=binary
 ExpectedInteractionProperty.file_format=binary
 ExpectedSchemaFields=content
 
 [Step]
 Type=Read
-Interaction.file_name=/${file_s3.s3.test_binary_key}
+Interaction.file_name=/${work_dir}/test_binary.bin
 Interaction.file_format=binary
 ExpectedRowCount=1
