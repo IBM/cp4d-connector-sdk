@@ -182,19 +182,6 @@ public class TestPathKey
         assertEquals("path_key_values", RestInputInteraction.INTERACTION_PROP_PATH_KEY_VALUES);
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    /** Unused — kept for structural symmetry with TestBuildRequestUrl. */
-    private static Map<String, Object> props(Object... keyValues)
-    {
-        final Map<String, Object> map = new HashMap<>();
-        for (int i = 0; i < keyValues.length; i += 2) {
-            map.put(keyValues[i].toString(), keyValues[i + 1]);
-        }
-        return map;
-    }
 }
 
 // Made with Bob
