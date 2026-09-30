@@ -69,7 +69,7 @@ public class RestApiMappingLoader
     private static final String PATH_KEY = "$path";
     private static final String DATA_PATH_KEY = "$data_path";
     private static final String PAGINATION_KEY = "$pagination";
-    private static final String PATH_KEY_KEY = "$path_key";
+    private static final String PATH_KEYS_KEY = "$path_keys";
     private static final String KEY_MODIFIER = "$key";
     private static final String NOTNULL_MODIFIER = "$notnull";
     private static final String ARRAY_SUFFIX = "[]";
@@ -362,12 +362,12 @@ public class RestApiMappingLoader
 
         final String dataPath = parseOptionalText(tableNode, DATA_PATH_KEY);
         final PaginationConfig paginationConfig = parsePaginationConfig(tableNode);
-        final PathKeyDef pathKey = parsePathKey(tableName, tableNode);
+        final List<PathKeyDef> pathKeys = parsePathKeys(tableName, tableNode);
         final List<RestFieldDefinition> fields = parseFields(tableNode, "");
 
-        logParsedTable(tableName, dataPath, paginationConfig, pathKey, fields.size());
+        logParsedTable(tableName, dataPath, paginationConfig, pathKeys, fields.size());
         return new RestTableEntry(tableName,
-                new RestTableDefinition(path, dataPath, paginationConfig, pathKey, fields));
+                new RestTableDefinition(path, dataPath, paginationConfig, pathKeys, fields));
     }
 
     private static String parseTablePath(String tableName, JsonNode tableNode)
@@ -381,11 +381,11 @@ public class RestApiMappingLoader
     }
 
     private static void logParsedTable(String tableName, String dataPath, PaginationConfig paginationConfig,
-            PathKeyDef pathKey, int fieldCount)
+            List<PathKeyDef> pathKeys, int fieldCount)
     {
-        if (pathKey != null) {
-            LOGGER.debug("Loaded table '{}' with path_key variable '{}' (source: '{}'), and {} fields",
-                    tableName, pathKey.getVariable(), pathKey.getSourcePath(), fieldCount);
+        if (!pathKeys.isEmpty()) {
+            LOGGER.debug("Loaded table '{}' with {} path_key(s), first variable '{}' (source: '{}'), and {} fields",
+                    tableName, pathKeys.size(), pathKeys.get(0).getVariable(), pathKeys.get(0).getSourcePath(), fieldCount);
         } else if (paginationConfig != null && dataPath != null) {
             LOGGER.debug("Loaded table '{}' with data path '{}', pagination type '{}', and {} fields",
                     tableName, dataPath, paginationConfig.getType(), fieldCount);
@@ -400,49 +400,62 @@ public class RestApiMappingLoader
     }
 
     /**
-     * Parses the optional {@code $path_key} object from a table JSON node.
+     * Parses the optional {@code $path_keys} array from a table JSON node.
      *
-     * <p>Required sub-fields: {@code variable}, {@code source_path}, {@code source_field}.
-     * Optional: {@code source_data_path}.
+     * <p>Each element must be a JSON object with required sub-fields:
+     * {@code variable}, {@code source_path}, {@code source_field}.
+     * Optional per-element: {@code source_data_path}.
+     *
+     * <p>Order is significant: each entry's {@code source_path} may reference
+     * {@code $variable} placeholders resolved by earlier entries in the list.
      *
      * @param tableName
-     *            the table name (for error messages)
+     *            the table name (for error/warning messages)
      * @param tableNode
      *            the JSON object representing the table definition
-     * @return the parsed {@link PathKeyDef}, or {@code null} if the key is absent
+     * @return the parsed list of {@link PathKeyDef}; empty list if the key is absent
      */
-    private static PathKeyDef parsePathKey(String tableName, JsonNode tableNode)
+    private static List<PathKeyDef> parsePathKeys(String tableName, JsonNode tableNode)
     {
-        final JsonNode node = tableNode.get(PATH_KEY_KEY);
+        final JsonNode node = tableNode.get(PATH_KEYS_KEY);
         if (node == null || node.isNull()) {
-            return null;
+            return new ArrayList<>();
         }
-        if (!node.isObject()) {
-            LOGGER.warn("Skipping invalid '$path_key' in table '{}': must be a JSON object", tableName);
-            return null;
-        }
-
-        final String variable   = getTextOrDefault(node, "variable",    null);
-        final String sourcePath = getTextOrDefault(node, "source_path", null);
-        final String sourceField = getTextOrDefault(node, "source_field", null);
-
-        if (variable == null || variable.isBlank()) {
-            LOGGER.warn("Skipping '$path_key' in table '{}': missing required 'variable' field", tableName);
-            return null;
-        }
-        if (sourcePath == null || sourcePath.isBlank()) {
-            LOGGER.warn("Skipping '$path_key' in table '{}': missing required 'source_path' field", tableName);
-            return null;
-        }
-        if (sourceField == null || sourceField.isBlank()) {
-            LOGGER.warn("Skipping '$path_key' in table '{}': missing required 'source_field' field", tableName);
-            return null;
+        if (!node.isArray()) {
+            LOGGER.warn("Skipping invalid '$path_keys' in table '{}': must be a JSON array", tableName);
+            return new ArrayList<>();
         }
 
-        final String sourceDataPath = parseOptionalText(node, "source_data_path");
-        LOGGER.debug("Parsed path_key for table '{}': variable='{}', source='{}', field='{}'",
-                tableName, variable, sourcePath, sourceField);
-        return new PathKeyDef(variable, sourcePath, sourceField, sourceDataPath);
+        final List<PathKeyDef> result = new ArrayList<>();
+        for (int i = 0; i < node.size(); i++) {
+            final JsonNode entry = node.get(i);
+            if (!entry.isObject()) {
+                LOGGER.warn("Skipping non-object entry at index {} in '$path_keys' for table '{}'", i, tableName);
+                continue;
+            }
+            final String variable    = getTextOrDefault(entry, "variable",     null);
+            final String sourcePath  = getTextOrDefault(entry, "source_path",  null);
+            final String sourceField = getTextOrDefault(entry, "source_field", null);
+
+            if (variable == null || variable.isBlank()) {
+                LOGGER.warn("Skipping '$path_keys[{}]' in table '{}': missing required 'variable' field", i, tableName);
+                continue;
+            }
+            if (sourcePath == null || sourcePath.isBlank()) {
+                LOGGER.warn("Skipping '$path_keys[{}]' in table '{}': missing required 'source_path' field", i, tableName);
+                continue;
+            }
+            if (sourceField == null || sourceField.isBlank()) {
+                LOGGER.warn("Skipping '$path_keys[{}]' in table '{}': missing required 'source_field' field", i, tableName);
+                continue;
+            }
+
+            final String sourceDataPath = parseOptionalText(entry, "source_data_path");
+            LOGGER.debug("Parsed path_keys[{}] for table '{}': variable='{}', source='{}', field='{}'",
+                    i, tableName, variable, sourcePath, sourceField);
+            result.add(new PathKeyDef(variable, sourcePath, sourceField, sourceDataPath));
+        }
+        return result;
     }
 
     private static String getTextOrDefault(JsonNode node, String key, String defaultValue)

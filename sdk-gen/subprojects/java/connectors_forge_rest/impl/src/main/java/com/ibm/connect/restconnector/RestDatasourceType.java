@@ -56,7 +56,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
         setStatus(CustomFlightDatasourceType.StatusEnum.ACTIVE);
         setTags(Collections.emptyList());
 
-        // Set origin from $metadata (connector_source → name, forge_version → version)
+        // Set origin from $origin block (name, version)
         final Map<String, String> originMap = mapping.getOrigin();
         if (!originMap.isEmpty()) {
             setOrigin(new DatasourceTypeOrigin()
@@ -155,13 +155,14 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                         .type(TypeEnum.INTEGER)
                         .required(false));
 
-        // path_key_value: holds the concrete key value for tables with a $path_key.
-        // Set automatically by the discovery interaction; not entered by the user directly.
+        // path_key_values: holds the JSON-serialised map of all resolved path-key variables
+        // for tables that use $path_keys.  Set automatically by the discovery interaction;
+        // not entered by the user directly.
         properties.addSourceItem(
                 new CustomDatasourceTypeProperty()
-                        .name(RestInputInteraction.INTERACTION_PROP_PATH_KEY_VALUE)
-                        .label("Path Key Value")
-                        .description("The resolved value of the $path_key variable for this asset, set automatically during discovery")
+                        .name(RestInputInteraction.INTERACTION_PROP_PATH_KEY_VALUES)
+                        .label("Path Key Values")
+                        .description("JSON map of resolved $path_keys variable values for this asset, set automatically during discovery")
                         .type(TypeEnum.STRING)
                         .required(false));
 

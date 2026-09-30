@@ -128,16 +128,16 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
      */
     protected void pingFirstTable() throws Exception
     {
-        // Find first table that does not have a $path_key (its path is fully resolvable)
+        // Find first table that does not have $path_keys (its path is fully resolvable at connect time)
         Map.Entry<String, RestTableDefinition> firstEntry = null;
         for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
-            if (entry.getValue().getPathKey() == null) {
+            if (!entry.getValue().hasPathKeys()) {
                 firstEntry = entry;
                 break;
             }
         }
         if (firstEntry == null) {
-            LOGGER.info("All tables have a $path_key — skipping connectivity ping");
+            LOGGER.info("All tables have $path_keys — skipping connectivity ping");
             return;
         }
 

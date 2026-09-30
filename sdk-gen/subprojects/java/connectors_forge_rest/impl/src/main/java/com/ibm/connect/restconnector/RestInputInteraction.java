@@ -19,6 +19,9 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
@@ -44,11 +47,14 @@ public class RestInputInteraction implements SdkInputInteraction
     private static final Logger LOGGER = getLogger(RestInputInteraction.class);
 
     /**
-     * Interaction-property key under which the concrete path-key value is stored for tables
-     * that declare a {@code $path_key}. Set by {@link RestDiscoveryInteraction} at discovery
-     * time; read back here at read time to substitute the variable in the URL path.
+     * Interaction-property key under which the resolved path-key variables are stored as a
+     * compact JSON object for tables that declare {@code $path_keys}.
+     * Set by {@link RestDiscoveryInteraction} at discovery time; read back here at read time
+     * to substitute all variables into the URL path.
+     *
+     * <p>Example value: {@code {"owner":"acme","repo":"my-service"}}
      */
-    static final String INTERACTION_PROP_PATH_KEY_VALUE = "path_key_value";
+    static final String INTERACTION_PROP_PATH_KEY_VALUES = "path_key_values";
 
     private static final Pattern BASE64_PATTERN = Pattern.compile("base64\\(([^)]+)\\)");
     private static final Pattern VAR_PATTERN     = Pattern.compile("\\$([A-Za-z_][A-Za-z0-9_]*)");
@@ -163,22 +169,30 @@ public class RestInputInteraction implements SdkInputInteraction
     private String buildUrl()
     {
         try {
-            // For tables with a $path_key, merge the concrete key value into the props map
-            // so that resolveTemplate() in buildRequestUrl() can substitute it.
+            // For tables with $path_keys, deserialise the JSON map from interactionProperties
+            // and merge each resolved variable into the props so resolveTemplate() can substitute.
             final Map<String, Object> propsForUrl;
-            final PathKeyDef pathKey = tableDef.getPathKey();
-            if (pathKey != null) {
-                final Object keyValue = interactionProperties.get(INTERACTION_PROP_PATH_KEY_VALUE);
-                if (keyValue == null || keyValue.toString().isBlank()) {
+            if (tableDef.hasPathKeys()) {
+                final Object rawValues = interactionProperties.get(INTERACTION_PROP_PATH_KEY_VALUES);
+                if (rawValues == null || rawValues.toString().isBlank()) {
                     throw new IllegalStateException(
-                            "Table '" + tableName + "' has a $path_key (variable '" + pathKey.getVariable()
-                            + "') but the interaction property '" + INTERACTION_PROP_PATH_KEY_VALUE
+                            "Table '" + tableName + "' has $path_keys but the interaction property '"
+                            + INTERACTION_PROP_PATH_KEY_VALUES
                             + "' is missing. Ensure the asset was discovered through the normal "
-                            + "discovery flow so the key value is set.");
+                            + "discovery flow so all key values are set.");
                 }
-                // Build a combined map: connection properties + the resolved key variable
-                final java.util.HashMap<String, Object> combined = new java.util.HashMap<>(connectionProperties);
-                combined.put(pathKey.getVariable(), keyValue.toString());
+                final Map<String, Object> combined = new HashMap<>(connectionProperties);
+                try {
+                    final Map<String, String> keyValues =
+                            new ObjectMapper()
+                                    .readValue(rawValues.toString(),
+                                            new TypeReference<Map<String, String>>(){});
+                    combined.putAll(keyValues);
+                } catch (Exception e) {
+                    throw new IllegalStateException(
+                            "Could not parse '" + INTERACTION_PROP_PATH_KEY_VALUES
+                            + "' value as JSON object: " + rawValues, e);
+                }
                 propsForUrl = combined;
             } else {
                 propsForUrl = connectionProperties;
