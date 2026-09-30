@@ -201,8 +201,8 @@ docker.containerFileCopy = { String containerNameOrId, String src, String target
   docker.dockerCommandStdout('cp', "${src}", "${containerNameOrId}:${target}")
 }
 
-docker.buildLatest = { String imageName, String imageVersion, File dockerFile, String imageRegistry = null, String contRegistry = null, String arg1 = null   ->
-  if (arg1 != null ) {
+docker.buildLatest = { String imageName, String imageVersion, File dockerFile, String imageRegistry = null, String contRegistry = null, String arg1 = null ->
+  if (arg1 != null) {
     imageVersion = arg1
   }
   docker.dockerCommandIgnoreFailure('rmi', "${imageName}:${latestTag}")

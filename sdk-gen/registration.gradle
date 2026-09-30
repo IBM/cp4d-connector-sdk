@@ -13,13 +13,13 @@ class TrustAllManager extends X509ExtendedTrustManager {
   }
   public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
   public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
-  public void checkClientTrusted (X509Certificate [] chain, String authType, Socket socket) {
+  public void checkClientTrusted(X509Certificate [] chain, String authType, Socket socket) {
   }
-  public void checkServerTrusted (X509Certificate [] chain, String authType, Socket socket) {
+  public void checkServerTrusted(X509Certificate [] chain, String authType, Socket socket) {
   }
-  public void checkClientTrusted (X509Certificate [] chain, String authType, SSLEngine engine) {
+  public void checkClientTrusted(X509Certificate [] chain, String authType, SSLEngine engine) {
   }
-  public void checkServerTrusted (X509Certificate [] chain, String authType, SSLEngine engine) {
+  public void checkServerTrusted(X509Certificate [] chain, String authType, SSLEngine engine) {
   }
 }
 subprojects {
@@ -56,10 +56,14 @@ subprojects {
         }
         doLast{
           if (project.hasProperty('env')){
-            file("${buildDir}/resources/dist/payload/envs/${env}.properties").withInputStream { registrationProperties.load(it) }
+            file("${buildDir}/resources/dist/payload/envs/${env}.properties").withInputStream {
+              registrationProperties.load(it)
+            }
           } else {
             ant.input(message: "Provide path of registration properties file:", addproperty: 'envInteractive')
-            file(ant.envInteractive).withInputStream { registrationProperties.load(it) }
+            file(ant.envInteractive).withInputStream {
+              registrationProperties.load(it)
+            }
           }
         }
       }

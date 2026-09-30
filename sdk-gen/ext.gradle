@@ -149,7 +149,9 @@ ext {
   }
 
   executableInPath = { String executable ->
-    systemPath().split(File.pathSeparator).any{java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(exeName(executable)))}
+    systemPath().split(File.pathSeparator).any{
+      java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(exeName(executable)))
+    }
   }
 
   requireExecutablesInPath = { String... executables ->
@@ -157,7 +159,9 @@ ext {
     executables.collect { executable ->
       exeName(executable)
     }.each { executable ->
-      if (!pathEntries.any{java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(executable))}) {
+      if (!pathEntries.any{
+        java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(executable))
+      }) {
         throw new GradleException("Unable to locate the '${executable}' executable in your system path\n")
       }
     }
@@ -168,9 +172,9 @@ ext {
 // Build Info Extensions
 //
 buildinfo += [
-  date:new Date(),
-  loggerDate:new java.text.SimpleDateFormat('yyyy/MM/dd hh:mm:ss a z'),
-  host:[:]
+  date: new Date(),
+  loggerDate: new java.text.SimpleDateFormat('yyyy/MM/dd hh:mm:ss a z'),
+  host: [:]
 ]
 if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
   buildinfo.host += [
