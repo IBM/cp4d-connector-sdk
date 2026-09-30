@@ -6,7 +6,9 @@
 package com.ibm.connect.restconnector;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,7 +39,7 @@ public class TestPathKey
     public void testPathKeyDefGetters()
     {
         final PathKeyDef pk = new PathKeyDef("org_slug", "/api/0/organizations/", "slug", "data");
-        assertEquals("org_slug",             pk.getVariable());
+        assertEquals("org_slug",              pk.getVariable());
         assertEquals("/api/0/organizations/", pk.getSourcePath());
         assertEquals("slug",                  pk.getSourceField());
         assertEquals("data",                  pk.getSourceDataPath());
@@ -51,12 +53,12 @@ public class TestPathKey
     }
 
     // -------------------------------------------------------------------------
-    // URL building with path_key variable injected — via buildRequestUrl
+    // URL building with path_keys variables injected — via buildRequestUrl
     // -------------------------------------------------------------------------
 
     /**
-     * When the path-key variable value is added to the props map (as buildUrl() does),
-     * buildRequestUrl correctly substitutes it into the path.
+     * When path-key variable values are merged into the props map (as buildUrl() does),
+     * buildRequestUrl correctly substitutes them into the path.
      */
     @Test
     public void testBuildRequestUrlWithPathKeyVariable() throws Exception
@@ -71,6 +73,24 @@ public class TestPathKey
                 combined);
 
         assertEquals("https://sentry.io/api/0/organizations/my-company/issues/", result);
+    }
+
+    /**
+     * Two chained path-key variables are substituted independently in the path.
+     */
+    @Test
+    public void testBuildRequestUrlWithTwoPathKeyVariables() throws Exception
+    {
+        final Map<String, Object> combined = new HashMap<>();
+        combined.put("org_id",     "acme");
+        combined.put("project_id", "frontend");
+
+        final String result = RestInputInteraction.buildRequestUrl(
+                "https://api.example.com",
+                "/orgs/$org_id/projects/$project_id/transactions",
+                combined);
+
+        assertEquals("https://api.example.com/orgs/acme/projects/frontend/transactions", result);
     }
 
     /**
@@ -92,51 +112,74 @@ public class TestPathKey
     }
 
     // -------------------------------------------------------------------------
-    // fetchStringValues — tested with a pre-loaded JSON response via a local
-    // HTTP server substitute. Since JsonToArrowStream.fetchStringValues makes a
-    // real HTTP call, we test it indirectly by verifying PathKeyDef round-trips
-    // and DSL parsing (the HTTP portion is integration-tested end-to-end).
+    // RestTableDefinition with List<PathKeyDef>
     // -------------------------------------------------------------------------
 
     /**
-     * A RestTableDefinition with a PathKeyDef preserves it through construction.
+     * A RestTableDefinition with a single PathKeyDef list preserves the list.
      */
     @Test
-    public void testTableDefinitionCarriesPathKey()
+    public void testTableDefinitionCarriesSinglePathKey()
     {
         final PathKeyDef pk = new PathKeyDef("slug", "/orgs/", "slug", null);
         final List<RestFieldDefinition> fields = Arrays.asList(
                 new RestFieldDefinition("id", "VARCHAR", true, false));
         final RestTableDefinition def = new RestTableDefinition(
-                "/orgs/$slug/items", null, null, pk, fields);
+                "/orgs/$slug/items", null, null,
+                Collections.singletonList(pk),
+                fields);
 
-        assertEquals(pk, def.getPathKey());
+        assertTrue(def.hasPathKeys());
+        assertEquals(1, def.getPathKeys().size());
+        assertEquals(pk, def.getPathKeys().get(0));
         assertEquals("/orgs/$slug/items", def.getPath());
         assertNull(def.getDataPath());
         assertNull(def.getPaginationConfig());
     }
 
     /**
-     * A RestTableDefinition with null PathKeyDef returns null from getPathKey().
+     * A RestTableDefinition with two PathKeyDef entries preserves order.
      */
     @Test
-    public void testTableDefinitionNullPathKey()
+    public void testTableDefinitionCarriesTwoPathKeys()
+    {
+        final PathKeyDef pk1 = new PathKeyDef("org_id",     "/orgs/",              "id", null);
+        final PathKeyDef pk2 = new PathKeyDef("project_id", "/orgs/$org_id/projs/", "id", null);
+        final List<RestFieldDefinition> fields = Arrays.asList(
+                new RestFieldDefinition("id", "VARCHAR", true, false));
+        final RestTableDefinition def = new RestTableDefinition(
+                "/orgs/$org_id/projs/$project_id/txns", null, null,
+                Arrays.asList(pk1, pk2),
+                fields);
+
+        assertTrue(def.hasPathKeys());
+        assertEquals(2, def.getPathKeys().size());
+        assertEquals(pk1, def.getPathKeys().get(0));
+        assertEquals(pk2, def.getPathKeys().get(1));
+    }
+
+    /**
+     * A RestTableDefinition with a null path-key list has empty list and hasPathKeys() == false.
+     */
+    @Test
+    public void testTableDefinitionNullPathKeyList()
     {
         final List<RestFieldDefinition> fields = Arrays.asList(
                 new RestFieldDefinition("id", "VARCHAR", true, false));
         final RestTableDefinition def = new RestTableDefinition(
                 "/items", null, null, null, fields);
-        assertNull(def.getPathKey());
+        assertFalse(def.hasPathKeys());
+        assertTrue(def.getPathKeys().isEmpty());
     }
 
     // -------------------------------------------------------------------------
-    // INTERACTION_PROP_PATH_KEY_VALUE constant
+    // INTERACTION_PROP_PATH_KEY_VALUES constant
     // -------------------------------------------------------------------------
 
     @Test
     public void testInteractionPropConstantValue()
     {
-        assertEquals("path_key_value", RestInputInteraction.INTERACTION_PROP_PATH_KEY_VALUE);
+        assertEquals("path_key_values", RestInputInteraction.INTERACTION_PROP_PATH_KEY_VALUES);
     }
 
     // -------------------------------------------------------------------------
