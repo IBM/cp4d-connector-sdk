@@ -53,7 +53,6 @@ public class RestInputInteraction implements SdkInputInteraction
     private final String tableName;
     private final RestTableDefinition tableDef;
     private final Map<String, Object> connectionProperties;
-    private final Map<String, Object> interactionProperties;
 
     /**
      * Creates a REST input interaction.
@@ -76,8 +75,6 @@ public class RestInputInteraction implements SdkInputInteraction
         this.tableName = RestConnectorUtils.resolveTableName(asset);
         this.connectionProperties = asset.getConnectionProperties() != null
                 ? asset.getConnectionProperties() : Collections.emptyMap();
-        this.interactionProperties = asset.getInteractionProperties() != null
-                ? asset.getInteractionProperties() : Collections.emptyMap();
         LOGGER.debug("Creating input interaction for table: {}", tableName);
 
         final RestApiMapping apiMapping = connector.getApiMapping();
