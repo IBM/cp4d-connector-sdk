@@ -277,18 +277,24 @@ public class JsonToArrowStream implements Closeable
         final List<String> values = new ArrayList<>();
         if (root.isArray()) {
             for (final JsonNode item : root) {
-                if (item.isObject() && item.hasNonNull(fieldName)) {
-                    final String val = item.get(fieldName).asText(null);
-                    if (val != null && !val.isEmpty()) {
-                        values.add(val);
+                if (item.isObject()) {
+                    final JsonNode valueNode = resolveFieldPath(item, fieldName);
+                    if (valueNode != null && !valueNode.isNull()) {
+                        final String val = valueNode.asText(null);
+                        if (val != null && !val.isEmpty()) {
+                            values.add(val);
+                        }
                     }
                 }
             }
-        } else if (root.isObject() && root.hasNonNull(fieldName)) {
+        } else if (root.isObject()) {
             // Single-object response — unlikely for a lookup but handle gracefully
-            final String val = root.get(fieldName).asText(null);
-            if (val != null && !val.isEmpty()) {
-                values.add(val);
+            final JsonNode valueNode = resolveFieldPath(root, fieldName);
+            if (valueNode != null && !valueNode.isNull()) {
+                final String val = valueNode.asText(null);
+                if (val != null && !val.isEmpty()) {
+                    values.add(val);
+                }
             }
         }
 
@@ -369,6 +375,27 @@ public class JsonToArrowStream implements Closeable
             writer.set(fieldName, convertValue(valueNode, fieldDef));
         }
         writer.endRow();
+    }
+
+    /**
+     * Resolves a possibly dot-notated field path (e.g. {@code "user.id"}) from a
+     * {@link JsonNode}.  For simple names (no dot) this is equivalent to
+     * {@link JsonNode#get(String)}.  Returns {@code null} if any segment is missing
+     * or is not an object.
+     */
+    private static JsonNode resolveFieldPath(JsonNode node, String fieldPath)
+    {
+        final int dotIndex = fieldPath.indexOf('.');
+        if (dotIndex < 0) {
+            return node.get(fieldPath);
+        }
+        final String head = fieldPath.substring(0, dotIndex);
+        final String tail = fieldPath.substring(dotIndex + 1);
+        final JsonNode child = node.get(head);
+        if (child == null || child.isNull() || !child.isObject()) {
+            return null;
+        }
+        return resolveFieldPath(child, tail);
     }
 
     private static JsonNode getNestedValue(ObjectNode objectNode, String flattenedName)
