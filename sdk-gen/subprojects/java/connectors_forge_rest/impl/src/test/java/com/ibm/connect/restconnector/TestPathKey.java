@@ -173,13 +173,25 @@ public class TestPathKey
     }
 
     // -------------------------------------------------------------------------
-    // INTERACTION_PROP_PATH_KEY_VALUES constant
+    // Path-key variable substitution is handled at read time (no interaction property)
     // -------------------------------------------------------------------------
 
+    /**
+     * buildRequestUrl substitutes path-key variables that stream() resolves at read time.
+     * No interaction property is involved — the variable is simply present in the props map.
+     */
     @Test
-    public void testInteractionPropConstantValue()
+    public void testPathKeyVariableSubstitutedAtReadTime() throws Exception
     {
-        assertEquals("path_key_values", RestInputInteraction.INTERACTION_PROP_PATH_KEY_VALUES);
+        final Map<String, Object> propsWithKey = new HashMap<>();
+        propsWithKey.put("postId", "42");
+
+        final String result = RestInputInteraction.buildRequestUrl(
+                "https://jsonplaceholder.typicode.com",
+                "/posts/$postId/comments",
+                propsWithKey);
+
+        assertEquals("https://jsonplaceholder.typicode.com/posts/42/comments", result);
     }
 
 }

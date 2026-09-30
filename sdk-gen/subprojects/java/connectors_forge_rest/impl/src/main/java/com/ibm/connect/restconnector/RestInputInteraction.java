@@ -11,16 +11,15 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -45,16 +44,6 @@ import com.ibm.wdp.connect.sdk.connector.SdkInputInteraction;
 public class RestInputInteraction implements SdkInputInteraction
 {
     private static final Logger LOGGER = getLogger(RestInputInteraction.class);
-
-    /**
-     * Interaction-property key under which the resolved path-key variables are stored as a
-     * compact JSON object for tables that declare {@code $path_keys}.
-     * Set by {@link RestDiscoveryInteraction} at discovery time; read back here at read time
-     * to substitute all variables into the URL path.
-     *
-     * <p>Example value: {@code {"owner":"acme","repo":"my-service"}}
-     */
-    static final String INTERACTION_PROP_PATH_KEY_VALUES = "path_key_values";
 
     private static final Pattern BASE64_PATTERN = Pattern.compile("base64\\(([^)]+)\\)");
     private static final Pattern VAR_PATTERN     = Pattern.compile("\\$([A-Za-z_][A-Za-z0-9_]*)");
@@ -129,31 +118,100 @@ public class RestInputInteraction implements SdkInputInteraction
     /**
      * {@inheritDoc}
      *
-     * <p>Fetches all data from the REST API endpoint and pushes each row into the writer.
-     * Uses {@link JsonToArrowStream} from the forge engine.
+     * <p>For plain tables, fetches all data from the single API endpoint and streams it.
+     *
+     * <p>For tables with {@code $path_keys}, resolves every combination of path-variable
+     * values at read time using chained context expansion (see below), then streams data for
+     * each resolved URL immediately — rows are pushed to the writer as soon as each response
+     * arrives, without waiting for all combinations to complete.
+     *
+     * <h3>Chained context expansion</h3>
+     * <p>Path keys are processed in declared order.  The engine maintains a list of
+     * <em>contexts</em> — each context is a {@code Map<String, String>} of variable names to
+     * their resolved values accumulated so far.  Processing starts with a single empty context
+     * and, for each {@link PathKeyDef}:
+     * <ol>
+     *   <li>Substitutes the current context's variables into the entry's {@code source_path}.</li>
+     *   <li>Fetches the values of {@code source_field} from that URL.</li>
+     *   <li>For each fetched value creates a new context = existing context ∪ {variable → value}.</li>
+     * </ol>
+     * <p>Because step 2 uses the <em>specific</em> context, a dependent variable (e.g. {@code repo}
+     * with path {@code /orgs/$owner/repos}) only fetches repos for the specific owner in that
+     * context — there is no Cartesian product across unrelated values.
      */
     @Override
     public void stream(RowWriter writer) throws Exception
     {
-        final String url = buildUrl();
         LOGGER.info("Starting stream for table: {}", tableName);
 
-        final Map<String, String> authHeaders = buildAuthHeaders(
-                connector.getApiMapping().getAuthConfig(), connectionProperties);
-        final String acceptHeader = connector.getApiMapping().getAcceptHeader();
+        final RestApiMapping apiMapping = connector.getApiMapping();
+        final Map<String, String> authHeaders = buildAuthHeaders(apiMapping.getAuthConfig(), connectionProperties);
+        final String acceptHeader = apiMapping.getAcceptHeader();
 
-        final JsonToArrowStream jsonStream = new JsonToArrowStream(
-                url,
-                tableDef.getDataPath(),
-                tableDef.getFields(),
-                authHeaders,
-                tableDef.getPaginationConfig(),
-                acceptHeader);
+        if (!tableDef.hasPathKeys()) {
+            // Plain table — one URL, one stream
+            streamUrl(buildSimpleUrl(), writer, authHeaders, acceptHeader);
+            return;
+        }
 
-        try {
-            jsonStream.streamTo(writer);
-        } finally {
-            jsonStream.close();
+        // Tables with $path_keys: resolve all contexts, stream each one immediately
+        List<Map<String, String>> contexts = new ArrayList<>();
+        contexts.add(new LinkedHashMap<>());
+
+        for (final PathKeyDef pathKeyDef : tableDef.getPathKeys()) {
+            final List<Map<String, String>> nextContexts = new ArrayList<>();
+
+            for (final Map<String, String> ctx : contexts) {
+                final Map<String, Object> resolvedProps = mergeProps(ctx);
+
+                final String resolvedSourcePath = resolveTemplate(
+                        pathKeyDef.getSourcePath(), resolvedProps);
+                if (resolvedSourcePath == null) {
+                    LOGGER.warn("Unresolved variable in source_path '{}' for step '{}' in table '{}' "
+                            + "— skipping context {}",
+                            pathKeyDef.getSourcePath(), pathKeyDef.getVariable(), tableName, ctx);
+                    continue;
+                }
+
+                final String lookupUrl = buildRequestUrl(
+                        apiMapping.getBaseUrl(), resolvedSourcePath, resolvedProps);
+
+                final List<String> values;
+                try {
+                    values = JsonToArrowStream.fetchStringValues(
+                            lookupUrl, pathKeyDef.getSourceDataPath(), pathKeyDef.getSourceField(),
+                            authHeaders, acceptHeader);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to fetch values for path_keys step '{}' in table '{}' from '{}': {}",
+                            pathKeyDef.getVariable(), tableName, lookupUrl, e.getMessage());
+                    continue;
+                }
+
+                LOGGER.debug("Step '{}' for table '{}': fetched {} value(s) from '{}'",
+                        pathKeyDef.getVariable(), tableName, values.size(), lookupUrl);
+
+                for (final String value : values) {
+                    final Map<String, String> newCtx = new LinkedHashMap<>(ctx);
+                    newCtx.put(pathKeyDef.getVariable(), value);
+                    nextContexts.add(newCtx);
+                }
+            }
+
+            contexts = nextContexts;
+            if (contexts.isEmpty()) {
+                LOGGER.warn("No values found for path_keys step '{}' in table '{}' — no data will be streamed",
+                        pathKeyDef.getVariable(), tableName);
+                return;
+            }
+        }
+
+        LOGGER.info("Streaming data for table '{}' across {} path-key context(s)", tableName, contexts.size());
+
+        for (final Map<String, String> ctx : contexts) {
+            final Map<String, Object> propsForUrl = mergeProps(ctx);
+            final String url = buildRequestUrl(apiMapping.getBaseUrl(), tableDef.getPath(), propsForUrl);
+            LOGGER.debug("Streaming context {} → {}", ctx, url);
+            streamUrl(url, writer, authHeaders, acceptHeader);
         }
     }
 
@@ -166,51 +224,52 @@ public class RestInputInteraction implements SdkInputInteraction
 
     // ---- private helpers ----
 
-    private String buildUrl()
+    /**
+     * Streams data from a single fully-resolved URL into the writer.
+     */
+    private void streamUrl(String url, RowWriter writer,
+            Map<String, String> authHeaders, String acceptHeader) throws Exception
     {
+        final JsonToArrowStream jsonStream = new JsonToArrowStream(
+                url,
+                tableDef.getDataPath(),
+                tableDef.getFields(),
+                authHeaders,
+                tableDef.getPaginationConfig(),
+                acceptHeader);
         try {
-            // For tables with $path_keys, deserialise the JSON map from interactionProperties
-            // and merge each resolved variable into the props so resolveTemplate() can substitute.
-            final Map<String, Object> propsForUrl;
-            if (tableDef.hasPathKeys()) {
-                final Object rawValues = interactionProperties.get(INTERACTION_PROP_PATH_KEY_VALUES);
-                if (rawValues == null || rawValues.toString().isBlank()) {
-                    throw new IllegalStateException(
-                            "Table '" + tableName + "' has $path_keys but the interaction property '"
-                            + INTERACTION_PROP_PATH_KEY_VALUES
-                            + "' is missing. Ensure the asset was discovered through the normal "
-                            + "discovery flow so all key values are set.");
-                }
-                final Map<String, Object> combined = new HashMap<>(connectionProperties);
-                try {
-                    final Map<String, String> keyValues =
-                            new ObjectMapper()
-                                    .readValue(rawValues.toString(),
-                                            new TypeReference<Map<String, String>>(){});
-                    combined.putAll(keyValues);
-                } catch (Exception e) {
-                    throw new IllegalStateException(
-                            "Could not parse '" + INTERACTION_PROP_PATH_KEY_VALUES
-                            + "' value as JSON object: " + rawValues, e);
-                }
-                propsForUrl = combined;
-            } else {
-                propsForUrl = connectionProperties;
-            }
-
-            final String url = buildRequestUrl(
-                    connector.getApiMapping().getBaseUrl(),
-                    tableDef.getPath(),
-                    propsForUrl);
-            LOGGER.debug("Built request URL: {}", url);
-            return url;
-        } catch (MalformedURLException e) {
-            LOGGER.error("Failed to build request URL (baseUrl: {}, host: {}, port: {})",
-                    connector.getApiMapping().getBaseUrl(),
-                    connectionProperties.get("host"),
-                    connectionProperties.get("port"), e);
-            throw new IllegalStateException("Invalid base URL in configuration", e);
+            jsonStream.streamTo(writer);
+        } finally {
+            jsonStream.close();
         }
+    }
+
+    /**
+     * Builds the URL for a plain table (no path-key variables), using connection
+     * properties as the only substitution source.
+     */
+    private String buildSimpleUrl() throws MalformedURLException
+    {
+        final String url = buildRequestUrl(
+                connector.getApiMapping().getBaseUrl(),
+                tableDef.getPath(),
+                connectionProperties);
+        LOGGER.debug("Built request URL: {}", url);
+        return url;
+    }
+
+    /**
+     * Merges connection properties with the given resolved path-key variable context.
+     * Context values take precedence over connection properties with the same name.
+     */
+    private Map<String, Object> mergeProps(Map<String, String> ctx)
+    {
+        if (ctx.isEmpty()) {
+            return connectionProperties;
+        }
+        final Map<String, Object> merged = new LinkedHashMap<>(connectionProperties);
+        merged.putAll(ctx);
+        return merged;
     }
 
     /**
