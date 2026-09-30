@@ -68,6 +68,15 @@ public class AuthUtils
      */
     public static final String AUTHORIZATION_BEARER = "Bearer ";
 
+    /**
+     * Literal token value used in standalone (no-auth) mode.
+     * Also the expected value of the {@code ENVIRONMENT_NAME} environment variable
+     * when running in standalone mode.
+     */
+    public static final String STANDALONE_TOKEN = "standalone";
+
+    private static final String ENVIRONMENT_NAME_ENVVAR = "ENVIRONMENT_NAME";
+
     private static final String USERNAME = "admin";
     private static final String UID = "999";
     private static final String ROLE = "Admin";
@@ -196,6 +205,17 @@ public class AuthUtils
     }
 
     /**
+     * Returns {@code true} when the service is running in standalone (no-auth) mode,
+     * i.e. the {@code ENVIRONMENT_NAME} environment variable is set to {@code "standalone"}.
+     *
+     * @return {@code true} if standalone mode is active
+     */
+    public static boolean isStandalone()
+    {
+        return STANDALONE_TOKEN.equalsIgnoreCase(getEnv(ENVIRONMENT_NAME_ENVVAR, ""));
+    }
+
+    /**
      * Creates an authentication token for the given key pair.
      *
      * @param keyPair
@@ -246,6 +266,11 @@ public class AuthUtils
     {
         if (authToken == null || authToken.isEmpty()) {
             throw new IllegalArgumentException(UtilMsgs.MISSING_AUTH_TOKEN.format());
+        }
+        // Short-circuit: accept the literal "standalone" token without JWT verification
+        // when the service is running in standalone mode.
+        if (STANDALONE_TOKEN.equals(authToken.trim()) && isStandalone()) {
+            return STANDALONE_TOKEN;
         }
         final Matcher matcher = BEARER_HEADER_PATTERN.matcher(authToken.trim());
         if (!matcher.matches()) {

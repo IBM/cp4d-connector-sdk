@@ -33,6 +33,8 @@ dependencies {
   implementation group: 'org.bouncycastle', name: 'bcpkix-jdk18on', version: project['bouncycastle.version']
   implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+  testImplementation group: 'org.mockito', name: 'mockito-core', version: project['mockito.core.version']
+  testImplementation group: 'org.mockito', name: 'mockito-inline', version: project['mockito.inline.version']
   testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
   testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
