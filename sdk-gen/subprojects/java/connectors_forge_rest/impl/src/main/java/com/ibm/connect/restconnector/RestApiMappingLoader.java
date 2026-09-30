@@ -451,9 +451,10 @@ public class RestApiMappingLoader
             }
 
             final String sourceDataPath = parseOptionalText(entry, "source_data_path");
+            final Long lookupDelayMs = parseOptionalLong(entry, "lookup_delay_ms");
             LOGGER.debug("Parsed path_keys[{}] for table '{}': variable='{}', source='{}', field='{}'",
                     i, tableName, variable, sourcePath, sourceField);
-            result.add(new PathKeyDef(variable, sourcePath, sourceField, sourceDataPath));
+            result.add(new PathKeyDef(variable, sourcePath, sourceField, sourceDataPath, lookupDelayMs));
         }
         return result;
     }
@@ -474,6 +475,15 @@ public class RestApiMappingLoader
             return null;
         }
         return childNode.asText();
+    }
+
+    private static Long parseOptionalLong(JsonNode node, String key)
+    {
+        final JsonNode childNode = node.get(key);
+        if (childNode == null || childNode.isNull()) {
+            return null;
+        }
+        return childNode.asLong();
     }
 
     /**

@@ -585,6 +585,46 @@ public class TestRestApiMappingLoader
         assertEquals("project_id",            pks.get(1).getVariable());
         assertEquals("/orgs/$org_id/projects/", pks.get(1).getSourcePath());
     }
+
+    /**
+     * A $path_keys entry with lookup_delay_ms is parsed and stored correctly.
+     * An entry without lookup_delay_ms defaults to 0.
+     */
+    @Test
+    public void testPathKeysLookupDelayMsParsed() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"T\": {\n"
+                + "      \"$path\": [\"/items/$item_id\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"item_id\",\n"
+                + "          \"source_path\": \"/items\",\n"
+                + "          \"source_field\": \"id\",\n"
+                + "          \"lookup_delay_ms\": 250\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    },\n"
+                + "    \"U\": {\n"
+                + "      \"$path\": [\"/users/$user_id\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"user_id\",\n"
+                + "          \"source_path\": \"/users\",\n"
+                + "          \"source_field\": \"id\"\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(250L, mapping.getTable("T").getPathKeys().get(0).getLookupDelayMs());
+        assertEquals(0L,   mapping.getTable("U").getPathKeys().get(0).getLookupDelayMs());
+    }
 }
 
 // Made with Bob

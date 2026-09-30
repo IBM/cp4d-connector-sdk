@@ -38,18 +38,33 @@ public class TestPathKey
     @Test
     public void testPathKeyDefGetters()
     {
-        final PathKeyDef pk = new PathKeyDef("org_slug", "/api/0/organizations/", "slug", "data");
+        final PathKeyDef pk = new PathKeyDef("org_slug", "/api/0/organizations/", "slug", "data", null);
         assertEquals("org_slug",              pk.getVariable());
         assertEquals("/api/0/organizations/", pk.getSourcePath());
         assertEquals("slug",                  pk.getSourceField());
         assertEquals("data",                  pk.getSourceDataPath());
+        assertEquals(0L,                      pk.getLookupDelayMs());
     }
 
     @Test
     public void testPathKeyDefNullSourceDataPath()
     {
-        final PathKeyDef pk = new PathKeyDef("slug", "/orgs/", "slug", null);
+        final PathKeyDef pk = new PathKeyDef("slug", "/orgs/", "slug", null, null);
         assertNull(pk.getSourceDataPath());
+    }
+
+    @Test
+    public void testPathKeyDefLookupDelayMs()
+    {
+        final PathKeyDef pk = new PathKeyDef("slug", "/orgs/", "slug", null, 200L);
+        assertEquals(200L, pk.getLookupDelayMs());
+    }
+
+    @Test
+    public void testPathKeyDefNegativeDelayTreatedAsZero()
+    {
+        final PathKeyDef pk = new PathKeyDef("slug", "/orgs/", "slug", null, -1L);
+        assertEquals(0L, pk.getLookupDelayMs());
     }
 
     // -------------------------------------------------------------------------
@@ -121,7 +136,7 @@ public class TestPathKey
     @Test
     public void testTableDefinitionCarriesSinglePathKey()
     {
-        final PathKeyDef pk = new PathKeyDef("slug", "/orgs/", "slug", null);
+        final PathKeyDef pk = new PathKeyDef("slug", "/orgs/", "slug", null, null);
         final List<RestFieldDefinition> fields = Arrays.asList(
                 new RestFieldDefinition("id", "VARCHAR", true, false));
         final RestTableDefinition def = new RestTableDefinition(
@@ -143,8 +158,8 @@ public class TestPathKey
     @Test
     public void testTableDefinitionCarriesTwoPathKeys()
     {
-        final PathKeyDef pk1 = new PathKeyDef("org_id",     "/orgs/",              "id", null);
-        final PathKeyDef pk2 = new PathKeyDef("project_id", "/orgs/$org_id/projs/", "id", null);
+        final PathKeyDef pk1 = new PathKeyDef("org_id",     "/orgs/",              "id", null, null);
+        final PathKeyDef pk2 = new PathKeyDef("project_id", "/orgs/$org_id/projs/", "id", null, null);
         final List<RestFieldDefinition> fields = Arrays.asList(
                 new RestFieldDefinition("id", "VARCHAR", true, false));
         final RestTableDefinition def = new RestTableDefinition(

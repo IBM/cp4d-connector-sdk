@@ -184,6 +184,10 @@ public class RestInputInteraction implements SdkInputInteraction
                     continue;
                 }
 
+                if (pathKeyDef.getLookupDelayMs() > 0) {
+                    Thread.sleep(pathKeyDef.getLookupDelayMs());
+                }
+
                 LOGGER.debug("Step '{}' for table '{}': fetched {} value(s) from '{}'",
                         pathKeyDef.getVariable(), tableName, values.size(), lookupUrl);
 
