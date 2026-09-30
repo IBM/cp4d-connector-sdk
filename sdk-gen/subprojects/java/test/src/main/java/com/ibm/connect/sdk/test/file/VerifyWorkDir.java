@@ -5,7 +5,9 @@
 /* *************************************************** */
 package com.ibm.connect.sdk.test.file;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Locale;
 
 /**
  * Gradle-invocable main class that verifies (or provisions) the test work
@@ -62,10 +64,10 @@ public final class VerifyWorkDir
             System.err.println("[VerifyWorkDir] Usage: VerifyWorkDir <buildDir> <configKey> [connectorType]");
             System.exit(1);
         }
-        final java.nio.file.Path buildDir = Paths.get(args[0]);
+        final Path buildDir = Paths.get(args[0]);
         final String configKey = args[1];
         final WorkDirManager.ConnectorType type = args.length >= 3
-                ? WorkDirManager.ConnectorType.valueOf(args[2].toUpperCase(java.util.Locale.ENGLISH))
+                ? WorkDirManager.ConnectorType.valueOf(args[2].toUpperCase(Locale.ENGLISH))
                 : WorkDirManager.ConnectorType.HIERARCHICAL_FS;
 
         final WorkDirManager manager = new WorkDirManager(configKey, type, buildDir, null);
