@@ -25,7 +25,11 @@ import com.ibm.wdp.connect.sdk.connector.SdkDiscoveryInteraction;
  * {@link CustomFlightAssetDescriptor} objects:
  * <ul>
  *   <li>Path "/" — returns all tables as containers (no fields)</li>
- *   <li>Path "/{tableName}" — returns the specific table as a dataset</li>
+ *   <li>Path "/{tableName}" — returns the specific table as a single dataset descriptor
+ *       carrying the table's declared schema.  This is the same for both plain tables and
+ *       tables that declare {@code $path_keys}: discovery always emits exactly one asset per
+ *       table name.  The actual iteration over path-key values and data aggregation happens
+ *       at read time inside {@link RestInputInteraction#stream}.</li>
  * </ul>
  */
 public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
@@ -60,6 +64,7 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
         final List<CustomFlightAssetDescriptor> assets = new ArrayList<>();
 
         if ("/".equals(path)) {
+            // Root: list all tables as containers
             for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
                 final String tableName = entry.getKey();
                 final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
@@ -82,21 +87,7 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
             final RestTableDefinition tableDef = apiMapping.getTable(tableName);
 
             if (tableDef != null) {
-                final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-                descriptor.setId(tableName);
-                descriptor.setName(tableName);
-                descriptor.setPath(path);
-                descriptor.setDatasourceTypeName(criteria.getDatasourceTypeName());
-                descriptor.setConnectionProperties(criteria.getConnectionProperties());
-                descriptor.setHasChildren(false);
-                descriptor.setFields(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
-                final DiscoveredAssetType assetType = new DiscoveredAssetType();
-                assetType.setType("table");
-                assetType.setDataset(true);
-                assetType.setDatasetContainer(false);
-                descriptor.setAssetType(assetType);
-                assets.add(descriptor);
-                LOGGER.debug("Discovered table dataset: {}", tableName);
+                assets.add(buildDatasetDescriptor(criteria, tableName, tableDef));
             } else {
                 LOGGER.warn("Table not found in mapping: {}", tableName);
             }
@@ -116,4 +107,32 @@ public class RestDiscoveryInteraction implements SdkDiscoveryInteraction
     {
         // No persistent resources to close
     }
+
+    // ---- private helpers ----
+
+    /**
+     * Builds a dataset {@link CustomFlightAssetDescriptor} for a table.
+     * The asset id, name and path always equal the table name — regardless of whether
+     * the table uses {@code $path_keys}.
+     */
+    private static CustomFlightAssetDescriptor buildDatasetDescriptor(
+            CustomFlightAssetsCriteria criteria, String tableName, RestTableDefinition tableDef)
+    {
+        final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
+        descriptor.setId(tableName);
+        descriptor.setName(tableName);
+        descriptor.setPath("/" + tableName);
+        descriptor.setDatasourceTypeName(criteria.getDatasourceTypeName());
+        descriptor.setConnectionProperties(criteria.getConnectionProperties());
+        descriptor.setHasChildren(false);
+        descriptor.setFields(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
+        final DiscoveredAssetType assetType = new DiscoveredAssetType();
+        assetType.setType("table");
+        assetType.setDataset(true);
+        assetType.setDatasetContainer(false);
+        descriptor.setAssetType(assetType);
+        return descriptor;
+    }
 }
+
+// Made with Bob
