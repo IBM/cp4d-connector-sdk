@@ -157,6 +157,7 @@ public class RestInputInteraction implements SdkInputInteraction
 
         for (final PathKeyDef pathKeyDef : tableDef.getPathKeys()) {
             final List<Map<String, String>> nextContexts = new ArrayList<>();
+            boolean firstLookup = true;
 
             for (final Map<String, String> ctx : contexts) {
                 final Map<String, Object> resolvedProps = mergeProps(ctx);
@@ -173,6 +174,12 @@ public class RestInputInteraction implements SdkInputInteraction
                 final String lookupUrl = buildRequestUrl(
                         apiMapping.getBaseUrl(), resolvedSourcePath, resolvedProps);
 
+                // Sleep between consecutive lookup calls — but not before the very first one.
+                if (!firstLookup && pathKeyDef.getLookupDelayMs() > 0) {
+                    Thread.sleep(pathKeyDef.getLookupDelayMs());
+                }
+                firstLookup = false;
+
                 final List<String> values;
                 try {
                     values = JsonToArrowStream.fetchStringValues(
@@ -182,10 +189,6 @@ public class RestInputInteraction implements SdkInputInteraction
                     LOGGER.error("Failed to fetch values for path_keys step '{}' in table '{}' from '{}': {}",
                             pathKeyDef.getVariable(), tableName, lookupUrl, e.getMessage());
                     continue;
-                }
-
-                if (pathKeyDef.getLookupDelayMs() > 0) {
-                    Thread.sleep(pathKeyDef.getLookupDelayMs());
                 }
 
                 LOGGER.debug("Step '{}' for table '{}': fetched {} value(s) from '{}'",

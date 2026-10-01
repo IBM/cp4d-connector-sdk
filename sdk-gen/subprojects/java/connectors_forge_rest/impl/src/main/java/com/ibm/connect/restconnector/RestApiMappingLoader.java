@@ -384,8 +384,8 @@ public class RestApiMappingLoader
             List<PathKeyDef> pathKeys, int fieldCount)
     {
         if (!pathKeys.isEmpty()) {
-            LOGGER.debug("Loaded table '{}' with {} path_key(s), first variable '{}' (source: '{}'), and {} fields",
-                    tableName, pathKeys.size(), pathKeys.get(0).getVariable(), pathKeys.get(0).getSourcePath(), fieldCount);
+            LOGGER.debug("Loaded table '{}' with {} path_key(s): '{}' and {} fields",
+                    tableName, pathKeys.size(), pathKeys, fieldCount);
         } else if (paginationConfig != null && dataPath != null) {
             LOGGER.debug("Loaded table '{}' with data path '{}', pagination type '{}', and {} fields",
                     tableName, dataPath, paginationConfig.getType(), fieldCount);

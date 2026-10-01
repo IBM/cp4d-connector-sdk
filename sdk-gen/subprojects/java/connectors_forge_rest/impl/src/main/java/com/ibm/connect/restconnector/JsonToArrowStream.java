@@ -60,6 +60,7 @@ public class JsonToArrowStream implements Closeable
     private static final int HTTP_TIMEOUT_SECONDS = 60;
     private static final int HTTP_STATUS_2XX = 2;
     private static final int MAX_PAGES = 10000;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
@@ -72,7 +73,7 @@ public class JsonToArrowStream implements Closeable
     private final Map<String, String> authHeaders;
     private final String acceptHeader;
     private final PaginationConfig paginationConfig;
-    private final ObjectMapper objectMapper;
+    
 
     /**
      * Creates a streaming instance with full configuration.
@@ -99,7 +100,7 @@ public class JsonToArrowStream implements Closeable
         this.authHeaders = authHeaders;
         this.acceptHeader = acceptHeader;
         this.paginationConfig = paginationConfig;
-        this.objectMapper = new ObjectMapper();
+
     }
 
     /**
@@ -161,7 +162,7 @@ public class JsonToArrowStream implements Closeable
             if (paginationConfig != null &&
                 ("cursor".equals(paginationConfig.getType()) || "next_url".equals(paginationConfig.getType()))) {
 
-                final JsonNode rootNode = objectMapper.readTree(response.body());
+                final JsonNode rootNode = OBJECT_MAPPER.readTree(response.body());
 
                 if ("cursor".equals(paginationConfig.getType())) {
                     final JsonNode cursorNode = extractJsonPath(rootNode, paginationConfig.getNextCursorPath());
@@ -246,7 +247,7 @@ public class JsonToArrowStream implements Closeable
             Map<String, String> authHeaders, String acceptHeader)
             throws IOException, InterruptedException
     {
-        final ObjectMapper mapper = new ObjectMapper();
+
         final HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
@@ -264,7 +265,7 @@ public class JsonToArrowStream implements Closeable
                     + " for URL: " + url);
         }
 
-        JsonNode root = mapper.readTree(response.body());
+        JsonNode root = OBJECT_MAPPER.readTree(response.body());
 
         // Navigate to the data array if a data path is given
         if (dataPath != null && !dataPath.isEmpty()) {
@@ -338,7 +339,7 @@ public class JsonToArrowStream implements Closeable
                         "Expected START_OBJECT or START_ARRAY at root when dataPath is specified, got: "
                                 + firstToken);
             }
-            final JsonNode rootNode = objectMapper.readTree(jsonParser);
+            final JsonNode rootNode = OBJECT_MAPPER.readTree(jsonParser);
             final JsonNode dataNode = extractJsonPath(rootNode, dataPath);
             if (dataNode == null) {
                 throw new IOException("Data path '" + dataPath + "' not found in JSON response");
@@ -350,13 +351,13 @@ public class JsonToArrowStream implements Closeable
             JsonToken token;
             while ((token = jsonParser.nextToken()) != JsonToken.END_ARRAY && token != null) {
                 if (token == JsonToken.START_OBJECT) {
-                    final ObjectNode objectNode = objectMapper.readTree(jsonParser);
+                    final ObjectNode objectNode = OBJECT_MAPPER.readTree(jsonParser);
                     writeObjectToWriter(objectNode, writer);
                     count++;
                 }
             }
         } else if (firstToken == JsonToken.START_OBJECT) {
-            final ObjectNode objectNode = objectMapper.readTree(jsonParser);
+            final ObjectNode objectNode = OBJECT_MAPPER.readTree(jsonParser);
             writeObjectToWriter(objectNode, writer);
             count = 1;
         }
