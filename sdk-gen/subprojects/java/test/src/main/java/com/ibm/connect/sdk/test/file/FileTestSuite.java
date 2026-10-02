@@ -116,8 +116,8 @@ public abstract class FileTestSuite extends ConnectorTestSuite
     // -----------------------------------------------------------------------
 
     /**
-     * Returns the {@code tests.properties} key that holds the work-directory
-     * (or work-bucket) value for this connector, e.g.
+     * Returns the {@code tests.properties} key that holds the work-directory (or
+     * work-bucket) value for this connector, e.g.
      * {@code "file_localfs.test_work_dir"}.
      *
      * <p>
@@ -139,15 +139,15 @@ public abstract class FileTestSuite extends ConnectorTestSuite
      * Returns the resolved work-directory name for this test run.
      *
      * <p>
-     * The value is read from {@code <buildDir>/test-work-dir.txt}, which is
-     * written by the {@code verifyTestWorkDir} Gradle task (via
-     * {@link WorkDirManager#provision()}). If that file is absent the method
-     * falls back to reading the raw {@code tests.properties} value (useful
-     * when running tests directly from an IDE without invoking Gradle).
+     * The value is read from {@code <buildDir>/test-work-dir.txt}, which is written
+     * by the {@code verifyTestWorkDir} Gradle task (via
+     * {@link WorkDirManager#provision()}). If that file is absent the method falls
+     * back to reading the raw {@code tests.properties} value (useful when running
+     * tests directly from an IDE without invoking Gradle).
      *
      * <p>
-     * Returns {@code null} when {@link #getWorkDirConfigKey()} is not
-     * configured or when neither the build-dir file nor the property is set.
+     * Returns {@code null} when {@link #getWorkDirConfigKey()} is not configured or
+     * when neither the build-dir file nor the property is set.
      */
     protected String getWorkDir()
     {
@@ -715,18 +715,16 @@ public abstract class FileTestSuite extends ConnectorTestSuite
      * {@link #scenarioPaths} cannot be used and subclasses that still want
      * scenario-based testing must override {@link #getScenarioPaths()} directly.
      *
-     * @return the subfolder name (no leading or trailing slashes), or {@code null}
+     * @return the subfolder name (no leading or trailing slashes)
      */
-    protected String getScenarioPrefix()
-    {
-        return null;
-    }
+    protected abstract String getScenarioPrefix();
 
     /**
      * Convenience factory that converts bare scenario file names into full
      * classpath paths using the prefix returned by {@link #getScenarioPrefix()}.
-     * For example, with prefix {@code "github"} and name {@code "read_csv.scenario"}
-     * this returns {@code "scenarios/github/read_csv.scenario"}.
+     * For example, with prefix {@code "github"} and name
+     * {@code "read_csv.scenario"} this returns
+     * {@code "scenarios/github/read_csv.scenario"}.
      *
      * @param names
      *            bare file names (e.g. {@code "read_csv.scenario"})
