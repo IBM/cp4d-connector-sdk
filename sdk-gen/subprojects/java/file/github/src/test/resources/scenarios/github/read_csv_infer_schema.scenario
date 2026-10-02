@@ -1,0 +1,29 @@
+# ============================================================
+# GitHub — read date-infer-schema.csv with infer_schema
+# ============================================================
+# Without infer_schema values are plain strings.
+# With infer_schema dates and timestamps are typed objects.
+
+[Step]
+# infer_schema=false — all values come back as strings
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/date-infer-schema.csv
+Interaction.infer_schema=false
+ExpectedColumns=date|timestamp-date|date-timestamp
+ExpectedRowCount=3
+ExpectedRows.0=2001-09-08|2014-10-27T18:30:00|1765-03-28
+ExpectedRows.2=0293-11-07|1995-06-25|2016-01-28T20:00:00
+
+[Step]
+# infer_schema=true — dates inferred as java.sql.Date / Timestamp
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/date-infer-schema.csv
+Interaction.infer_schema=true
+ExpectedRowCount=3
+# Values round-trip through toString(), so Date.valueOf("2001-09-08").toString() = "2001-09-08"
+ExpectedCell.0.0=2001-09-08
+ExpectedCell.0.1=2014-10-27 18:30:00.0
+ExpectedCell.0.2=1765-03-28 00:00:00.0
+ExpectedCell.2.0=0293-11-07

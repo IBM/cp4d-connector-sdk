@@ -1,0 +1,16 @@
+# ============================================================
+# GitHub — discover root (branches)
+# ============================================================
+# Mode A (default): verifies the connector can reach GitHub
+# and return at least one branch. No specific branch name is
+# asserted, so this test is resilient to repo structure changes.
+#
+# Mode B (optional, tests.properties):
+#   file_github.test_repo_owner / file_github.test_repo_name
+# When Mode B is configured the test class overrides this
+# scenario with a repo-specific one. This file is Mode A only.
+
+[Step]
+Type=Discover
+Path=/
+ExpectedNotEmpty=true

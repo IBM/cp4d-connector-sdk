@@ -1,0 +1,11 @@
+# ============================================================
+# GitHub — getFlightInfo for ORC file
+# ============================================================
+
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/TestStringDictionary.testRowIndex.orc
+ExpectedInteractionProperty.file_format=orc
+ExpectedDetail.mime_type=application/octet-stream
+ExpectedSchemaFieldCount=1

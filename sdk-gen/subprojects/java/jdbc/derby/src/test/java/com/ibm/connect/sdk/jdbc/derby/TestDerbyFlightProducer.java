@@ -36,10 +36,10 @@ public class TestDerbyFlightProducer extends DerbyTestSuite
     private static final String DATASOURCE_TYPE_NAME = DerbyDatasourceType.DATASOURCE_TYPE_NAME;
 
     private static final InetAddress DERBY_HOST = TestFlight.getLocalHost();
-    private static final int DERBY_PORT = TestConfig.getPort("jdbc_derby.derby.port");
-    private static final String DERBY_DATABASE = TestConfig.get("jdbc_derby.derby.database_name", "testdb");
-    private static final String DERBY_USER = TestConfig.get("jdbc_derby.derby.user_name", "testuser");
-    private static final String DERBY_PASSWORD = TestConfig.get("jdbc_derby.derby.user_pass", UUID.randomUUID().toString());
+    private static final int DERBY_PORT = TestConfig.getPort("jdbc.derby.port");
+    private static final String DERBY_DATABASE = TestConfig.get("jdbc.derby.database_name", "testdb");
+    private static final String DERBY_USER = TestConfig.get("jdbc.derby.user_name", "testuser");
+    private static final String DERBY_PASSWORD = TestConfig.get("jdbc.derby.user_pass", UUID.randomUUID().toString());
 
     private static TestFlight testFlight;
     private static FlightClient client;
@@ -55,13 +55,11 @@ public class TestDerbyFlightProducer extends DerbyTestSuite
     @BeforeClass
     public static void setUpOnce() throws Exception
     {
-        if (Boolean.parseBoolean(TestConfig.get("jdbc_derby.flight.createLocal", "true"))) {
-            final boolean useSSL = Boolean.parseBoolean(TestConfig.get("jdbc_derby.flight.ssl", "true"));
-            testFlight = TestFlight.createLocal(TestConfig.getPort("jdbc_derby.flight.port"), useSSL, new DerbyFlightProducer(), null);
+        final TestConfig.FlightConfig flight = TestConfig.flightConfig("jdbc.derby");
+        if (flight.createLocal) {
+            testFlight = TestFlight.createLocal(flight.port, flight.useSSL, new DerbyFlightProducer(), null);
         } else {
-            final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("jdbc_derby.flight.ssl_certificate_validation", "true"));
-            testFlight = TestFlight.createRemote(TestConfig.get("jdbc_derby.flight.uri.internal", TestConfig.get("jdbc_derby.flight.uri")),
-                    TestConfig.get("jdbc_derby.flight.ssl_certificate"), verifyCert, null);
+            testFlight = TestFlight.createRemote(flight.remoteUri, flight.sslCertificate, flight.verifyCertificate, null);
         }
         client = testFlight.getClient();
         derbyServer = DerbyUtils.startServer(DERBY_HOST, DERBY_PORT, DERBY_USER, DERBY_PASSWORD);

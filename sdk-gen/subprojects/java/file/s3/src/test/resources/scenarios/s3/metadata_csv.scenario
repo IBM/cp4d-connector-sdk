@@ -1,0 +1,21 @@
+# ============================================================
+# S3 — getFlightInfo metadata assertions for a CSV written
+#      into the test work bucket
+# ============================================================
+# Writes a known CSV, then verifies the returned descriptor
+# carries the correct interaction properties, mime_type, and schema.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/meta_test.csv
+Interaction.first_line_header=true
+Schema=id|integer; label|varchar
+Row.0=1|hello
+
+[Step]
+Type=Metadata
+Interaction.file_name=/${work_dir}/meta_test.csv
+ExpectedInteractionProperty.file_name=/${work_dir}/meta_test.csv
+ExpectedInteractionProperty.file_format=csv
+ExpectedDetail.mime_type=text/csv
