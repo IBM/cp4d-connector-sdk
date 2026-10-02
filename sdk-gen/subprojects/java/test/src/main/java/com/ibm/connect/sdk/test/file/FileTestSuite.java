@@ -704,19 +704,66 @@ public abstract class FileTestSuite extends ConnectorTestSuite
     }
 
     /**
+     * Returns the connector-specific subdirectory under {@code scenarios/} that
+     * holds this connector's {@code *.scenario} files. For example, a GitHub
+     * connector returns {@code "github"} so that scenario names such as
+     * {@code "read_csv.scenario"} resolve to
+     * {@code "scenarios/github/read_csv.scenario"}.
+     *
+     * <p>
+     * The default implementation returns {@code null}, which means
+     * {@link #scenarioPaths} cannot be used and subclasses that still want
+     * scenario-based testing must override {@link #getScenarioPaths()} directly.
+     *
+     * @return the subfolder name (no leading or trailing slashes), or {@code null}
+     */
+    protected String getScenarioPrefix()
+    {
+        return null;
+    }
+
+    /**
+     * Convenience factory that converts bare scenario file names into full
+     * classpath paths using the prefix returned by {@link #getScenarioPrefix()}.
+     * For example, with prefix {@code "github"} and name {@code "read_csv.scenario"}
+     * this returns {@code "scenarios/github/read_csv.scenario"}.
+     *
+     * @param names
+     *            bare file names (e.g. {@code "read_csv.scenario"})
+     * @return mutable list of full classpath-relative paths
+     */
+    protected List<String> scenarioPaths(String... names)
+    {
+        final String prefix = getScenarioPrefix();
+        if (prefix == null) {
+            throw new IllegalStateException("getScenarioPrefix() must be overridden before calling scenarioPaths()");
+        }
+        final String base = "scenarios/" + prefix + "/";
+        final List<String> paths = new ArrayList<>(names.length);
+        for (final String name : names) {
+            paths.add(base + name);
+        }
+        return paths;
+    }
+
+    /**
      * Returns the list of classpath scenario file paths to run in
      * {@link #testScenarios()}. The default implementation returns an empty list
      * (test skipped).
      *
      * <p>
-     * Override in a subclass to opt into scenario-based testing:
-     * 
+     * Override in a subclass to opt into scenario-based testing. Use
+     * {@link #scenarioPaths(String...)} to build paths from bare file names:
+     *
      * <pre>
      *   {@literal @}Override
+     *   protected String getScenarioPrefix() { return "localfs"; }
+     *
+     *   {@literal @}Override
      *   protected List&lt;String&gt; getScenarioPaths() {
-     *       return Arrays.asList(
-     *           "scenarios/localfs/readwrite_csv.scenario",
-     *           "scenarios/localfs/discover_root.scenario"
+     *       return scenarioPaths(
+     *           "readwrite_csv.scenario",
+     *           "discover_root.scenario"
      *       );
      *   }
      * </pre>

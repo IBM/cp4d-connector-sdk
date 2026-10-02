@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
@@ -367,14 +366,25 @@ public class TestAWSS3FlightProducer extends FileTestSuite
     }
 
     @Override
+    protected String getScenarioPrefix()
+    {
+        return "s3";
+    }
+
+    @Override
     protected List<String> getScenarioPaths()
     {
         if (!S3.isConfigured()) {
             return Collections.emptyList();
         }
-        return new ArrayList<>(Arrays.asList("scenarios/s3/discover_root.scenario", "scenarios/s3/negative_missing_key.scenario",
-                "scenarios/s3/discover_folder.scenario", "scenarios/s3/metadata_csv.scenario", "scenarios/s3/read_csv.scenario",
-                "scenarios/s3/read_binary.scenario", "scenarios/s3/readwrite_csv.scenario"));
+        return scenarioPaths(
+                "discover_root.scenario",
+                "negative_missing_key.scenario",
+                "discover_folder.scenario",
+                "metadata_csv.scenario",
+                "read_csv.scenario",
+                "read_binary.scenario",
+                "readwrite_csv.scenario");
     }
 
     // -----------------------------------------------------------------------

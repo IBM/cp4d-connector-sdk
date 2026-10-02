@@ -300,14 +300,20 @@ public class TestLocalFSFlightProducer extends FileTestSuite
      * path is relative to the test classpath root.
      */
     @Override
+    protected String getScenarioPrefix()
+    {
+        return "localfs";
+    }
+
+    @Override
     protected List<String> getScenarioPaths()
     {
-        return Arrays.asList(
-                "scenarios/localfs/readwrite_csv.scenario",
-                "scenarios/localfs/readwrite_limits.scenario",
-                "scenarios/localfs/metadata_csv.scenario",
-                "scenarios/localfs/negative_missing_file.scenario",
-                "scenarios/localfs/discover_root.scenario");
+        return scenarioPaths(
+                "readwrite_csv.scenario",
+                "readwrite_limits.scenario",
+                "metadata_csv.scenario",
+                "negative_missing_file.scenario",
+                "discover_root.scenario");
     }
 
     @Override

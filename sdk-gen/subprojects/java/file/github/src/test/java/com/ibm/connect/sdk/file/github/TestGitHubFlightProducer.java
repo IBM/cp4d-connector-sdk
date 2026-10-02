@@ -19,7 +19,6 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
@@ -261,32 +260,38 @@ public class TestGitHubFlightProducer extends FileTestSuite
      * Skipped automatically when credentials are absent.
      */
     @Override
+    protected String getScenarioPrefix()
+    {
+        return "github";
+    }
+
+    @Override
     protected List<String> getScenarioPaths()
     {
         if (!GH.isConfigured()) {
             return Collections.emptyList();
         }
-        return Arrays.asList(
-                "scenarios/github/discover_root.scenario",
-                "scenarios/github/discover_branch.scenario",
-                "scenarios/github/read_csv.scenario",
-                "scenarios/github/read_csv_no_header.scenario",
-                "scenarios/github/read_csv_comment.scenario",
-                "scenarios/github/read_csv_encoding.scenario",
-                "scenarios/github/read_csv_null_value.scenario",
-                "scenarios/github/read_csv_row_delimiter.scenario",
-                "scenarios/github/read_delimited_pipe.scenario",
-                "scenarios/github/read_csv_infer_schema.scenario",
-                "scenarios/github/read_json.scenario",
-                "scenarios/github/read_orc.scenario",
-                "scenarios/github/read_parquet.scenario",
-                "scenarios/github/read_xml.scenario",
-                "scenarios/github/metadata_csv.scenario",
-                "scenarios/github/metadata_json.scenario",
-                "scenarios/github/metadata_orc.scenario",
-                "scenarios/github/metadata_parquet.scenario",
-                "scenarios/github/metadata_xml.scenario",
-                "scenarios/github/negative_missing_file.scenario");
+        return scenarioPaths(
+                "discover_root.scenario",
+                "discover_branch.scenario",
+                "read_csv.scenario",
+                "read_csv_no_header.scenario",
+                "read_csv_comment.scenario",
+                "read_csv_encoding.scenario",
+                "read_csv_null_value.scenario",
+                "read_csv_row_delimiter.scenario",
+                "read_delimited_pipe.scenario",
+                "read_csv_infer_schema.scenario",
+                "read_json.scenario",
+                "read_orc.scenario",
+                "read_parquet.scenario",
+                "read_xml.scenario",
+                "metadata_csv.scenario",
+                "metadata_json.scenario",
+                "metadata_orc.scenario",
+                "metadata_parquet.scenario",
+                "metadata_xml.scenario",
+                "negative_missing_file.scenario");
     }
 
     /**
