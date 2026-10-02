@@ -57,7 +57,7 @@ task verifyTestWorkDir(type: JavaExec) {
   systemProperties = System.properties
   args = [
     project.buildDir.absolutePath,
-    'file_localfs.test_work_dir',
+    'file.localfs.test_work_dir',
     'HIERARCHICAL_FS'
   ]
 }
@@ -70,7 +70,7 @@ task cleanTestWorkDir(type: JavaExec) {
   systemProperties = System.properties
   args = [
     project.buildDir.absolutePath,
-    'file_localfs.test_work_dir',
+    'file.localfs.test_work_dir',
     'HIERARCHICAL_FS'
   ]
 }

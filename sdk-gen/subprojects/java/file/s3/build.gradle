@@ -60,32 +60,18 @@ test {
   }
 }
 
-task verifyTestWorkDir(type: JavaExec) {
-  description = 'Verify (or provision) the S3 test work bucket before running tests.'
+// S3 work-bucket provisioning and cleanup are handled inside @BeforeClass /
+// @AfterClass in TestAWSS3FlightProducer (where the S3Client is available).
+// These stubs keep the task-name contract consistent with other connectors so
+// CI scripts can call verifyTestWorkDir / cleanTestWorkDir uniformly.
+task verifyTestWorkDir {
+  description = 'No-op: S3 work-bucket provisioning is handled inside the test class.'
   group = 'verification'
-  classpath = sourceSets.test.runtimeClasspath
-  mainClass = 'com.ibm.connect.sdk.test.file.VerifyWorkDir'
-  systemProperties = System.properties
-  args = [project.buildDir.absolutePath, 'file_s3.test_work_dir', 'OBJECT_STORE']
-  onlyIf {
-    new File(System.getProperty('user.dir') + '/tests.properties').exists()
-    || System.getenv('SDK_TEST_FILE_S3_TEST_WORK_DIR') != null
-    || System.getProperty('sdk.test.file_s3.test_work_dir') != null
-  }
 }
 
-task cleanTestWorkDir(type: JavaExec) {
-  description = 'Clean (or destroy) the S3 test work bucket after running tests.'
+task cleanTestWorkDir {
+  description = 'No-op: S3 work-bucket cleanup is handled inside the test class.'
   group = 'verification'
-  classpath = sourceSets.test.runtimeClasspath
-  mainClass = 'com.ibm.connect.sdk.test.file.CleanTestWorkDir'
-  systemProperties = System.properties
-  args = [project.buildDir.absolutePath, 'file_s3.test_work_dir', 'OBJECT_STORE']
-  onlyIf {
-    new File(System.getProperty('user.dir') + '/tests.properties').exists()
-    || System.getenv('SDK_TEST_FILE_S3_TEST_WORK_DIR') != null
-    || System.getProperty('sdk.test.file_s3.test_work_dir') != null
-  }
 }
 
 test.dependsOn verifyTestWorkDir

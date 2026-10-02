@@ -28,5 +28,5 @@ ExpectedRows.2=3|<NULL>|true
 # ── Discover: file must appear in work-dir listing ─────────
 [Step]
 Type=Discover
-Path=/${work_dir}
+Path=/${work_dir}/
 ExpectedContains=readwrite_test.csv

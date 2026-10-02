@@ -14,5 +14,5 @@ Row.0=1|seed
 
 [Step]
 Type=Discover
-Path=/${work_dir}/test_folder
+Path=/${work_dir}/test_folder/
 ExpectedNotEmpty=true

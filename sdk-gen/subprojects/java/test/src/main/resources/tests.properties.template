@@ -1,99 +1,151 @@
-# Configuration properties for bundle
-bundle.derby.port=<port number>
-bundle.derby.database_name=<database name>
-bundle.derby.user_name=<user name>
-bundle.derby.user_pass=<user pass>
-bundle.flight.port=<port number>
-bundle.flight.ssl=true
-bundle.flight.createLocal=true
-bundle.flight.uri=<external uri reachable from cloud>
-bundle.flight.ssl_certificate=<ssl certificate>
-bundle.flight.ssl_certificate_validation=true
+# =============================================================================
+# tests.properties — SDK test configuration template
+#
+# Copy sdk-gen/tests.properties.example to sdk-gen/tests.properties
+# (gitignored) and fill in real values.  Only the settings for the connectors
+# you want to test are needed.
+#
+# KEY NAMING CONVENTION
+#   <connector-type>.<technology>.<key>
+#   e.g.  file.s3.bucket,  jdbc.derby.port,  file.github.access_token
+#
+# INTERPOLATION: values may reference other keys with the #key# syntax:
+#   file.s3.base=test-data/
+#   file.s3.csv_key=#file.s3.base#cars.csv
+#
+# ENCRYPTION: wrap secrets with the encrypted.{{ }} marker (produced by
+#   EncryptUtil -e <plaintext>):
+#   file.s3.secret_access_key=encrypted.{{<base64-ciphertext>}}
+#
+# =============================================================================
 
-# Configuration properties for file-s3
-file_s3.s3.bucket=<S3 bucket name>
-file_s3.s3.region=<AWS region, e.g. us-east-1>
-file_s3.s3.access_key_id=<AWS access key ID>
-file_s3.s3.secret_access_key=<AWS secret access key>
-# Optional: custom endpoint for S3-compatible stores (MinIO, LocalStack)
-# file_s3.s3.endpoint_url=http://localhost:9000
-# Test data — objects that must already exist in the bucket:
-file_s3.s3.test_folder=<prefix of a non-empty folder, e.g. test-data/>
-file_s3.s3.test_csv_key=<key of a CSV object, e.g. test-data/cars.csv>
-file_s3.s3.test_binary_key=<key of a binary object, e.g. test-data/logo.png>
-file_s3.flight.port=<port number>
-file_s3.flight.ssl=true
-file_s3.flight.createLocal=true
-file_s3.flight.uri=grpc+tls://localhost:443
-file_s3.flight.ssl_certificate=<ssl certificate>
-file_s3.flight.ssl_certificate_validation=true
+# =============================================================================
+# Shared Flight-server defaults (apply to every connector unless overridden)
+# =============================================================================
+flight.createLocal=true
+flight.ssl=true
+# flight.port=                           # blank = random free port
+# flight.uri=grpc+tls://host:port        # used when createLocal=false
+# flight.ssl_certificate=                # PEM certificate content
+flight.ssl_certificate_validation=true
 
-# Configuration properties for file-github
-file_github.github.host=<GitHub host>
-file_github.github.repository_owner=<repository owner>
-file_github.github.repository_name=<repository name>
-file_github.github.access_token=<access token>
-file_github.flight.port=<port number>
-file_github.flight.ssl=true
-file_github.flight.createLocal=true
-file_github.flight.uri=grpc+tls://localhost:443
-file_github.flight.ssl_certificate=<ssl certificate>
-file_github.flight.ssl_certificate_validation=true
+# Per-connector overrides — set only when a connector needs different Flight
+# settings from the shared defaults above.
+# file.s3.flight.createLocal=false
+# file.s3.flight.uri=grpc+tls://my-s3-server:443
+# file.github.flight.port=<port number>
+# file.localfs.flight.ssl=false
+# jdbc.derby.flight.port=<port number>
+# jdbc.generic.flight.port=<port number>
 
-# Configuration properties for file-localfs
-file_localfs.flight.port=<port number>
-file_localfs.flight.ssl=true
-file_localfs.flight.createLocal=true
-file_localfs.flight.uri=grpc+tls://localhost:443
-file_localfs.flight.ssl_certificate=<ssl certificate>
-file_localfs.flight.ssl_certificate_validation=true
+# =============================================================================
+# Amazon S3 file connector
+# =============================================================================
 
-# Configuration properties for jdbc-derby
-jdbc_derby.derby.port=<port number>
-jdbc_derby.derby.database_name=<database name>
-jdbc_derby.derby.user_name=<user name>
-jdbc_derby.derby.user_pass=<user pass>
-jdbc_derby.flight.port=<port number>
-jdbc_derby.flight.ssl=true
-jdbc_derby.flight.createLocal=true
-jdbc_derby.flight.uri=grpc+tls://localhost:443
-jdbc_derby.flight.ssl_certificate=<ssl certificate>
-jdbc_derby.flight.ssl_certificate_validation=true
+# ── Connection ────────────────────────────────────────────────────────────────
+# file.s3.access_key_id=AKIA...
+# file.s3.secret_access_key=...
+# file.s3.bucket=my-bucket
+# file.s3.region=us-east-1
+# Optional — for S3-compatible stores (MinIO, LocalStack):
+# file.s3.endpoint_url=http://localhost:9000
 
-# Configuration properties for jdbc-generic
-jdbc_generic.derby.port=<port number>
-jdbc_generic.derby.database_name=<database name>
-jdbc_generic.derby.user_name=<user name>
-jdbc_generic.derby.user_pass=<user pass>
-jdbc_generic.flight.port=<port number>
-jdbc_generic.flight.ssl=true
-jdbc_generic.flight.createLocal=true
-jdbc_generic.flight.uri=grpc+tls://localhost:443
-jdbc_generic.flight.ssl_certificate=<ssl certificate>
-jdbc_generic.flight.ssl_certificate_validation=true
+# ── Test work bucket (isolated write/delete sandbox) ─────────────────────────
+# TEMP   — verifyTestWorkDir creates a dedicated bucket (sdk-test-<uuid>)
+#          and cleanTestWorkDir destroys it after the run.  Recommended.
+# <name> — an existing, empty bucket you own exclusively for test use;
+#          cleanTestWorkDir empties it but does not delete it.
+#
+# When absent, write scenarios and write tests are skipped automatically.
+# file.s3.test_work_dir=TEMP
 
-# Configuration properties for noop
-noop.flight.port=<port number>
+# =============================================================================
+# GitHub file connector
+# =============================================================================
 
-# Configuration properties for test
-test.flight.port=<port number>
+# ── Connection ────────────────────────────────────────────────────────────────
+file.github.host=github.com
+file.github.repository_owner=apache
+file.github.repository_name=spark
+# file.github.access_token=             # PAT — required to avoid rate limits
 
-# Configuration properties for cloud
+# ── Mode A (default): liveness tests against the public apache/spark repo ─────
+# No additional configuration required.
+
+# ── Mode B (optional): tests against your own controlled repository ───────────
+# file.github.test_repo_owner=my-org
+# file.github.test_repo_name=connector-test-data
+# file.github.test_branch=main
+# file.github.test_csv_path=data/cars.csv
+
+# =============================================================================
+# LocalFS file connector (no credentials needed)
+# =============================================================================
+
+# ── Test work directory (isolated write/delete sandbox) ──────────────────────
+# TEMP   — auto-provisioned temp directory.  Recommended; also the default
+#          when this property is absent.
+# <path> — an existing, empty directory you own exclusively for test use.
+file.localfs.test_work_dir=TEMP
+
+# =============================================================================
+# Derby JDBC connector (no external service needed)
+# =============================================================================
+# Note: host is always localhost — Derby is started in-process by the test.
+# jdbc.derby.port=          # blank = random free port
+# jdbc.derby.database_name= # default: testdb
+# jdbc.derby.user_name=     # default: testuser
+# jdbc.derby.user_pass=     # default: random UUID
+
+# =============================================================================
+# Generic JDBC connector (no external service needed)
+# =============================================================================
+# Note: host is always localhost — Derby is started in-process by the test.
+# jdbc.generic.port=          # blank = random free port
+# jdbc.generic.database_name= # default: testdb
+# jdbc.generic.user_name=     # default: testuser
+# jdbc.generic.user_pass=     # default: random UUID
+
+# =============================================================================
+# Bundle connector
+# =============================================================================
+# bundle.derby.port=
+# bundle.derby.database_name=
+# bundle.derby.user_name=
+# bundle.derby.user_pass=
+# bundle.flight.port=
+# bundle.flight.ssl=true
+# bundle.flight.createLocal=true
+# bundle.flight.uri=
+# bundle.flight.ssl_certificate=
+# bundle.flight.ssl_certificate_validation=true
+
+# =============================================================================
+# No-op connector (internal testing only)
+# =============================================================================
+# noop.flight.port=
+
+# =============================================================================
+# Test connector (internal testing only)
+# =============================================================================
+# test.flight.port=
+
+# =============================================================================
+# Cloud test suite (optional — for running against a deployed CP4D instance)
+# =============================================================================
+
 cloud.type=private
-
-# Configuration properties for cloud private
-cloud.private.host=<host>
-cloud.private.flight.host=<Flight host>
-cloud.private.ssl_certificate=<ssl certificate>
+# cloud.private.host=
+# cloud.private.flight.host=
+# cloud.private.ssl_certificate=
 cloud.private.ssl_certificate_validation=true
-cloud.private.user_name=<user name>
-cloud.private.user_pass=<user pass>
+# cloud.private.user_name=
+# cloud.private.user_pass=
 cloud.private.container_type=project
-cloud.private.container_id=<container id>
+# cloud.private.container_id=
 
-# Configuration properties for cloud public
-cloud.public.host=api.dataplatform.cloud.ibm.com
-cloud.public.iam_url=https://iam.cloud.ibm.com
-cloud.public.api_key=<api key>
-cloud.public.container_type=project
-cloud.public.container_id=<container id>
+# cloud.public.host=api.dataplatform.cloud.ibm.com
+# cloud.public.iam_url=https://iam.cloud.ibm.com
+# cloud.public.api_key=
+# cloud.public.container_type=project
+# cloud.public.container_id=

@@ -18,10 +18,16 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.commons.text.StringEscapeUtils;
 
 import org.apache.arrow.flight.Criteria;
 import org.apache.arrow.flight.FlightClient;
@@ -29,7 +35,11 @@ import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.FlightStream;
+import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.TimeMilliVector;
+import org.apache.arrow.vector.TimeStampVector;
+import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
 
@@ -120,6 +130,7 @@ public final class TestScenario
     private static final String COL_DELIM = "\\|";
 
     private WriteHook writeHook;
+    private PutHook putHook;
     private java.util.Map<String, String> scenarioVars = java.util.Collections.emptyMap();
 
     private final FlightClient client;
@@ -216,14 +227,17 @@ public final class TestScenario
      */
     private void runWrite(Properties step) throws Exception
     {
-        if (writeHook == null) {
-            // No write hook registered — skip silently (test suite will log a warning).
-            return;
-        }
         final DiscoveredAssetInteractionProperties iprops = collectInteractionProps(step);
         final List<String> schemaSpec = parseSchemaSpec(step);
         final List<String[]> rows = parseRows(step);
-        writeHook.execute(client, MODEL_MAPPER, datasourceTypeName, connectionProperties, iprops, schemaSpec, rows, NULL_TOKEN);
+        if (putHook != null) {
+            // Connector doesn't support Flight putStream — delegate to the out-of-band put
+            // hook.
+            putHook.execute(iprops, schemaSpec, rows, NULL_TOKEN);
+        } else if (writeHook != null) {
+            writeHook.execute(client, MODEL_MAPPER, datasourceTypeName, connectionProperties, iprops, schemaSpec, rows, NULL_TOKEN);
+        }
+        // If neither hook is registered, skip silently.
     }
 
     // -----------------------------------------------------------------------
@@ -264,7 +278,7 @@ public final class TestScenario
                 if (parts.length == 3) {
                     final int row = Integer.parseInt(parts[1]);
                     final int col = Integer.parseInt(parts[2]);
-                    final String expected = step.getProperty(key).trim();
+                    final String expected = step.getProperty(key);
                     if (NULL_TOKEN.equals(expected)) {
                         assertNull(context + ": cell[" + row + "][" + col + "] should be null", data.get(row, col));
                     } else {
@@ -276,13 +290,13 @@ public final class TestScenario
             }
         }
 
-        // -- multi-row checks: ExpectedRows.N=val0|val1|val2  (0-based row index)
+        // -- multi-row checks: ExpectedRows.N=val0|val1|val2 (0-based row index)
         for (final String key : step.stringPropertyNames()) {
             if (key.startsWith("ExpectedRows.")) {
                 final int row = Integer.parseInt(key.substring("ExpectedRows.".length()).trim());
                 final String[] colVals = step.getProperty(key).split(COL_DELIM, -1);
                 for (int ci = 0; ci < colVals.length; ci++) {
-                    final String expected = colVals[ci].trim();
+                    final String expected = colVals[ci];
                     if (NULL_TOKEN.equals(expected)) {
                         assertNull(context + ": row[" + row + "][" + ci + "] should be null", data.get(row, ci));
                     } else {
@@ -354,10 +368,10 @@ public final class TestScenario
         for (final String key : step.stringPropertyNames()) {
             if (key.startsWith("ExpectedInteractionProperty.")) {
                 final String propKey = key.substring("ExpectedInteractionProperty.".length());
-                final String expected = step.getProperty(key).trim();
+                final String expected = step.getProperty(key);
                 assertNotNull(context + ": interactionProperties must not be null", returned.getInteractionProperties());
-                assertEquals(context + ": interactionProperty[" + propKey + "]",
-                        expected, returned.getInteractionProperties().get(propKey));
+                assertEquals(context + ": interactionProperty[" + propKey + "]", expected,
+                        returned.getInteractionProperties().get(propKey));
             }
         }
 
@@ -367,30 +381,25 @@ public final class TestScenario
                 final String propKey = key.substring("ExpectedDetail.".length());
                 final String expected = step.getProperty(key).trim();
                 assertNotNull(context + ": details must not be null", returned.getDetails());
-                assertEquals(context + ": detail[" + propKey + "]",
-                        expected, returned.getDetails().get(propKey));
+                assertEquals(context + ": detail[" + propKey + "]", expected, returned.getDetails().get(propKey));
             }
         }
 
         // -- ExpectedSchemaFieldCount=N
         final String fieldCount = step.getProperty("ExpectedSchemaFieldCount");
         if (fieldCount != null) {
-            final Schema schema = info.getSchemaOptional()
-                    .orElseThrow(() -> new AssertionError(context + ": schema must be present"));
-            assertEquals(context + ": schema field count",
-                    Integer.parseInt(fieldCount.trim()), schema.getFields().size());
+            final Schema schema = info.getSchemaOptional().orElseThrow(() -> new AssertionError(context + ": schema must be present"));
+            assertEquals(context + ": schema field count", Integer.parseInt(fieldCount.trim()), schema.getFields().size());
         }
 
         // -- ExpectedSchemaFields=col0|col1|col2
         final String schemaFields = step.getProperty("ExpectedSchemaFields");
         if (schemaFields != null) {
-            final Schema schema = info.getSchemaOptional()
-                    .orElseThrow(() -> new AssertionError(context + ": schema must be present"));
+            final Schema schema = info.getSchemaOptional().orElseThrow(() -> new AssertionError(context + ": schema must be present"));
             final String[] names = schemaFields.split("\\|", -1);
             assertEquals(context + ": schema field count", names.length, schema.getFields().size());
             for (int i = 0; i < names.length; i++) {
-                assertEquals(context + ": schema field[" + i + "]",
-                        names[i].trim(), schema.getFields().get(i).getName());
+                assertEquals(context + ": schema field[" + i + "]", names[i].trim(), schema.getFields().get(i).getName());
             }
         }
     }
@@ -412,8 +421,7 @@ public final class TestScenario
         }
         catch (Exception e) {
             if (!expectedError.isEmpty()) {
-                assertTrue(context + ": expected error message to contain '" + expectedError
-                        + "' but got: " + e.getMessage(),
+                assertTrue(context + ": expected error message to contain '" + expectedError + "' but got: " + e.getMessage(),
                         e.getMessage() != null && e.getMessage().contains(expectedError));
             }
         }
@@ -474,7 +482,19 @@ public final class TestScenario
                         try (FieldVector vec = root.getFieldVectors().get(ci)) {
                             for (int ri = 0; ri < root.getRowCount(); ri++) {
                                 if (!vec.isNull(ri)) {
-                                    data.put(tableRowIdx + ri, ci, vec.getObject(ri));
+                                    final Object value;
+                                    if (vec instanceof VarCharVector) {
+                                        value = vec.getObject(ri).toString();
+                                    } else if (vec instanceof DateDayVector) {
+                                        value = new Date(TimeUnit.DAYS.toMillis(((DateDayVector) vec).get(ri)));
+                                    } else if (vec instanceof TimeMilliVector) {
+                                        value = Time.valueOf(((TimeMilliVector) vec).getObject(ri).toLocalTime());
+                                    } else if (vec instanceof TimeStampVector) {
+                                        value = new Timestamp(((TimeStampVector) vec).get(ri));
+                                    } else {
+                                        value = vec.getObject(ri);
+                                    }
+                                    data.put(tableRowIdx + ri, ci, value);
                                 }
                             }
                         }
@@ -537,14 +557,65 @@ public final class TestScenario
     }
 
     /**
+     * Functional interface for out-of-band write steps — used when the connector
+     * does not support Flight {@code putStream} and writes must be performed via an
+     * external API (e.g. direct AWS SDK upload for a read-only S3 connector).
+     *
+     * <p>
+     * When a {@code PutHook} is registered via {@link #withPutHook(PutHook)}, it
+     * takes precedence over {@link WriteHook} for {@code Type=Write} scenario
+     * steps. The hook receives the resolved interaction properties and the parsed
+     * row data — it is responsible for serialising them and uploading the result.
+     */
+    @FunctionalInterface
+    public interface PutHook
+    {
+        /**
+         * Uploads the given rows out-of-band (not via the Flight connector).
+         *
+         * @param iprops
+         *            interaction properties (contains {@code file_name} etc.)
+         * @param schemaSpec
+         *            list of {@code "name|type"} strings
+         * @param rows
+         *            list of column-value arrays; {@code nullToken} marks SQL NULL
+         * @param nullToken
+         *            the NULL sentinel string
+         * @throws Exception
+         *             if the upload fails
+         */
+        void execute(DiscoveredAssetInteractionProperties iprops, List<String> schemaSpec, List<String[]> rows, String nullToken)
+                throws Exception;
+    }
+
+    /**
+     * Registers an out-of-band put hook for connectors that do not support Flight
+     * {@code putStream}. Takes precedence over {@link WriteHook} when both are
+     * registered.
+     *
+     * @param hook
+     *            the put implementation
+     * @return {@code this} for fluent chaining
+     */
+    public TestScenario withPutHook(PutHook hook)
+    {
+        this.putHook = hook;
+        return this;
+    }
+
+    /**
      * Registers runtime variable substitutions applied to every property value in
      * the scenario file before the step is executed. Variables are written as
-     * {@code ${key}} in the scenario file and replaced with the corresponding value.
+     * {@code ${key}} in the scenario file and replaced with the corresponding
+     * value.
      *
-     * <p>Example — S3 path resolved from {@code tests.properties}:
+     * <p>
+     * Example — S3 path resolved from {@code tests.properties}:
+     * 
      * <pre>
      *   Interaction.file_name=/${file_s3.s3.test_csv_key}
      * </pre>
+     * 
      * with {@code vars = {"file_s3.s3.test_csv_key": "test-data/cars.csv"}} becomes
      * {@code Interaction.file_name=/test-data/cars.csv}.
      *
@@ -560,8 +631,8 @@ public final class TestScenario
 
     /**
      * Returns a copy of {@code step} with every {@code ${key}} token in property
-     * values replaced by the corresponding entry in {@link #scenarioVars}.
-     * Tokens whose key is absent in the map are left unchanged.
+     * values replaced by the corresponding entry in {@link #scenarioVars}. Tokens
+     * whose key is absent in the map are left unchanged.
      */
     private Properties resolveVars(Properties step)
     {
@@ -696,17 +767,25 @@ public final class TestScenario
                             pendingKey = key;
                             pendingValue = new StringBuilder(value.substring(0, value.length() - 1));
                         } else {
-                            current.setProperty(key, value);
+                            current.setProperty(key, unescape(value));
                         }
                     }
                 }
                 // flush any trailing continuation
                 if (pendingKey != null && current != null) {
-                    current.setProperty(pendingKey, pendingValue.toString().trim());
+                    current.setProperty(pendingKey, unescape(pendingValue.toString().trim()));
                 }
             }
         }
         return steps;
+    }
+
+    /**
+     * Unescapes Java-style escape sequences
+     */
+    private static String unescape(String value)
+    {
+        return StringEscapeUtils.unescapeJava(value);
     }
 
     private static String required(Properties step, String key, String context)

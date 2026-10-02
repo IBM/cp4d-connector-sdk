@@ -231,11 +231,17 @@ public final class WorkDirManager
                 writeResolvedFile(provisionTemp());
                 return;
             }
-            // Object stores require an explicit value — cannot create a bucket without knowing credentials.
-            System.err.println("[WorkDirManager] ERROR: required property '" + configKey
-                    + "' is not set in tests.properties.\n"
-                    + "  Set it to TEMP for automatic provisioning, or supply a dedicated empty container name.");
-            System.exit(1);
+            // Object store: no config key set — tests will be skipped by the test class guard.
+            LOGGER.info("WorkDirManager: '{}' not set — skipping work-dir provisioning for OBJECT_STORE", configKey);
+            return;
+        }
+
+        // Object store: config key is present but no operations strategy was supplied
+        // (credentials absent from tests.properties). Skip gracefully — the test class
+        // setUp() guard will skip tests via assumeNotNull.
+        if (connectorType == ConnectorType.OBJECT_STORE && operations == null) {
+            LOGGER.info("WorkDirManager: no WorkDirOperations supplied for OBJECT_STORE — skipping provisioning");
+            return;
         }
 
         final String resolved;

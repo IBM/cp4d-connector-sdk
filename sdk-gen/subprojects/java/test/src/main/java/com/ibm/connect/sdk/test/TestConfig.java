@@ -9,9 +9,6 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Properties;
 
@@ -39,9 +36,8 @@ import com.ibm.connect.sdk.util.Utils;
  *
  * <p>Example {@code tests.properties} fragment:
  * <pre>
- *   file_s3.s3.test_base=test-data/
- *   file_s3.s3.test_csv_key=#file_s3.s3.test_base#cars.csv
- *   file_s3.s3.test_binary_key=#file_s3.s3.test_base#logo.png
+ *   file.s3.base=test-data/
+ *   file.s3.csv_key=#file.s3.base#cars.csv
  * </pre>
  */
 public class TestConfig
@@ -169,6 +165,97 @@ public class TestConfig
     }
 
     // -----------------------------------------------------------------------
+    // Shared Flight-server configuration
+    // -----------------------------------------------------------------------
+
+    /**
+     * Reads the shared {@code flight.*} configuration for a connector test.
+     *
+     * <p>Resolution order for each key (e.g. {@code createLocal}):
+     * <ol>
+     *   <li>Connector-specific override: {@code <prefix>.flight.<key>}</li>
+     *   <li>Shared fallback: {@code flight.<key>}</li>
+     *   <li>Hard-coded default (see field-level Javadoc below)</li>
+     * </ol>
+     *
+     * <p>Example {@code tests.properties}:
+     * <pre>
+     * # Shared defaults for every connector
+     * flight.createLocal=true
+     * flight.ssl=true
+     * flight.ssl_certificate_validation=true
+     *
+     * # Per-connector override (only when this connector differs from the defaults)
+     * file_s3.flight.createLocal=false
+     * file_s3.flight.uri=grpc+tls://my-s3-server:443
+     * </pre>
+     *
+     * @param connectorPrefix
+     *            the connector namespace prefix, e.g. {@code "file_s3"} or
+     *            {@code "file_localfs"}. Pass {@code null} to read the shared
+     *            keys only.
+     */
+    public static FlightConfig flightConfig(String connectorPrefix)
+    {
+        return new FlightConfig(connectorPrefix);
+    }
+
+    /**
+     * Resolved Flight-server settings for a single connector test run.
+     *
+     * <p>Construct via {@link TestConfig#flightConfig(String)}.
+     */
+    public static final class FlightConfig
+    {
+        /** Whether to start a local in-process Flight server (default: {@code true}). */
+        public final boolean createLocal;
+        /** Whether to enable TLS for the local server (default: {@code true}). */
+        public final boolean useSSL;
+        /** Port for the local server; {@code 0} means a random free port (default). */
+        public final int port;
+        /** URI of a remote server; only used when {@code createLocal=false}. */
+        public final String remoteUri;
+        /** PEM certificate for remote TLS; only used when {@code createLocal=false}. */
+        public final String sslCertificate;
+        /** Whether to validate the remote server's certificate (default: {@code true}). */
+        public final boolean verifyCertificate;
+
+        private FlightConfig(String connectorPrefix)
+        {
+            createLocal      = resolve(connectorPrefix, "flight.createLocal",             true);
+            useSSL           = resolve(connectorPrefix, "flight.ssl",                     true);
+            port             = resolvePort(connectorPrefix, "flight.port");
+            remoteUri        = resolve(connectorPrefix, "flight.uri");
+            sslCertificate   = resolve(connectorPrefix, "flight.ssl_certificate");
+            verifyCertificate = resolve(connectorPrefix, "flight.ssl_certificate_validation", true);
+        }
+
+        /** Looks up {@code <prefix>.<suffix>} then falls back to {@code <suffix>}. */
+        private static String resolve(String prefix, String suffix)
+        {
+            if (prefix != null) {
+                final String specific = TestConfig.get(prefix + "." + suffix);
+                if (specific != null) {
+                    return specific;
+                }
+            }
+            return TestConfig.get(suffix);
+        }
+
+        private static boolean resolve(String prefix, String suffix, boolean defaultValue)
+        {
+            final String raw = resolve(prefix, suffix);
+            return raw != null ? Boolean.parseBoolean(raw) : defaultValue;
+        }
+
+        private static int resolvePort(String prefix, String suffix)
+        {
+            final String raw = resolve(prefix, suffix);
+            return raw != null ? Integer.parseInt(raw) : Utils.getFreePort();
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Private construction + property resolution
     // -----------------------------------------------------------------------
 
@@ -177,8 +264,9 @@ public class TestConfig
      */
     private TestConfig()
     {
-        // 1. Load from classpath resource
-        final URL testPropsResource = ClassLoader.getSystemResource(CONFIG_FILE_NAME);
+        // Load from classpath resource — use the class's own classloader so that
+        // Gradle's test worker classloader (not the system classloader) is used.
+        final URL testPropsResource = TestConfig.class.getClassLoader().getResource(CONFIG_FILE_NAME);
         if (testPropsResource != null) {
             LOGGER.info("Loading properties from " + testPropsResource);
             try (InputStream is = testPropsResource.openStream()) {
@@ -187,22 +275,8 @@ public class TestConfig
             catch (final Exception e) {
                 throw new IllegalArgumentException(e);
             }
-        }
-
-        // 2. Overlay with file in working directory (gitignored developer overrides)
-        final Path testPropsFile = Paths.get(CONFIG_FILE_NAME);
-        if (testPropsFile.toFile().exists()) {
-            if (props.isEmpty()) {
-                LOGGER.info("Loading properties from " + testPropsFile.toAbsolutePath());
-            } else {
-                LOGGER.info("Overlaying properties from " + testPropsFile.toAbsolutePath());
-            }
-            try (InputStream is = Files.newInputStream(testPropsFile)) {
-                props.load(is);
-            }
-            catch (final Exception e) {
-                throw new IllegalArgumentException(e);
-            }
+        } else {
+            LOGGER.warn("TestConfig: '{}' not found on classpath — all TestConfig.get() calls will return null", CONFIG_FILE_NAME);
         }
 
         encryptUtil = new EncryptUtil(getRawProperty(DECRYPT_KEY_PROPERTY));

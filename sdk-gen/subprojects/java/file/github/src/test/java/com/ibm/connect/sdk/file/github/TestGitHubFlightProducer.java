@@ -133,12 +133,12 @@ public class TestGitHubFlightProducer extends FileTestSuite
     private static TimeZone defaultTimeZone;
     private static final GitHubConfig GH = new GitHubConfig();
 
-    /** Skip every test when no GitHub access token is configured. */
+    /** Skip every test when the GitHub host is not configured. */
     @Before
     public void setUp()
     {
-        assumeNotNull("GitHub access token not configured — set file_github.github.access_token in tests.properties",
-                GH.accessToken);
+        assumeNotNull("GitHub host not configured — set file.github.host in tests.properties",
+                GH.host);
     }
 
     /**
@@ -149,10 +149,10 @@ public class TestGitHubFlightProducer extends FileTestSuite
     @BeforeClass
     public static void setUpOnce() throws Exception
     {
-        if (GH.createLocal) {
-            testFlight = TestFlight.createLocal(GH.port, GH.useSSL, new GitHubFlightProducer(), null);
+        if (GH.flight.createLocal) {
+            testFlight = TestFlight.createLocal(GH.flight.port, GH.flight.useSSL, new GitHubFlightProducer(), null);
         } else {
-            testFlight = TestFlight.createRemote(GH.remoteUri, GH.sslCert, GH.verifyCert, null);
+            testFlight = TestFlight.createRemote(GH.flight.remoteUri, GH.flight.sslCertificate, GH.flight.verifyCertificate, null);
         }
         client = testFlight.getClient();
         defaultTimeZone = TimeZone.getDefault();
@@ -1423,20 +1423,13 @@ public class TestGitHubFlightProducer extends FileTestSuite
     private static final class GitHubConfig
     {
         // Connection
-        final String host            = TestConfig.get("file_github.github.host", "github.com");
-        final String repositoryOwner = TestConfig.get("file_github.github.repository_owner", "apache");
-        final String repositoryName  = TestConfig.get("file_github.github.repository_name", "spark");
-        final String accessToken     = TestConfig.get("file_github.github.access_token");
+        final String host            = TestConfig.get("file.github.host", "github.com");
+        final String repositoryOwner = TestConfig.get("file.github.repository_owner", "apache");
+        final String repositoryName  = TestConfig.get("file.github.repository_name", "spark");
+        final String accessToken     = TestConfig.get("file.github.access_token");
 
-        // Flight server
-        final boolean createLocal = TestConfig.getBoolean("file_github.flight.createLocal", true);
-        final boolean useSSL      = TestConfig.getBoolean("file_github.flight.ssl", true);
-        final int     port        = TestConfig.getPort("file_github.flight.port");
-
-        // Remote server (only when createLocal=false)
-        final String remoteUri   = TestConfig.get("file_github.flight.uri");
-        final String sslCert     = TestConfig.get("file_github.flight.ssl_certificate");
-        final boolean verifyCert = TestConfig.getBoolean("file_github.flight.ssl_certificate_validation", true);
+        // Flight server — shared config with per-connector override support
+        final TestConfig.FlightConfig flight = TestConfig.flightConfig("file.github");
 
         /** Returns true when an access token is present. */
         boolean isConfigured()
