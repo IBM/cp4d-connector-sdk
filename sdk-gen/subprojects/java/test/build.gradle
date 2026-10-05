@@ -102,7 +102,7 @@ task unpackProject {
     }
   }
 }
-task generateSubprojects(type:Exec) {
+task generateSubprojects(type: Exec) {
   dependsOn(unpackProject)
   workingDir "${buildDir}/integrationTestsWorkspace"
   commandLine gradleCommand, 'quickstart', '--no-daemon'
@@ -122,18 +122,18 @@ task setupCerts {
       include 'Dockerfile'
       into "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/"
       filter{line -> line.replace'#COPY', 'COPY' }
-      rename ('Dockerfile','Dockerfile_temp')
+      rename('Dockerfile','Dockerfile_temp')
     }
     copy{
       from "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/"
       include 'Dockerfile_temp'
       into "${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/"
-      rename ('Dockerfile_temp','Dockerfile')
+      rename('Dockerfile_temp','Dockerfile')
     }
     delete("${buildDir}/integrationTestsWorkspace/subprojects/integtestflight/src/dist/resources/payload/Dockerfile_temp")
   }
 }
-task startLocalDocker(type:Exec) {
+task startLocalDocker(type: Exec) {
   dependsOn(setupCerts)
   workingDir "${buildDir}/integrationTestsWorkspace"
   commandLine gradleCommand,':wdp-connect-sdk-gen-integtestflight:dockerStart', '--no-daemon'

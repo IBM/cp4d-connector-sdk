@@ -56,7 +56,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
         setStatus(CustomFlightDatasourceType.StatusEnum.ACTIVE);
         setTags(Collections.emptyList());
 
-        // Set origin from $metadata (connector_source → name, forge_version → version)
+        // Set origin from $origin block (name, version)
         final Map<String, String> originMap = mapping.getOrigin();
         if (!originMap.isEmpty()) {
             setOrigin(new DatasourceTypeOrigin()
