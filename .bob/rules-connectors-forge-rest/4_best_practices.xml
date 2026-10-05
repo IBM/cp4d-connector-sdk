@@ -146,6 +146,62 @@
     </rule>
 
     <rule priority="critical">
+      <name>Use $path_keys for Enumerated Path Variables (Table-Level)</name>
+      <description>
+        When an API table's $path contains a variable whose valid values must be discovered
+        by calling another API endpoint at read time, declare a $path_keys array INSIDE that
+        table definition. The engine iterates all discovered values and calls the target
+        endpoint once per value.
+        CRITICAL: $path_keys is a TABLE-LEVEL field, not a root-level field. It belongs
+        alongside $path, $data_path, and $pagination inside the specific table that needs it.
+      </description>
+      <when_to_apply>
+        The path variable's valid values are NOT known at connection-creation time.
+        They must be fetched dynamically from a list endpoint at data-read time.
+        Examples: post IDs, project slugs, order IDs, ticket IDs — anything that is
+        row-level data rather than a fixed account identifier.
+      </when_to_apply>
+      <wrong_placement>
+        <![CDATA[
+{
+  "$hostname": "https://api.example.com",
+  "$path_keys": [ ... ],   ← WRONG: root level
+  "$tables": { ... }
+}
+        ]]>
+        <why>$path_keys at root level is not recognised by the engine — it must be inside the table.</why>
+      </wrong_placement>
+      <correct_placement>
+        <![CDATA[
+{
+  "$hostname": "https://api.example.com",
+  "$tables": {
+    "POST_COMMENTS": {
+      "$path": ["/posts/$postId/comments"],
+      "$path_keys": [           ← CORRECT: inside the table
+        {
+          "variable": "postId",
+          "source_path": "/posts",
+          "source_field": "id"
+        }
+      ],
+      "id": "INTEGER,$key",
+      "postId": "INTEGER",
+      "name": "VARCHAR"
+    }
+  }
+}
+        ]]>
+      </correct_placement>
+      <required_entry_fields>variable, source_path, source_field</required_entry_fields>
+      <optional_entry_fields>source_data_path (envelope unwrap), lookup_delay_ms (rate limit throttle)</optional_entry_fields>
+      <ordering_rule>
+        Entries must be in dependency order. If entry N's source_path references $var from entry M,
+        M must appear before N in the array.
+      </ordering_rule>
+    </rule>
+
+    <rule priority="critical">
       <name>Follow Template Structure Exactly</name>
       <description>
         Always read and follow template.json structure.
@@ -463,6 +519,64 @@
 }
         ]]>
       </correct>
+    </pitfall>
+
+    <pitfall>
+      <name>Confusing $path_keys and $path_properties</name>
+      <description>
+        $path_properties and $path_keys both resolve $variable placeholders in a $path string,
+        but they serve completely different purposes and are placed in different locations.
+        Using the wrong one — or placing $path_keys at the root — will produce a broken config.
+      </description>
+      <decision_guide>
+        Ask: "Is this value the SAME for every API request from this connection?"
+        YES — user knows it at setup time, it never changes between requests → $path_properties (ROOT level)
+        NO  — values are discovered by calling another endpoint at read time → $path_keys (TABLE level)
+      </decision_guide>
+      <wrong_confusing_case_1>
+        <title>Using $path_keys for a constant account ID (should be $path_properties)</title>
+        <![CDATA[
+"CUSTOMERS": {
+  "$path": ["/merchants/$merchant_id/customers"],
+  "$path_keys": [
+    { "variable": "merchant_id", "source_path": "/merchants", "source_field": "id" }
+  ]
+}
+        ]]>
+        <why>
+          merchant_id is a single fixed value for this account — calling /merchants to "enumerate"
+          it is wasteful and wrong. Use $path_properties so the user enters it once at connection time.
+        </why>
+      </wrong_confusing_case_1>
+      <wrong_confusing_case_2>
+        <title>Using $path_properties for post IDs (should be $path_keys)</title>
+        <![CDATA[
+"$path_properties": [
+  { "name": "postId", "label": "Post ID", "description": "???", "masked": false }
+],
+...
+"POST_COMMENTS": {
+  "$path": ["/posts/$postId/comments"]
+}
+        ]]>
+        <why>
+          There are many post IDs — the user cannot know them all at connection time.
+          Use $path_keys inside POST_COMMENTS to enumerate them at read time.
+        </why>
+      </wrong_confusing_case_2>
+      <wrong_confusing_case_3>
+        <title>$path_keys placed at root level instead of inside the table</title>
+        <![CDATA[
+{
+  "$hostname": "...",
+  "$path_keys": [ ... ],
+  "$tables": {
+    "POST_COMMENTS": { "$path": ["/posts/$postId/comments"], ... }
+  }
+}
+        ]]>
+        <why>$path_keys must be inside the table definition — root-level placement is not recognised.</why>
+      </wrong_confusing_case_3>
     </pitfall>
 
     <pitfall>
@@ -799,11 +913,21 @@
       </category>
 
       <category name="Path Properties">
-        <check>If any URL path contains an account-scoped identifier, $path_properties is present</check>
-        <check>Every $var placeholder in a $path has a matching entry in $path_properties</check>
+        <check>If any URL path contains an account-scoped identifier, $path_properties is present at ROOT level</check>
+        <check>Every $var placeholder in a $path that is account-scoped has a matching $path_properties entry</check>
         <check>No account-wide literal values are hard-coded inside $path strings</check>
         <check>Each $path_properties entry has: name, label, description, masked</check>
         <check>name values use snake_case and match the $name placeholders in $path strings</check>
+      </category>
+
+      <category name="Path Keys">
+        <check>$path_keys is declared INSIDE the table definition — never at the connector root level</check>
+        <check>Used only when path variable values must be enumerated by API call at read time (not for account constants)</check>
+        <check>Each $path_keys entry has required fields: variable, source_path, source_field</check>
+        <check>Entries are in dependency order (step M before step N if N's source_path references $var from M)</check>
+        <check>source_data_path is set when the lookup response wraps the array in an envelope key</check>
+        <check>lookup_delay_ms is set (e.g. 100–500) when the source API is rate-limited</check>
+        <check>No $path_keys entry used for a value that is constant per connection (use $path_properties instead)</check>
       </category>
 
       <category name="Authentication">
