@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -373,7 +374,10 @@ public class JsonToArrowStream implements Closeable
             final JsonNode valueNode = fieldName.contains(".")
                     ? getNestedValue(objectNode, fieldName)
                     : objectNode.get(fieldName);
-            writer.set(fieldName, convertValue(valueNode, fieldDef));
+            final Object value = convertValue(valueNode, fieldDef);
+            if (value != null) {
+                writer.set(fieldName, value);
+            }
         }
         writer.endRow();
     }
@@ -433,22 +437,27 @@ public class JsonToArrowStream implements Closeable
         case "int":
         case "smallint":
         case "tinyint":
-            return node.isNumber() ? node.intValue() : parseIntSafe(node.asText());
+            if (node.isNumber()) { return node.intValue(); }
+            return parseIntSafe(node.asText());
         case "bigint":
-            return node.isNumber() ? node.longValue() : parseLongSafe(node.asText());
+            if (node.isNumber()) { return node.longValue(); }
+            return parseLongSafe(node.asText());
         case "boolean":
         case "bool":
         case "bit":
-            return node.isBoolean() ? node.booleanValue() : Boolean.parseBoolean(node.asText());
+            if (node.isBoolean()) { return node.booleanValue(); }
+            return parseBooleanSafe(node.asText());
         case "double":
         case "float8":
         case "float":
         case "real":
         case "float4":
-            return node.isNumber() ? node.doubleValue() : parseDoubleSafe(node.asText());
+            if (node.isNumber()) { return node.doubleValue(); }
+            return parseDoubleSafe(node.asText());
         case "decimal":
         case "numeric":
-            return node.isNumber() ? node.decimalValue() : new java.math.BigDecimal(node.asText());
+            if (node.isNumber()) { return node.decimalValue(); }
+            return parseBigDecimalSafe(node.asText());
         case "date":
             return parseDateSafe(node.asText());
         case "timestamp":
@@ -489,6 +498,23 @@ public class JsonToArrowStream implements Closeable
         if (text == null || text.isEmpty()) { return null; }
         try { return Double.parseDouble(text.trim()); }
         catch (NumberFormatException e) { LOGGER.warn("Cannot parse double: '{}'", text); return null; }
+    }
+
+    private static Boolean parseBooleanSafe(String text)
+    {
+        if (text == null || text.isEmpty()) { return null; }
+        final String t = text.trim().toLowerCase(Locale.ENGLISH);
+        if ("true".equals(t) || "1".equals(t) || "yes".equals(t)) { return Boolean.TRUE; }
+        if ("false".equals(t) || "0".equals(t) || "no".equals(t)) { return Boolean.FALSE; }
+        LOGGER.warn("Cannot parse boolean: '{}'", text);
+        return null;
+    }
+
+    private static BigDecimal parseBigDecimalSafe(String text)
+    {
+        if (text == null || text.isEmpty()) { return null; }
+        try { return new BigDecimal(text.trim()); }
+        catch (NumberFormatException e) { LOGGER.warn("Cannot parse decimal: '{}'", text); return null; }
     }
 
     private static Date parseDateSafe(String text)
