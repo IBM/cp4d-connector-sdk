@@ -437,27 +437,27 @@ public class JsonToArrowStream implements Closeable
         case "int":
         case "smallint":
         case "tinyint":
-            if (node.isNumber()) return node.intValue();
+            if (node.isNumber()) { return node.intValue(); }
             return parseIntSafe(node.asText());
         case "bigint":
-            if (node.isNumber()) return node.longValue();
+            if (node.isNumber()) { return node.longValue(); }
             return parseLongSafe(node.asText());
         case "boolean":
         case "bool":
         case "bit":
-            if (node.isBoolean()) return node.booleanValue();
+            if (node.isBoolean()) { return node.booleanValue(); }
             return parseBooleanSafe(node.asText());
         case "double":
         case "float8":
         case "float":
         case "real":
         case "float4":
-            if (node.isNumber()) return node.doubleValue();
+            if (node.isNumber()) { return node.doubleValue(); }
             return parseDoubleSafe(node.asText());
         case "decimal":
         case "numeric":
-            if (node.isNumber()) return node.decimalValue();
-            return parseBigDecimalSafe(node.asText()); 
+            if (node.isNumber()) { return node.decimalValue(); }
+            return parseBigDecimalSafe(node.asText());
         case "date":
             return parseDateSafe(node.asText());
         case "timestamp":
