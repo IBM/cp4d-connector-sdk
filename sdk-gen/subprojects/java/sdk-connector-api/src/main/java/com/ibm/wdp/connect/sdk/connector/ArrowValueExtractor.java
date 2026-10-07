@@ -6,6 +6,7 @@
 package com.ibm.wdp.connect.sdk.connector;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeMilliVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
@@ -141,6 +143,8 @@ final class ArrowValueExtractor
             ((TinyIntVector) vector).setSafe(index, toInt(value));
         } else if (vector instanceof DateDayVector) {
             ((DateDayVector) vector).setSafe(index, toDateDay(value));
+        } else if (vector instanceof TimeStampMilliVector) {
+            ((TimeStampMilliVector) vector).setSafe(index, toTimestampMillis(value));
         } else if (vector instanceof TimeStampMicroTZVector) {
             ((TimeStampMicroTZVector) vector).setSafe(index, toTimestampMicros(value));
         } else if (vector instanceof TimeMilliVector) {
@@ -195,10 +199,19 @@ final class ArrowValueExtractor
         if (v instanceof Date) {
             return (int) TimeUnit.MILLISECONDS.toDays(((Date) v).getTime());
         }
-        if (v instanceof java.util.Date) {
-            return (int) TimeUnit.MILLISECONDS.toDays(((java.util.Date) v).getTime());
-        }
         return (int) TimeUnit.MILLISECONDS.toDays(Date.valueOf(v.toString()).getTime());
+    }
+
+    static long toTimestampMillis(Object v)
+    {
+        if (v instanceof Timestamp) {
+            return ((Timestamp) v).getTime();
+        }
+        if (v instanceof Date) {
+            // promote date-only to midnight: "yyyy-MM-dd" + " 00:00:00"
+            return Timestamp.valueOf(v.toString() + " 00:00:00").getTime();
+        }
+        return Timestamp.valueOf(v.toString()).getTime();
     }
 
     static long toTimestampMicros(Object v)
@@ -208,8 +221,9 @@ final class ArrowValueExtractor
             return TimeUnit.MILLISECONDS.toMicros(ts.getTime())
                     + TimeUnit.NANOSECONDS.toMicros(ts.getNanos() % 1_000_000L);
         }
-        if (v instanceof java.util.Date) {
-            return TimeUnit.MILLISECONDS.toMicros(((java.util.Date) v).getTime());
+        if (v instanceof Date) {
+            // promote date-only to midnight: "yyyy-MM-dd" + " 00:00:00"
+            return TimeUnit.MILLISECONDS.toMicros(Timestamp.valueOf(v.toString() + " 00:00:00").getTime());
         }
         return TimeUnit.MILLISECONDS.toMicros(Timestamp.valueOf(v.toString()).getTime());
     }
@@ -229,7 +243,7 @@ final class ArrowValueExtractor
     static BigDecimal toBigDecimal(Object v, int scale)
     {
         final BigDecimal bd = v instanceof BigDecimal ? (BigDecimal) v : new BigDecimal(v.toString());
-        return bd.setScale(scale, java.math.RoundingMode.HALF_UP);
+        return bd.setScale(scale, RoundingMode.HALF_UP);
     }
 }
 
