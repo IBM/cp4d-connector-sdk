@@ -1,0 +1,30 @@
+# ============================================================
+# LocalFS — read CSV with null_value mapping
+# ============================================================
+# The null_value interaction property maps a literal string to
+# SQL NULL when reading.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write CSV where some cells are empty (null) ──────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/csv_null_value.csv
+Interaction.first_line_header=true
+Schema=id|integer; label|varchar; flag|boolean
+Row.0=1|Alice|true
+Row.1=2|<NULL>|false
+Row.2=3|<NULL>|<NULL>
+
+# ── Read back with null_value=null ───────────────────────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/csv_null_value.csv
+Interaction.null_value=
+ExpectedColumns=id|label|flag
+ExpectedRowCount=3
+ExpectedRows.0=1|Alice|true
+ExpectedCell.1.0=2
+ExpectedCell.1.1=<NULL>
+ExpectedCell.2.0=3
+ExpectedCell.2.1=<NULL>
+ExpectedCell.2.2=<NULL>

@@ -1,0 +1,37 @@
+# ============================================================
+# S3 — read CSV with infer_schema
+# ============================================================
+# Without infer_schema all values come back as strings.
+# With infer_schema=true numeric and boolean values are typed.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write a CSV ──────────────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/infer_schema.csv
+Interaction.first_line_header=true
+Schema=seq|integer; name|varchar; active|boolean
+Row.0=1|Alice|true
+Row.1=2|Bob|false
+Row.2=3|Charlie|true
+
+[Step]
+# infer_schema=false — all values returned as strings
+Type=Read
+Interaction.file_name=/${work_dir}/infer_schema.csv
+Interaction.infer_schema=false
+ExpectedColumns=seq|name|active
+ExpectedRowCount=3
+ExpectedRows.0=1|Alice|true
+ExpectedRows.2=3|Charlie|true
+
+[Step]
+# infer_schema=true — integers and booleans inferred as native types
+Type=Read
+Interaction.file_name=/${work_dir}/infer_schema.csv
+Interaction.infer_schema=true
+ExpectedRowCount=3
+ExpectedCell.0.0=1
+ExpectedCell.0.2=true
+ExpectedCell.1.0=2
+ExpectedCell.1.2=false

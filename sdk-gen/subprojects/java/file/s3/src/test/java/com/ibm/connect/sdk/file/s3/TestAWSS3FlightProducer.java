@@ -384,6 +384,12 @@ public class TestAWSS3FlightProducer extends FileTestSuite
                 "discover_folder.scenario",
                 "metadata_csv.scenario",
                 "read_csv.scenario",
+                "read_csv_no_header.scenario",
+                "read_csv_null_value.scenario",
+                "read_csv_row_delimiter.scenario",
+                "read_csv_infer_schema.scenario",
+                "read_csv_encoding.scenario",
+                "read_delimited_pipe.scenario",
                 "read_binary.scenario",
                 "readwrite_csv.scenario");
     }

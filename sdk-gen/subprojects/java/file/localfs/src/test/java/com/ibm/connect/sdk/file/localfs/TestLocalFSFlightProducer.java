@@ -312,8 +312,22 @@ public class TestLocalFSFlightProducer extends FileTestSuite
                 "readwrite_csv.scenario",
                 "readwrite_limits.scenario",
                 "metadata_csv.scenario",
+                "metadata_json.scenario",
+                "metadata_orc.scenario",
+                "metadata_parquet.scenario",
+                "metadata_xml.scenario",
                 "negative_missing_file.scenario",
-                "discover_root.scenario");
+                "discover_root.scenario",
+                "read_csv_no_header.scenario",
+                "read_csv_null_value.scenario",
+                "read_csv_row_delimiter.scenario",
+                "read_csv_infer_schema.scenario",
+                "read_csv_encoding.scenario",
+                "read_delimited_pipe.scenario",
+                "read_json.scenario",
+                "read_orc.scenario",
+                "read_parquet.scenario",
+                "read_xml.scenario");
     }
 
     @Override
