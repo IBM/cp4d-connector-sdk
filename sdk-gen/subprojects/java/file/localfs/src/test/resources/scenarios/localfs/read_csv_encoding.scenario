@@ -1,0 +1,27 @@
+# ============================================================
+# LocalFS — read CSV with explicit encoding (UTF-8)
+# ============================================================
+# Writes a CSV and reads it back with an explicit encoding
+# property to verify the connector honours the encoding hint.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write a CSV ──────────────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/csv_encoding.csv
+Interaction.first_line_header=true
+Schema=id|integer; label|varchar
+Row.0=1|Alice
+Row.1=2|Bob
+Row.2=3|Charlie
+
+# ── Read back with explicit UTF-8 encoding ───────────────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/csv_encoding.csv
+Interaction.encoding=utf-8
+Interaction.first_line_header=true
+ExpectedColumns=id|label
+ExpectedRowCount=3
+ExpectedRows.0=1|Alice
+ExpectedRows.2=3|Charlie

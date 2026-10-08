@@ -1,0 +1,11 @@
+# ============================================================
+# GitHub — getFlightInfo for with-map-fields.json
+# ============================================================
+
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/with-map-fields.json
+ExpectedInteractionProperty.file_format=json
+ExpectedDetail.mime_type=application/json
+ExpectedSchemaFieldCount=2

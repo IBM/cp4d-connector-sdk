@@ -1,0 +1,17 @@
+# ============================================================
+# GitHub — read cars.csv (3 data rows, 5 columns)
+# ============================================================
+# cars.csv: year,make,model,comment,blank
+# Row 0: 2012, Tesla,  S,    "No comment", <blank>
+# Row 1: 1997, Ford,   E350, "Go get one now they are going fast", <blank>
+# Row 2: 2015, Chevy,  Volt, <null>,       <blank>
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars.csv
+ExpectedColumns=year|make|model|comment|blank
+ExpectedRowCount=3
+ExpectedRows.0=2012|Tesla|S|No comment|<NULL>
+ExpectedRows.1=1997|Ford|E350|Go get one now they are going fast|<NULL>
+ExpectedRows.2=2015|Chevy|Volt|<NULL>|<NULL>

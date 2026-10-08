@@ -1,0 +1,13 @@
+# ============================================================
+# GitHub — read pipe-delimited file (cars-alternative.csv)
+# ============================================================
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars-alternative.csv
+Interaction.quote_character_value='
+ExpectedColumns=year|make|model|comment|blank
+ExpectedRowCount=3
+ExpectedRows.0=2012|Tesla|S| 'No comment'|<NULL>
+ExpectedRows.2=2015|Chevy|Volt|<NULL>|<NULL>

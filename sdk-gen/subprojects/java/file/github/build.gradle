@@ -46,7 +46,25 @@ dependencies {
 test {
   systemProperties = System.properties
   systemProperties.remove("java.endorsed.dirs")
+  systemProperties['buildDir'] = project.buildDir.absolutePath
   testLogging {
     events "PASSED", "SKIPPED", "FAILED"
   }
 }
+
+// GitHub is read-only — work-dir provisioning is a deliberate no-op.
+// These task stubs keep the task-name contract consistent across all
+// file connector projects so CI scripts can call verifyTestWorkDir /
+// cleanTestWorkDir uniformly.
+task verifyTestWorkDir {
+  description = 'No-op: GitHub connector is read-only; no work directory required.'
+  group = 'verification'
+}
+
+task cleanTestWorkDir {
+  description = 'No-op: GitHub connector is read-only; no work directory to clean.'
+  group = 'verification'
+}
+
+test.dependsOn verifyTestWorkDir
+test.finalizedBy cleanTestWorkDir

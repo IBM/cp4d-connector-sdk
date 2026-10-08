@@ -36,6 +36,7 @@ ext {
 dependencies {
   implementation project(':wdp-connect-sdk-gen-java-util')
   implementation project(':wdp-connect-sdk-gen-java-api-models')
+  implementation group: 'org.apache.commons', name: 'commons-text', version: project['commons.text.version']
   implementation group: 'junit', name: 'junit', version: project['junit.version']
   implementation group: 'com.google.code.gson', name: 'gson', version: project['gson.version']
   // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.

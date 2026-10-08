@@ -1,0 +1,18 @@
+# ============================================================
+# S3 — discover the test work folder inside the work bucket
+# ============================================================
+# Writes a seed CSV into ${work_dir}/test_folder/ and then
+# discovers that folder to verify non-empty listing.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/test_folder/seed.csv
+Interaction.first_line_header=true
+Schema=id|integer; label|varchar
+Row.0=1|seed
+
+[Step]
+Type=Discover
+Path=/${work_dir}/test_folder/
+ExpectedNotEmpty=true

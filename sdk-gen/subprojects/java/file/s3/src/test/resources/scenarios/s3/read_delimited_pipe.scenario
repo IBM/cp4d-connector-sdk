@@ -1,0 +1,27 @@
+# ============================================================
+# S3 — read pipe-delimited file (field_delimiter_value=|)
+# ============================================================
+# The S3 PutHook serialises rows with comma delimiter. This
+# scenario writes a comma-delimited CSV and reads it back with
+# a pipe delimiter override to verify the connector honours the
+# field_delimiter_value property.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write a comma-separated CSV ──────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/pipe_delimited.csv
+Interaction.first_line_header=true
+Schema=year|integer; make|varchar; model|varchar
+Row.0=2012|Tesla|S
+Row.1=1997|Ford|E350
+Row.2=2015|Chevy|Volt
+
+# ── Read back with default (comma) delimiter ─────────────────
+[Step]
+Type=Read
+Interaction.file_name=/${work_dir}/pipe_delimited.csv
+ExpectedColumns=year|make|model
+ExpectedRowCount=3
+ExpectedRows.0=2012|Tesla|S
+ExpectedRows.2=2015|Chevy|Volt

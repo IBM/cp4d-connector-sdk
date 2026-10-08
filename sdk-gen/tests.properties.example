@@ -1,9 +1,8 @@
 # =============================================================================
 # tests.properties — SDK test configuration template
 #
-# Copy sdk-gen/tests.properties.example to sdk-gen/tests.properties
-# (gitignored) and fill in real values.  Only the settings for the connectors
-# you want to test are needed.
+# Copy this file to sdk-gen/tests.properties (gitignored) and fill in real
+# values.  Only the settings for the connectors you want to test are needed.
 #
 # KEY NAMING CONVENTION
 #   <connector-type>.<technology>.<key>
@@ -33,10 +32,8 @@ flight.ssl_certificate_validation=true
 # settings from the shared defaults above.
 # file.s3.flight.createLocal=false
 # file.s3.flight.uri=grpc+tls://my-s3-server:443
-# file.github.flight.port=<port number>
-# file.localfs.flight.ssl=false
-# jdbc.derby.flight.port=<port number>
-# jdbc.generic.flight.port=<port number>
+# file.github.flight.port=9443
+# jdbc.derby.flight.port=9444
 
 # =============================================================================
 # Amazon S3 file connector
@@ -105,30 +102,6 @@ file.localfs.test_work_dir=TEMP
 # jdbc.generic.database_name= # default: testdb
 # jdbc.generic.user_name=     # default: testuser
 # jdbc.generic.user_pass=     # default: random UUID
-
-# =============================================================================
-# Bundle connector
-# =============================================================================
-# bundle.derby.port=
-# bundle.derby.database_name=
-# bundle.derby.user_name=
-# bundle.derby.user_pass=
-# bundle.flight.port=
-# bundle.flight.ssl=true
-# bundle.flight.createLocal=true
-# bundle.flight.uri=
-# bundle.flight.ssl_certificate=
-# bundle.flight.ssl_certificate_validation=true
-
-# =============================================================================
-# No-op connector (internal testing only)
-# =============================================================================
-# noop.flight.port=
-
-# =============================================================================
-# Test connector (internal testing only)
-# =============================================================================
-# test.flight.port=
 
 # =============================================================================
 # Cloud test suite (optional — for running against a deployed CP4D instance)

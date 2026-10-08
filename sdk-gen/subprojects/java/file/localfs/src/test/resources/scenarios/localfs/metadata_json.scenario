@@ -1,0 +1,22 @@
+# ============================================================
+# LocalFS — getFlightInfo metadata assertions for a JSON file
+# ============================================================
+# Writes a known JSON file, then verifies the returned descriptor
+# carries the correct file_format and mime_type.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write a JSON file ────────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/meta_json.json
+Interaction.file_format=json
+Schema=id|integer; label|varchar
+Row.0=1|hello
+
+# ── Check returned interaction properties ───────────────────
+[Step]
+Type=Metadata
+Interaction.file_name=${work_dir}/meta_json.json
+ExpectedInteractionProperty.file_format=json
+ExpectedDetail.mime_type=application/json
+ExpectedSchemaFields=id|label
