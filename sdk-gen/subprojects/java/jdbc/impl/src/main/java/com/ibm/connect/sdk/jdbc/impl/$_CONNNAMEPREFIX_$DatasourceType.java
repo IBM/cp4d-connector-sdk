@@ -17,6 +17,7 @@ import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeDiscovery;
 import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypePropertyValues;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryAssetType;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathProperty;
+import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeOrigin;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathSegment;
 
 /**
@@ -52,6 +53,7 @@ public class $_CONNNAMEPREFIX_$DatasourceType extends CustomFlightDatasourceType
         setAllowedAsTarget(true);
         setStatus(CustomFlightDatasourceType.StatusEnum.ACTIVE);
         setTags(Collections.emptyList());
+        setOrigin(new DatasourceTypeOrigin().name("forge").version("1.0.0"));
         final CustomFlightDatasourceTypeProperties properties = new CustomFlightDatasourceTypeProperties();
         setProperties(properties);
 
