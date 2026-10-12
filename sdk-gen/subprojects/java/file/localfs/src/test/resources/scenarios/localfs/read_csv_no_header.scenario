@@ -1,0 +1,29 @@
+# ============================================================
+# LocalFS — read CSV with first_line_header=false
+# ============================================================
+# When the header row is treated as data, columns are named
+# _c0.._cN and the original header line becomes row 0.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write CSV with header row ────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/csv_no_header.csv
+Interaction.first_line_header=true
+Schema=year|integer; make|varchar; model|varchar
+Row.0=2012|Tesla|S
+Row.1=1997|Ford|E350
+Row.2=2015|Chevy|Volt
+
+# ── Read back without treating first row as header ───────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/csv_no_header.csv
+Interaction.first_line_header=false
+ExpectedColumns=_c0|_c1|_c2
+# 4 rows: original header row + 3 data rows
+ExpectedRowCount=4
+# Row 0 is the original header line
+ExpectedRows.0=year|make|model
+# Row 3 is the last data row
+ExpectedRows.3=2015|Chevy|Volt

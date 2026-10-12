@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2025                        */
+/* (C) Copyright IBM Corp. 2025, 2026                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.file.github;
@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -35,10 +36,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 
 import com.google.common.collect.Table;
-import com.ibm.connect.sdk.test.ConnectorTestSuite;
 import com.ibm.connect.sdk.test.TestConfig;
 import com.ibm.connect.sdk.test.TestFlight;
-import com.ibm.connect.sdk.util.ModelMapper;
+import com.ibm.connect.sdk.test.file.FileTestSuite;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightActionRequest;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
@@ -46,18 +46,48 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionProperties;
 
 /**
- * Tests a flight producer for GitHub.
+ * Tests the Arrow Flight producer for the GitHub connector.
+ *
+ * <p>All standard file connector tests (discovery contract, metadata,
+ * read, paging) are inherited from {@link FileTestSuite}.
+ * GitHub is read-only, so {@code createWriteInteractionProperties} returns
+ * {@code null} and all {@code testPutStream*} tests are skipped.
  */
-public class TestGitHubFlightProducer extends ConnectorTestSuite
+/**
+ * Tests the Arrow Flight producer for the GitHub connector.
+ *
+ * <p>All standard file connector tests (discovery contract, metadata,
+ * read, paging) are inherited from {@link FileTestSuite}.
+ * GitHub is read-only, so {@code createWriteInteractionProperties} returns
+ * {@code null} and all {@code testPutStream*} tests are skipped.
+ *
+ * <h3>Configuration — {@code tests.properties}</h3>
+ * <p>Create the file {@code sdk-gen/tests.properties} (gitignored) and populate
+ * it with the settings below.  The {@code access_token} is optional for public
+ * repos but required to avoid anonymous API rate limits.
+ *
+ * <pre>
+ * # ── GitHub connection ─────────────────────────────────────────────────────
+ * file_github.github.host=github.com        # or your GitHub Enterprise hostname
+ * file_github.github.repository_owner=apache
+ * file_github.github.repository_name=spark
+ * file_github.github.access_token=          # PAT — required to avoid rate limits
+ *
+ * # ── Flight server ─────────────────────────────────────────────────────────
+ * file_github.flight.createLocal=true
+ * file_github.flight.ssl=true
+ * # file_github.flight.port=                # blank = random free port
+ * # file_github.flight.uri=grpc+tls://host:port  (used when createLocal=false)
+ * # file_github.flight.ssl_certificate=          (PEM)
+ * file_github.flight.ssl_certificate_validation=true
+ * </pre>
+ *
+ * <p>All tests are skipped when {@code file_github.github.access_token} is absent.
+ */
+public class TestGitHubFlightProducer extends FileTestSuite
 {
     private static final Logger LOGGER = getLogger(TestGitHubFlightProducer.class);
-
     private static final String DATASOURCE_TYPE_NAME = GitHubDatasourceType.DATASOURCE_TYPE_NAME;
-
-    private static final String GITHUB_HOST = TestConfig.get("file_github.github.host", "github.com");
-    private static final String GITHUB_REPOSITORY_OWNER = TestConfig.get("file_github.github.repository_owner", "apache");
-    private static final String GITHUB_REPOSITORY_NAME = TestConfig.get("file_github.github.repository_name", "spark");
-    private static final String GITHUB_ACCESS_TOKEN = TestConfig.get("file_github.github.access_token");
 
     private static final String BRANCH_NAME = "master";
     private static final String BRANCH_PATH = "/" + BRANCH_NAME;
@@ -97,19 +127,17 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
     private static final String XML_FILE_NAME = "cars.xml";
     private static final String XML_FILE_PATH = TEST_DATA_PATH + "/xml-resources/" + XML_FILE_NAME;
 
-    private static ModelMapper modelMapper = new ModelMapper();
-
     private static TestFlight testFlight;
     private static FlightClient client;
     private static TimeZone defaultTimeZone;
+    private static final GitHubConfig GH = new GitHubConfig();
 
-    /**
-     * Verifies that test configuration has been specified before running tests.
-     */
+    /** Skip every test when the GitHub host is not configured. */
     @Before
     public void setUp()
     {
-        assumeNotNull(GITHUB_ACCESS_TOKEN);
+        assumeNotNull("GitHub host not configured — set file.github.host in tests.properties",
+                GH.host);
     }
 
     /**
@@ -120,37 +148,16 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
     @BeforeClass
     public static void setUpOnce() throws Exception
     {
-        if (Boolean.parseBoolean(TestConfig.get("file_github.flight.createLocal", "true"))) {
-            final boolean useSSL = Boolean.parseBoolean(TestConfig.get("file_github.flight.ssl", "true"));
-            testFlight = TestFlight.createLocal(TestConfig.getPort("file_github.flight.port"), useSSL, new GitHubFlightProducer(), null);
+        if (GH.flight.createLocal) {
+            testFlight = TestFlight.createLocal(GH.flight.port, GH.flight.useSSL, new GitHubFlightProducer(), null);
         } else {
-            final boolean verifyCert = Boolean.parseBoolean(TestConfig.get("file_github.flight.ssl_certificate_validation", "true"));
-            testFlight
-                    = TestFlight.createRemote(TestConfig.get("file_github.flight.uri.internal", TestConfig.get("file_github.flight.uri")),
-                            TestConfig.get("file_github.flight.ssl_certificate"), verifyCert, null);
+            testFlight = TestFlight.createRemote(GH.flight.remoteUri, GH.flight.sslCertificate, GH.flight.verifyCertificate, null);
         }
         client = testFlight.getClient();
         defaultTimeZone = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
     }
 
-    private static ConnectionProperties createGitHubConnectionProperties()
-    {
-        final ConnectionProperties connectionProperties = new ConnectionProperties();
-        connectionProperties.put("host", GITHUB_HOST);
-        connectionProperties.put("repository_owner", GITHUB_REPOSITORY_OWNER);
-        connectionProperties.put("repository_name", GITHUB_REPOSITORY_NAME);
-        if (GITHUB_ACCESS_TOKEN != null) {
-            connectionProperties.put("access_token", GITHUB_ACCESS_TOKEN);
-        }
-        return connectionProperties;
-    }
-
-    /**
-     * Cleanup after tests.
-     *
-     * @throws Exception
-     */
     @AfterClass
     public static void tearDownOnce()
     {
@@ -178,7 +185,113 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
     @Override
     protected ConnectionProperties createConnectionProperties()
     {
-        return createGitHubConnectionProperties();
+        final ConnectionProperties props = new ConnectionProperties();
+        props.put("host", GH.host);
+        props.put("repository_owner", GH.repositoryOwner);
+        props.put("repository_name", GH.repositoryName);
+        if (GH.accessToken != null) {
+            props.put("access_token", GH.accessToken);
+        }
+        return props;
+    }
+
+    // -----------------------------------------------------------------------
+    // FileTestSuite abstract hooks
+    // -----------------------------------------------------------------------
+
+    /** Root lists branches — "/" returns one FlightInfo per branch. */
+    @Override
+    protected String getRootPath()
+    {
+        return "/";
+    }
+
+    /**
+     * A branch path used for folder/file listing tests (e.g. {@code "/master"}).
+     */
+    @Override
+    protected String getContainerPath()
+    {
+        return BRANCH_PATH;
+    }
+
+    /**
+     * Interaction properties that read the canonical cars.csv test file from
+     * the apache/spark repository on the master branch.
+     */
+    @Override
+    protected DiscoveredAssetInteractionProperties createReadInteractionProperties()
+    {
+        final DiscoveredAssetInteractionProperties props = new DiscoveredAssetInteractionProperties();
+        props.put("branch_name", BRANCH_NAME);
+        props.put("file_name", CSV_FILE_PATH);
+        return props;
+    }
+
+    /** Full discovery path for the canonical readable file. */
+    @Override
+    protected String getKnownFilePath()
+    {
+        return BRANCH_PATH + '/' + CSV_FILE_PATH;
+    }
+
+    /** Just the file-name segment expected in the discovered descriptor. */
+    @Override
+    protected String getKnownFileName()
+    {
+        return CSV_FILE_NAME;
+    }
+
+    /**
+     * GitHub is read-only — returning {@code null} skips all write tests.
+     */
+    @Override
+    protected DiscoveredAssetInteractionProperties createWriteInteractionProperties(String uniqueSuffix)
+    {
+        return null;
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario support
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns scenario files to run via {@link FileTestSuite#testScenarios()}.
+     * Skipped automatically when credentials are absent.
+     */
+    @Override
+    protected String getScenarioPrefix()
+    {
+        return "github";
+    }
+
+    @Override
+    protected List<String> getScenarioPaths()
+    {
+        if (!GH.isConfigured()) {
+            return Collections.emptyList();
+        }
+        return scenarioPaths(
+                "discover_root.scenario",
+                "discover_branch.scenario",
+                "read_csv.scenario",
+                "read_csv_no_header.scenario",
+                "read_csv_comment.scenario",
+                "read_csv_encoding.scenario",
+                "read_csv_null_value.scenario",
+                "read_csv_row_delimiter.scenario",
+                "read_delimited_pipe.scenario",
+                "read_csv_infer_schema.scenario",
+                "read_json.scenario",
+                "read_orc.scenario",
+                "read_parquet.scenario",
+                "read_xml.scenario",
+                "metadata_csv.scenario",
+                "metadata_json.scenario",
+                "metadata_orc.scenario",
+                "metadata_parquet.scenario",
+                "metadata_xml.scenario",
+                "negative_missing_file.scenario");
     }
 
     /**
@@ -194,7 +307,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         request.setConnectionProperties(createConnectionProperties());
         request.getConnectionProperties().remove("host");
         try {
-            getClient().doAction(new Action("validate", modelMapper.toBytes(request))).next();
+            getClient().doAction(new Action("validate", MODEL_MAPPER.toBytes(request))).next();
             fail("Exception expected");
         }
         catch (Exception e) {
@@ -215,10 +328,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath("/");
         final List<String> branches = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("branch", descriptor.getAssetType().getType());
             assertFalse(descriptor.getAssetType().isDataset());
@@ -247,10 +360,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setOffset(2);
         criteria.setLimit(3);
         final List<String> branches = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             branches.add(descriptor.getId());
         }
         assertEquals(3, branches.size());
@@ -269,10 +382,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(BRANCH_PATH);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             if ("folder".equals(descriptor.getAssetType().getType())) {
                 assertFalse(descriptor.getAssetType().isDataset());
@@ -306,10 +419,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setOffset(2);
         criteria.setLimit(3);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             files.add(descriptor.getId());
         }
         assertEquals(3, files.size());
@@ -329,10 +442,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("file", descriptor.getAssetType().getType());
             assertTrue(descriptor.getAssetType().isDataset());
@@ -377,10 +490,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("file", descriptor.getAssetType().getType());
             assertTrue(descriptor.getAssetType().isDataset());
@@ -420,10 +533,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("file", descriptor.getAssetType().getType());
             assertTrue(descriptor.getAssetType().isDataset());
@@ -460,10 +573,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("file", descriptor.getAssetType().getType());
             assertTrue(descriptor.getAssetType().isDataset());
@@ -500,10 +613,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("file", descriptor.getAssetType().getType());
             assertTrue(descriptor.getAssetType().isDataset());
@@ -540,10 +653,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         criteria.setConnectionProperties(createConnectionProperties());
         criteria.setPath(filePath);
         final List<String> files = new ArrayList<>();
-        for (final FlightInfo info : getClient().listFlights(new Criteria(modelMapper.toBytes(criteria)))) {
+        for (final FlightInfo info : getClient().listFlights(new Criteria(MODEL_MAPPER.toBytes(criteria)))) {
             final FlightDescriptor flightDescriptor = info.getDescriptor();
             final CustomFlightAssetDescriptor descriptor
-                    = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                    = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
             assertNotNull(descriptor.getAssetType());
             assertEquals("file", descriptor.getAssetType().getType());
             assertTrue(descriptor.getAssetType().isDataset());
@@ -571,6 +684,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
      *
      * @throws Exception
      */
+    @Override
     @Test
     public void testGetFlightInfo() throws Exception
     {
@@ -581,10 +695,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(CSV_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("csv", returnedDescriptor.getInteractionProperties().get("file_format"));
@@ -615,10 +729,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(CSV_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("csv", returnedDescriptor.getInteractionProperties().get("file_format"));
@@ -662,10 +776,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_FILE_PATH);
         interactionProperties.put("first_line_header", "false");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(CSV_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("csv", returnedDescriptor.getInteractionProperties().get("file_format"));
@@ -708,10 +822,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_COMMENT_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(CSV_COMMENT_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("csv", returnedDescriptor.getInteractionProperties().get("file_format"));
@@ -761,10 +875,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("encoding", "iso-8859-1");
         interactionProperties.put("first_line_header", "true");
         interactionProperties.put("field_delimiter_value", "\u00FE");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(CSV_ENCODING_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("csv", returnedDescriptor.getInteractionProperties().get("file_format"));
@@ -809,7 +923,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_INFER_SCHEMA_FILE_PATH);
         interactionProperties.put("infer_schema", "false");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(3, schema.getFields().size());
         assertEquals("date", schema.getFields().get(0).getName());
@@ -841,7 +955,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_INFER_SCHEMA_FILE_PATH);
         interactionProperties.put("infer_schema", "true");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(3, schema.getFields().size());
         assertEquals("date", schema.getFields().get(0).getName());
@@ -873,7 +987,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_NULL_VALUE_FILE_PATH);
         interactionProperties.put("null_value", "null");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(5, schema.getFields().size());
         assertEquals("year", schema.getFields().get(0).getName());
@@ -910,10 +1024,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_ROW_DELIMITER_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(CSV_ROW_DELIMITER_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("csv", returnedDescriptor.getInteractionProperties().get("file_format"));
@@ -957,10 +1071,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", DELIMITED_PIPE_FILE_PATH);
         interactionProperties.put("quote_character_value", "'");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(DELIMITED_PIPE_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("csv", returnedDescriptor.getInteractionProperties().get("file_format"));
@@ -1004,7 +1118,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", JSON_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(2, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -1030,7 +1144,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", ORC_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(1, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -1054,10 +1168,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", ORC_SNAPPY_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(ORC_SNAPPY_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("application/octet-stream", returnedDescriptor.getDetails().get("mime_type"));
@@ -1083,7 +1197,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", PARQUET_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(1, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -1107,10 +1221,10 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", PARQUET_SNAPPY_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final FlightDescriptor flightDescriptor = info.getDescriptor();
         final CustomFlightAssetDescriptor returnedDescriptor
-                = modelMapper.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
+                = MODEL_MAPPER.fromBytes(flightDescriptor.getCommand(), CustomFlightAssetDescriptor.class);
         assertEquals(BRANCH_NAME, returnedDescriptor.getInteractionProperties().get("branch_name"));
         assertEquals(PARQUET_SNAPPY_FILE_PATH, returnedDescriptor.getInteractionProperties().get("file_name"));
         assertEquals("application/x-parquet", returnedDescriptor.getDetails().get("mime_type"));
@@ -1139,7 +1253,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         descriptor.setInteractionProperties(interactionProperties);
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", XML_FILE_PATH);
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(4, schema.getFields().size());
         assertEquals("comment", schema.getFields().get(0).getName());
@@ -1174,7 +1288,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_BOOLEAN_FILE_PATH);
         interactionProperties.put("infer_schema", "true");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(1, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -1200,7 +1314,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", CSV_DECIMAL_FILE_PATH);
         interactionProperties.put("infer_schema", "true");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(3, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -1236,7 +1350,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("nan_value", "NAN");
         interactionProperties.put("negative_infinity_value", "-INF");
         interactionProperties.put("positive_infinity_value", "INF");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(4, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -1256,6 +1370,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
      *
      * @throws Exception
      */
+    @Override
     @Test
     public void testGetStreamRowLimit() throws Exception
     {
@@ -1267,7 +1382,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", ORC_FILE_PATH);
         interactionProperties.put("row_limit", "1000");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(1, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
@@ -1281,6 +1396,7 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
      *
      * @throws Exception
      */
+    @Override
     @Test
     public void testGetStreamByteLimit() throws Exception
     {
@@ -1292,12 +1408,38 @@ public class TestGitHubFlightProducer extends ConnectorTestSuite
         interactionProperties.put("branch_name", BRANCH_NAME);
         interactionProperties.put("file_name", ORC_FILE_PATH);
         interactionProperties.put("byte_limit", "1000");
-        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(modelMapper.toBytes(descriptor)));
+        final FlightInfo info = getClient().getInfo(FlightDescriptor.command(MODEL_MAPPER.toBytes(descriptor)));
         final Schema schema = info.getSchemaOptional().get();
         assertEquals(1, schema.getFields().size());
         final Table<Integer, Integer, Object> data = getTableData(info);
         assertEquals(100, data.size());
         assertEquals("row 000000", data.get(0, 0));
         assertEquals("row 000099", data.get(99, 0));
+    }
+
+    // -----------------------------------------------------------------------
+    // Connector-scoped configuration — all sourced from tests.properties
+    // -----------------------------------------------------------------------
+
+    /**
+     * All GitHub test settings resolved from {@code tests.properties} at
+     * class-load time.
+     */
+    private static final class GitHubConfig
+    {
+        // Connection
+        final String host            = TestConfig.get("file.github.host", "github.com");
+        final String repositoryOwner = TestConfig.get("file.github.repository_owner", "apache");
+        final String repositoryName  = TestConfig.get("file.github.repository_name", "spark");
+        final String accessToken     = TestConfig.get("file.github.access_token");
+
+        // Flight server — shared config with per-connector override support
+        final TestConfig.FlightConfig flight = TestConfig.flightConfig("file.github");
+
+        /** Returns true when an access token is present. */
+        boolean isConfigured()
+        {
+            return accessToken != null;
+        }
     }
 }

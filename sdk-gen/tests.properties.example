@@ -1,0 +1,124 @@
+# =============================================================================
+# tests.properties — SDK test configuration template
+#
+# Copy this file to sdk-gen/tests.properties (gitignored) and fill in real
+# values.  Only the settings for the connectors you want to test are needed.
+#
+# KEY NAMING CONVENTION
+#   <connector-type>.<technology>.<key>
+#   e.g.  file.s3.bucket,  jdbc.derby.port,  file.github.access_token
+#
+# INTERPOLATION: values may reference other keys with the #key# syntax:
+#   file.s3.base=test-data/
+#   file.s3.csv_key=#file.s3.base#cars.csv
+#
+# ENCRYPTION: wrap secrets with the encrypted.{{ }} marker (produced by
+#   EncryptUtil -e <plaintext>):
+#   file.s3.secret_access_key=encrypted.{{<base64-ciphertext>}}
+#
+# =============================================================================
+
+# =============================================================================
+# Shared Flight-server defaults (apply to every connector unless overridden)
+# =============================================================================
+flight.createLocal=true
+flight.ssl=true
+# flight.port=                           # blank = random free port
+# flight.uri=grpc+tls://host:port        # used when createLocal=false
+# flight.ssl_certificate=                # PEM certificate content
+flight.ssl_certificate_validation=true
+
+# Per-connector overrides — set only when a connector needs different Flight
+# settings from the shared defaults above.
+# file.s3.flight.createLocal=false
+# file.s3.flight.uri=grpc+tls://my-s3-server:443
+# file.github.flight.port=9443
+# jdbc.derby.flight.port=9444
+
+# =============================================================================
+# Amazon S3 file connector
+# =============================================================================
+
+# ── Connection ────────────────────────────────────────────────────────────────
+# file.s3.access_key_id=AKIA...
+# file.s3.secret_access_key=...
+# file.s3.bucket=my-bucket
+# file.s3.region=us-east-1
+# Optional — for S3-compatible stores (MinIO, LocalStack):
+# file.s3.endpoint_url=http://localhost:9000
+
+# ── Test work bucket (isolated write/delete sandbox) ─────────────────────────
+# TEMP   — verifyTestWorkDir creates a dedicated bucket (sdk-test-<uuid>)
+#          and cleanTestWorkDir destroys it after the run.  Recommended.
+# <name> — an existing, empty bucket you own exclusively for test use;
+#          cleanTestWorkDir empties it but does not delete it.
+#
+# When absent, write scenarios and write tests are skipped automatically.
+# file.s3.test_work_dir=TEMP
+
+# =============================================================================
+# GitHub file connector
+# =============================================================================
+
+# ── Connection ────────────────────────────────────────────────────────────────
+file.github.host=github.com
+file.github.repository_owner=apache
+file.github.repository_name=spark
+# file.github.access_token=             # PAT — required to avoid rate limits
+
+# ── Mode A (default): liveness tests against the public apache/spark repo ─────
+# No additional configuration required.
+
+# ── Mode B (optional): tests against your own controlled repository ───────────
+# file.github.test_repo_owner=my-org
+# file.github.test_repo_name=connector-test-data
+# file.github.test_branch=main
+# file.github.test_csv_path=data/cars.csv
+
+# =============================================================================
+# LocalFS file connector (no credentials needed)
+# =============================================================================
+
+# ── Test work directory (isolated write/delete sandbox) ──────────────────────
+# TEMP   — auto-provisioned temp directory.  Recommended; also the default
+#          when this property is absent.
+# <path> — an existing, empty directory you own exclusively for test use.
+file.localfs.test_work_dir=TEMP
+
+# =============================================================================
+# Derby JDBC connector (no external service needed)
+# =============================================================================
+# Note: host is always localhost — Derby is started in-process by the test.
+# jdbc.derby.port=          # blank = random free port
+# jdbc.derby.database_name= # default: testdb
+# jdbc.derby.user_name=     # default: testuser
+# jdbc.derby.user_pass=     # default: random UUID
+
+# =============================================================================
+# Generic JDBC connector (no external service needed)
+# =============================================================================
+# Note: host is always localhost — Derby is started in-process by the test.
+# jdbc.generic.port=          # blank = random free port
+# jdbc.generic.database_name= # default: testdb
+# jdbc.generic.user_name=     # default: testuser
+# jdbc.generic.user_pass=     # default: random UUID
+
+# =============================================================================
+# Cloud test suite (optional — for running against a deployed CP4D instance)
+# =============================================================================
+
+cloud.type=private
+# cloud.private.host=
+# cloud.private.flight.host=
+# cloud.private.ssl_certificate=
+cloud.private.ssl_certificate_validation=true
+# cloud.private.user_name=
+# cloud.private.user_pass=
+cloud.private.container_type=project
+# cloud.private.container_id=
+
+# cloud.public.host=api.dataplatform.cloud.ibm.com
+# cloud.public.iam_url=https://iam.cloud.ibm.com
+# cloud.public.api_key=
+# cloud.public.container_type=project
+# cloud.public.container_id=

@@ -1,0 +1,11 @@
+# ============================================================
+# GitHub — getFlightInfo for XML file
+# ============================================================
+
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/xml-resources/cars.xml
+ExpectedInteractionProperty.file_format=xml
+ExpectedDetail.mime_type=application/xml
+ExpectedSchemaFields=comment|make|model|year

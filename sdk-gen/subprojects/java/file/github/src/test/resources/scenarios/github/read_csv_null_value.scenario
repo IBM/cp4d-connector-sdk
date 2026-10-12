@@ -1,0 +1,18 @@
+# ============================================================
+# GitHub — read cars-null.csv with null_value=null
+# ============================================================
+# The file uses the string "null" to represent missing values.
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars-null.csv
+Interaction.null_value=null
+ExpectedColumns=year|make|model|comment|blank
+ExpectedRowCount=3
+# Row 0: year=2012, make=Tesla, model=S, comment=<null>, blank=<null>
+ExpectedRows.0=2012|Tesla|S|<NULL>|<NULL>
+# Row 2: year=<null> (the original file has "null" there)
+ExpectedCell.2.0=<NULL>
+ExpectedCell.2.1=Chevy
+ExpectedCell.2.2=Volt

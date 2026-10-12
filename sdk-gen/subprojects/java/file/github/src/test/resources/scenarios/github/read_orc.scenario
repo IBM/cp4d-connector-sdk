@@ -1,0 +1,31 @@
+# ============================================================
+# GitHub — read ORC file (32 768 rows, 1 column)
+# ============================================================
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/TestStringDictionary.testRowIndex.orc
+ExpectedRowCount=32768
+ExpectedCell.0.0=row 000000
+ExpectedCell.32767.0=row 032767
+
+[Step]
+# row_limit must cap at 1000
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/TestStringDictionary.testRowIndex.orc
+Interaction.row_limit=1000
+ExpectedRowCount=1000
+ExpectedCell.0.0=row 000000
+ExpectedCell.999.0=row 000999
+
+[Step]
+# byte_limit=1000 must return only 100 rows
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/TestStringDictionary.testRowIndex.orc
+Interaction.byte_limit=1000
+ExpectedRowCount=100
+ExpectedCell.0.0=row 000000
+ExpectedCell.99.0=row 000099

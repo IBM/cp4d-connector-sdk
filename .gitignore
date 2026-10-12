@@ -7,3 +7,6 @@
 /node_modules
 package-lock.json
 package.json
+
+# Developer test credentials — never commit real values
+sdk-gen/tests.properties

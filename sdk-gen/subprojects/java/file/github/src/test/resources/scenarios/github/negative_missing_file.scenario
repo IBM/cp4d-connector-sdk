@@ -1,0 +1,10 @@
+# ============================================================
+# GitHub — negative: read a file that does not exist
+# ============================================================
+# The connector must throw an exception; message should indicate
+# the file was not found.
+
+[Step]
+Type=NegativeRead
+Interaction.branch_name=master
+Interaction.file_name=this/file/does/not/exist.csv

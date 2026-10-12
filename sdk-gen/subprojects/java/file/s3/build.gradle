@@ -54,7 +54,25 @@ dependencies {
 test {
   systemProperties = System.properties
   systemProperties.remove("java.endorsed.dirs")
+  systemProperties['buildDir'] = project.buildDir.absolutePath
   testLogging {
     events "PASSED", "SKIPPED", "FAILED"
   }
 }
+
+// S3 work-bucket provisioning and cleanup are handled inside @BeforeClass /
+// @AfterClass in TestAWSS3FlightProducer (where the S3Client is available).
+// These stubs keep the task-name contract consistent with other connectors so
+// CI scripts can call verifyTestWorkDir / cleanTestWorkDir uniformly.
+task verifyTestWorkDir {
+  description = 'No-op: S3 work-bucket provisioning is handled inside the test class.'
+  group = 'verification'
+}
+
+task cleanTestWorkDir {
+  description = 'No-op: S3 work-bucket cleanup is handled inside the test class.'
+  group = 'verification'
+}
+
+test.dependsOn verifyTestWorkDir
+test.finalizedBy cleanTestWorkDir

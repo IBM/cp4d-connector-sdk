@@ -1,0 +1,10 @@
+# ============================================================
+# S3 — negative: read a key that does not exist
+# ============================================================
+# The connector must throw an exception when the S3 object
+# is not found. No credentials or test data required beyond
+# having a valid connection.
+
+[Step]
+Type=NegativeRead
+Interaction.file_name=/this/key/does/not/exist/at/all_xyz_abc.csv

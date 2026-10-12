@@ -1,0 +1,32 @@
+# ============================================================
+# LocalFS — write + read back different data types
+# Each step is self-contained: write creates the file, read
+# verifies it, discover confirms it appears in the work dir.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+# ============================================================
+
+# ── Write a typed CSV ──────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/scenario_types.csv
+Interaction.first_line_header=true
+Schema=id|integer; label|varchar; flag|boolean
+Row.0=1|Alice|true
+Row.1=2|Bob|false
+Row.2=3|<NULL>|true
+
+# ── Read back and verify full content ──────────────────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/scenario_types.csv
+ExpectedColumns=id|label|flag
+ExpectedRowCount=3
+ExpectedRows.0=1|Alice|true
+ExpectedRows.1=2|Bob|false
+ExpectedRows.2=3|<NULL>|true
+
+# ── Discover: file must appear in work-dir listing ──────────
+[Step]
+Type=Discover
+Path=${work_dir}
+ExpectedContains=scenario_types.csv

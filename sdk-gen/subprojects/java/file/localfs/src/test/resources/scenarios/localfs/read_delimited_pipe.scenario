@@ -1,0 +1,28 @@
+# ============================================================
+# LocalFS — read pipe-delimited file (field_delimiter_value=|)
+# ============================================================
+# Writes a CSV with comma delimiter, then reads it back
+# requesting pipe as the field delimiter to verify the connector
+# honours the override.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write a pipe-delimited file ──────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/pipe_delimited.csv
+Interaction.first_line_header=true
+Interaction.field_delimiter_value=|
+Schema=year|integer; make|varchar; model|varchar
+Row.0=2012|Tesla|S
+Row.1=1997|Ford|E350
+Row.2=2015|Chevy|Volt
+
+# ── Read back with pipe delimiter ────────────────────────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/pipe_delimited.csv
+Interaction.field_delimiter_value=|
+ExpectedColumns=year|make|model
+ExpectedRowCount=3
+ExpectedRows.0=2012|Tesla|S
+ExpectedRows.2=2015|Chevy|Volt
