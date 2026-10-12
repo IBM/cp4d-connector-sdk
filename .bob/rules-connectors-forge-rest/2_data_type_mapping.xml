@@ -20,9 +20,9 @@
         <primary>VARCHAR</primary>
         <alternatives>
           <type>CHAR - for fixed-length strings</type>
-          <type>DATE - if string represents date (YYYY-MM-DD)</type>
-          <type>TIME - if string represents time (HH:MM:SS)</type>
-          <type>TIMESTAMP - if string represents date-time (ISO 8601)</type>
+          <type>DATE - if string represents a date only (YYYY-MM-DD, no time component)</type>
+          <type>TIME - if string represents time only (HH:MM:SS)</type>
+          <type>TIMESTAMP - if string represents date-time in ANY format (ISO 8601, space-separated, etc.)</type>
         </alternatives>
       </sql_types>
       <examples>
@@ -255,10 +255,18 @@
       <mapping>created_at: "TIMESTAMP"</mapping>
     </case>
 
+    <case name="space_separated_datetime_strings">
+      <description>Date-time strings with a space separator (common in databases and APIs like ServiceNow)</description>
+      <json_example>"opened_at": "2021-08-19 19:59:54"</json_example>
+      <mapping>opened_at: "TIMESTAMP"</mapping>
+      <note>Use TIMESTAMP, not DATE — the value carries time information</note>
+    </case>
+
     <case name="date_only_strings">
-      <description>Date-only strings</description>
+      <description>Date-only strings — NO time component present at all</description>
       <json_example>"birth_date": "1990-05-15"</json_example>
       <mapping>birth_date: "DATE"</mapping>
+      <note>Only use DATE when the value is strictly YYYY-MM-DD with no time portion</note>
     </case>
 
     <case name="enum_strings">
@@ -343,10 +351,11 @@
           <sub_question>Does it represent a date/time?</sub_question>
           <if_datetime_yes>
             <options>
-              <option>Date only (YYYY-MM-DD): DATE</option>
+              <option>Date only, strictly YYYY-MM-DD with no time component: DATE</option>
               <option>Time only (HH:MM:SS): TIME</option>
-              <option>Date and time (ISO 8601): TIMESTAMP</option>
+              <option>Date and time in ANY format (ISO 8601 "2023-01-15T10:30:00Z", space-separated "2021-08-19 19:59:54", etc.): TIMESTAMP</option>
             </options>
+            <default_rule>When in doubt between DATE and TIMESTAMP, prefer TIMESTAMP — it is a superset and handles both</default_rule>
           </if_datetime_yes>
           <if_datetime_no>Use VARCHAR</if_datetime_no>
         </if_yes>
