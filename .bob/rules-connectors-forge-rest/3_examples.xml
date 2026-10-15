@@ -1293,6 +1293,258 @@
       be used in any combination as needed.
     </important>
   </example>
+
+  <example name="path_keys_simple">
+    <title>Enumerated Path Variable — Single Lookup Step ($path_keys)</title>
+    <description>
+      JSONPlaceholder API — demonstrates $path_keys with a single lookup step.
+      Comments can only be retrieved per-post via /posts/{postId}/comments.
+      postId is NOT a fixed account constant — it must be enumerated by calling /posts first.
+      $path_keys is declared INSIDE the table definition that needs it.
+    </description>
+
+    <path_variable_analysis>
+      Endpoint template: /posts/{postId}/comments
+      Question: Is postId the same for all requests from this connection?
+      Answer: No — there are many posts; postId values are discovered from /posts at read time.
+      Decision: → Use $path_keys inside the table (CASE B).  Do NOT use $path_properties.
+    </path_variable_analysis>
+
+    <api_info>
+      <base_url>https://jsonplaceholder.typicode.com</base_url>
+      <authentication>none</authentication>
+      <endpoints>
+        <endpoint>/posts                     (lookup source — fetches all posts to obtain IDs)</endpoint>
+        <endpoint>/posts/{postId}/comments   (target — one request per postId value)</endpoint>
+      </endpoints>
+    </api_info>
+
+    <sample_response endpoint="/posts">
+      <![CDATA[
+[
+  { "userId": 1, "id": 1, "title": "Post title", "body": "Post body" },
+  { "userId": 1, "id": 2, "title": "Another post", "body": "Another body" }
+]
+      ]]>
+    </sample_response>
+
+    <sample_response endpoint="/posts/1/comments">
+      <![CDATA[
+[
+  {
+    "postId": 1,
+    "id": 1,
+    "name": "id labore ex et quam laborum",
+    "email": "Eliseo@gardner.biz",
+    "body": "laudantium enim quasi est quidem"
+  }
+]
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "jsonplaceholder-connector",
+  "$connector_label": "JSONPlaceholder",
+  "$connector_description": "Connector for JSONPlaceholder fake REST API",
+  "$origin": { "name": "connector_forge", "version": "1.0.0" },
+  "$hostname": "https://jsonplaceholder.typicode.com",
+  "$authentication": { "type": "none" },
+  "$tables": {
+    "POST_COMMENTS": {
+      "$path": ["/posts/$postId/comments"],
+      "$path_keys": [
+        {
+          "variable": "postId",
+          "source_path": "/posts",
+          "source_field": "id"
+        }
+      ],
+      "id": "INTEGER,$key",
+      "postId": "INTEGER",
+      "name": "VARCHAR",
+      "email": "VARCHAR",
+      "body": "VARCHAR"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$path_keys placement</field>
+        <reason>
+          Declared INSIDE the POST_COMMENTS table definition, not at the connector root.
+          Only this table needs postId enumeration; other tables in the same connector
+          that do not use $postId are unaffected.
+        </reason>
+      </decision>
+      <decision>
+        <field>$path_keys[0].variable = "postId"</field>
+        <reason>
+          Matches the $postId placeholder in the $path string.
+          The engine calls /posts, extracts the "id" field from each element,
+          then issues /posts/1/comments, /posts/2/comments, etc.
+        </reason>
+      </decision>
+      <decision>
+        <field>postId column in table</field>
+        <type>INTEGER</type>
+        <reason>
+          postId appears in each comment object as a regular data field.
+          Mapping it lets users filter by postId in SQL queries.
+        </reason>
+      </decision>
+    </mapping_decisions>
+  </example>
+
+  <example name="path_keys_chained">
+    <title>Enumerated Path Variable — Two-Step Chained Lookup ($path_keys)</title>
+    <description>
+      Project management API — demonstrates chained $path_keys where the second lookup step
+      references a variable resolved by the first step.
+      Goal: fetch all tasks across all projects across all organisations.
+      Endpoint: /api/{org_slug}/projects/{project_id}/tasks
+      Step 1: enumerate org_slug by calling /api/organizations
+      Step 2: enumerate project_id by calling /api/{org_slug}/projects (depends on step 1)
+      Both entries live inside the TASKS table definition, in dependency order.
+    </description>
+
+    <path_variable_analysis>
+      Endpoint template: /api/{org_slug}/projects/{project_id}/tasks
+      org_slug:   NOT a connection constant — enumerate from /api/organizations → $path_keys step 1
+      project_id: NOT a connection constant — enumerate from /api/{org_slug}/projects → $path_keys step 2
+      Decision: Two-entry $path_keys inside the TASKS table, org_slug entry first.
+    </path_variable_analysis>
+
+    <api_info>
+      <base_url>https://api.example-pm.com</base_url>
+      <authentication>api_key</authentication>
+      <endpoints>
+        <endpoint>/api/organizations                          (lookup step 1)</endpoint>
+        <endpoint>/api/{org_slug}/projects                    (lookup step 2 — uses org_slug from step 1)</endpoint>
+        <endpoint>/api/{org_slug}/projects/{project_id}/tasks (target)</endpoint>
+      </endpoints>
+    </api_info>
+
+    <sample_response endpoint="/api/organizations">
+      <![CDATA[
+[
+  { "slug": "acme", "name": "Acme Corp" },
+  { "slug": "globex", "name": "Globex Inc" }
+]
+      ]]>
+    </sample_response>
+
+    <sample_response endpoint="/api/acme/projects">
+      <![CDATA[
+{
+  "projects": [
+    { "id": 101, "name": "Alpha", "org_slug": "acme" },
+    { "id": 102, "name": "Beta",  "org_slug": "acme" }
+  ]
+}
+      ]]>
+      <note>Response wraps the array in a "projects" envelope — source_data_path needed.</note>
+    </sample_response>
+
+    <sample_response endpoint="/api/acme/projects/101/tasks">
+      <![CDATA[
+[
+  {
+    "id": 5001,
+    "name": "Design mockups",
+    "status": "in_progress",
+    "due_date": "2024-06-30T00:00:00Z"
+  }
+]
+      ]]>
+    </sample_response>
+
+    <configuration>
+      <![CDATA[
+{
+  "$connector_name": "example-pm-connector",
+  "$connector_label": "Example PM API",
+  "$connector_description": "Connector for the Example Project Management API",
+  "$origin": { "name": "connector_forge", "version": "1.0.0" },
+  "$hostname": "https://api.example-pm.com",
+  "$authentication": {
+    "type": "api_key",
+    "headers": [
+      {
+        "name": "api_key",
+        "label": "API Key",
+        "description": "Your Example PM API key",
+        "masked": true,
+        "header": "Authorization",
+        "value": "ApiKey $api_key"
+      }
+    ]
+  },
+  "$tables": {
+    "TASKS": {
+      "$path": ["/api/$org_slug/projects/$project_id/tasks"],
+      "$path_keys": [
+        {
+          "variable": "org_slug",
+          "source_path": "/api/organizations",
+          "source_field": "slug"
+        },
+        {
+          "variable": "project_id",
+          "source_path": "/api/$org_slug/projects",
+          "source_field": "id",
+          "source_data_path": "projects"
+        }
+      ],
+      "id": "INTEGER,$key",
+      "name": "VARCHAR",
+      "status": "VARCHAR",
+      "due_date": "TIMESTAMP"
+    }
+  }
+}
+      ]]>
+    </configuration>
+
+    <mapping_decisions>
+      <decision>
+        <field>$path_keys ordering</field>
+        <reason>
+          org_slug entry MUST come before project_id entry because project_id's source_path
+          (/api/$org_slug/projects) references $org_slug, which is resolved by the first entry.
+          The engine resolves entries sequentially; each step's variables are available to all subsequent steps.
+        </reason>
+      </decision>
+      <decision>
+        <field>$path_keys[1].source_data_path = "projects"</field>
+        <reason>
+          /api/{org_slug}/projects returns {"projects": [...]}, not a bare array.
+          source_data_path unwraps the envelope so the engine iterates the inner array correctly.
+          Without it the engine would try to iterate the wrapper object and fail to find "id".
+        </reason>
+      </decision>
+      <decision>
+        <field>$path_keys[0].source_field = "slug"</field>
+        <reason>
+          Each organisation object has a "slug" field (not "id") — this string value
+          populates $org_slug in subsequent source_path calls and in the final $path.
+        </reason>
+      </decision>
+    </mapping_decisions>
+
+    <key_insight>
+      When chaining $path_keys entries:
+      1. Always list entries in dependency order (prerequisite steps first).
+      2. Use source_data_path whenever the lookup response wraps the array in an envelope key.
+      3. Each resolved variable is automatically available to ALL subsequent source_path values.
+      4. The target $path may reference ALL resolved variables ($org_slug AND $project_id here).
+    </key_insight>
+  </example>
+
 </configuration_examples>
 
 <!-- Made with Bob -->

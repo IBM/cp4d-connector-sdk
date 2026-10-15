@@ -307,11 +307,29 @@
           - Identify path parameters (e.g., /api/users/{id})
           - Note query parameters if relevant
           - Understand endpoint semantics (collection vs single item)
-          - IMPORTANT: Check whether any path segment is a single, account-wide constant
-            (e.g., merchant_id, company_id, org_id, account_id).
-            These are NOT row-level foreign keys — they are the same for every request
-            the user will ever make from this connection.
-            Such values MUST become $path_properties, not hard-coded path literals.
+
+          PATH VARIABLE CLASSIFICATION — for every {variable} in the URL path, ask:
+
+          CASE A — Account-scoped constant ($path_properties):
+            The value is the SAME for every API request from a given connection.
+            The user knows it at connection-creation time (e.g. merchant_id, org_id, tenant_id).
+            → Declare in $path_properties. Reference as $variable in $path.
+            → NEVER hard-code, NEVER use $path_keys.
+
+          CASE B — Enumerated at read time ($path_keys):
+            The variable represents a foreign-key ID whose set of valid values must be
+            fetched from another API endpoint (e.g. "get all post IDs, then fetch comments
+            per post"). The set is not known at connection time and varies per request.
+            → Use $path_keys with a lookup step that points to the source endpoint.
+            → See $path_keys field documentation below.
+
+          CASE C — No path variable needed:
+            The path contains no user-specific or row-specific variable.
+            → No $path_properties and no $path_keys needed.
+
+          If in doubt, ask the user:
+            "Is this value constant for all requests from your account, or does the connector
+             need to iterate over multiple values fetched from another endpoint?"
         </details>
       </step>
       
@@ -494,16 +512,105 @@
       </root_fields>
 
       <optional_features>
+        <note>These features are declared INSIDE a table definition, alongside $path and column mappings.</note>
+
         <feature name="$data_path">
           <description>Navigate to nested data array in API response</description>
           <when_to_use>API wraps data in parent objects (e.g., {"result": {"users": [...]}})</when_to_use>
           <example>"$data_path": "result.users"</example>
         </feature>
+
         <feature name="$pagination">
           <description>Configure pagination for APIs that return data across multiple pages</description>
           <when_to_use>API returns large datasets split across multiple pages</when_to_use>
           <types>offset, page, cursor, link_header, next_url</types>
           <see_also>Refer to 5_pagination_guide.xml for detailed documentation</see_also>
+        </feature>
+
+        <feature name="$path_keys">
+          <placement>INSIDE the table definition that needs enumerated path variables — NOT at the connector root level.</placement>
+          <description>
+            Array of lookup steps for enumerating path variable values at read time.
+            Use when the table's $path contains a $variable that must be discovered by calling
+            another API endpoint first — i.e., the valid values are NOT known at connection time.
+          </description>
+          <when_to_use>
+            The $path contains a variable whose valid values are row-level data (e.g., post IDs,
+            project slugs, order IDs) that must be fetched from a "list" endpoint before the
+            per-item endpoint can be called.
+            Contrast with $path_properties: if the value is the same for every request from a
+            given connection and the user knows it at setup time → use $path_properties instead.
+          </when_to_use>
+          <entry_fields>
+            <field name="variable" required="true">
+              The placeholder name used in $path (without the leading $).
+              Example: "postId" matches $postId in "$path": ["/posts/$postId/comments"]
+            </field>
+            <field name="source_path" required="true">
+              API endpoint to call to obtain the list of values.
+              May reference $var placeholders resolved by earlier entries in this array.
+            </field>
+            <field name="source_field" required="true">
+              JSON field to extract from each element returned by source_path.
+              Supports dot notation for nested fields (e.g., "user.id").
+            </field>
+            <field name="source_data_path" required="false">
+              Unwrap a response envelope before iterating the array.
+              Use when the response is {"posts": [...]} instead of a bare array.
+            </field>
+            <field name="lookup_delay_ms" required="false">
+              Milliseconds to sleep between consecutive lookup HTTP calls (default 0).
+              Set to e.g. 100–500 to avoid HTTP 429 from rate-limited APIs.
+            </field>
+          </entry_fields>
+          <ordering_rule>
+            Entries must be in dependency order. If entry N's source_path references $var from
+            entry M, M must come before N. The engine resolves entries sequentially.
+          </ordering_rule>
+          <example name="simple">
+            <![CDATA[
+"POST_COMMENTS": {
+  "$path": ["/posts/$postId/comments"],
+  "$path_keys": [
+    {
+      "variable": "postId",
+      "source_path": "/posts",
+      "source_field": "id"
+    }
+  ],
+  "id": "INTEGER,$key",
+  "postId": "INTEGER",
+  "name": "VARCHAR",
+  "body": "VARCHAR"
+}
+            ]]>
+          </example>
+          <example name="chained">
+            <![CDATA[
+"TASKS": {
+  "$path": ["/api/$org_slug/projects/$project_id/tasks"],
+  "$path_keys": [
+    {
+      "variable": "org_slug",
+      "source_path": "/api/organizations",
+      "source_field": "slug"
+    },
+    {
+      "variable": "project_id",
+      "source_path": "/api/$org_slug/projects",
+      "source_field": "id"
+    }
+  ],
+  "id": "INTEGER,$key",
+  "name": "VARCHAR",
+  "due_date": "TIMESTAMP"
+}
+            ]]>
+          </example>
+          <contrast_with_path_properties>
+            $path_properties (root-level) = single constant value per connection, user supplies at setup time.
+            $path_keys (table-level)      = list of values enumerated by API call at read time.
+          </contrast_with_path_properties>
         </feature>
       </optional_features>
 
@@ -724,9 +831,12 @@
       <check>$origin.name is set to "connector_forge"</check>
       <check>$origin.version follows semantic versioning (e.g. "1.0.0")</check>
       <check>Each table has exactly one $path entry (array with single element)</check>
-      <check>If any $path contains a $variable placeholder, a matching $path_properties entry exists</check>
+      <check>If any $path contains a $variable placeholder, determine whether it is account-scoped (→ $path_properties) or enumerated at read time (→ $path_keys)</check>
+      <check>Account-scoped path constants are declared in $path_properties — never hard-coded as literals</check>
       <check>Each $path_properties entry has name, label, description, masked</check>
-      <check>No account-wide path constants are hard-coded as literals in $path strings</check>
+      <check>If $path_keys is used: each entry has variable, source_path, and source_field</check>
+      <check>If $path_keys entries reference each other's variables, they are in dependency order (earlier entries resolved first)</check>
+      <check>$path_keys is NOT used for a single account-wide constant (use $path_properties for that)</check>
       <check>All nested objects are mapped with "[]" syntax</check>
       <check>All nested arrays are mapped as VARCHAR</check>
       <check>At least one field is marked with ,$key</check>
