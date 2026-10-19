@@ -1,0 +1,4 @@
+# Ignore all properties files by default
+*.properties
+
+!connector-integ-test.properties.template
