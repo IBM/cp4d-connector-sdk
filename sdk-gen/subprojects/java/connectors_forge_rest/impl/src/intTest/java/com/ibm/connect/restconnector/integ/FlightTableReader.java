@@ -38,40 +38,48 @@ final class FlightTableReader {
     private FlightTableReader() {
     }
 
-    // ── LiveBatch ────────────────────────────────────────────────────────────
-
-    /**
-     * A live batch captured from a real Arrow stream: the schema as the server
-     * actually emitted it, plus all collected row data.
-     *
-     * <p>Using a live batch (rather than {@code getFlightInfo().getSchema()}) means
-     * every schema test exercises a real HTTP call and fails meaningfully when the
-     * API is unreachable.
-     */
-    static final class LiveBatch {
-        final Schema schema;
-        final List<Map<String, Object>> rows;
-
-        LiveBatch(Schema schema, List<Map<String, Object>> rows) {
-            this.schema = schema;
-            this.rows   = rows;
-        }
-    }
-
     // ── Read methods ─────────────────────────────────────────────────────────
 
     /**
-     * Reads up to {@code rowLimit} rows from {@code tableName} and returns a
-     * {@link LiveBatch} containing the Arrow schema as emitted by the server plus
-     * all collected rows.
+     * Streams exactly one row from {@code tableName} and returns the Arrow schema
+     * as actually emitted by the server.
      *
-     * <p>The schema is captured from the first {@link VectorSchemaRoot} before it is
-     * closed, so it reflects the actual Arrow types the connector chose for this
-     * stream. Falls back to the {@code FlightInfo} schema when the stream returns no
-     * batches.
+     * <p>Using a live stream (rather than {@code getFlightInfo().getSchema()}) means
+     * every schema test exercises a real HTTP call and fails meaningfully when the
+     * API is unreachable. Falls back to the {@code FlightInfo} schema when the stream
+     * returns no batches.
      */
     @SuppressWarnings({ "PMD.CloseResource", "deprecation" })
-    static LiveBatch readLiveBatch(
+    static Schema readLiveSchema(
+            FlightClient client,
+            String connectorName,
+            String tableName,
+            ConnectionProperties connectionProps) throws Exception {
+
+        final FlightInfo info = client.getInfo(descriptor(connectorName, tableName, connectionProps, 1));
+        for (final FlightEndpoint ep : info.getEndpoints()) {
+            try (FlightStream stream = client.getStream(ep.getTicket())) {
+                if (stream.next()) {
+                    final Schema schema = stream.getRoot().getSchema();
+                    LOGGER.debug("[FlightTableReader] readLiveSchema({}) → {} fields", tableName, schema.getFields().size());
+                    return schema;
+                }
+            }
+        }
+        // Stream returned no batches — fall back to the FlightInfo schema.
+        LOGGER.debug("[FlightTableReader] readLiveSchema({}) → no batches, using FlightInfo schema", tableName);
+        return info.getSchema();
+    }
+
+    /**
+     * Reads up to {@code rowLimit} rows from {@code tableName} and returns them as a
+     * list of name→value maps keyed by Arrow field name.
+     *
+     * <p>Values are produced by {@link FieldVector#getObject(int)}; null slots are
+     * represented as {@code null} map entries.
+     */
+    @SuppressWarnings({ "PMD.CloseResource", "deprecation" })
+    static List<Map<String, Object>> readRows(
             FlightClient client,
             String connectorName,
             String tableName,
@@ -79,7 +87,6 @@ final class FlightTableReader {
             int rowLimit) throws Exception {
 
         final FlightInfo info = client.getInfo(descriptor(connectorName, tableName, connectionProps, rowLimit));
-        Schema liveSchema = null;
         final List<Map<String, Object>> rows = new ArrayList<>();
 
         for (final FlightEndpoint ep : info.getEndpoints()) {
@@ -88,9 +95,6 @@ final class FlightTableReader {
                     // getRoot() returns the stream's shared root — do NOT close it here;
                     // the stream owns its buffers and closing mid-flight causes OOM on realloc.
                     final VectorSchemaRoot root = stream.getRoot();
-                    if (liveSchema == null) {
-                        liveSchema = root.getSchema();
-                    }
                     for (int r = 0; r < root.getRowCount() && rows.size() < rowLimit; r++) {
                         final Map<String, Object> row = new LinkedHashMap<>();
                         for (final FieldVector vec : root.getFieldVectors()) {
@@ -108,26 +112,8 @@ final class FlightTableReader {
             }
         }
 
-        if (liveSchema == null) {
-            // Stream returned no batches — fall back to the FlightInfo schema so schema
-            // tests can still check column names and types against the JSON declaration.
-            liveSchema = info.getSchema();
-        }
-        LOGGER.debug("[FlightTableReader] readLiveBatch({}) → {} rows", tableName, rows.size());
-        return new LiveBatch(liveSchema, rows);
-    }
-
-    /**
-     * Reads up to {@code rowLimit} rows from {@code tableName} and returns them as a
-     * list of name→value maps.
-     */
-    static List<Map<String, Object>> readRows(
-            FlightClient client,
-            String connectorName,
-            String tableName,
-            ConnectionProperties connectionProps,
-            int rowLimit) throws Exception {
-        return readLiveBatch(client, connectorName, tableName, connectionProps, rowLimit).rows;
+        LOGGER.debug("[FlightTableReader] readRows({}) → {} rows", tableName, rows.size());
+        return rows;
     }
 
     // ── Descriptor builder ───────────────────────────────────────────────────

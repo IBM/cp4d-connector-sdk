@@ -38,6 +38,7 @@ import org.apache.arrow.flight.Result;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.AfterClass;
+import org.junit.internal.AssumptionViolatedException;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -175,10 +176,10 @@ public class ConnectorIntegTest {
 
     // ── Convenience delegates ─────────────────────────────────────────────────
 
-    private FlightTableReader.LiveBatch readLiveBatch(String tableName, int rowLimit) throws Exception {
-        return FlightTableReader.readLiveBatch(
+    private Schema readLiveSchema(String tableName) throws Exception {
+        return FlightTableReader.readLiveSchema(
                 client, session.mapping().getConnectorName(),
-                tableName, session.connectionProps(), rowLimit);
+                tableName, session.connectionProps());
     }
 
     private List<Map<String, Object>> readRows(String tableName, int rowLimit) throws Exception {
@@ -266,7 +267,7 @@ public class ConnectorIntegTest {
         final List<String> failures = new ArrayList<>();
         for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
             try {
-                final Schema schema = readLiveBatch(e.getKey(), 1).schema;
+                final Schema schema = readLiveSchema(e.getKey());
                 if (schema.getFields().isEmpty()) {
                     failures.add("  " + e.getKey() + ": [R-01] live Arrow schema has 0 fields");
                 }
@@ -292,7 +293,7 @@ public class ConnectorIntegTest {
 
             final Schema schema;
             try {
-                schema = readLiveBatch(tableName, 1).schema;
+                schema = readLiveSchema(tableName);
             } catch (Exception ex) {
                 failures.add("  " + tableName + ": exception: " + describeException(ex));
                 continue;
@@ -344,7 +345,7 @@ public class ConnectorIntegTest {
 
             final Schema schema;
             try {
-                schema = readLiveBatch(tableName, 1).schema;
+                schema = readLiveSchema(tableName);
             } catch (Exception ex) {
                 failures.add("  " + tableName + ": exception: " + describeException(ex));
                 continue;
@@ -377,7 +378,7 @@ public class ConnectorIntegTest {
 
             final Schema schema;
             try {
-                schema = readLiveBatch(tableName, 1).schema;
+                schema = readLiveSchema(tableName);
             } catch (Exception ex) {
                 failures.add("  " + tableName + ": exception: " + describeException(ex));
                 continue;
@@ -413,8 +414,8 @@ public class ConnectorIntegTest {
         for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
             final String tableName = e.getKey();
             try {
-                final Schema s1 = readLiveBatch(tableName, 1).schema;
-                final Schema s2 = readLiveBatch(tableName, 1).schema;
+                final Schema s1 = readLiveSchema(tableName);
+                final Schema s2 = readLiveSchema(tableName);
                 if (!s1.equals(s2)) {
                     failures.add("  " + tableName + ": [S-01] live schema differs between calls");
                 }
@@ -1029,9 +1030,9 @@ public class ConnectorIntegTest {
     public void testUnknownTableReadThrows() throws Exception {
         final String bogus = "__NO_SUCH_TABLE_XYZ__";
         try {
-            readLiveBatch(bogus, 1);
+            readLiveSchema(bogus);
             fail("[N-01] expected an exception reading unknown table '" + bogus + "', got none");
-        } catch (org.junit.internal.AssumptionViolatedException ex) {
+        } catch (AssumptionViolatedException ex) {
             throw ex; // propagate skip — do not mistake it for a successful rejection
         } catch (Exception ex) {
             // Any exception is acceptable — just confirm the connector rejected the request
