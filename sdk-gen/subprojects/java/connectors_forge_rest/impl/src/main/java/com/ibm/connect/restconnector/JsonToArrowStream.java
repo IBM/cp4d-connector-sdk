@@ -597,17 +597,16 @@ public class JsonToArrowStream implements Closeable
     static Timestamp parseTimestampStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
+        final String trimmed = text.trim();
         try {
-            return Timestamp.from(Instant.parse(text.trim()));
+            return Timestamp.from(Instant.parse(trimmed));
         }
         catch (DateTimeParseException e) {
             try {
-                return Timestamp.valueOf(text.trim().replace("T", " ").replaceAll("\\.\\d+Z?$", ""));
+                return Timestamp.valueOf(trimmed.replace("T", " ").replaceAll("\\.\\d+Z?$", ""));
             }
-            catch (Exception ex) {
-                final IllegalArgumentException iae = new IllegalArgumentException("Cannot parse timestamp: '" + text + "'", ex);
-                iae.addSuppressed(e);
-                throw iae;
+            catch (RuntimeException ex) {
+                throw new IllegalArgumentException("Cannot parse timestamp: '" + text + "'", e);
             }
         }
     }
