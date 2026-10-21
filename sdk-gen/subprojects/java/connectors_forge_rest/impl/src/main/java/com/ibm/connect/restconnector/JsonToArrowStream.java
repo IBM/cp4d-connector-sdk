@@ -602,12 +602,7 @@ public class JsonToArrowStream implements Closeable
             return Timestamp.from(Instant.parse(trimmed));
         }
         catch (DateTimeParseException e) {
-            try {
-                return Timestamp.valueOf(trimmed.replace("T", " ").replaceAll("\\.\\d+Z?$", ""));
-            }
-            catch (RuntimeException ex) {
-                throw new IllegalArgumentException("Cannot parse timestamp: '" + text + "'", e);
-            }
+            return Timestamp.valueOf(trimmed.replace("T", " ").replaceAll("\\.\\d+Z?$", ""));
         }
     }
 
@@ -616,7 +611,7 @@ public class JsonToArrowStream implements Closeable
         try {
             return parseTimestampStrict(text);
         }
-        catch (Exception e) {
+        catch (IllegalArgumentException e) {
             LOGGER.warn("Cannot parse timestamp: '{}'", text);
             return null;
         }
