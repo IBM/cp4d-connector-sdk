@@ -421,7 +421,17 @@ public class JsonToArrowStream implements Closeable
         return parentNode.get(remainingPath);
     }
 
-    private static Object convertValue(JsonNode node, RestFieldDefinition fieldDef)
+    static Object convertValue(JsonNode node, RestFieldDefinition fieldDef)
+    {
+        return convertValue(node, fieldDef, false);
+    }
+
+    static Object convertValueStrict(JsonNode node, RestFieldDefinition fieldDef)
+    {
+        return convertValue(node, fieldDef, true);
+    }
+
+    static Object convertValue(JsonNode node, RestFieldDefinition fieldDef, boolean strict)
     {
         if (node == null || node.isNull()) {
             return null;
@@ -438,31 +448,31 @@ public class JsonToArrowStream implements Closeable
         case "smallint":
         case "tinyint":
             if (node.isNumber()) { return node.intValue(); }
-            return parseIntSafe(node.asText());
+            return strict ? parseIntStrict(node.asText()) : parseIntSafe(node.asText());
         case "bigint":
             if (node.isNumber()) { return node.longValue(); }
-            return parseLongSafe(node.asText());
+            return strict ? parseLongStrict(node.asText()) : parseLongSafe(node.asText());
         case "boolean":
         case "bool":
         case "bit":
             if (node.isBoolean()) { return node.booleanValue(); }
-            return parseBooleanSafe(node.asText());
+            return strict ? parseBooleanStrict(node.asText()) : parseBooleanSafe(node.asText());
         case "double":
         case "float8":
         case "float":
         case "real":
         case "float4":
             if (node.isNumber()) { return node.doubleValue(); }
-            return parseDoubleSafe(node.asText());
+            return strict ? parseDoubleStrict(node.asText()) : parseDoubleSafe(node.asText());
         case "decimal":
         case "numeric":
             if (node.isNumber()) { return node.decimalValue(); }
-            return parseBigDecimalSafe(node.asText());
+            return strict ? parseBigDecimalStrict(node.asText()) : parseBigDecimalSafe(node.asText());
         case "date":
-            return parseDateSafe(node.asText());
+            return strict ? parseDateStrict(node.asText()) : parseDateSafe(node.asText());
         case "timestamp":
         case "datetime":
-            return parseTimestampSafe(node.asText());
+            return strict ? parseTimestampStrict(node.asText()) : parseTimestampSafe(node.asText());
         case "json":
         case "jsonb":
         case "array":
@@ -473,64 +483,143 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    private static String extractBaseType(String typeLower)
+    static String extractBaseType(String typeLower)
     {
         final int parenIdx = typeLower.indexOf('(');
         return parenIdx >= 0 ? typeLower.substring(0, parenIdx).trim() : typeLower.trim();
     }
 
-    private static Integer parseIntSafe(String text)
+    static Integer parseIntStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
-        try { return Integer.parseInt(text.trim()); }
-        catch (NumberFormatException e) { LOGGER.warn("Cannot parse integer: '{}'", text); return null; }
+        return Integer.parseInt(text.trim());
     }
 
-    private static Long parseLongSafe(String text)
+    static Integer parseIntSafe(String text)
+    {
+        try {
+            return parseIntStrict(text);
+        }
+        catch (NumberFormatException e) {
+            LOGGER.warn("Cannot parse integer: '{}'", text);
+            return null;
+        }
+    }
+
+    static Long parseLongStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
-        try { return Long.parseLong(text.trim()); }
-        catch (NumberFormatException e) { LOGGER.warn("Cannot parse long: '{}'", text); return null; }
+        return Long.parseLong(text.trim());
     }
 
-    private static Double parseDoubleSafe(String text)
+    static Long parseLongSafe(String text)
+    {
+        try {
+            return parseLongStrict(text);
+        }
+        catch (NumberFormatException e) {
+            LOGGER.warn("Cannot parse long: '{}'", text);
+            return null;
+        }
+    }
+
+    static Double parseDoubleStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
-        try { return Double.parseDouble(text.trim()); }
-        catch (NumberFormatException e) { LOGGER.warn("Cannot parse double: '{}'", text); return null; }
+        return Double.parseDouble(text.trim());
     }
 
-    private static Boolean parseBooleanSafe(String text)
+    static Double parseDoubleSafe(String text)
+    {
+        try {
+            return parseDoubleStrict(text);
+        }
+        catch (NumberFormatException e) {
+            LOGGER.warn("Cannot parse double: '{}'", text);
+            return null;
+        }
+    }
+
+    static Boolean parseBooleanStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         final String t = text.trim().toLowerCase(Locale.ENGLISH);
         if ("true".equals(t) || "1".equals(t) || "yes".equals(t)) { return Boolean.TRUE; }
         if ("false".equals(t) || "0".equals(t) || "no".equals(t)) { return Boolean.FALSE; }
-        LOGGER.warn("Cannot parse boolean: '{}'", text);
-        return null;
+        throw new IllegalArgumentException("Cannot parse boolean: '" + text + "'");
     }
 
-    private static BigDecimal parseBigDecimalSafe(String text)
+    static Boolean parseBooleanSafe(String text)
     {
-        if (text == null || text.isEmpty()) { return null; }
-        try { return new BigDecimal(text.trim()); }
-        catch (NumberFormatException e) { LOGGER.warn("Cannot parse decimal: '{}'", text); return null; }
+        try {
+            return parseBooleanStrict(text);
+        }
+        catch (IllegalArgumentException e) {
+            LOGGER.warn("Cannot parse boolean: '{}'", text);
+            return null;
+        }
     }
 
-    private static Date parseDateSafe(String text)
+    static BigDecimal parseBigDecimalStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
-        try { return Date.valueOf(LocalDate.parse(text.trim())); }
-        catch (DateTimeParseException e) { LOGGER.warn("Cannot parse date: '{}'", text); return null; }
+        return new BigDecimal(text.trim());
     }
 
-    private static Timestamp parseTimestampSafe(String text)
+    static BigDecimal parseBigDecimalSafe(String text)
+    {
+        try {
+            return parseBigDecimalStrict(text);
+        }
+        catch (NumberFormatException e) {
+            LOGGER.warn("Cannot parse decimal: '{}'", text);
+            return null;
+        }
+    }
+
+    static Date parseDateStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
-        try { return Timestamp.from(Instant.parse(text.trim())); }
+        return Date.valueOf(LocalDate.parse(text.trim()));
+    }
+
+    static Date parseDateSafe(String text)
+    {
+        try {
+            return parseDateStrict(text);
+        }
+        catch (DateTimeParseException | IllegalArgumentException e) {
+            LOGGER.warn("Cannot parse date: '{}'", text);
+            return null;
+        }
+    }
+
+    static Timestamp parseTimestampStrict(String text)
+    {
+        if (text == null || text.isEmpty()) { return null; }
+        try {
+            return Timestamp.from(Instant.parse(text.trim()));
+        }
         catch (DateTimeParseException e) {
-            try { return Timestamp.valueOf(text.trim().replace("T", " ").replaceAll("\\.\\d+Z?$", "")); }
-            catch (Exception ex) { LOGGER.warn("Cannot parse timestamp: '{}'", text); return null; }
+            try {
+                return Timestamp.valueOf(text.trim().replace("T", " ").replaceAll("\\.\\d+Z?$", ""));
+            }
+            catch (Exception ex) {
+                final IllegalArgumentException iae = new IllegalArgumentException("Cannot parse timestamp: '" + text + "'", ex);
+                iae.addSuppressed(e);
+                throw iae;
+            }
+        }
+    }
+
+    static Timestamp parseTimestampSafe(String text)
+    {
+        try {
+            return parseTimestampStrict(text);
+        }
+        catch (Exception e) {
+            LOGGER.warn("Cannot parse timestamp: '{}'", text);
+            return null;
         }
     }
 
