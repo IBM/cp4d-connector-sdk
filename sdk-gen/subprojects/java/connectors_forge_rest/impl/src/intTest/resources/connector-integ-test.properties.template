@@ -27,7 +27,7 @@ connector.json=openbrewerydb.json
 
 # ── API coordinates (optional — defaults are parsed from $hostname in the JSON) ──
 # Uncomment only when you need to override the $hostname value, e.g. a sandbox instance
-# host=api.openbrewerydb.org
+# host=yourhostname.com
 # port=443
 
 # ── Authentication ───────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ connector.json=openbrewerydb.json
 
 # ── Tuning ───────────────────────────────────────────────────────────────────
 # row.limit=50
-# tables=BREWERIES,BREWERIES_META
+# tables=TABLE1,TABLE2
 #
 # strict=false
 # When true, testTableReturnsRows fails (not just warns) on empty tables.

@@ -35,6 +35,12 @@ final class FlightTableReader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FlightTableReader.class);
 
+    /**
+     * Default Arrow batch size sent to the server in every Flight command.
+     * Controls how many rows the server puts into each record batch.
+     */
+    private static final int DEFAULT_BATCH_SIZE = 1000;
+
     private FlightTableReader() {
     }
 
@@ -72,8 +78,11 @@ final class FlightTableReader {
     }
 
     /**
-     * Reads up to {@code rowLimit} rows from {@code tableName} and returns them as a
-     * list of name→value maps keyed by Arrow field name.
+     * Reads rows from {@code tableName} and returns them as a list of name→value maps.
+     *
+     * <p>{@link #DEFAULT_BATCH_SIZE} is sent to the server as {@code batchSize} in the
+     * Flight command. {@code rowLimit} is a client-side cap: collection stops once this
+     * many rows have been accumulated, regardless of what the server sends.
      *
      * <p>Values are produced by {@link FieldVector#getObject(int)}; null slots are
      * represented as {@code null} map entries.
@@ -86,7 +95,7 @@ final class FlightTableReader {
             ConnectionProperties connectionProps,
             int rowLimit) throws Exception {
 
-        final FlightInfo info = client.getInfo(descriptor(connectorName, tableName, connectionProps, rowLimit));
+        final FlightInfo info = client.getInfo(descriptor(connectorName, tableName, connectionProps, DEFAULT_BATCH_SIZE));
         final List<Map<String, Object>> rows = new ArrayList<>();
 
         for (final FlightEndpoint ep : info.getEndpoints()) {
@@ -114,6 +123,36 @@ final class FlightTableReader {
 
         LOGGER.debug("[FlightTableReader] readRows({}) → {} rows", tableName, rows.size());
         return rows;
+    }
+
+    /**
+     * Streams the table using the given {@code batchSize} and returns the row count of
+     * each Arrow record batch as a list.
+     *
+     * <p>{@code batchSize} is sent to the server in the Flight command. The returned list
+     * contains one entry per batch; callers assert that no entry exceeds {@code batchSize}.
+     */
+    @SuppressWarnings({ "PMD.CloseResource", "deprecation" })
+    static List<Integer> readBatchSizes(
+            FlightClient client,
+            String connectorName,
+            String tableName,
+            ConnectionProperties connectionProps,
+            int batchSize) throws Exception {
+
+        final FlightInfo info = client.getInfo(descriptor(connectorName, tableName, connectionProps, batchSize));
+        final List<Integer> batchSizes = new ArrayList<>();
+
+        for (final FlightEndpoint ep : info.getEndpoints()) {
+            try (FlightStream stream = client.getStream(ep.getTicket())) {
+                while (stream.next()) {
+                    batchSizes.add(stream.getRoot().getRowCount());
+                }
+            }
+        }
+
+        LOGGER.debug("[FlightTableReader] readBatchSizes({}) → {} batch(es)", tableName, batchSizes.size());
+        return batchSizes;
     }
 
     // ── Descriptor builder ───────────────────────────────────────────────────

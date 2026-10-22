@@ -35,7 +35,7 @@ public final class IntegTestConfig {
 
     /** Keys consumed by the framework — everything else is treated as an extra (path) property. */
     private static final Set<String> KNOWN_KEYS = new HashSet<>(Arrays.asList(
-            "connector.json", "host", "port", "protocol",
+            "connector.json", "host", "port",
             "auth.type", "api.key", "username", "password", "bearer.token",
             "row.limit", "tables", "strict"));
 
@@ -47,7 +47,6 @@ public final class IntegTestConfig {
     private final String username;
     private final String password;
     private final String bearerToken;
-    private final String protocol;
     private final int rowLimit;
     private final List<String> tables;
     private final boolean strict;
@@ -57,7 +56,6 @@ public final class IntegTestConfig {
             String connectorJson,
             String host,
             Integer port,
-            String protocol,
             AuthenticationType authType,
             String apiKey,
             String username,
@@ -70,7 +68,6 @@ public final class IntegTestConfig {
         this.connectorJson = connectorJson;
         this.host = host;
         this.port = port;
-        this.protocol = protocol;
         this.authType = authType;
         this.apiKey = apiKey;
         this.username = username;
@@ -112,7 +109,6 @@ public final class IntegTestConfig {
         }
         final Integer portVal = portStr == null ? null : parseInt("port", portStr, path);
 
-        final String protocolVal = parseProtocol(props.getProperty("protocol"), path);
         final AuthenticationType authType = parseAuthType(props.getProperty("auth.type"), path);
 
         final String apiKey      = props.getProperty("api.key");
@@ -138,7 +134,7 @@ public final class IntegTestConfig {
         final boolean strict = strictStr != null && "true".equalsIgnoreCase(strictStr.strip());
 
         return new IntegTestConfig(
-                connectorJson, hostVal, portVal, protocolVal,
+                connectorJson, hostVal, portVal,
                 authType, apiKey, username, password, bearerToken, rowLimit, tables, strict,
                 collectExtraProperties(props));
     }
@@ -178,19 +174,6 @@ public final class IntegTestConfig {
         throw new IllegalStateException(
                 "connector.json is not set and could not be inferred: neither '"
                 + beside + "' nor '" + canonical + "' exists (from: " + originalPath + ")");
-    }
-
-    /** Validates {@code protocol} and returns it lower-cased, or {@code null} when unset. */
-    private static String parseProtocol(String protocolVal, String path) {
-        if (protocolVal == null) {
-            return null;
-        }
-        final String normalized = protocolVal.strip().toLowerCase(Locale.ENGLISH);
-        if (!normalized.isEmpty() && !"http".equals(normalized) && !"https".equals(normalized)) {
-            throw new IllegalStateException(
-                    "'protocol' must be 'http' or 'https' but was '" + protocolVal + "' in: " + path);
-        }
-        return normalized;
     }
 
     private static AuthenticationType parseAuthType(String authTypeStr, String path) {
@@ -294,8 +277,6 @@ public final class IntegTestConfig {
     /** Port override, or {@code null} to fall back to the {@code $hostname} in the JSON. */
     public Integer port()             { return port; }
 
-    /** Protocol override ("http" or "https"), or {@code null} to use the protocol from the JSON. */
-    public String protocol()          { return protocol; }
 
     /** Authentication type. Never {@code null}; defaults to {@link AuthenticationType#NONE}. */
     public AuthenticationType authType() { return authType; }

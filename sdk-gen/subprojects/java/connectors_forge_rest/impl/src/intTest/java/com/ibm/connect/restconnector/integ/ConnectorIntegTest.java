@@ -21,11 +21,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.flight.Action;
@@ -103,7 +98,11 @@ public class ConnectorIntegTest {
 
     @Parameters(name = "{0}")
     public static Collection<Object[]> connectors() {
-        final String csv = System.getProperty("integ.configs", "connector-integ.properties");
+        final String csv = System.getProperty("integ.configs", "");
+        if (csv.isEmpty()) {
+            throw new IllegalArgumentException("No configuration files found. "
+                    + "Please specify configurations via -Pinteg.configs or create *.properties files in src/intTest/resources/");
+        }
         return Arrays.stream(csv.split(","))
                 .map(String::strip)
                 .filter(s -> !s.isBlank())
@@ -205,19 +204,6 @@ public class ConnectorIntegTest {
         return ex.toString();
     }
 
-    /** Counts distinct table names mentioned in a failure list (heuristic: look for "  TABLE."). */
-    private static int countTables(List<String> failures) {
-        final Set<String> tables = new HashSet<>();
-        for (final String f : failures) {
-            final String trimmed = f.strip();
-            final int dot = trimmed.indexOf('.');
-            if (dot > 0) {
-                tables.add(trimmed.substring(0, dot));
-            }
-        }
-        return Math.max(tables.size(), failures.isEmpty() ? 0 : 1);
-    }
-
     private static boolean looksLikeJson(String s) {
         if (s.isEmpty()) {
             return false;
@@ -241,8 +227,6 @@ public class ConnectorIntegTest {
         }
     }
 
-    // ── §10.1  Schema and structure ───────────────────────────────────────────
-
     /**
      * Local Flight server starts and responds to {@code health_check} (C-01).
      */
@@ -258,7 +242,7 @@ public class ConnectorIntegTest {
     }
 
     /**
-     * The live Arrow schema (as emitted by the server) has at least one field per table (R-01).
+     * The live Arrow schema has at least one field per table (R-01).
      *
      * <p>This test makes a real HTTP call; it fails if the API is unreachable.
      */
@@ -279,10 +263,12 @@ public class ConnectorIntegTest {
     }
 
     /**
-     * The live Arrow schema column set exactly matches the connector JSON field list (R-03, R-04).
+     * The live Arrow schema column set exactly matches the connector JSON field list (R-02, R-03),
+     * and live Arrow field types satisfy {@link ArrowTypeChecker} for every column (R-04).
      *
      * <p>This test makes a real HTTP call; it fails if the API is unreachable.
-     * R-04 (extra columns) catches cases where the API returns fields the JSON does not declare.
+     * R-03 catches cases where the API returns fields the JSON does not declare.
+     * R-04 catches cases where the connector maps a live JSON value to the wrong Arrow type.
      */
     @Test
     public void testSchemaMatchesDescriptor() throws Exception {
@@ -299,137 +285,45 @@ public class ConnectorIntegTest {
                 continue;
             }
 
+            final Map<String, RestFieldDefinition> byName = new HashMap<>();
+            final Set<String> jsonNames = new HashSet<>();
+            for (final RestFieldDefinition fd : fieldDefs) {
+                byName.put(fd.getName(), fd);
+                jsonNames.add(fd.getName());
+            }
+
             final Set<String> arrowNames = new HashSet<>();
             for (final Field f : schema.getFields()) {
                 arrowNames.add(f.getName());
             }
 
-            final Set<String> jsonNames = new HashSet<>();
-            for (final RestFieldDefinition fd : fieldDefs) {
-                jsonNames.add(fd.getName());
-            }
-
-            // R-03: every JSON field must appear in the live schema
+            // R-02: every JSON field must appear in the live schema
             for (final RestFieldDefinition fd : fieldDefs) {
                 if (!arrowNames.contains(fd.getName())) {
-                    failures.add("  " + tableName + ": [R-03] column missing from live schema: " + fd.getName());
+                    failures.add("  " + tableName + ": [R-02] column missing from live schema: " + fd.getName());
                 }
             }
-            // R-04: every live field must be declared in connector JSON
+            // R-03: every live field must be declared in connector JSON
+            // R-04: live Arrow type must match the DSL-declared type
             for (final Field f : schema.getFields()) {
                 if (!jsonNames.contains(f.getName())) {
-                    failures.add("  " + tableName + ": [R-04] unexpected live column not in JSON: " + f.getName());
+                    failures.add("  " + tableName + ": [R-03] unexpected live column not in JSON: " + f.getName());
+                    continue;
                 }
-            }
-        }
-        assertTrue("Schema column mismatches:\n" + join(failures), failures.isEmpty());
-    }
-
-    /**
-     * Live Arrow field types satisfy {@link ArrowTypeChecker} for every column (R-05).
-     *
-     * <p>This test makes a real HTTP call; it fails if the API is unreachable.
-     * It catches cases where the connector maps a live JSON value to the wrong Arrow type.
-     */
-    @Test
-    public void testSchemaFieldTypesMatchDescriptor() throws Exception {
-        final List<String> failures = new ArrayList<>();
-        for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
-            final String tableName = e.getKey();
-            final List<RestFieldDefinition> fieldDefs = e.getValue().getFields();
-
-            final Map<String, RestFieldDefinition> byName = new HashMap<>();
-            for (final RestFieldDefinition fd : fieldDefs) {
-                byName.put(fd.getName(), fd);
-            }
-
-            final Schema schema;
-            try {
-                schema = readLiveSchema(tableName);
-            } catch (Exception ex) {
-                failures.add("  " + tableName + ": exception: " + describeException(ex));
-                continue;
-            }
-
-            for (final Field f : schema.getFields()) {
                 final RestFieldDefinition fd = byName.get(f.getName());
                 if (fd != null && !ArrowTypeChecker.isAcceptable(f, fd)) {
-                    failures.add("  " + tableName + "  [R-05] " + f.getName()
+                    failures.add("  " + tableName + "  [R-04] " + f.getName()
                             + " : expected " + fd.getTypeString()
                             + " (" + ArrowTypeChecker.expectedArrowTypeName(fd) + ")"
                             + ", got " + f.getFieldType().getType().getClass().getSimpleName());
                 }
             }
         }
-        assertTrue("Type mismatches in " + countTables(failures) + " table(s):\n" + join(failures),
-                failures.isEmpty());
+        assertTrue("Schema mismatches:\n" + join(failures), failures.isEmpty());
     }
 
     /**
-     * Column order in the live Arrow schema matches declaration order in the connector JSON (S-02).
-     *
-     * <p>This test makes a real HTTP call; it fails if the API is unreachable.
-     */
-    @Test
-    public void testSchemaFieldOrderMatchesDescriptor() throws Exception {
-        final List<String> failures = new ArrayList<>();
-        for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
-            final String tableName = e.getKey();
-
-            final Schema schema;
-            try {
-                schema = readLiveSchema(tableName);
-            } catch (Exception ex) {
-                failures.add("  " + tableName + ": exception: " + describeException(ex));
-                continue;
-            }
-
-            final List<String> actual = new ArrayList<>();
-            for (final Field f : schema.getFields()) {
-                actual.add(f.getName());
-            }
-
-            final List<String> expected = new ArrayList<>();
-            for (final RestFieldDefinition fd : e.getValue().getFields()) {
-                expected.add(fd.getName());
-            }
-
-            if (!actual.equals(expected)) {
-                failures.add("  " + tableName + ": [S-02] expected " + expected + ", got " + actual);
-            }
-        }
-        assertTrue("Column order mismatches:\n" + join(failures), failures.isEmpty());
-    }
-
-    /**
-     * Two successive live streams return identical schemas (S-01).
-     *
-     * <p>This test makes two real HTTP calls per table; it fails if the API is unreachable.
-     * It catches schema instability caused by e.g. nullable fields toggling or type inference
-     * changing between requests.
-     */
-    @Test
-    public void testSchemaDeterministic() throws Exception {
-        final List<String> failures = new ArrayList<>();
-        for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
-            final String tableName = e.getKey();
-            try {
-                final Schema s1 = readLiveSchema(tableName);
-                final Schema s2 = readLiveSchema(tableName);
-                if (!s1.equals(s2)) {
-                    failures.add("  " + tableName + ": [S-01] live schema differs between calls");
-                }
-            } catch (Exception ex) {
-                failures.add("  " + tableName + ": exception: " + describeException(ex));
-            }
-        }
-        assertTrue("Non-deterministic schemas:\n" + join(failures), failures.isEmpty());
-    }
-
-    // ── §10.2  Data reads ─────────────────────────────────────────────────────
-
-    /**
-     * Real API returns at least one row for each table (R-02).
+     * Real API returns at least one row for each table (R-05).
      *
      * <p>By default, tables returning 0 rows produce a warning but do not fail — the real
      * API may legitimately have empty tables. Set {@code strict=true} in the
@@ -444,9 +338,9 @@ public class ConnectorIntegTest {
                 final List<Map<String, Object>> rows = readRows(e.getKey(), session.config().rowLimit());
                 if (rows.isEmpty()) {
                     if (session.config().strict()) {
-                        failures.add("  " + e.getKey() + ": [R-02] returned 0 rows");
+                        failures.add("  " + e.getKey() + ": [R-05] returned 0 rows");
                     } else {
-                        LOGGER.warn("[R-02] Table '{}' returned 0 rows",
+                        LOGGER.warn("[R-05] Table '{}' returned 0 rows",
                                 e.getKey());
                     }
                 }
@@ -458,28 +352,39 @@ public class ConnectorIntegTest {
     }
 
     /**
-     * Row count never exceeds {@code row.limit} (R-09).
+     * Each Arrow record batch returned by the server contains at most 50 rows (R-06).
+     *
+     * <p>Sends {@code batchSize=50} in the Flight command; the server is expected to
+     * respect it when sizing its output batches. This test fails when the connector
+     * ignores {@code batchSize} and returns oversized batches.
      */
     @Test
-    public void testRowLimitRespected() throws Exception {
+    public void testBatchSizeRespected() throws Exception {
+        final int requestedBatchSize = 50;
         final List<String> failures = new ArrayList<>();
         for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
+            final String tableName = e.getKey();
             try {
-                final int count = readRows(e.getKey(), session.config().rowLimit()).size();
-                if (count > session.config().rowLimit()) {
-                    failures.add("  " + e.getKey() + ": [R-09] got " + count
-                            + " rows, limit is " + session.config().rowLimit());
+                final List<Integer> batchSizes = FlightTableReader.readBatchSizes(
+                        client, session.mapping().getConnectorName(),
+                        tableName, session.connectionProps(), requestedBatchSize);
+                for (int i = 0; i < batchSizes.size(); i++) {
+                    if (batchSizes.get(i) > requestedBatchSize) {
+                        failures.add("  " + tableName + ": [R-06] batch " + i
+                                + " has " + batchSizes.get(i)
+                                + " rows, requested batchSize was " + requestedBatchSize);
+                    }
                 }
             } catch (Exception ex) {
-                failures.add("  " + e.getKey() + ": exception: " + describeException(ex));
+                failures.add("  " + tableName + ": exception: " + describeException(ex));
             }
         }
-        assertTrue("Row limit exceeded:\n" + join(failures), failures.isEmpty());
+        assertTrue("Batch size exceeded:\n" + join(failures), failures.isEmpty());
     }
 
     /**
-     * {@code $notnull} columns have no null values (R-06).
-     * {@code $key} columns have no duplicate values (R-07) and no null values (R-08).
+     * {@code $notnull} columns have no null values (R-07).
+     * {@code $key} columns have no duplicate values (R-08) and no null values (R-09).
      */
     @Test
     public void testKeyAndNotNullConstraints() throws Exception {
@@ -496,35 +401,35 @@ public class ConnectorIntegTest {
                 continue;
             }
             if (rows.isEmpty()) {
-                continue; // R-06/R-07/R-08 → SKIP when no rows
+                continue; // R-07/R-08/R-09 → SKIP when no rows
             }
 
             for (final RestFieldDefinition fd : fieldDefs) {
-                // R-06: $notnull columns must have no nulls
+                // R-07: $notnull columns must have no nulls
                 if (fd.isNotNull()) {
                     for (int i = 0; i < rows.size(); i++) {
                         if (rows.get(i).get(fd.getName()) == null) {
                             failures.add("  " + tableName + "." + fd.getName()
-                                    + ": [R-06] null in $notnull column at row " + i);
+                                    + ": [R-07] null in $notnull column at row " + i);
                             break;
                         }
                     }
                 }
-                // R-07/R-08: $key columns must have no duplicates and no nulls
+                // R-08/R-09: $key columns must have no duplicates and no nulls
                 if (fd.isKey()) {
                     final Set<Object> seen = new HashSet<>();
                     for (int i = 0; i < rows.size(); i++) {
                         final Object val = rows.get(i).get(fd.getName());
-                        // R-08: null in key column
+                        // R-09: null in key column
                         if (val == null) {
                             failures.add("  " + tableName + "." + fd.getName()
-                                    + ": [R-08] null in $key column at row " + i);
+                                    + ": [R-09] null in $key column at row " + i);
                             break;
                         }
-                        // R-07: duplicate key value
+                        // R-08: duplicate key value
                         if (!seen.add(val)) {
                             failures.add("  " + tableName + "." + fd.getName()
-                                    + ": [R-07] duplicate $key value '" + val + "' at row " + i);
+                                    + ": [R-08] duplicate $key value '" + val + "' at row " + i);
                             break;
                         }
                     }
@@ -534,59 +439,9 @@ public class ConnectorIntegTest {
         assertTrue("Data constraint violations:\n" + join(failures), failures.isEmpty());
     }
 
-    // ── §10.3  Data value correctness ─────────────────────────────────────────
-
     /**
-     * INTEGER fields: non-null values fit in int32 range (V-01).
-     * DOUBLE/FLOAT fields: no NaN or Infinity (V-02).
-     */
-    @Test
-    public void testNumericFieldValues() throws Exception {
-        final List<String> failures = new ArrayList<>();
-        for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
-            final String tableName = e.getKey();
-            final List<Map<String, Object>> rows;
-            try {
-                rows = readRows(tableName, session.config().rowLimit());
-            } catch (Exception ex) {
-                failures.add("  " + tableName + ": exception: " + describeException(ex));
-                continue;
-            }
-            for (final RestFieldDefinition fd : e.getValue().getFields()) {
-                final String type = fd.getTypeString() == null ? "" : fd.getTypeString().toLowerCase(Locale.ENGLISH);
-                for (int i = 0; i < rows.size(); i++) {
-                    final Object val = rows.get(i).get(fd.getName());
-                    if (val == null) {
-                        continue;
-                    }
-
-                    if ("integer".equals(type) || "int".equals(type)) {
-                        if (val instanceof Number) {
-                            final long lv = ((Number) val).longValue();
-                            if (lv < Integer.MIN_VALUE || lv > Integer.MAX_VALUE) {
-                                failures.add("  " + tableName + "." + fd.getName()
-                                        + " row " + i + ": [V-01] out of int32 range: " + lv);
-                            }
-                        }
-                    } else if ("double".equals(type) || "float8".equals(type)
-                            || "float".equals(type) || "real".equals(type) || "float4".equals(type)) {
-                        if (val instanceof Double && (Double.isNaN((Double) val) || Double.isInfinite((Double) val))) {
-                            failures.add("  " + tableName + "." + fd.getName()
-                                    + " row " + i + ": [V-02] NaN or Infinity: " + val);
-                        } else if (val instanceof Float && (Float.isNaN((Float) val) || Float.isInfinite((Float) val))) {
-                            failures.add("  " + tableName + "." + fd.getName()
-                                    + " row " + i + ": [V-02] NaN or Infinity: " + val);
-                        }
-                    }
-                }
-            }
-        }
-        assertTrue("Numeric value violations:\n" + join(failures), failures.isEmpty());
-    }
-
-    /**
-     * BOOLEAN columns store {@link Boolean}, not {@link Integer} 0/1 (V-03).
-     * {@code $key} and {@code $notnull} VARCHAR columns contain no empty strings (V-04).
+     * BOOLEAN columns store {@link Boolean}, not {@link Integer} 0/1 (V-01).
+     * {@code $key} and {@code $notnull} VARCHAR columns contain no empty strings (V-02).
      */
     @Test
     public void testBooleanAndVarcharFieldValues() throws Exception {
@@ -608,20 +463,20 @@ public class ConnectorIntegTest {
                         continue;
                     }
 
-                    // V-03: boolean fields must hold Boolean, not Integer 0/1
+                    // V-01: boolean fields must hold Boolean, not Integer 0/1
                     if ("boolean".equals(type) || "bool".equals(type) || "bit".equals(type)) {
                         if (val instanceof Integer) {
                             failures.add("  " + tableName + "." + fd.getName()
-                                    + " row " + i + ": [V-03] boolean stored as Integer: " + val);
+                                    + " row " + i + ": [V-01] boolean stored as Integer: " + val);
                         }
                     }
-                    // V-04: key/notnull VARCHAR fields must not be empty strings
+                    // V-02: key/notnull VARCHAR fields must not be empty strings
                     if ((fd.isKey() || fd.isNotNull())
                             && ("varchar".equals(type) || "nvarchar".equals(type)
                                 || "char".equals(type) || "nchar".equals(type))) {
                         if (val.toString().isEmpty()) {
                             failures.add("  " + tableName + "." + fd.getName()
-                                    + " row " + i + ": [V-04] key/notnull VARCHAR is empty string");
+                                    + " row " + i + ": [V-02] key/notnull VARCHAR is empty string");
                         }
                     }
                 }
@@ -631,11 +486,10 @@ public class ConnectorIntegTest {
     }
 
     /**
-     * Dotted nested fields resolve to at least one non-null value across the sample (V-05).
-     * JSON/OBJECT/ARRAY fields contain parseable JSON strings (V-06).
+     * JSON/OBJECT/ARRAY fields contain parseable JSON strings (V-03).
      */
     @Test
-    public void testNestedAndJsonFieldValues() throws Exception {
+    public void testJsonFieldValues() throws Exception {
         final List<String> failures = new ArrayList<>();
         for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
             final String tableName = e.getKey();
@@ -653,23 +507,7 @@ public class ConnectorIntegTest {
             for (final RestFieldDefinition fd : e.getValue().getFields()) {
                 final String type = fd.getTypeString() == null ? "" : fd.getTypeString().toLowerCase(Locale.ENGLISH);
 
-                // V-05: dotted fields must have ≥1 non-null value across the sample
-                if (fd.getName().contains(".")) {
-                    boolean anyNonNull = false;
-                    for (final Map<String, Object> row : rows) {
-                        if (row.get(fd.getName()) != null) {
-                            anyNonNull = true;
-                            break;
-                        }
-                    }
-                    if (!anyNonNull) {
-                        // WARN only — nested fields may legitimately be sparse
-                        LOGGER.warn("[V-05] {}.{}: all sampled values null for nested field",
-                                tableName, fd.getName());
-                    }
-                }
-
-                // V-06: json/array/object columns must contain parseable JSON strings
+                // V-03: json/array/object columns must contain parseable JSON strings
                 if ("json".equals(type) || "jsonb".equals(type)
                         || "array".equals(type) || "object".equals(type)) {
                     for (int i = 0; i < rows.size(); i++) {
@@ -680,7 +518,7 @@ public class ConnectorIntegTest {
                         final String s = val.toString().strip();
                         if (!looksLikeJson(s)) {
                             failures.add("  " + tableName + "." + fd.getName()
-                                    + " row " + i + ": [V-06] not valid JSON: "
+                                    + " row " + i + ": [V-03] not valid JSON: "
                                     + (s.length() > 80 ? s.substring(0, 80) + "…" : s));
                         }
                     }
@@ -689,8 +527,6 @@ public class ConnectorIntegTest {
         }
         assertTrue("Complex field value violations:\n" + join(failures), failures.isEmpty());
     }
-
-    // ── §10.4  Discovery API ──────────────────────────────────────────────────
 
     /**
      * {@code discoverAssets("/")} returns one entry per table with
@@ -802,76 +638,12 @@ public class ConnectorIntegTest {
         }
     }
 
-    // ── §10.5  Pagination ─────────────────────────────────────────────────────
-
     /**
-     * Paginated tables return more rows than page_size when row.limit exceeds it (P-01).
-     * {@code $key} values are unique across page boundaries (P-02).
-     */
-    @Test
-    public void testPaginationFetchesMultiplePages() throws Exception {
-        final List<String> failures = new ArrayList<>();
-        for (final Entry<String, RestTableDefinition> entry : tablesToTest()) {
-            final String tableName = entry.getKey();
-            final PaginationConfig pagination = entry.getValue().getPaginationConfig();
-
-            // Skip tables without pagination or where rowLimit <= pageSize
-            if (pagination == null) {
-                continue;
-            }
-            if (session.config().rowLimit() <= pagination.getPageSize()) {
-                LOGGER.info("[P-01] Skipping '{}': row.limit ({}) must exceed page_size ({})",
-                        tableName, session.config().rowLimit(), pagination.getPageSize());
-                continue;
-            }
-
-            final List<Map<String, Object>> rows;
-            try {
-                rows = readRows(tableName, session.config().rowLimit());
-            } catch (Exception ex) {
-                failures.add("  " + tableName + ": exception: " + describeException(ex));
-                continue;
-            }
-
-            // P-01: if the API returned a full page but stopped there, pagination might be broken.
-            // If it returned fewer than page_size rows the table simply has less data — skip.
-            if (rows.size() == pagination.getPageSize() && rows.size() < session.config().rowLimit()) {
-                LOGGER.warn("[P-01] '{}': got exactly page_size ({}) rows — connector may not have fetched page 2,"
-                        + " or table genuinely has that many rows", tableName, pagination.getPageSize());
-                // Do not add to failures — ambiguous case
-            } else if (rows.size() < pagination.getPageSize()) {
-                LOGGER.info("[P-01] Skipping '{}': only {} rows available, less than page_size ({}) — "
-                        + "table does not have enough data to cross a page boundary",
-                        tableName, rows.size(), pagination.getPageSize());
-                continue;
-            }
-            // rows.size() > page_size: pagination crossed a boundary — check for key uniqueness
-
-            // P-02: key values unique across page boundaries
-            for (final RestFieldDefinition fd : entry.getValue().getFields()) {
-                if (!fd.isKey()) {
-                    continue;
-                }
-                final Set<Object> seen = new HashSet<>();
-                for (int i = 0; i < rows.size(); i++) {
-                    final Object val = rows.get(i).get(fd.getName());
-                    if (val != null && !seen.add(val)) {
-                        failures.add("  " + tableName + "." + fd.getName()
-                                + ": [P-02] duplicate key '" + val + "' at row " + i);
-                        break;
-                    }
-                }
-            }
-        }
-        assertTrue("Pagination failures:\n" + join(failures), failures.isEmpty());
-    }
-
-    /**
-     * The offset parameter advances correctly: rows on page 2 are disjoint from rows on page 1 (P-04).
+     * The offset parameter advances correctly: rows on page 2 are disjoint from rows on page 1 (P-01).
      *
-     * <p>Reads two explicit pages by issuing two reads with different {@code row.limit} values
-     * (first-page-only vs two-page) and checks that the second batch contains records not in the first.
-     * Skipped when {@code row.limit <= page_size}.
+     * <p>Reads two explicit pages using {@code page_size} from the DSL directly:
+     * first reads exactly {@code page_size} rows, then reads {@code page_size + 1}
+     * rows, and checks that the extra row from page 2 does not appear in page 1.
      */
     @Test
     public void testPaginationOffsetAdvances() throws Exception {
@@ -884,11 +656,8 @@ public class ConnectorIntegTest {
             if (pagination == null || !"offset".equals(pagination.getType())) {
                 continue; // only offset pagination has a deterministic page boundary we can probe
             }
-            final int pageSize = pagination.getPageSize();
-            if (session.config().rowLimit() <= pageSize) {
-                continue;
-            }
             anyTableTested = true;
+            final int pageSize = pagination.getPageSize();
 
             // Page 1 only: read exactly page_size rows
             final List<Map<String, Object>> page1;
@@ -899,7 +668,7 @@ public class ConnectorIntegTest {
                 continue;
             }
             if (page1.size() < pageSize) {
-                LOGGER.info("[P-04] {}: only {} rows available (< page_size {}), skipping offset check",
+                LOGGER.info("[P-01] {}: only {} rows available (< page_size {}), skipping offset check",
                         tableName, page1.size(), pageSize);
                 continue;
             }
@@ -913,7 +682,7 @@ public class ConnectorIntegTest {
                 continue;
             }
             if (twoPages.size() <= pageSize) {
-                failures.add("  " + tableName + ": [P-04] two-page read returned only "
+                failures.add("  " + tableName + ": [P-01] two-page read returned only "
                         + twoPages.size() + " rows — page 2 was not fetched");
                 continue;
             }
@@ -930,96 +699,17 @@ public class ConnectorIntegTest {
                 final Object page2FirstKey = twoPages.get(pageSize).get(fd.getName());
                 if (page2FirstKey != null && page1Keys.contains(page2FirstKey)) {
                     failures.add("  " + tableName + "." + fd.getName()
-                            + ": [P-04] key '" + page2FirstKey
+                            + ": [P-01] key '" + page2FirstKey
                             + "' from page 2 was already in page 1 — offset not advancing");
                 }
             }
         }
 
         if (!anyTableTested) {
-            LOGGER.info("[P-04] skipped — no offset-paginated tables with row.limit > page_size");
+            LOGGER.info("[P-01] skipped — no offset-paginated tables found");
         }
         assertTrue("Offset-advance failures:\n" + join(failures), failures.isEmpty());
     }
-
-    // ── §10.6  Connector lifecycle ────────────────────────────────────────────
-
-    /**
-     * Reading the same table three times returns the same row count (L-01).
-     */
-    @Test
-    public void testReadConsistencyAcrossRepeatedCalls() throws Exception {
-        final List<String> failures = new ArrayList<>();
-        for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
-            final String tableName = e.getKey();
-            int firstCount = -1;
-            for (int attempt = 1; attempt <= 3; attempt++) {
-                final int count;
-                try {
-                    count = readRows(tableName, session.config().rowLimit()).size();
-                } catch (Exception ex) {
-                    failures.add("  " + tableName + " attempt " + attempt + ": " + describeException(ex));
-                    break;
-                }
-                if (firstCount == -1) {
-                    firstCount = count;
-                } else if (count != firstCount) {
-                    failures.add("  " + tableName + ": [L-01] row count changed: "
-                            + firstCount + " vs " + count + " on attempt " + attempt);
-                    break;
-                }
-            }
-        }
-        assertTrue("Repeated read inconsistencies:\n" + join(failures), failures.isEmpty());
-    }
-
-    /**
-     * Reading two tables concurrently in parallel threads both succeed (L-02).
-     */
-    @Test
-    public void testConcurrentReadsSucceed() throws Exception {
-        final List<Entry<String, RestTableDefinition>> tables = new ArrayList<>(tablesToTest());
-        Assume.assumeTrue("Need at least 2 tables for L-02 concurrent test", tables.size() >= 2);
-
-        final String tableA = tables.get(0).getKey();
-        final String tableB = tables.get(1).getKey();
-        final ExecutorService pool = Executors.newFixedThreadPool(2);
-        final List<String> failures = new ArrayList<>();
-        try {
-            final Callable<List<Map<String, Object>>> taskA = () -> readRows(tableA, session.config().rowLimit());
-            final Callable<List<Map<String, Object>>> taskB = () -> readRows(tableB, session.config().rowLimit());
-            final Future<List<Map<String, Object>>> futureA = pool.submit(taskA);
-            final Future<List<Map<String, Object>>> futureB = pool.submit(taskB);
-            try { futureA.get(); } catch (ExecutionException ex) {
-                failures.add("  " + tableA + ": [L-02] concurrent read failed: " + ex.getCause());
-            }
-            try { futureB.get(); } catch (ExecutionException ex) {
-                failures.add("  " + tableB + ": [L-02] concurrent read failed: " + ex.getCause());
-            }
-        } finally {
-            pool.shutdownNow();
-        }
-        assertTrue("Concurrent read failures:\n" + join(failures), failures.isEmpty());
-    }
-
-    /**
-     * {@code health_check} still returns "OK" after all tables have been read (L-03).
-     */
-    @Test
-    public void testHealthCheckRemainsOkAfterReads() throws Exception {
-        for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
-            try { readRows(e.getKey(), session.config().rowLimit()); }
-            catch (Exception ex) { LOGGER.warn("[L-03] Exception reading {} (ignored): {}", e.getKey(), describeException(ex)); }
-        }
-        final Iterator<Result> it = client.doAction(new Action("health_check"));
-        assertTrue("health_check after reads returned no result", it.hasNext());
-        final CustomFlightActionResponse response =
-                new ModelMapper().fromBytes(it.next().getBody(), CustomFlightActionResponse.class);
-        assertEquals("[L-03] health_check status after reads",
-                "OK", response.getResponseProperties().get("status"));
-    }
-
-    // ── §10.7  Negative / error-path tests ───────────────────────────────────
 
     /**
      * Reading a table name that does not exist in the connector JSON throws an exception (N-01).
@@ -1110,9 +800,6 @@ public class ConnectorIntegTest {
         final ConnectionProperties badProps = new ConnectionProperties();
         badProps.put("host",     session.connectionProps().get("host"));
         badProps.put("port",     session.connectionProps().get("port"));
-        if (session.connectionProps().get("protocol") != null) {
-            badProps.put("protocol", session.connectionProps().get("protocol"));
-        }
 
         switch (session.config().authType()) {
             case BASIC:

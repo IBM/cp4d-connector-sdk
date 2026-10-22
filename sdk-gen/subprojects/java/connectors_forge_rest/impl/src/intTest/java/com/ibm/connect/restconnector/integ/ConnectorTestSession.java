@@ -104,9 +104,6 @@ final class ConnectorTestSession {
         }
         props.put("host", host);
         props.put("port", port);
-        if (cfg.protocol() != null) {
-            props.put("protocol", cfg.protocol());
-        }
 
         switch (cfg.authType()) {
             case API_KEY: props.put("api_key",      cfg.apiKey());      break;

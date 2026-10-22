@@ -170,12 +170,14 @@ task integTestForge(type: Test) {
       systemProperty 'integ.configs', resolved
     } else {
       final defaultDir = file('src/intTest/resources')
+      def filesString = ''
       if (defaultDir.isDirectory()) {
         final files = fileTree(dir: defaultDir, include: '*.properties').files.sort()
         if (files) {
-          systemProperty 'integ.configs', files.collect { it.absolutePath }.join(',')
+          filesString = files.collect { it.absolutePath }.join(',')
         }
       }
+      systemProperty 'integ.configs', filesString
     }
   }
 }
