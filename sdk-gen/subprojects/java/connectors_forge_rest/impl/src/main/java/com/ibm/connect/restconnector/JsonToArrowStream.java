@@ -58,6 +58,8 @@ public class JsonToArrowStream implements Closeable
 {
     private static final Logger LOGGER = getLogger(JsonToArrowStream.class);
 
+    public static final String STRICT_PARSING_PROPERTY = "com.ibm.connect.restconnector.strictParsing";
+
     private static final int HTTP_TIMEOUT_SECONDS = 60;
     private static final int HTTP_STATUS_2XX = 2;
     private static final int MAX_PAGES = 10000;
@@ -74,10 +76,10 @@ public class JsonToArrowStream implements Closeable
     private final Map<String, String> authHeaders;
     private final String acceptHeader;
     private final PaginationConfig paginationConfig;
-    
+    private final boolean strict;
 
     /**
-     * Creates a streaming instance with full configuration.
+     * Creates a streaming instance with full configuration and default (safe) type parsing.
      *
      * @param url
      *            the base URL to fetch
@@ -95,13 +97,39 @@ public class JsonToArrowStream implements Closeable
     public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
             Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader)
     {
+        this(url, dataPath, fieldDefs, authHeaders, paginationConfig, acceptHeader,
+                Boolean.getBoolean(STRICT_PARSING_PROPERTY));
+    }
+
+    /**
+     * Creates a streaming instance with full configuration and explicit strict mode.
+     *
+     * @param url
+     *            the base URL to fetch
+     * @param dataPath
+     *            optional JSON path to the data array (may be null)
+     * @param fieldDefs
+     *            the field definitions
+     * @param authHeaders
+     *            optional authentication headers (may be null)
+     * @param paginationConfig
+     *            optional pagination configuration (may be null for non-paginated APIs)
+     * @param acceptHeader
+     *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
+     * @param strict
+     *            if {@code true}, parsing errors throw exceptions instead of logging warnings
+     */
+    public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
+            Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader,
+            boolean strict)
+    {
         this.baseUrl = url;
         this.dataPath = dataPath;
         this.fieldDefs = fieldDefs;
         this.authHeaders = authHeaders;
         this.acceptHeader = acceptHeader;
         this.paginationConfig = paginationConfig;
-
+        this.strict = strict;
     }
 
     /**
@@ -374,7 +402,7 @@ public class JsonToArrowStream implements Closeable
             final JsonNode valueNode = fieldName.contains(".")
                     ? getNestedValue(objectNode, fieldName)
                     : objectNode.get(fieldName);
-            final Object value = convertValue(valueNode, fieldDef);
+            final Object value = convertValue(valueNode, fieldDef, strict);
             if (value != null) {
                 writer.set(fieldName, value);
             }
@@ -421,17 +449,7 @@ public class JsonToArrowStream implements Closeable
         return parentNode.get(remainingPath);
     }
 
-    static Object convertValue(JsonNode node, RestFieldDefinition fieldDef)
-    {
-        return convertValue(node, fieldDef, false);
-    }
-
-    static Object convertValueStrict(JsonNode node, RestFieldDefinition fieldDef)
-    {
-        return convertValue(node, fieldDef, true);
-    }
-
-    static Object convertValue(JsonNode node, RestFieldDefinition fieldDef, boolean strict)
+    private static Object convertValue(JsonNode node, RestFieldDefinition fieldDef, boolean strict)
     {
         if (node == null || node.isNull()) {
             return null;
@@ -483,19 +501,19 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static String extractBaseType(String typeLower)
+    private static String extractBaseType(String typeLower)
     {
         final int parenIdx = typeLower.indexOf('(');
         return parenIdx >= 0 ? typeLower.substring(0, parenIdx).trim() : typeLower.trim();
     }
 
-    static Integer parseIntStrict(String text)
+    private static Integer parseIntStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         return Integer.parseInt(text.trim());
     }
 
-    static Integer parseIntSafe(String text)
+    private static Integer parseIntSafe(String text)
     {
         try {
             return parseIntStrict(text);
@@ -506,13 +524,13 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static Long parseLongStrict(String text)
+    private static Long parseLongStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         return Long.parseLong(text.trim());
     }
 
-    static Long parseLongSafe(String text)
+    private static Long parseLongSafe(String text)
     {
         try {
             return parseLongStrict(text);
@@ -523,13 +541,13 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static Double parseDoubleStrict(String text)
+    private static Double parseDoubleStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         return Double.parseDouble(text.trim());
     }
 
-    static Double parseDoubleSafe(String text)
+    private static Double parseDoubleSafe(String text)
     {
         try {
             return parseDoubleStrict(text);
@@ -540,7 +558,7 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static Boolean parseBooleanStrict(String text)
+    private static Boolean parseBooleanStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         final String t = text.trim().toLowerCase(Locale.ENGLISH);
@@ -549,7 +567,7 @@ public class JsonToArrowStream implements Closeable
         throw new IllegalArgumentException("Cannot parse boolean: '" + text + "'");
     }
 
-    static Boolean parseBooleanSafe(String text)
+    private static Boolean parseBooleanSafe(String text)
     {
         try {
             return parseBooleanStrict(text);
@@ -560,13 +578,13 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static BigDecimal parseBigDecimalStrict(String text)
+    private static BigDecimal parseBigDecimalStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         return new BigDecimal(text.trim());
     }
 
-    static BigDecimal parseBigDecimalSafe(String text)
+    private static BigDecimal parseBigDecimalSafe(String text)
     {
         try {
             return parseBigDecimalStrict(text);
@@ -577,13 +595,13 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static Date parseDateStrict(String text)
+    private static Date parseDateStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         return Date.valueOf(LocalDate.parse(text.trim()));
     }
 
-    static Date parseDateSafe(String text)
+    private static Date parseDateSafe(String text)
     {
         try {
             return parseDateStrict(text);
@@ -594,7 +612,7 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static Timestamp parseTimestampStrict(String text)
+     private static Timestamp parseTimestampStrict(String text)
     {
         if (text == null || text.isEmpty()) { return null; }
         final String trimmed = text.trim();
@@ -606,7 +624,7 @@ public class JsonToArrowStream implements Closeable
         }
     }
 
-    static Timestamp parseTimestampSafe(String text)
+    private static Timestamp parseTimestampSafe(String text)
     {
         try {
             return parseTimestampStrict(text);
