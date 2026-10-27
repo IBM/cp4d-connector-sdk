@@ -1,0 +1,13 @@
+# ============================================================
+# GitHub — read comments.csv (comment character ~)
+# ============================================================
+# comments.csv has 3 data rows and 6 columns; rows starting with ~
+# are stripped by the connector.
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/comments.csv
+ExpectedRowCount=3
+ExpectedRows.0=1|2|3|4|5.01|2015-08-20 15:57:00
+ExpectedRows.2=1|2|3|4|5|2015-08-23 18:00:42

@@ -95,6 +95,113 @@
     </rule>
 
     <rule priority="critical">
+      <name>Use $path_properties for Account-Wide Path Variables</name>
+      <description>
+        When an API URL contains a path segment that represents a single, constant,
+        account-scoped identifier (e.g., merchant_id, company_id, org_id, tenant_id),
+        it MUST be declared in $path_properties and referenced as a $var in the $path string.
+        Never hard-code such values as path literals.
+      </description>
+      <when_to_apply>
+        The value is the SAME for every API request made from a given connection.
+        The user knows this value at account-creation/setup time.
+        Examples: Braintree merchant_id, Stripe account_id, Salesforce org_id, GitHub org name.
+      </when_to_apply>
+      <wrong>
+        <![CDATA[
+"CUSTOMERS": {
+  "$path": ["/merchants/MY-MERCHANT-ID/customers"],
+  ...
+}
+        ]]>
+        <why>Hard-coded path segment — different users have different merchant IDs; this breaks reusability</why>
+      </wrong>
+      <correct>
+        <![CDATA[
+"$path_properties": [
+  {
+    "name": "merchant_id",
+    "label": "Merchant ID",
+    "description": "Your Braintree merchant ID, found in Account > Business > Merchant Account ID",
+    "masked": false
+  }
+],
+...
+"CUSTOMERS": {
+  "$path": ["/merchants/$merchant_id/customers"],
+  ...
+}
+        ]]>
+        <why>The merchant_id is a connection property — each user supplies their own at connection time</why>
+      </correct>
+      <detection_heuristic>
+        During Phase 1 analysis, look for URL path segments that look like identifiers
+        (not resource type names). Clues:
+        - Segment is an ID value (UUID, numeric, or short opaque string)
+        - API documentation calls it "your merchant ID", "your organization", etc.
+        - The documentation shows it as a variable in the URL template ({merchantId})
+        - All endpoints under a given "account" share this prefix segment
+        If in doubt, ask the user: "Is this value the same for all requests from your account?"
+      </detection_heuristic>
+    </rule>
+
+    <rule priority="critical">
+      <name>Use $path_keys for Enumerated Path Variables (Table-Level)</name>
+      <description>
+        When an API table's $path contains a variable whose valid values must be discovered
+        by calling another API endpoint at read time, declare a $path_keys array INSIDE that
+        table definition. The engine iterates all discovered values and calls the target
+        endpoint once per value.
+        CRITICAL: $path_keys is a TABLE-LEVEL field, not a root-level field. It belongs
+        alongside $path, $data_path, and $pagination inside the specific table that needs it.
+      </description>
+      <when_to_apply>
+        The path variable's valid values are NOT known at connection-creation time.
+        They must be fetched dynamically from a list endpoint at data-read time.
+        Examples: post IDs, project slugs, order IDs, ticket IDs — anything that is
+        row-level data rather than a fixed account identifier.
+      </when_to_apply>
+      <wrong_placement>
+        <![CDATA[
+{
+  "$hostname": "https://api.example.com",
+  "$path_keys": [ ... ],   ← WRONG: root level
+  "$tables": { ... }
+}
+        ]]>
+        <why>$path_keys at root level is not recognised by the engine — it must be inside the table.</why>
+      </wrong_placement>
+      <correct_placement>
+        <![CDATA[
+{
+  "$hostname": "https://api.example.com",
+  "$tables": {
+    "POST_COMMENTS": {
+      "$path": ["/posts/$postId/comments"],
+      "$path_keys": [           ← CORRECT: inside the table
+        {
+          "variable": "postId",
+          "source_path": "/posts",
+          "source_field": "id"
+        }
+      ],
+      "id": "INTEGER,$key",
+      "postId": "INTEGER",
+      "name": "VARCHAR"
+    }
+  }
+}
+        ]]>
+      </correct_placement>
+      <required_entry_fields>variable, source_path, source_field</required_entry_fields>
+      <optional_entry_fields>source_data_path (envelope unwrap), lookup_delay_ms (rate limit throttle)</optional_entry_fields>
+      <ordering_rule>
+        Entries must be in dependency order. If entry N's source_path references $var from entry M,
+        M must appear before N in the array.
+      </ordering_rule>
+    </rule>
+
+    <rule priority="critical">
       <name>Follow Template Structure Exactly</name>
       <description>
         Always read and follow template.json structure.
@@ -131,45 +238,22 @@
     </rule>
 
     <rule priority="critical">
-      <name>Include Metadata Section</name>
+      <name>Include $origin Field</name>
       <description>
-        All Forge-created connectors MUST include a $metadata section with required fields.
-        This metadata enables tracking, filtering, and analytics of Connector Forge usage.
+        All Forge-created connectors MUST include the $origin field.
+        It is a simple two-field object that identifies the tool and version that created this config.
       </description>
       <required_fields>
-        <field name="connector_source">
+        <field name="name">
           <type>String</type>
-          <value>Always "connector_forge" for Forge-created connectors</value>
+          <value>Always "connector_forge"</value>
           <required>true</required>
         </field>
-        <field name="target_service">
+        <field name="version">
           <type>String</type>
-          <description>Name of the service/API being connected to (e.g., "Salesforce", "GitHub", "SpaceX API")</description>
+          <description>Current Connector Forge version in semantic versioning format</description>
           <required>true</required>
-          <inference>Should be inferred from API hostname and confirmed with user</inference>
-        </field>
-        <field name="connector_type">
-          <type>String</type>
-          <value>Always "rest_api" for REST connectors</value>
-          <required>true</required>
-        </field>
-        <field name="created_at">
-          <type>String</type>
-          <format>ISO 8601 timestamp (e.g., "2026-05-06T12:00:00Z")</format>
-          <required>true</required>
-          <auto_generated>true</auto_generated>
-        </field>
-        <field name="created_by">
-          <type>String</type>
-          <description>User ID of the person who created the connector</description>
-          <required>true</required>
-          <default>If unavailable, use "unknown"</default>
-        </field>
-        <field name="forge_version">
-          <type>String</type>
-          <description>Version of Connector Forge used to create the connector</description>
-          <required>true</required>
-          <format>Semantic versioning (e.g., "1.0.0")</format>
+          <example>1.0.0</example>
         </field>
       </required_fields>
       <correct>
@@ -178,16 +262,9 @@
   "$connector_name": "salesforce-connector",
   "$connector_label": "Salesforce",
   "$connector_description": "Connect to Salesforce API",
-  "$metadata": {
-    "connector_source": "connector_forge",
-    "target_service": "Salesforce",
-    "connector_type": "rest_api",
-    "created_at": "2026-05-06T12:00:00Z",
-    "created_by": "user_12345",
-    "forge_version": "1.0.0"
-  },
+  "$origin": { "name": "connector_forge", "version": "1.0.0" },
   "$hostname": "https://api.salesforce.com",
-  "$authentication": "oauth2",
+  "$authentication": { "type": "oauth2", "headers": [...] },
   "$tables": { ... }
 }
         ]]>
@@ -195,24 +272,16 @@
       <wrong>
         <![CDATA[
 {
-  "$connector_name": "salesforce_connector",
+  "$connector_name": "salesforce-connector",
   "$connector_label": "Salesforce",
   "$connector_description": "Connect to Salesforce API",
   "$hostname": "https://api.salesforce.com",
-  "$authentication": "oauth2",
+  "$authentication": { "type": "oauth2", "headers": [...] },
   "$tables": { ... }
 }
         ]]>
-        <why>Missing required $metadata section</why>
+        <why>Missing required $origin field</why>
       </wrong>
-      <rationale>
-        Metadata enables:
-        - Distinguishing Forge-created connectors from manually-built ones
-        - Tracking which services users are connecting to
-        - Measuring Connector Forge adoption and usage patterns
-        - Providing audit trail for connector provenance
-        - Supporting future analytics and reporting capabilities
-      </rationale>
     </rule>
 
     <rule priority="critical">
@@ -325,6 +394,7 @@
       <name>Forgetting to Set Authentication</name>
       <description>
         Always explicitly set $authentication field, even for public APIs.
+        The value must be an object with a "type" field.
       </description>
       <wrong>
         <![CDATA[
@@ -340,7 +410,7 @@
 {
   "$connector_name": "My API",
   "$hostname": "https://api.example.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": { ... }
 }
         ]]>
@@ -372,6 +442,37 @@
     </pitfall>
 
     <pitfall>
+      <name>Hard-Coding Account-Scoped Path Variables</name>
+      <description>
+        When an API URL contains a user-specific identifier in the path
+        (e.g., /merchants/MY-MERCHANT-ID/customers), do NOT hard-code that value into the $path string.
+        Declare it as a $path_properties entry so each user can supply their own value.
+      </description>
+      <wrong>
+        <![CDATA[
+"CUSTOMERS": {
+  "$path": ["/merchants/MY-MERCHANT-ID/customers"],
+  ...
+}
+        ]]>
+        <why>The literal value MY-MERCHANT-ID only works for one user; anyone else gets a wrong URL</why>
+      </wrong>
+      <correct>
+        <![CDATA[
+"$path_properties": [
+  { "name": "merchant_id", "label": "Merchant ID",
+    "description": "Your Braintree merchant ID", "masked": false }
+],
+...
+"CUSTOMERS": {
+  "$path": ["/merchants/$merchant_id/customers"],
+  ...
+}
+        ]]>
+      </correct>
+    </pitfall>
+
+    <pitfall>
       <name>Not Including Protocol in Hostname</name>
       <description>
         $hostname must include the protocol (https:// or http://)
@@ -386,6 +487,96 @@
 "$hostname": "https://api.example.com"
         ]]>
       </correct>
+    </pitfall>
+
+    <pitfall>
+      <name>Not Setting $accept_header for Non-Standard APIs</name>
+      <description>
+        Some APIs require a vendor-specific Accept header and will return errors or unexpected
+        responses when sent the default "application/json". Always check the API documentation
+        for the expected Accept header value and set $accept_header accordingly.
+      </description>
+      <wrong>
+        <![CDATA[
+{
+  "$connector_name": "dwolla-connector",
+  "$hostname": "https://api.dwolla.com",
+  "$authentication": { "type": "api_key", "headers": [...] },
+  "$tables": { ... }
+}
+        ]]>
+        <why>Omitting $accept_header means Accept: application/json is sent, but Dwolla requires
+        Accept: application/vnd.dwolla.v1.hal+json</why>
+      </wrong>
+      <correct>
+        <![CDATA[
+{
+  "$connector_name": "dwolla-connector",
+  "$hostname": "https://api.dwolla.com",
+  "$accept_header": "application/vnd.dwolla.v1.hal+json",
+  "$authentication": { "type": "api_key", "headers": [...] },
+  "$tables": { ... }
+}
+        ]]>
+      </correct>
+    </pitfall>
+
+    <pitfall>
+      <name>Confusing $path_keys and $path_properties</name>
+      <description>
+        $path_properties and $path_keys both resolve $variable placeholders in a $path string,
+        but they serve completely different purposes and are placed in different locations.
+        Using the wrong one — or placing $path_keys at the root — will produce a broken config.
+      </description>
+      <decision_guide>
+        Ask: "Is this value the SAME for every API request from this connection?"
+        YES — user knows it at setup time, it never changes between requests → $path_properties (ROOT level)
+        NO  — values are discovered by calling another endpoint at read time → $path_keys (TABLE level)
+      </decision_guide>
+      <wrong_confusing_case_1>
+        <title>Using $path_keys for a constant account ID (should be $path_properties)</title>
+        <![CDATA[
+"CUSTOMERS": {
+  "$path": ["/merchants/$merchant_id/customers"],
+  "$path_keys": [
+    { "variable": "merchant_id", "source_path": "/merchants", "source_field": "id" }
+  ]
+}
+        ]]>
+        <why>
+          merchant_id is a single fixed value for this account — calling /merchants to "enumerate"
+          it is wasteful and wrong. Use $path_properties so the user enters it once at connection time.
+        </why>
+      </wrong_confusing_case_1>
+      <wrong_confusing_case_2>
+        <title>Using $path_properties for post IDs (should be $path_keys)</title>
+        <![CDATA[
+"$path_properties": [
+  { "name": "postId", "label": "Post ID", "description": "???", "masked": false }
+],
+...
+"POST_COMMENTS": {
+  "$path": ["/posts/$postId/comments"]
+}
+        ]]>
+        <why>
+          There are many post IDs — the user cannot know them all at connection time.
+          Use $path_keys inside POST_COMMENTS to enumerate them at read time.
+        </why>
+      </wrong_confusing_case_2>
+      <wrong_confusing_case_3>
+        <title>$path_keys placed at root level instead of inside the table</title>
+        <![CDATA[
+{
+  "$hostname": "...",
+  "$path_keys": [ ... ],
+  "$tables": {
+    "POST_COMMENTS": { "$path": ["/posts/$postId/comments"], ... }
+  }
+}
+        ]]>
+        <why>$path_keys must be inside the table definition — root-level placement is not recognised.</why>
+      </wrong_confusing_case_3>
     </pitfall>
 
     <pitfall>
@@ -482,10 +673,7 @@
       <checklist>
         <check>JSON is valid and properly formatted</check>
         <check>All required root fields are present</check>
-        <check>$metadata section is present with all required fields</check>
-        <check>connector_source is set to "connector_forge"</check>
-        <check>target_service is populated and accurate</check>
-        <check>created_at is valid ISO 8601 timestamp</check>
+        <check>$origin field is present with name="connector_forge" and a semantic version</check>
         <check>Each table has exactly one $path entry</check>
         <check>At least one field per table is marked with ,$key</check>
         <check>All nested objects/arrays are VARCHAR</check>
@@ -700,18 +888,14 @@
     <categories>
       <category name="Structure">
         <check>JSON is valid (no syntax errors)</check>
-        <check>All required root fields present ($connector_name, $connector_label, $connector_description, $metadata, $hostname, $authentication, $tables)</check>
+        <check>All required root fields present ($connector_name, $connector_label, $connector_description, $origin, $hostname, $authentication, $tables)</check>
         <check>Follows connectors-forge/template.json structure exactly</check>
       </category>
 
-      <category name="Metadata">
-        <check>$metadata section is present</check>
-        <check>connector_source is "connector_forge"</check>
-        <check>target_service is populated with service name</check>
-        <check>connector_type is "rest_api"</check>
-        <check>created_at is valid ISO 8601 timestamp</check>
-        <check>created_by is populated (or "unknown")</check>
-        <check>forge_version follows semantic versioning</check>
+      <category name="Origin">
+        <check>$origin field is present</check>
+        <check>$origin.name is "connector_forge"</check>
+        <check>$origin.version follows semantic versioning (e.g. "1.0.0")</check>
       </category>
 
       <category name="Tables">
@@ -728,10 +912,33 @@
         <check>Data types are appropriate for values</check>
       </category>
 
+      <category name="Path Properties">
+        <check>If any URL path contains an account-scoped identifier, $path_properties is present at ROOT level</check>
+        <check>Every $var placeholder in a $path that is account-scoped has a matching $path_properties entry</check>
+        <check>No account-wide literal values are hard-coded inside $path strings</check>
+        <check>Each $path_properties entry has: name, label, description, masked</check>
+        <check>name values use snake_case and match the $name placeholders in $path strings</check>
+      </category>
+
+      <category name="Path Keys">
+        <check>$path_keys is declared INSIDE the table definition — never at the connector root level</check>
+        <check>Used only when path variable values must be enumerated by API call at read time (not for account constants)</check>
+        <check>Each $path_keys entry has required fields: variable, source_path, source_field</check>
+        <check>Entries are in dependency order (step M before step N if N's source_path references $var from M)</check>
+        <check>source_data_path is set when the lookup response wraps the array in an envelope key</check>
+        <check>lookup_delay_ms is set (e.g. 100–500) when the source API is rate-limited</check>
+        <check>No $path_keys entry used for a value that is constant per connection (use $path_properties instead)</check>
+      </category>
+
       <category name="Authentication">
-        <check>$authentication field is set</check>
-        <check>Value is one of: none, api_key, oauth2, basic</check>
-        <check>Matches actual API authentication method</check>
+        <check>$authentication is an object with a "type" field</check>
+        <check>type is one of: none, api_key, oauth2, basic, custom</check>
+        <check>For non-none types: "headers" array is present and non-empty</check>
+        <check>Each headers entry has: name, label, description, masked, header (or null), value (or null)</check>
+        <check>name values match the $var placeholders used in value templates</check>
+        <check>Matches actual API authentication method and header format</check>
+        <check>$accept_header is set to the media type the API expects (default "application/json")</check>
+        <check>If the API documentation specifies a vendor media type (e.g. application/vnd.*), $accept_header reflects it</check>
       </category>
 
       <category name="Completeness">

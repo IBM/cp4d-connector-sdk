@@ -1,0 +1,43 @@
+# ============================================================
+# LocalFS — write + read Parquet (3 rows, typed values)
+# ============================================================
+# Writes a typed Parquet file and reads it back, verifying row
+# count and typed cell values.
+# Parquet preserves native types (boolean, integer, etc.).
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write a Parquet file ─────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/readwrite.parquet
+Interaction.file_format=parquet
+Schema=id|integer; label|varchar; flag|boolean
+Row.0=1|Alice|true
+Row.1=2|Bob|false
+Row.2=3|<NULL>|true
+
+# ── Read back and verify content ─────────────────────────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/readwrite.parquet
+ExpectedRowCount=3
+ExpectedCell.0.0=1
+ExpectedCell.0.1=Alice
+ExpectedCell.1.0=2
+ExpectedCell.1.1=Bob
+ExpectedCell.2.0=3
+ExpectedCell.2.1=<NULL>
+
+# ── row_limit must cap the result ────────────────────────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/readwrite.parquet
+Interaction.row_limit=1
+ExpectedRowCount=1
+ExpectedCell.0.0=1
+
+# ── byte_limit must return fewer than 3 rows ─────────────────
+[Step]
+Type=Read
+Interaction.file_name=${work_dir}/readwrite.parquet
+Interaction.byte_limit=1

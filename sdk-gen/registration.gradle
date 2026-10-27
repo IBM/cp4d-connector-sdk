@@ -13,13 +13,13 @@ class TrustAllManager extends X509ExtendedTrustManager {
   }
   public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
   public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
-  public void checkClientTrusted (X509Certificate [] chain, String authType, Socket socket) {
+  public void checkClientTrusted(X509Certificate [] chain, String authType, Socket socket) {
   }
-  public void checkServerTrusted (X509Certificate [] chain, String authType, Socket socket) {
+  public void checkServerTrusted(X509Certificate [] chain, String authType, Socket socket) {
   }
-  public void checkClientTrusted (X509Certificate [] chain, String authType, SSLEngine engine) {
+  public void checkClientTrusted(X509Certificate [] chain, String authType, SSLEngine engine) {
   }
-  public void checkServerTrusted (X509Certificate [] chain, String authType, SSLEngine engine) {
+  public void checkServerTrusted(X509Certificate [] chain, String authType, SSLEngine engine) {
   }
 }
 subprojects {
@@ -56,10 +56,14 @@ subprojects {
         }
         doLast{
           if (project.hasProperty('env')){
-            file("${buildDir}/resources/dist/payload/envs/${env}.properties").withInputStream { registrationProperties.load(it) }
+            file("${buildDir}/resources/dist/payload/envs/${env}.properties").withInputStream {
+              registrationProperties.load(it)
+            }
           } else {
             ant.input(message: "Provide path of registration properties file:", addproperty: 'envInteractive')
-            file(ant.envInteractive).withInputStream { registrationProperties.load(it) }
+            file(ant.envInteractive).withInputStream {
+              registrationProperties.load(it)
+            }
           }
         }
       }
@@ -116,7 +120,9 @@ subprojects {
                   registrationProperties.setProperty("authToken", resp.token)
                 }
               }else {
-                throw new GradleException(new JsonSlurper().parseText(req.getErrorStream().getText()).toString())
+                def errText = req.getErrorStream().getText("UTF-8")
+                logger.error "HTTP ${req.getResponseCode()} error body: ${errText}"
+                throw new GradleException("Authentication failed (HTTP ${req.getResponseCode()}): ${errText}")
               }
             }
           } finally {
@@ -141,7 +147,6 @@ subprojects {
             req.setRequestProperty("User-Agent","ConnectivitySDK")
             req.setRequestProperty("Authorization", "Bearer "+ registrationProperties.getProperty("authToken"))
             req.setRequestProperty("Accept-Language", "en")
-            req.setRequestProperty("Accept-Encoding", "gzip, deflate, br")
             req.setRequestProperty("Accept", "application/json")
             req.setRequestProperty("Content-Type", "application/json")
             def body = new JsonSlurper().parseText('{ "origin_country":"us", "flight_info": { "flight_uri": "", "ssl_certificate": "","ssl_certificate_validation": false } }')
@@ -162,7 +167,9 @@ subprojects {
             if(100 <= req.getResponseCode() && req.getResponseCode() <= 399) {
               logger.debug "Response: "+ new JsonSlurper().parseText(req.getInputStream().getText().toString())
             }else {
-              throw new GradleException(new JsonSlurper().parseText(req.getErrorStream().getText()).toString())
+              def errText = req.getErrorStream().getText("UTF-8")
+              logger.error "HTTP ${req.getResponseCode()} error body: ${errText}"
+              throw new GradleException("Registration failed (HTTP ${req.getResponseCode()}): ${errText}")
             }
           } finally {
             reinitSSL()

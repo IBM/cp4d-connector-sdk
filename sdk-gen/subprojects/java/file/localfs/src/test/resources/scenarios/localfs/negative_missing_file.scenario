@@ -1,0 +1,7 @@
+# ============================================================
+# LocalFS — negative: read a file that does not exist
+# ============================================================
+
+[Step]
+Type=NegativeRead
+Interaction.file_name=/this/path/does/not/exist_at_all.csv

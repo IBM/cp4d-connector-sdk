@@ -7,39 +7,52 @@ package com.ibm.connect.restconnector;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
+import java.util.Collections;
 import java.util.Map;
 
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.slf4j.Logger;
 
-import com.ibm.connect.sdk.api.ArrowConversions;
-import com.ibm.connect.sdk.api.Connector;
-import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionConfiguration;
-import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionResponse;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetsCriteria;
-import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetType;
+import com.ibm.wdp.connect.sdk.connector.SdkConnector;
 
 /**
  * An Arrow-based connector for connecting to a REST API data source.
  *
+ * <p>Implements the {@link SdkConnector} interface for the Arrow-native path through
+ * {@link RestFlightProducer}.
+ *
  * <p>The connector reads a JSON configuration file that describes the API endpoints
  * and their field schemas. It uses this configuration to discover assets and read data
  * from the REST API in a streaming fashion.
- * 
+ *
  * <p>Each connector instance is associated with a specific datasource type (connector name)
  * and loads its configuration from the factory's cache.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
-public class RestConnector implements Connector<RestSourceInteraction, RestTargetInteraction>
+public class RestConnector implements SdkConnector<RestInputInteraction, RestOutputInteraction, RestDiscoveryInteraction>
 {
     private static final Logger LOGGER = getLogger(RestConnector.class);
 
+    private static final int HTTP_TIMEOUT_SECONDS = 30;
+    private static final int HTTP_STATUS_2XX = 2;
+
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
+
     private final String datasourceTypeName;
+    private final Map<String, Object> connectionProperties;
     private RestApiMapping apiMapping;
 
     /**
@@ -50,42 +63,130 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
      * @param properties
      *            connection properties (currently unused, reserved for future use)
      */
-    @SuppressWarnings("PMD.UnusedFormalParameter")
     public RestConnector(String datasourceTypeName, ConnectionProperties properties)
     {
         this.datasourceTypeName = datasourceTypeName;
-        // Connection properties are currently unused since configurations are loaded from factory cache
-        // The parameter is kept for API compatibility and potential future use
+        this.connectionProperties = properties != null ? properties : Collections.emptyMap();
+    }
+
+    /**
+     * Creates an Arrow-based REST connector with a pre-built API mapping.
+     *
+     * @param datasourceTypeName
+     *            the datasource type name (connector name)
+     * @param properties
+     *            connection properties (currently unused, reserved for future use)
+     * @param apiMapping
+     *            a pre-built {@link RestApiMapping} to use instead of the factory cache;
+     *            may be {@code null}, in which case behaviour is identical to the two-arg constructor
+     */
+    public RestConnector(String datasourceTypeName, ConnectionProperties properties, RestApiMapping apiMapping)
+    {
+        this.datasourceTypeName = datasourceTypeName;
+        this.connectionProperties = properties != null ? properties : Collections.emptyMap();
+        this.apiMapping = apiMapping;
     }
 
     /**
      * {@inheritDoc}
-     *
-     * <p>Loads the JSON configuration from the factory's cache.
      */
     @Override
     public void connect() throws Exception
     {
-        LOGGER.info("Connecting: loading REST API configuration for connector '{}'", datasourceTypeName);
-        apiMapping = RestConnectorFactory.getInstance().getConfiguration(datasourceTypeName);
-        
+        if (apiMapping == null) {
+            LOGGER.info("Connecting: loading REST API configuration for connector '{}'", datasourceTypeName);
+            apiMapping = RestConnectorFactory.getInstance().getConfiguration(datasourceTypeName);
+        }
+
         if (apiMapping == null) {
             throw new IllegalStateException(
                 RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
         }
-        
-        LOGGER.debug("Connected: loaded {} tables for connector '{}' ({})",
+
+        LOGGER.debug("Loaded {} tables for connector '{}' ({})",
                 apiMapping.getTables().size(), datasourceTypeName, apiMapping.getConnectorLabel());
+
+        pingFirstTable();
+    }
+
+    /**
+     * Verifies connectivity by sending a real HTTP GET to the first table endpoint defined
+     * in the API mapping that does not require a path-key value, and asserting a 2xx response.
+     *
+     * <p>Tables with a {@link PathKeyDef} are skipped because their paths contain an
+     * unresolved {@code $variable} that can only be filled in after a lookup fetch — which
+     * is beyond the scope of a simple connectivity test.  If every table has a path-key,
+     * connectivity verification is skipped gracefully.
+     *
+     * <p>Authentication and custom headers declared in the DSL are applied via
+     * {@link RestInputInteraction#buildAuthHeaders}, so any headers configured in the
+     * JSON mapping are included automatically.
+     *
+     * @throws Exception
+     *             if the URL cannot be built, the HTTP request fails, or the server returns
+     *             a non-2xx status
+     */
+    protected void pingFirstTable() throws Exception
+    {
+        // Find first table that does not have $path_keys (its path is fully resolvable at connect time)
+        Map.Entry<String, RestTableDefinition> firstEntry = null;
+        for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
+            if (!entry.getValue().hasPathKeys()) {
+                firstEntry = entry;
+                break;
+            }
+        }
+        if (firstEntry == null) {
+            LOGGER.info("All tables have $path_keys — skipping connectivity ping");
+            return;
+        }
+
+        final String tableName = firstEntry.getKey();
+        final RestTableDefinition tableDef = firstEntry.getValue();
+
+        final String url = RestInputInteraction.buildRequestUrl(
+                apiMapping.getBaseUrl(), tableDef.getPath(), connectionProperties);
+        final Map<String, String> authHeaders = RestInputInteraction.buildAuthHeaders(
+                apiMapping.getAuthConfig(), connectionProperties);
+
+        final HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
+                .header("Accept", apiMapping.getAcceptHeader())
+                .header("User-Agent", "CP4D-REST-Connector/1.0")
+                .GET();
+        if (authHeaders != null) {
+            authHeaders.forEach(builder::header);
+        }
+
+        LOGGER.info("Test connection: pinging '{}' (table '{}')", url, tableName);
+        final HttpResponse<Void> response = HTTP_CLIENT.send(builder.build(), BodyHandlers.discarding());
+        if (response.statusCode() / 100 != HTTP_STATUS_2XX) {
+            throw new IOException("Connection test failed: HTTP " + response.statusCode()
+                    + " from " + url);
+        }
+        LOGGER.debug("Connection test passed: HTTP {} from '{}'", response.statusCode(), url);
     }
 
     /**
      * Returns the loaded API mapping.
      *
-     * @return the REST API mapping, or null if {@link #connect()} has not been called
+     * @return the REST API mapping, or {@code null} if {@link #connect()} has not been called
      */
     public RestApiMapping getApiMapping()
     {
         return apiMapping;
+    }
+
+    /**
+     * Sets the API mapping directly, bypassing the factory singleton.
+     *
+     * @param apiMapping
+     *            the {@link RestApiMapping} to use; must not be {@code null}
+     */
+    public void setApiMapping(RestApiMapping apiMapping)
+    {
+        this.apiMapping = apiMapping;
     }
 
     /**
@@ -100,90 +201,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
 
     /**
      * {@inheritDoc}
-     *
-     * <p>Hierarchical discovery:
-     * <ul>
-     * <li>Path "/" - returns all table names as containers (no fields)</li>
-     * <li>Path "/{tableName}" - returns the specific table as a dataset with fields</li>
-     * </ul>
-     */
-    @Override
-    public List<CustomFlightAssetDescriptor> discoverAssets(CustomFlightAssetsCriteria criteria) throws Exception
-    {
-        if (apiMapping == null) {
-            throw new IllegalStateException("API mapping not loaded. Call connect() first.");
-        }
-
-        final String path = criteria.getPath();
-        final List<CustomFlightAssetDescriptor> assets = new ArrayList<>();
-
-        if ("/".equals(path)) {
-            // Root discovery: return all tables as containers (no fields)
-            for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
-                final String tableName = entry.getKey();
-
-                final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-                descriptor.setName(tableName);
-                descriptor.setId(tableName);
-                descriptor.setPath("/" + tableName);
-                descriptor.setDatasourceTypeName(datasourceTypeName);
-                descriptor.setConnectionProperties(criteria.getConnectionProperties());
-                descriptor.setHasChildren(true);
-                // No fields at this level
-
-                // Asset type: container, not a dataset
-                final DiscoveredAssetType assetType = new DiscoveredAssetType();
-                assetType.setType("table");
-                assetType.setDataset(false);
-                assetType.setDatasetContainer(true);
-                descriptor.setAssetType(assetType);
-
-                assets.add(descriptor);
-                LOGGER.debug("Discovered table container: {}", tableName);
-            }
-        }
-        else if (path != null && path.startsWith("/") && !path.substring(1).contains("/")) {
-            // Table-level discovery: return the specific table with fields
-            final String tableName = path.substring(1); // Remove leading "/"
-            final RestTableDefinition tableDef = apiMapping.getTables().get(tableName);
-
-            if (tableDef != null) {
-                final CustomFlightAssetDescriptor descriptor = new CustomFlightAssetDescriptor();
-                descriptor.setName(tableName);
-                descriptor.setId(tableName);
-                descriptor.setPath(path);
-                descriptor.setDatasourceTypeName(datasourceTypeName);
-                descriptor.setConnectionProperties(criteria.getConnectionProperties());
-                descriptor.setHasChildren(false);
-                descriptor.setFields(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
-
-                // Asset type: dataset, not a container
-                final DiscoveredAssetType assetType = new DiscoveredAssetType();
-                assetType.setType("table");
-                assetType.setDataset(true);
-                assetType.setDatasetContainer(false);
-                descriptor.setAssetType(assetType);
-
-                assets.add(descriptor);
-                LOGGER.debug("Discovered table dataset: {}", tableName);
-            }
-            else {
-                LOGGER.warn("Table not found in mapping: {}", tableName);
-            }
-        }
-        else {
-            LOGGER.warn("Unsupported discovery path supplied for discovery");
-        }
-
-        LOGGER.info("Discovered {} assets", assets.size());
-        return assets;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Returns the Arrow schema for the given asset by looking up the table
-     * definition in the API mapping.
      */
     @Override
     public Schema getSchema(CustomFlightAssetDescriptor asset) throws Exception
@@ -191,41 +208,39 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
         if (apiMapping == null) {
             throw new IllegalStateException("API mapping not loaded. Call connect() first.");
         }
-
         final String tableName = RestConnectorUtils.resolveTableName(asset);
         final RestTableDefinition tableDef = apiMapping.getTable(tableName);
         if (tableDef == null) {
             throw new IllegalArgumentException("Table '" + tableName + "' not found in REST API mapping.");
         }
-
-        return ArrowConversions.toArrow(RestFieldTypeMapper.toAssetFields(tableDef.getFields()));
+        return ForgeSchemaBuilder.buildSchema(tableDef.getFields());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public RestSourceInteraction getSourceInteraction(CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception
+    public RestInputInteraction getInputInteraction(CustomFlightAssetDescriptor asset, Ticket ticket) throws Exception
     {
-        return new RestSourceInteraction(this, asset, ticket);
+        return new RestInputInteraction(this, asset, ticket);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public RestTargetInteraction getTargetInteraction(CustomFlightAssetDescriptor asset) throws Exception
+    public RestOutputInteraction getOutputInteraction(CustomFlightAssetDescriptor asset) throws Exception
     {
-        return new RestTargetInteraction(this, asset);
+        throw new UnsupportedOperationException(RestMsgs.UNSUPPORTED_ACTION.format("write (REST connector is read-only)"));
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public ConnectionActionResponse performAction(String action, ConnectionActionConfiguration properties) throws Exception
+    public RestDiscoveryInteraction getDiscoveryInteraction(CustomFlightAssetsCriteria criteria) throws Exception
     {
-        throw new UnsupportedOperationException(RestMsgs.UNSUPPORTED_ACTION.format(action));
+        return new RestDiscoveryInteraction(this);
     }
 
     /**
@@ -234,10 +249,6 @@ public class RestConnector implements Connector<RestSourceInteraction, RestTarge
     @Override
     public void close() throws Exception
     {
-        // No persistent resources to close
         LOGGER.debug("RestConnector closed");
     }
-
 }
-
-// Made with Bob

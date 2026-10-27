@@ -8,13 +8,18 @@ package com.ibm.connect.restconnector;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.ibm.connect.restconnector.AuthConfig.HeaderDef;
 
 import org.slf4j.Logger;
 
@@ -30,6 +35,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *   "$connector_name": "Connector's name",
  *   "$connector_label": "Connector's label",
  *   "$connector_description": "Connector's description",
+ *   "$origin": { "name": "forge", "version": "1.0.0" },
  *   "$hostname": "https://api.spacexdata.com:443",
  *   "$tables": {
  *     "capsules": {
@@ -54,22 +60,21 @@ public class RestApiMappingLoader
     private static final String CONNECTOR_NAME_KEY = "$connector_name";
     private static final String CONNECTOR_LABEL_KEY = "$connector_label";
     private static final String CONNECTOR_DESCRIPTION_KEY = "$connector_description";
-    private static final String METADATA_KEY = "$metadata";
+    private static final String ORIGIN_KEY = "$origin";
     private static final String HOSTNAME_KEY = "$hostname";
     private static final String AUTHENTICATION_KEY = "$authentication";
+    private static final String ACCEPT_HEADER_KEY = "$accept_header";
     private static final String TABLES_KEY = "$tables";
+    private static final String PATH_PROPERTIES_KEY = "$path_properties";
     private static final String PATH_KEY = "$path";
     private static final String DATA_PATH_KEY = "$data_path";
     private static final String PAGINATION_KEY = "$pagination";
+    private static final String PATH_KEYS_KEY = "$path_keys";
     private static final String KEY_MODIFIER = "$key";
     private static final String NOTNULL_MODIFIER = "$notnull";
     private static final String ARRAY_SUFFIX = "[]";
-    
-    // Array of all supported modifiers for easy extension
-    private static final String[] ALL_MODIFIERS = {
-        KEY_MODIFIER,
-        NOTNULL_MODIFIER
-    };
+
+    private static final String[] ALL_MODIFIERS = { KEY_MODIFIER, NOTNULL_MODIFIER };
 
     private RestApiMappingLoader()
     {
@@ -88,7 +93,31 @@ public class RestApiMappingLoader
     public static RestApiMapping load(String filePath) throws IOException
     {
         LOGGER.info("Loading REST API configuration from: {}", filePath);
-        final String content = new String(Files.readAllBytes(Paths.get(filePath)));
+        final String content = new String(Files.readAllBytes(Paths.get(filePath)), StandardCharsets.UTF_8);
+        return parse(content);
+    }
+
+    /**
+     * Loads and parses a JSON configuration from an {@link InputStream}.
+     *
+     * <p>This overload is intended for configs bundled as classpath resources, e.g.:
+     * <pre>
+     *   InputStream is = getClass().getResourceAsStream("/forge/mappings/my-connector.json");
+     *   RestApiMapping mapping = RestApiMappingLoader.load(is);
+     * </pre>
+     *
+     * <p>The caller is responsible for closing the stream.
+     *
+     * @param inputStream
+     *            the input stream to read the JSON configuration from; must not be null
+     * @return the parsed {@link RestApiMapping}
+     * @throws IOException
+     *             if the stream cannot be read or the JSON cannot be parsed
+     */
+    public static RestApiMapping load(InputStream inputStream) throws IOException
+    {
+        LOGGER.info("Loading REST API configuration from InputStream");
+        final String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         return parse(content);
     }
 
@@ -106,14 +135,16 @@ public class RestApiMappingLoader
         final JsonNode root = MAPPER.readTree(jsonContent);
         final ConnectorMetadata metadata = parseConnectorMetadata(root);
         final String baseUrl = parseBaseUrl(root);
-        final AuthenticationType authenticationType = parseAuthenticationType(root);
+        final AuthConfig authConfig = parseAuthConfig(root);
+        final String acceptHeader = getTextOrDefault(root, ACCEPT_HEADER_KEY, "application/json");
         final Map<String, RestTableDefinition> tables = parseTables(root);
-        final Map<String, String> metadataMap = parseMetadata(root);
+        final Map<String, String> origin = parseOrigin(root);
+        final List<PathPropertyDef> pathProperties = parsePathProperties(root);
 
-        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', {} tables, metadata={}",
-                metadata.connectorName, authenticationType.getValue(), tables.size(), metadataMap.isEmpty() ? "none" : metadataMap.keySet());
+        LOGGER.info("Loaded REST API configuration: connectorName='{}', authenticationType='{}', acceptHeader='{}', {} tables, {} path properties",
+                metadata.connectorName, authConfig.getType().getValue(), acceptHeader, tables.size(), pathProperties.size());
         return new RestApiMapping(metadata.connectorName, metadata.connectorLabel, metadata.connectorDescription,
-                baseUrl, authenticationType, tables, metadataMap);
+                baseUrl, authConfig, acceptHeader, tables, origin, pathProperties);
     }
 
     private static ConnectorMetadata parseConnectorMetadata(JsonNode root)
@@ -124,35 +155,62 @@ public class RestApiMappingLoader
         return new ConnectorMetadata(connectorName, connectorLabel, connectorDescription);
     }
 
+    // Reads name and version from the top-level $origin directive.
+    private static Map<String, String> parseOrigin(JsonNode root)
+    {
+        final JsonNode originNode = root.get(ORIGIN_KEY);
+        if (originNode == null || !originNode.isObject()) {
+            return new LinkedHashMap<>();
+        }
+
+        final Map<String, String> origin = new LinkedHashMap<>();
+        final JsonNode nameNode = originNode.get("name");
+        if (nameNode != null && !nameNode.isNull()) {
+            origin.put("name", nameNode.asText());
+        }
+
+        final JsonNode versionNode = originNode.get("version");
+        if (versionNode != null && !versionNode.isNull()) {
+            origin.put("version", versionNode.asText());
+        }
+
+        return origin;
+    }
+
     /**
-     * Parses the $metadata section from the JSON configuration.
+     * Parses the optional {@code $path_properties} array from the root JSON node.
+     *
+     * <p>Each element must be a JSON object with at minimum a {@code name} field.
+     * {@code label}, {@code description}, and {@code masked} are optional.
      *
      * @param root
-     *            the root JSON node
-     * @return a map of metadata key-value pairs, or an empty map if no metadata is present
+     *            the root JSON node of the configuration file
+     * @return an unmodifiable list of {@link PathPropertyDef}; empty if the key is absent
+     * @throws IOException
+     *             if any entry is malformed
      */
-    private static Map<String, String> parseMetadata(JsonNode root)
+    private static List<PathPropertyDef> parsePathProperties(JsonNode root) throws IOException
     {
-        final Map<String, String> metadata = new LinkedHashMap<>();
-        final JsonNode metadataNode = root.get(METADATA_KEY);
-        
-        if (metadataNode != null && metadataNode.isObject()) {
-            final Iterator<Map.Entry<String, JsonNode>> fields = metadataNode.fields();
-            while (fields.hasNext()) {
-                final Map.Entry<String, JsonNode> field = fields.next();
-                final String key = field.getKey();
-                final JsonNode value = field.getValue();
-                
-                if (value != null && !value.isNull()) {
-                    metadata.put(key, value.asText());
-                }
-            }
-            LOGGER.debug("Parsed metadata: {}", metadata);
-        } else {
-            LOGGER.debug("No $metadata section found in configuration");
+        final JsonNode node = root.get(PATH_PROPERTIES_KEY);
+        if (node == null || node.isNull()) {
+            return new ArrayList<>();
         }
-        
-        return metadata;
+        if (!node.isArray()) {
+            throw new IOException("'$path_properties' must be a JSON array.");
+        }
+        final List<PathPropertyDef> result = new ArrayList<>();
+        for (final JsonNode entry : node) {
+            if (!entry.isObject()) {
+                throw new IOException("Each entry in '$path_properties' must be a JSON object.");
+            }
+            final String name        = requireText(entry, "name", "'$path_properties' entry");
+            final String label       = getTextOrDefault(entry, "label", name);
+            final String description = getTextOrDefault(entry, "description", "");
+            final boolean masked     = entry.hasNonNull("masked") && entry.get("masked").asBoolean();
+            result.add(new PathPropertyDef(name, label, description, masked));
+        }
+        LOGGER.debug("Parsed {} path properties", result.size());
+        return result;
     }
 
     private static String parseBaseUrl(JsonNode root) throws IOException
@@ -164,14 +222,108 @@ public class RestApiMappingLoader
         return hostnameNode.asText();
     }
 
-    private static AuthenticationType parseAuthenticationType(JsonNode root) throws IOException
+    private static AuthConfig parseAuthConfig(JsonNode root) throws IOException
     {
-        final String rawAuthenticationType = getTextOrDefault(root, AUTHENTICATION_KEY, AuthenticationType.NONE.getValue());
+        final JsonNode authNode = root.get(AUTHENTICATION_KEY);
+
+        // Missing or null → no authentication
+        if (authNode == null || authNode.isNull()) {
+            return new AuthConfig();
+        }
+
+        // Legacy string form: "$authentication": "api_key" (or "oauth2", "basic", "none")
+        // Expand to the canonical object form with default header definitions.
+        if (authNode.isTextual()) {
+            LOGGER.info("Detected legacy string-form '$authentication': '{}' — expanding to default object form",
+                    authNode.asText());
+            return buildDefaultAuthConfig(authNode.asText());
+        }
+
+        // Must be an object: { "type": "...", "headers": [...] }
+        if (!authNode.isObject()) {
+            throw new IOException(
+                    "The '$authentication' field must be a JSON object with a 'type' field.");
+        }
+
+        final String rawType = getTextOrDefault(authNode, "type", AuthenticationType.NONE.getValue());
+        final AuthenticationType type;
         try {
-            return AuthenticationType.fromValue(rawAuthenticationType);
+            type = AuthenticationType.fromValue(rawType);
         } catch (IllegalArgumentException e) {
             throw new IOException("Invalid authentication type in configuration: " + e.getMessage(), e);
         }
+
+        if (type == AuthenticationType.NONE) {
+            return new AuthConfig();
+        }
+
+        final JsonNode headersNode = authNode.get("headers");
+        if (headersNode == null || !headersNode.isArray() || headersNode.size() == 0) {
+            throw new IOException(
+                    "Authentication type '" + rawType + "' requires a non-empty 'headers' array.");
+        }
+
+        final List<HeaderDef> headers = new ArrayList<>();
+        for (final JsonNode hNode : headersNode) {
+            if (!hNode.isObject()) {
+                throw new IOException("Each entry in '$authentication.headers' must be a JSON object.");
+            }
+            final String name   = requireText(hNode, "name",  "'$authentication.headers' entry");
+            final String label  = getTextOrDefault(hNode, "label",  name);
+            final String desc   = getTextOrDefault(hNode, "description", "");
+            final boolean masked = hNode.hasNonNull("masked") && hNode.get("masked").asBoolean();
+            final String header = parseOptionalText(hNode, "header");
+            final String value  = parseOptionalText(hNode, "value");
+            headers.add(new HeaderDef(name, label, desc, masked, header, value));
+        }
+
+        return new AuthConfig(type, headers);
+    }
+
+    /**
+     * Builds a default {@link AuthConfig} from a legacy bare-string authentication type.
+     *
+     * <p>Handles backward compatibility for configs that specify {@code "$authentication": "api_key"}
+     * (or {@code "oauth2"}, {@code "basic"}, {@code "none"}) rather than the current object form.
+     * Each type is expanded to the canonical object form with sensible default header definitions.
+     */
+    private static AuthConfig buildDefaultAuthConfig(String rawType) throws IOException
+    {
+        final AuthenticationType type;
+        try {
+            type = AuthenticationType.fromValue(rawType);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid authentication type in configuration: " + e.getMessage(), e);
+        }
+
+        switch (type) {
+        case NONE:
+            return new AuthConfig();
+        case API_KEY:
+            return new AuthConfig(type, Arrays.asList(
+                    new HeaderDef("api_key", "API Key", "Your API key",
+                            true, "Authorization", "ApiKey $api_key")));
+        case OAUTH2:
+            return new AuthConfig(type, Arrays.asList(
+                    new HeaderDef("bearer_token", "Bearer Token", "OAuth 2.0 access token",
+                            true, "Authorization", "Bearer $bearer_token")));
+        case BASIC:
+            return new AuthConfig(type, Arrays.asList(
+                    new HeaderDef("username", "Username", "Username", false,
+                            "Authorization", "Basic base64($username:$password)"),
+                    new HeaderDef("password", "Password", "Password", true, null, null)));
+        default:
+            throw new IOException("No default header definitions for authentication type: " + rawType);
+        }
+    }
+
+    private static String requireText(JsonNode node, String key, String context) throws IOException
+    {
+        final JsonNode child = node.get(key);
+        if (child == null || child.isNull() || child.asText().isEmpty()) {
+            throw new IOException("Missing required field '" + key + "' in " + context + ".");
+        }
+        return child.asText();
     }
 
     private static Map<String, RestTableDefinition> parseTables(JsonNode root) throws IOException
@@ -210,11 +362,12 @@ public class RestApiMappingLoader
 
         final String dataPath = parseOptionalText(tableNode, DATA_PATH_KEY);
         final PaginationConfig paginationConfig = parsePaginationConfig(tableNode);
+        final List<PathKeyDef> pathKeys = parsePathKeys(tableName, tableNode);
         final List<RestFieldDefinition> fields = parseFields(tableNode, "");
 
-        logParsedTable(tableName, dataPath, paginationConfig, fields.size());
-
-        return new RestTableEntry(tableName, new RestTableDefinition(path, dataPath, paginationConfig, fields));
+        logParsedTable(tableName, dataPath, paginationConfig, pathKeys, fields.size());
+        return new RestTableEntry(tableName,
+                new RestTableDefinition(path, dataPath, paginationConfig, pathKeys, fields));
     }
 
     private static String parseTablePath(String tableName, JsonNode tableNode)
@@ -227,9 +380,13 @@ public class RestApiMappingLoader
         return pathNode.get(0).asText();
     }
 
-    private static void logParsedTable(String tableName, String dataPath, PaginationConfig paginationConfig, int fieldCount)
+    private static void logParsedTable(String tableName, String dataPath, PaginationConfig paginationConfig,
+            List<PathKeyDef> pathKeys, int fieldCount)
     {
-        if (paginationConfig != null && dataPath != null) {
+        if (!pathKeys.isEmpty()) {
+            LOGGER.debug("Loaded table '{}' with {} path_key(s): '{}' and {} fields",
+                    tableName, pathKeys.size(), pathKeys, fieldCount);
+        } else if (paginationConfig != null && dataPath != null) {
             LOGGER.debug("Loaded table '{}' with data path '{}', pagination type '{}', and {} fields",
                     tableName, dataPath, paginationConfig.getType(), fieldCount);
         } else if (paginationConfig != null) {
@@ -240,6 +397,66 @@ public class RestApiMappingLoader
         } else {
             LOGGER.debug("Loaded table '{}' with {} fields", tableName, fieldCount);
         }
+    }
+
+    /**
+     * Parses the optional {@code $path_keys} array from a table JSON node.
+     *
+     * <p>Each element must be a JSON object with required sub-fields:
+     * {@code variable}, {@code source_path}, {@code source_field}.
+     * Optional per-element: {@code source_data_path}.
+     *
+     * <p>Order is significant: each entry's {@code source_path} may reference
+     * {@code $variable} placeholders resolved by earlier entries in the list.
+     *
+     * @param tableName
+     *            the table name (for error/warning messages)
+     * @param tableNode
+     *            the JSON object representing the table definition
+     * @return the parsed list of {@link PathKeyDef}; empty list if the key is absent
+     */
+    private static List<PathKeyDef> parsePathKeys(String tableName, JsonNode tableNode)
+    {
+        final JsonNode node = tableNode.get(PATH_KEYS_KEY);
+        if (node == null || node.isNull()) {
+            return new ArrayList<>();
+        }
+        if (!node.isArray()) {
+            LOGGER.warn("Skipping invalid '$path_keys' in table '{}': must be a JSON array", tableName);
+            return new ArrayList<>();
+        }
+
+        final List<PathKeyDef> result = new ArrayList<>();
+        for (int i = 0; i < node.size(); i++) {
+            final JsonNode entry = node.get(i);
+            if (!entry.isObject()) {
+                LOGGER.warn("Skipping non-object entry at index {} in '$path_keys' for table '{}'", i, tableName);
+                continue;
+            }
+            final String variable    = getTextOrDefault(entry, "variable",     null);
+            final String sourcePath  = getTextOrDefault(entry, "source_path",  null);
+            final String sourceField = getTextOrDefault(entry, "source_field", null);
+
+            if (variable == null || variable.isBlank()) {
+                LOGGER.warn("Skipping '$path_keys[{}]' in table '{}': missing required 'variable' field", i, tableName);
+                continue;
+            }
+            if (sourcePath == null || sourcePath.isBlank()) {
+                LOGGER.warn("Skipping '$path_keys[{}]' in table '{}': missing required 'source_path' field", i, tableName);
+                continue;
+            }
+            if (sourceField == null || sourceField.isBlank()) {
+                LOGGER.warn("Skipping '$path_keys[{}]' in table '{}': missing required 'source_field' field", i, tableName);
+                continue;
+            }
+
+            final String sourceDataPath = parseOptionalText(entry, "source_data_path");
+            final Long lookupDelayMs = parseOptionalLong(entry, "lookup_delay_ms");
+            LOGGER.debug("Parsed path_keys[{}] for table '{}': variable='{}', source='{}', field='{}'",
+                    i, tableName, variable, sourcePath, sourceField);
+            result.add(new PathKeyDef(variable, sourcePath, sourceField, sourceDataPath, lookupDelayMs));
+        }
+        return result;
     }
 
     private static String getTextOrDefault(JsonNode node, String key, String defaultValue)
@@ -258,6 +475,15 @@ public class RestApiMappingLoader
             return null;
         }
         return childNode.asText();
+    }
+
+    private static Long parseOptionalLong(JsonNode node, String key)
+    {
+        final JsonNode childNode = node.get(key);
+        if (childNode == null || childNode.isNull()) {
+            return null;
+        }
+        return childNode.asLong();
     }
 
     /**
@@ -279,31 +505,22 @@ public class RestApiMappingLoader
             final String rawKey = fieldEntry.getKey();
             final JsonNode fieldValue = fieldEntry.getValue();
 
-            // Skip special keys that start with $
             if (rawKey.startsWith("$")) {
                 continue;
             }
 
-            // Check if this is a nested object field (key ends with [])
             final boolean isNestedObject = rawKey.endsWith(ARRAY_SUFFIX);
-            final String baseFieldName = isNestedObject ? rawKey.substring(0, rawKey.length() - ARRAY_SUFFIX.length()) : rawKey;
+            final String baseFieldName = isNestedObject
+                    ? rawKey.substring(0, rawKey.length() - ARRAY_SUFFIX.length()) : rawKey;
             final String fieldName = prefix + baseFieldName;
 
             if (isNestedObject && fieldValue.isObject()) {
-                // Nested object with [] — flatten its fields with dot separator
-                final List<RestFieldDefinition> nestedFields = parseFields(fieldValue, fieldName + ".");
-                fields.addAll(nestedFields);
+                fields.addAll(parseFields(fieldValue, fieldName + "."));
             } else {
-                // Simple field with type string like "VARCHAR,$key,$notnull" or "INTEGER"
                 final String rawType = fieldValue.asText();
-                
-                // Parse modifiers
                 final boolean isKey = rawType.contains(KEY_MODIFIER);
                 final boolean isNotNull = rawType.contains(NOTNULL_MODIFIER);
-                
-                // Remove all modifiers from the type string
                 final String typeString = removeModifiers(rawType);
-
                 fields.add(new RestFieldDefinition(fieldName, typeString, isKey, isNotNull));
             }
         }
@@ -311,36 +528,17 @@ public class RestApiMappingLoader
         return fields;
     }
 
-    /**
-     * Removes all known modifiers from a type string.
-     * <p>
-     * This method handles modifiers in any position (beginning, middle, or end)
-     * and with or without surrounding commas.
-     *
-     * @param rawType the raw type string with potential modifiers (e.g., "VARCHAR,$key,$notnull")
-     * @return the clean type string without modifiers (e.g., "VARCHAR")
-     */
     private static String removeModifiers(String rawType)
     {
         String result = rawType;
-        
-        // Remove each modifier in all possible positions
         for (final String modifier : ALL_MODIFIERS) {
-            result = result.replace("," + modifier, "");  // Remove ",modifier"
-            result = result.replace(modifier + ",", "");  // Remove "modifier,"
-            result = result.replace(modifier, "");        // Remove standalone "modifier"
+            result = result.replace("," + modifier, "");
+            result = result.replace(modifier + ",", "");
+            result = result.replace(modifier, "");
         }
-        
         return result.trim();
     }
 
-    /**
-     * Parses the pagination configuration from a table JSON node.
-     *
-     * @param tableNode
-     *            the JSON object representing a table
-     * @return the pagination configuration, or null if no pagination is configured
-     */
     private static PaginationConfig parsePaginationConfig(JsonNode tableNode)
     {
         final JsonNode paginationNode = tableNode.get(PAGINATION_KEY);
@@ -414,7 +612,8 @@ public class RestApiMappingLoader
         return paginationType;
     }
 
-    private static String parseRequiredPaginationField(JsonNode paginationNode, String fieldName, String warningMessage)
+    private static String parseRequiredPaginationField(JsonNode paginationNode, String fieldName,
+            String warningMessage)
     {
         final String fieldValue = parseOptionalText(paginationNode, fieldName);
         if (fieldValue == null) {
@@ -449,5 +648,3 @@ public class RestApiMappingLoader
         }
     }
 }
-
-// Made with Bob

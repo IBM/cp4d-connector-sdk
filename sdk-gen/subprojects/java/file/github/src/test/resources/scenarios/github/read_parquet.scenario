@@ -1,0 +1,23 @@
+# ============================================================
+# GitHub — read Parquet files (decimal and snappy)
+# ============================================================
+
+[Step]
+# dec-in-fixed-len.parquet: 16 rows, 1 column (decimal)
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/dec-in-fixed-len.parquet
+ExpectedRowCount=16
+ExpectedCell.0.0=0.00
+ExpectedCell.15.0=5.00
+
+[Step]
+# before_1582_date_v3_2_0.snappy.parquet: 8 rows, 2 date columns
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/before_1582_date_v3_2_0.snappy.parquet
+ExpectedRowCount=8
+ExpectedCell.0.0=1001-01-01
+ExpectedCell.0.1=1001-01-01
+ExpectedCell.7.0=1001-01-01
+ExpectedCell.7.1=1001-01-08

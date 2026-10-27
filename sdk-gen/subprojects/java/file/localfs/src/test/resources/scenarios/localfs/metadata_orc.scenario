@@ -1,0 +1,22 @@
+# ============================================================
+# LocalFS — getFlightInfo metadata assertions for an ORC file
+# ============================================================
+# Writes a known ORC file, then verifies the returned descriptor
+# carries the correct file_format and mime_type.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write an ORC file ────────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/meta_orc.orc
+Interaction.file_format=orc
+Schema=id|integer; label|varchar
+Row.0=1|hello
+
+# ── Check returned interaction properties ───────────────────
+[Step]
+Type=Metadata
+Interaction.file_name=${work_dir}/meta_orc.orc
+ExpectedInteractionProperty.file_format=orc
+ExpectedDetail.mime_type=application/octet-stream
+ExpectedSchemaFields=id|label

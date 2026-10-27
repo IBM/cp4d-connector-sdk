@@ -15,6 +15,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+
 /**
  * Tests for {@link RestApiMappingLoader}.
  */
@@ -209,6 +210,420 @@ public class TestRestApiMappingLoader
         
         final RestFieldDefinition flightField = launches.getFields().get(4);
         assertEquals("cores.flight", flightField.getName());
+    }
+    /**
+     * Test that origin name and version are parsed from $origin.
+     */
+    @Test
+    public void testOriginParsedFromMetadata() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$connector_name\": \"my-forge-connector\",\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$origin\": {\"name\": \"forge\", \"version\": \"1.2.3\"},\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals("forge", mapping.getOrigin().get("name"));
+        assertEquals("1.2.3", mapping.getOrigin().get("version"));
+    }
+
+    /**
+     * Test that origin is empty when $metadata has no connector_source.
+     */
+    @Test
+    public void testOriginEmptyWhenNoMetadata() throws Exception
+    {
+        final RestApiMapping mapping = RestApiMappingLoader.parse(MINIMAL_REST_JSON);
+        assertTrue(mapping.getOrigin().isEmpty());
+    }
+
+    /**
+     * Test that acceptHeader defaults to "application/json" when $accept_header is omitted.
+     */
+    @Test
+    public void testAcceptHeaderDefaultsWhenOmitted() throws Exception
+    {
+        // MINIMAL_REST_JSON has no $accept_header key
+        final RestApiMapping mapping = RestApiMappingLoader.parse(MINIMAL_REST_JSON);
+        assertEquals("application/json", mapping.getAcceptHeader());
+    }
+
+    /**
+     * Test that acceptHeader defaults to "application/json" when $accept_header is an empty string.
+     */
+    @Test
+    public void testAcceptHeaderDefaultsWhenBlank() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$accept_header\": \"\",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals("application/json", mapping.getAcceptHeader());
+    }
+
+    /**
+     * Test that a non-default acceptHeader value is preserved as-is.
+     */
+    @Test
+    public void testAcceptHeaderCustomValue() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$accept_header\": \"text/xml\",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals("text/xml", mapping.getAcceptHeader());
+    }
+
+    /**
+     * Test that RestApiMapping constructor treats a null acceptHeader as "application/json".
+     */
+    @Test
+    public void testAcceptHeaderNullInConstructorDefaultsToJson() throws Exception
+    {
+        // Parse a valid mapping, then verify the constructor guard via a blank-string
+        // round-trip: blank from loader → constructor guard → "application/json"
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$accept_header\": \"   \",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        // whitespace-only is blank → constructor guard fires → "application/json"
+        assertEquals("application/json", mapping.getAcceptHeader());
+    }
+    // -------------------------------------------------------------------------
+    // $path_properties parsing
+    // -------------------------------------------------------------------------
+
+    /**
+     * $path_properties absent → getPathProperties() returns an empty list.
+     */
+    @Test
+    public void testPathPropertiesAbsentReturnsEmptyList() throws Exception
+    {
+        final RestApiMapping mapping = RestApiMappingLoader.parse(MINIMAL_REST_JSON);
+        assertNotNull(mapping.getPathProperties());
+        assertTrue(mapping.getPathProperties().isEmpty());
+    }
+
+    /**
+     * A single $path_properties entry is parsed correctly.
+     */
+    @Test
+    public void testPathPropertiesSingleEntry() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"name\": \"merchant_id\", \"label\": \"Merchant ID\","
+                + "     \"description\": \"Your merchant ID\", \"masked\": false}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/merchants/$merchant_id/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(1, mapping.getPathProperties().size());
+        final PathPropertyDef def = mapping.getPathProperties().get(0);
+        assertEquals("merchant_id", def.getName());
+        assertEquals("Merchant ID", def.getLabel());
+        assertEquals("Your merchant ID", def.getDescription());
+        assertFalse(def.isMasked());
+    }
+
+    /**
+     * Multiple $path_properties entries are all parsed in order.
+     */
+    @Test
+    public void testPathPropertiesMultipleEntries() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"name\": \"org_id\",     \"label\": \"Org ID\"},\n"
+                + "    {\"name\": \"project_id\", \"label\": \"Project ID\", \"masked\": true}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/orgs/$org_id/projects/$project_id/t\"],"
+                + "                        \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final List<PathPropertyDef> props = mapping.getPathProperties();
+        assertEquals(2, props.size());
+        assertEquals("org_id",     props.get(0).getName());
+        assertEquals("project_id", props.get(1).getName());
+        assertTrue(props.get(1).isMasked());
+    }
+
+    /**
+     * When label is omitted, it defaults to the name value.
+     */
+    @Test
+    public void testPathPropertiesLabelDefaultsToName() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"name\": \"company_id\"}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/$company_id/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final PathPropertyDef def = mapping.getPathProperties().get(0);
+        assertEquals("company_id", def.getName());
+        assertEquals("company_id", def.getLabel());
+        assertEquals("",           def.getDescription());
+        assertFalse(def.isMasked());
+    }
+
+    /**
+     * A $path_properties entry missing a name throws IOException.
+     */
+    @Test(expected = java.io.IOException.class)
+    public void testPathPropertiesMissingNameThrows() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": [\n"
+                + "    {\"label\": \"No Name\"}\n"
+                + "  ],\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        RestApiMappingLoader.parse(json);
+    }
+
+    /**
+     * $path_properties being a non-array value throws IOException.
+     */
+    @Test(expected = java.io.IOException.class)
+    public void testPathPropertiesNotArrayThrows() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$path_properties\": \"not-an-array\",\n"
+                + "  \"$tables\": {\"T\": {\"$path\": [\"/t\"], \"id\": \"VARCHAR,$key\"}}\n"
+                + "}";
+        RestApiMappingLoader.parse(json);
+    }
+    // -------------------------------------------------------------------------
+    // $path_keys parsing
+    // -------------------------------------------------------------------------
+
+    /**
+     * $path_keys absent → getPathKeys() returns empty list and hasPathKeys() is false.
+     */
+    @Test
+    public void testPathKeysAbsentReturnsEmpty() throws Exception
+    {
+        final RestTableDefinition tbl = RestApiMappingLoader.parse(MINIMAL_REST_JSON).getTable("USERS");
+        assertNotNull(tbl);
+        assertTrue(tbl.getPathKeys().isEmpty());
+        assertFalse(tbl.hasPathKeys());
+    }
+
+    /**
+     * A single $path_keys entry is parsed correctly including source_data_path.
+     */
+    @Test
+    public void testPathKeysSingleEntryFullyParsed() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://sentry.io\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"ISSUES\": {\n"
+                + "      \"$path\": [\"/api/0/organizations/$org_slug/issues/\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"org_slug\",\n"
+                + "          \"source_path\": \"/api/0/organizations/\",\n"
+                + "          \"source_field\": \"slug\",\n"
+                + "          \"source_data_path\": \"data\"\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\",\n"
+                + "      \"title\": \"VARCHAR\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final List<PathKeyDef> pks = mapping.getTable("ISSUES").getPathKeys();
+        assertEquals(1, pks.size());
+        final PathKeyDef pk = pks.get(0);
+        assertEquals("org_slug",             pk.getVariable());
+        assertEquals("/api/0/organizations/", pk.getSourcePath());
+        assertEquals("slug",                  pk.getSourceField());
+        assertEquals("data",                  pk.getSourceDataPath());
+    }
+
+    /**
+     * A $path_keys entry without source_data_path leaves that field null.
+     */
+    @Test
+    public void testPathKeysSingleEntryWithoutSourceDataPath() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"ITEMS\": {\n"
+                + "      \"$path\": [\"/orgs/$slug/items\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"slug\",\n"
+                + "          \"source_path\": \"/orgs/\",\n"
+                + "          \"source_field\": \"slug\"\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final List<PathKeyDef> pks = mapping.getTable("ITEMS").getPathKeys();
+        assertEquals(1, pks.size());
+        final PathKeyDef pk = pks.get(0);
+        assertEquals("slug",   pk.getVariable());
+        assertEquals("/orgs/", pk.getSourcePath());
+        assertEquals("slug",   pk.getSourceField());
+        assertNull(pk.getSourceDataPath());
+    }
+
+    /**
+     * Tables with and without $path_keys coexist in the same mapping.
+     */
+    @Test
+    public void testPathKeysCoexistWithOrdinaryTable() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"ORGS\": {\n"
+                + "      \"$path\": [\"/orgs/\"],\n"
+                + "      \"slug\": \"VARCHAR,$key\"\n"
+                + "    },\n"
+                + "    \"ITEMS\": {\n"
+                + "      \"$path\": [\"/orgs/$slug/items\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"slug\",\n"
+                + "          \"source_path\": \"/orgs/\",\n"
+                + "          \"source_field\": \"slug\"\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertFalse(mapping.getTable("ORGS").hasPathKeys());
+        assertTrue(mapping.getTable("ITEMS").hasPathKeys());
+    }
+
+    /**
+     * A $path_keys entry missing the required 'variable' field is silently skipped.
+     * An otherwise empty array results in an empty list and hasPathKeys() == false.
+     */
+    @Test
+    public void testPathKeysMissingVariableSilentlySkipped() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"T\": {\n"
+                + "      \"$path\": [\"/t\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"source_path\": \"/orgs/\",\n"
+                + "          \"source_field\": \"slug\"\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertNotNull(mapping.getTable("T"));
+        // Invalid entry is silently skipped — table still loaded with empty path_keys
+        assertFalse(mapping.getTable("T").hasPathKeys());
+    }
+
+    /**
+     * Two chained $path_keys entries are both parsed and preserved in order.
+     * The second entry's source_path may reference the first's variable.
+     */
+    @Test
+    public void testPathKeysChainedTwoEntriesParsed() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"TRANSACTIONS\": {\n"
+                + "      \"$path\": [\"/orgs/$org_id/projects/$project_id/transactions\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"org_id\",\n"
+                + "          \"source_path\": \"/orgs/\",\n"
+                + "          \"source_field\": \"id\"\n"
+                + "        },\n"
+                + "        {\n"
+                + "          \"variable\": \"project_id\",\n"
+                + "          \"source_path\": \"/orgs/$org_id/projects/\",\n"
+                + "          \"source_field\": \"id\"\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\",\n"
+                + "      \"amount\": \"DOUBLE\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        final List<PathKeyDef> pks = mapping.getTable("TRANSACTIONS").getPathKeys();
+        assertEquals(2, pks.size());
+        assertEquals("org_id",    pks.get(0).getVariable());
+        assertEquals("/orgs/",    pks.get(0).getSourcePath());
+        assertEquals("project_id",            pks.get(1).getVariable());
+        assertEquals("/orgs/$org_id/projects/", pks.get(1).getSourcePath());
+    }
+
+    /**
+     * A $path_keys entry with lookup_delay_ms is parsed and stored correctly.
+     * An entry without lookup_delay_ms defaults to 0.
+     */
+    @Test
+    public void testPathKeysLookupDelayMsParsed() throws Exception
+    {
+        final String json = "{\n"
+                + "  \"$hostname\": \"https://api.example.com\",\n"
+                + "  \"$tables\": {\n"
+                + "    \"T\": {\n"
+                + "      \"$path\": [\"/items/$item_id\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"item_id\",\n"
+                + "          \"source_path\": \"/items\",\n"
+                + "          \"source_field\": \"id\",\n"
+                + "          \"lookup_delay_ms\": 250\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    },\n"
+                + "    \"U\": {\n"
+                + "      \"$path\": [\"/users/$user_id\"],\n"
+                + "      \"$path_keys\": [\n"
+                + "        {\n"
+                + "          \"variable\": \"user_id\",\n"
+                + "          \"source_path\": \"/users\",\n"
+                + "          \"source_field\": \"id\"\n"
+                + "        }\n"
+                + "      ],\n"
+                + "      \"id\": \"VARCHAR,$key\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+        final RestApiMapping mapping = RestApiMappingLoader.parse(json);
+        assertEquals(250L, mapping.getTable("T").getPathKeys().get(0).getLookupDelayMs());
+        assertEquals(0L,   mapping.getTable("U").getPathKeys().get(0).getLookupDelayMs());
     }
 }
 

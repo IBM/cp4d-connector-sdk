@@ -100,23 +100,28 @@ public class RestFieldTypeMapper
         case "int":
             field.setType("integer");
             field.setSigned(true);
+            field.setLength(0);
             break;
         case "bigint":
             field.setType("bigint");
             field.setSigned(true);
+            field.setLength(0);
             break;
         case "smallint":
             field.setType("smallint");
             field.setSigned(true);
+            field.setLength(0);
             break;
         case "tinyint":
             field.setType("tinyint");
             field.setSigned(true);
+            field.setLength(0);
             break;
         case "boolean":
         case "bool":
         case "bit":
             field.setType("boolean");
+            field.setLength(0);
             break;
         case "date":
             field.setType("date");

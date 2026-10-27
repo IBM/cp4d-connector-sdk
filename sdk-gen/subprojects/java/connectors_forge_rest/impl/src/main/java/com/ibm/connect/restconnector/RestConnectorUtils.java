@@ -5,6 +5,8 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
+import java.util.Locale;
+
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 
 /**
@@ -44,23 +46,48 @@ public final class RestConnectorUtils
             final String[] segments = path.split("/");
             for (int i = segments.length - 1; i >= 0; i--) {
                 if (!segments[i].isEmpty()) {
-                    return segments[i].toUpperCase(java.util.Locale.ENGLISH);
+                    return segments[i].toUpperCase(Locale.ENGLISH);
                 }
             }
         }
 
         // Fall back to asset name
         if (asset.getName() != null && !asset.getName().isEmpty()) {
-            return asset.getName().toUpperCase(java.util.Locale.ENGLISH);
+            return asset.getName().toUpperCase(Locale.ENGLISH);
         }
 
         // Fall back to asset ID
         if (asset.getId() != null && !asset.getId().isEmpty()) {
-            return asset.getId().toUpperCase(java.util.Locale.ENGLISH);
+            return asset.getId().toUpperCase(Locale.ENGLISH);
         }
 
         throw new IllegalArgumentException("Cannot determine table name from asset: path=" + path
                 + ", name=" + asset.getName() + ", id=" + asset.getId());
+    }
+
+    /**
+     * Resolves the table name from a path and a fallback name.
+     *
+     * @param path
+     *            the asset path (may be null or empty)
+     * @param name
+     *            the asset name (fallback)
+     * @return the table name (upper-case)
+     */
+    public static String resolveTableName(String path, String name)
+    {
+        if (path != null && !path.isEmpty()) {
+            final String[] segments = path.split("/");
+            for (int i = segments.length - 1; i >= 0; i--) {
+                if (!segments[i].isEmpty()) {
+                    return segments[i].toUpperCase(Locale.ENGLISH);
+                }
+            }
+        }
+        if (name != null && !name.isEmpty()) {
+            return name.toUpperCase(Locale.ENGLISH);
+        }
+        throw new IllegalArgumentException("Cannot determine table name from path=" + path + ", name=" + name);
     }
 
 }

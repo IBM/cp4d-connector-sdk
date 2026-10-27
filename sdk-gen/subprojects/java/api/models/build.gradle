@@ -5,6 +5,8 @@ apply plugin: 'com.github.node-gradle.node'
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 
+version = project['sdk.gen.version']
+
 //
 // Declare custom configurations
 //
@@ -141,3 +143,5 @@ pmdMain.enabled = false
 spotless {
   enforceCheck false
 }
+
+apply from: "${rootProject.projectDir}/publish.gradle"

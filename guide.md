@@ -626,6 +626,42 @@ If the stream is partitioned, the `put_setup` action will be called first.  That
 
 ## Security
 Communication between the platform services and a custom Flight service is secured through a combination of Transport Layer Security (TLS) and authentication. The following steps must be followed during deployment and registration of a custom Flight service to establish secure communication.
+
+### Standalone and open-source deployment modes
+
+The Flight server supports two reduced-authentication modes controlled by environment variables. These are intended for open-source usage or for deployments alongside `wdp-connect-service` in standalone mode, where no IBM Cloud IAM or CP4D JWT tokens are available.
+
+#### No-auth mode (`ENABLE_AUTH=false`)
+
+Set `ENABLE_AUTH=false` to start the Flight server without attaching any authentication handler. Clients connect directly without performing an auth handshake and without sending any token. Connector-level credentials (for example, AWS access keys or a GitHub personal access token) are still passed in the `FlightDescriptor` connection properties payload and are validated by the connector itself.
+
+```
+ENABLE_AUTH=false ENABLE_SSL=false FLIGHT_PORT=9090 \
+  subprojects/s3-connector-flight-standalone/build/install/wdp-connect-sdk-gen-s3-connector-flight-standalone/bin/wdp-connect-sdk-gen-s3-connector-flight-standalone
+```
+
+#### Standalone token mode (`ENVIRONMENT_NAME=standalone`)
+
+When `ENVIRONMENT_NAME=standalone` is set, the Flight server accepts the literal string `standalone` as a valid authentication token without performing any JWT signature verification. This mirrors how `wdp-connect-service` operates in its own standalone deployment mode and is useful when a connector is deployed alongside that service.
+
+```
+ENVIRONMENT_NAME=standalone ENABLE_SSL=false FLIGHT_PORT=9090 \
+  subprojects/s3-connector-flight-standalone/build/install/wdp-connect-sdk-gen-s3-connector-flight-standalone/bin/wdp-connect-sdk-gen-s3-connector-flight-standalone
+```
+
+In this mode clients must still perform the gRPC auth handshake, but pass `standalone` as the token value instead of a signed JWT Bearer token.
+
+The decision tree for authentication is:
+
+```
+ENABLE_AUTH=false  →  no auth handler attached; all clients accepted
+ENABLE_AUTH=true (default)
+  ENVIRONMENT_NAME=standalone  →  literal "standalone" token accepted, no JWT check
+  otherwise                    →  full JWT Bearer token verified against public keys
+```
+
+For step-by-step testing instructions, see [`STANDALONE_AUTH_TESTING.md`](STANDALONE_AUTH_TESTING.md).
+
 ### 1. Get the platform public keys.
 Get the platform public key for each cluster in which you intend to register your custom Flight service. The key can be retrieved with an HTTP request. For example, for an on-premise installation of Cloud Pak for Data:
 
@@ -804,23 +840,46 @@ Verify that the project builds successfully:
 
 ## 3. Build a Docker image.
 
-Before you can build a Docker image, the Docker service must be running. Consider starting it in a separate terminal so that its log messages do not clutter your development terminal:
+Before you can build a Docker image, the container runtime must be running.
 
-`systemctl start docker`
+**macOS (Podman — recommended)**
 
-Or for Windows Subsystem for Linux with Ubuntu:
+On macOS, Podman runs inside a lightweight Linux VM called a Podman machine. Check whether it is running and start it if needed:
 
-`sudo dockerd`
+```bash
+# Check status
+podman machine list
 
-Once the Docker service is running, you can build a Docker image:
+# Start if stopped
+podman machine start
+
+# Verify
+podman info | grep -E "host:|os:"
+```
+
+The `docker` command on macOS with Podman Desktop is already aliased to `podman`, so no further configuration is needed.
+
+**Linux (systemd)**
+
+```bash
+systemctl start docker
+```
+
+**Windows Subsystem for Linux (WSL2 / Ubuntu)**
+
+```bash
+sudo dockerd
+```
+
+Once the container runtime is running, build the image:
 
 `./gradlew dockerBuild`
 
-To use Podman instead of Docker:
+To use Podman instead of Docker on Linux or WSL2:
 
 `./gradlew dockerBuild -Pcontainer.cli=podman`
 
-Or to avoid having to specify the option every time, add the following property in the `.gradle/gradle.properties` file of your home directory:
+Or to avoid specifying the option every time, add the following property to the `.gradle/gradle.properties` file in your home directory:
 
 ```
 systemProp.container.cli=podman
@@ -846,9 +905,12 @@ If you have created more than one Flight server project, specify the project of 
 
 ## 5. Register your Flight service in Cloud Pak for Data.
 
-Get the SSL certificate of the deployed Flight service, for example:
+Get the SSL certificate of the deployed Flight service. First, create the output directory if it does not exist, then export the certificate. Replace `<your-flight-project>` with your generated Flight project name (for example `s3-connector-flight-standalone`):
 
-`keytool -printcert -sslserver localhost:443 -rfc > subprojects/flight/flight.pem`
+```bash
+mkdir -p subprojects/<your-flight-project>
+keytool -printcert -sslserver localhost:443 -rfc > subprojects/<your-flight-project>/flight.pem
+```
 
 Create a configuration file that points sdk to a specific environment by duplicating `src/dist/resources/payload/envs/template.properties` filling it with desired properties and giving it a name of your choosing e.g. `myEnv.properties`
 
@@ -1701,6 +1763,19 @@ systemProp.repos.docker.url
 systemProp.repos.docker.username
 systemProp.repos.docker.password
 ```
+
+To pull base images from a specific registry (for example, an internal mirror), set `image.registry.prefix` in `~/.gradle/gradle.properties`:
+
+```
+systemProp.image.registry.prefix=my.internal.registry.com/dockerhub-proxy
+```
+
+Or pass it on the command line:
+
+```bash
+./gradlew dockerBuild -Dimage.registry.prefix=my.internal.registry.com/dockerhub-proxy
+```
+
 ## Registration
 Registration of newly deployed connectors can be done via the connections service API which first queries your Flight server for connectors and then creates a custom datasource type for each. Your Flight server provides the list of available connectors by responding to the `list_datasource_types` action. There is a dedicated Gradle task which can be used to trigger registration.
 
@@ -2009,6 +2084,11 @@ ServerTokenAuthHandler.java      An authentication handler for a Flight server
 SSLUtils.java                    Utility methods for handling SSL certificates
 Utils.java                       Miscellaneous utility methods
 ```
+
+`AuthUtils` exposes two members relevant to standalone/open-source deployments:
+
+- `AuthUtils.STANDALONE_TOKEN` — the constant `"standalone"`, used both as the accepted token value and as the expected value of the `ENVIRONMENT_NAME` environment variable.
+- `AuthUtils.isStandalone()` — returns `true` when `ENVIRONMENT_NAME=standalone` is set in the process environment.
 
 # Flight Operator
 

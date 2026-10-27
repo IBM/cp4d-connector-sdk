@@ -5,21 +5,23 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
-import com.ibm.connect.sdk.api.ConnectorFactory;
-import com.ibm.connect.sdk.api.ConnectorFlightProducer;
+import com.ibm.connect.sdk.api.AbstractSdkConnectorFlightProducer;
+import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
 
 /**
- * A Flight producer for connectors.
+ * A Flight producer for REST API connectors.
+ *
+ * <p>Uses the Arrow-native path via {@link AbstractSdkConnectorFlightProducer} and
+ * {@link RestConnectorFactory}.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
-public class RestFlightProducer extends ConnectorFlightProducer
+public class RestFlightProducer extends AbstractSdkConnectorFlightProducer
 {
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected ConnectorFactory getConnectorFactory()
+    protected SdkConnectorFactory getSdkConnectorFactory()
     {
         return RestConnectorFactory.getInstance();
     }

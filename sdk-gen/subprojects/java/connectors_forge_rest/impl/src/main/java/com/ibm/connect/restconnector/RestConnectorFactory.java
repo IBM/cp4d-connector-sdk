@@ -5,30 +5,34 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
-import static org.slf4j.LoggerFactory.getLogger;
-
 import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.ibm.connect.sdk.api.Connector;
-import com.ibm.connect.sdk.api.PooledConnectorFactory;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypes;
+import com.ibm.wdp.connect.sdk.connector.SdkConnector;
+import com.ibm.wdp.connect.sdk.connector.SdkConnectorFactory;
 
 /**
  * A factory for creating REST connectors.
- * 
- * <p>This factory supports multiple REST connectors, each defined by a separate JSON configuration file
- * in the /config/mappings directory. Each configuration file defines a unique connector with its own
- * name, label, description, and API endpoints.
+ *
+ * <p>Implements {@link SdkConnectorFactory} for the Arrow-native path through
+ * {@link RestFlightProducer}.
+ *
+ * <p>This factory supports multiple REST connectors, each defined by a separate JSON configuration
+ * file in the /config/mappings directory. Each configuration file defines a unique connector with
+ * its own name, label, description, and API endpoints.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
-public class RestConnectorFactory extends PooledConnectorFactory
+public class RestConnectorFactory implements SdkConnectorFactory
 {
-    private static final Logger LOGGER = getLogger(RestConnectorFactory.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(RestConnectorFactory.class);
     private static final RestConnectorFactory INSTANCE = new RestConnectorFactory();
 
     /** Default directory for configuration files */
@@ -45,7 +49,6 @@ public class RestConnectorFactory extends PooledConnectorFactory
      */
     private RestConnectorFactory()
     {
-        super();
         loadAllConfigurations();
     }
 
@@ -70,7 +73,7 @@ public class RestConnectorFactory extends PooledConnectorFactory
             return;
         }
 
-        final File[] jsonFiles = configDir.listFiles((dir, name) -> name.toLowerCase(java.util.Locale.ENGLISH).endsWith(".json"));
+        final File[] jsonFiles = configDir.listFiles((dir, name) -> name.toLowerCase(Locale.ENGLISH).endsWith(".json"));
         if (jsonFiles == null || jsonFiles.length == 0) {
             LOGGER.warn("No .json configuration files found in '{}'. No REST connectors will be available.", CONFIG_DIRECTORY);
             return;
@@ -84,12 +87,11 @@ public class RestConnectorFactory extends PooledConnectorFactory
                 final RestApiMapping mapping = RestApiMappingLoader.load(filePath);
                 final String connectorName = mapping.getConnectorName();
 
-                // Cache the mapping and create datasource type
                 configCache.put(connectorName, mapping);
                 datasourceTypeCache.put(connectorName, new RestDatasourceType(mapping, filePath));
 
                 LOGGER.info("Loaded REST connector '{}' from file: {}", connectorName, configFile.getName());
-            } catch (java.io.IOException e) {
+            } catch (IOException e) {
                 LOGGER.error("I/O error loading configuration from file '{}': {}", configFile.getName(), e.getMessage(), e);
             } catch (IllegalArgumentException e) {
                 LOGGER.error("Invalid configuration in file '{}': {}", configFile.getName(), e.getMessage(), e);
@@ -114,31 +116,62 @@ public class RestConnectorFactory extends PooledConnectorFactory
     }
 
     /**
-     * {@inheritDoc}
+     * Registers a pre-loaded {@link RestApiMapping} in the factory's cache.
+     *
+     * <p>This allows alternative loading strategies (e.g. classpath-based factories) to
+     * make their mappings available to {@link RestConnector} instances without requiring
+     * the configurations to reside on the filesystem at {@value #CONFIG_DIRECTORY}.
+     *
+     * <p>If a mapping with the same connector name is already registered, it will be
+     * replaced.
+     *
+     * @param mapping
+     *            the REST API mapping to register; must not be null
      */
-    @Override
-    protected Connector<?, ?> createNewConnector(String datasourceTypeName, ConnectionProperties properties)
+    public void register(RestApiMapping mapping)
     {
-        if (configCache.containsKey(datasourceTypeName)) {
-            return new RestConnector(datasourceTypeName, properties);
-        }
-        throw new UnsupportedOperationException(RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
+        final String connectorName = mapping.getConnectorName();
+        configCache.put(connectorName, mapping);
+        datasourceTypeCache.put(connectorName, new RestDatasourceType(mapping, "<classpath>"));
+        LOGGER.info("Registered REST connector '{}' from external source", connectorName);
     }
+
+    // ---- SdkConnectorFactory interface ----
 
     /**
      * {@inheritDoc}
-     * 
-     * <p>Returns all datasource types loaded from JSON configuration files.
      */
     @Override
     public CustomFlightDatasourceTypes getDatasourceTypes()
     {
         final CustomFlightDatasourceTypes types = new CustomFlightDatasourceTypes();
-        for (final RestDatasourceType datasourceType : datasourceTypeCache.values()) {
-            types.addDatasourceTypesItem(datasourceType);
-        }
+        types.setDatasourceTypes(new ArrayList<>(datasourceTypeCache.values()));
         return types;
     }
-}
 
-// Made with Bob
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SdkConnector<?, ?, ?> createConnector(String datasourceTypeName,
+            ConnectionProperties properties) {
+        if (configCache.containsKey(datasourceTypeName)) {
+            return new RestConnector(datasourceTypeName, properties, configCache.get(datasourceTypeName));
+        }
+        throw new UnsupportedOperationException(RestMsgs.DATASOURCE_TYPE_NOT_SUPPORTED.format(datasourceTypeName));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void setLogger(Logger logger)
+    {
+        // no-op: this factory uses its own static logger
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Logger getLogger()
+    {
+        return LOGGER;
+    }
+}

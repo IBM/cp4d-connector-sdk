@@ -7,18 +7,15 @@ package com.ibm.connect.restconnector;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.text.SimpleDateFormat;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Map;
-import java.util.TimeZone;
 
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty.TypeEnum;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceTypeProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeDiscovery;
-import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeMetadata;
+import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypeOrigin;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryAssetType;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathProperty;
 import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathSegment;
@@ -33,7 +30,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.DiscoveryPathSegment;
  * <p>Each instance of RestDatasourceType represents one connector defined by one JSON configuration file.
  * Multiple instances can be created from multiple configuration files in the /config/mappings directory.
  */
-@SuppressWarnings({ "PMD.AvoidDollarSigns", "PMD.ClassNamingConventions" })
 public class RestDatasourceType extends CustomFlightDatasourceType
 {
     private final String configFilePath;
@@ -60,31 +56,12 @@ public class RestDatasourceType extends CustomFlightDatasourceType
         setStatus(CustomFlightDatasourceType.StatusEnum.ACTIVE);
         setTags(Collections.emptyList());
 
-        // Set metadata from the $metadata section if present
-        final Map<String, String> metadataMap = mapping.getMetadata();
-        if (!metadataMap.isEmpty()) {
-            final DatasourceTypeMetadata metadata = new DatasourceTypeMetadata();
-            metadata.setConnectorSource(metadataMap.get("connector_source"));
-            metadata.setTargetService(metadataMap.get("target_service"));
-            metadata.setConnectorType(metadataMap.get("connector_type"));
-            metadata.setCreatedBy(metadataMap.get("created_by"));
-            metadata.setForgeVersion(metadataMap.get("forge_version"));
-            
-            // Parse created_at timestamp from ISO 8601 format string to Date
-            final String createdAtStr = metadataMap.get("created_at");
-            if (createdAtStr != null && !createdAtStr.isEmpty()) {
-                try {
-                    // Parse ISO 8601 date-time format (e.g., "2026-05-06T13:00:00Z")
-                    final SimpleDateFormat iso8601Format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
-                    iso8601Format.setTimeZone(TimeZone.getTimeZone("UTC"));
-                    final Date createdAt = iso8601Format.parse(createdAtStr);
-                    metadata.setCreatedAt(createdAt);
-                } catch (Exception e) {
-                    // If parsing fails, skip setting created_at (field remains null)
-                }
-            }
-            
-            setMetadata(metadata);
+        // Set origin from $origin block (name, version)
+        final Map<String, String> originMap = mapping.getOrigin();
+        if (!originMap.isEmpty()) {
+            setOrigin(new DatasourceTypeOrigin()
+                    .name(originMap.get("name"))
+                    .version(originMap.get("version")));
         }
 
         final CustomFlightDatasourceTypeProperties properties = new CustomFlightDatasourceTypeProperties();
@@ -128,63 +105,35 @@ public class RestDatasourceType extends CustomFlightDatasourceType
                         .defaultValue(String.valueOf(defaultPort))
                         .group("domain"));
 
-        // Add authentication-specific connection properties based on the authentication type
-        final AuthenticationType authType = mapping.getAuthenticationTypeEnum();
-        switch (authType) {
-            case API_KEY:
-                // API Key authentication
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("api_key")
-                                .label("API Key")
-                                .description("The API key for authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .masked(true)
-                                .group("credentials"));
-                break;
-            
-            case OAUTH2:
-                // OAuth 2.0 Bearer Token authentication
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("bearer_token")
-                                .label("Bearer Token")
-                                .description("The OAuth 2.0 bearer token for authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .masked(true)
-                                .group("credentials"));
-                break;
-            
-            case BASIC:
-                // Basic authentication (username + password)
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("username")
-                                .label("Username")
-                                .description("The username for basic authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .group("credentials"));
-                properties.addConnectionItem(
-                        new CustomDatasourceTypeProperty()
-                                .name("password")
-                                .label("Password")
-                                .description("The password for basic authentication")
-                                .type(TypeEnum.STRING)
-                                .required(true)
-                                .masked(true)
-                                .group("credentials"));
-                break;
-            
-            case NONE:
-                // No authentication properties needed
-                break;
-            
-            default:
-                // Should never happen if AuthenticationType enum is complete
-                break;
+        // Add one connection property per path property definition in $path_properties.
+        // These carry connection-scoped URL variables (e.g. merchant_id) that are substituted
+        // into $path placeholders at request time.
+        for (final PathPropertyDef pd : mapping.getPathProperties()) {
+            properties.addConnectionItem(
+                    new CustomDatasourceTypeProperty()
+                            .name(pd.getName())
+                            .label(pd.getLabel())
+                            .description(pd.getDescription())
+                            .type(TypeEnum.STRING)
+                            .required(true)
+                            .masked(pd.isMasked())
+                            .group("domain"));
+        }
+
+        // Add one connection property per header definition in the auth config.
+        // UI-only fields (header == null) are still shown so the user can supply
+        // credentials that are referenced inside another entry's value template.
+        final AuthConfig authConfig = mapping.getAuthConfig();
+        for (final AuthConfig.HeaderDef hd : authConfig.getHeaders()) {
+            final CustomDatasourceTypeProperty prop = new CustomDatasourceTypeProperty()
+                    .name(hd.getName())
+                    .label(hd.getLabel())
+                    .description(hd.getDescription())
+                    .type(TypeEnum.STRING)
+                    .required(true)
+                    .masked(hd.isMasked())
+                    .group("credentials");
+            properties.addConnectionItem(prop);
         }
 
         // Define the source interaction properties.
@@ -232,6 +181,7 @@ public class RestDatasourceType extends CustomFlightDatasourceType
     {
         return configFilePath;
     }
+
 }
 
 // Made with Bob

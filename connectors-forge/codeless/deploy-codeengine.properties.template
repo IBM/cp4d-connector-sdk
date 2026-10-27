@@ -8,6 +8,7 @@ APIKEY=
 
 # Code Engine Region
 # Region where your Code Engine project is located (e.g., us-south, eu-de, eu-gb, jp-tok)
+# See all available regions here: https://cloud.ibm.com/docs/codeengine?topic=codeengine-regions
 REGION=
 
 # Code Engine Project Configuration

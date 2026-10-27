@@ -4,9 +4,9 @@
     This mode guides you through creating JSON configuration files (connector descriptors) for REST APIs
     to be used with the CP4D REST Connector SDK. The configuration maps REST API endpoints to relational
     table schemas that can be queried using SQL.
-    
-    IMPORTANT: The workflow begins with Phase 0 (Deployment Setup) which MUST be completed first.
-    See 0_deployment_setup.xml for deployment option selection and project structure setup.
+
+    Phase 0 (Deployment Setup) MUST be completed before API discovery.
+    See 0_deployment_setup.xml for deployment option selection.
   </mode_overview>
 
   <workflow_phases>
@@ -111,8 +111,15 @@
           <value>api_key</value>
           <value>oauth2</value>
           <value>basic</value>
+          <value>custom</value>
         </valid_values>
-        <ask_if_missing>What authentication method does this API use?</ask_if_missing>
+        <ask_if_missing>What authentication method does this API use? (none / api_key / oauth2 / basic / custom)</ask_if_missing>
+        <note>
+          For api_key, oauth2 and basic you should also ask for the exact header name and value format
+          if the defaults do not match (e.g. some APIs use "Token" instead of "ApiKey" as the prefix,
+          or put the key in "X-API-Key" instead of "Authorization").
+          For custom, ask which headers are required, their labels, and whether they are masked.
+        </note>
       </item>
       
       <item priority="critical">
@@ -131,49 +138,12 @@
       </description>
 
       <step_1_ask_discovery_method>
-        <question>
-          How would you like me to obtain information about the JSON responses for each endpoint?
-        </question>
-
-        <options>
-          <option name="documentation">
-            <label>Use API Documentation</label>
-            <description>
-              I will read and analyze the API documentation to understand response structures.
-              Best for: Well-documented APIs with clear response schemas.
-            </description>
-            <requires>URL or path to API documentation</requires>
-          </option>
-
-          <option name="sample_responses">
-            <label>You Provide Sample Responses</label>
-            <description>
-              You will provide example JSON responses for each endpoint.
-              Best for: When you have sample data readily available or prefer manual control.
-            </description>
-            <requires>JSON response examples for each endpoint</requires>
-          </option>
-
-          <option name="live_api">
-            <label>Make Live API Calls</label>
-            <description>
-              I will make actual HTTP requests to the API endpoints to retrieve response data.
-              Best for: Testing with real data, but requires authentication credentials.
-            </description>
-            <requires>Authentication credentials (if API requires auth)</requires>
-            <security_note>
-              This option requires sharing authentication credentials with the mode.
-              Only use if you're comfortable providing API keys or tokens.
-            </security_note>
-          </option>
-        </options>
-
-        <presentation_format>
-          Present options clearly with numbered choices:
-          1. Use API Documentation - I'll analyze the docs
-          2. You Provide Sample Responses - You'll give me JSON examples
-          3. Make Live API Calls - I'll fetch data directly (requires auth if needed)
-        </presentation_format>
+        <ask_followup_question>
+          <question>How would you like me to obtain information about the JSON responses for each endpoint?</question>
+          <suggest>Use API Documentation — provide a URL or path and I'll analyse the docs</suggest>
+          <suggest>Provide sample responses — I'll give you JSON examples to paste in</suggest>
+          <suggest>Make live API calls — fetch data directly from the API (may require auth credentials)</suggest>
+        </ask_followup_question>
       </step_1_ask_discovery_method>
 
       <step_2a_handle_documentation>
@@ -337,6 +307,29 @@
           - Identify path parameters (e.g., /api/users/{id})
           - Note query parameters if relevant
           - Understand endpoint semantics (collection vs single item)
+
+          PATH VARIABLE CLASSIFICATION — for every {variable} in the URL path, ask:
+
+          CASE A — Account-scoped constant ($path_properties):
+            The value is the SAME for every API request from a given connection.
+            The user knows it at connection-creation time (e.g. merchant_id, org_id, tenant_id).
+            → Declare in $path_properties. Reference as $variable in $path.
+            → NEVER hard-code, NEVER use $path_keys.
+
+          CASE B — Enumerated at read time ($path_keys):
+            The variable represents a foreign-key ID whose set of valid values must be
+            fetched from another API endpoint (e.g. "get all post IDs, then fetch comments
+            per post"). The set is not known at connection time and varies per request.
+            → Use $path_keys with a lookup step that points to the source endpoint.
+            → See $path_keys field documentation below.
+
+          CASE C — No path variable needed:
+            The path contains no user-specific or row-specific variable.
+            → No $path_properties and no $path_keys needed.
+
+          If in doubt, ask the user:
+            "Is this value constant for all requests from your account, or does the connector
+             need to iterate over multiple values fetched from another endpoint?"
         </details>
       </step>
       
@@ -373,103 +366,42 @@
       <why>This is the ONLY allowed structural reference</why>
     </prerequisite>
 
-    <metadata_generation>
-      <title>Automatic Metadata Population</title>
+    <origin_generation>
+      <title>$origin Field Population</title>
       <description>
-        All Forge-created connectors MUST include metadata section with auto-populated fields.
-        This metadata enables tracking, filtering, and analytics of Connector Forge usage.
+        All Forge-created connectors MUST include the $origin field. It identifies the source
+        and version of the Connector Forge tool that created this configuration.
+        The field is a simple object with exactly two sub-fields: name and version.
       </description>
-      
-      <auto_populated_fields>
-        <field name="connector_source">
+
+      <fields>
+        <field name="name">
           <value>connector_forge</value>
-          <rule>Always hardcoded to "connector_forge"</rule>
+          <rule>Always hardcoded to "connector_forge" for Forge-created connectors</rule>
         </field>
-        
-        <field name="connector_type">
-          <value>rest_api</value>
-          <rule>Always hardcoded to "rest_api" for REST connectors</rule>
-        </field>
-        
-        <field name="created_at">
-          <format>ISO 8601 UTC timestamp</format>
-          <example>2026-05-06T12:00:00Z</example>
-          <rule>Auto-generate current timestamp when creating configuration</rule>
-        </field>
-        
-        <field name="forge_version">
+        <field name="version">
           <value>1.0.0</value>
-          <format>Semantic versioning</format>
-          <rule>Use current Connector Forge version</rule>
+          <rule>Use the current Connector Forge version (semantic versioning)</rule>
         </field>
-        
-        <field name="created_by">
-          <description>User ID of the person creating the connector</description>
-          <rule>Extract from environment/context if available, otherwise use "unknown"</rule>
-          <default>unknown</default>
-        </field>
-      </auto_populated_fields>
-      
-      <user_confirmed_fields>
-        <field name="target_service">
-          <description>Name of the service/API being connected to</description>
-          <inference_process>
-            <step>1. Analyze the API hostname (e.g., api.salesforce.com → "Salesforce")</step>
-            <step>2. Extract service name from domain or API documentation</step>
-            <step>3. Present inference to user for confirmation</step>
-            <step>4. Allow user to override/customize if needed</step>
-          </inference_process>
-          <examples>
-            <example>
-              <hostname>https://api.spacexdata.com</hostname>
-              <inferred>SpaceX API</inferred>
-              <prompt>Based on the hostname 'api.spacexdata.com', I've identified this as "SpaceX API". Is this correct?</prompt>
-            </example>
-            <example>
-              <hostname>https://api.github.com</hostname>
-              <inferred>GitHub</inferred>
-              <prompt>Based on the hostname 'api.github.com', I've identified this as "GitHub". Is this correct?</prompt>
-            </example>
-            <example>
-              <hostname>https://login.salesforce.com</hostname>
-              <inferred>Salesforce</inferred>
-              <prompt>Based on the hostname 'login.salesforce.com', I've identified this as "Salesforce". Is this correct?</prompt>
-            </example>
-          </examples>
-          <user_interaction>
-            <question>I've identified the target service as "{inferred_name}". Is this correct?</question>
-            <options>
-              <option>Yes, that's correct</option>
-              <option>No, let me provide the correct name</option>
-            </options>
-          </user_interaction>
-        </field>
-      </user_confirmed_fields>
-      
-      <metadata_placement>
-        <rule>Metadata section must appear after $connector_description and before $hostname</rule>
+      </fields>
+
+      <origin_placement>
+        <rule>$origin must appear after $connector_description and before $hostname</rule>
         <structure>
           <![CDATA[
 {
   "$connector_name": "...",
   "$connector_label": "...",
   "$connector_description": "...",
-  "$metadata": {
-    "connector_source": "connector_forge",
-    "target_service": "Service Name",
-    "connector_type": "rest_api",
-    "created_at": "2026-05-06T12:00:00Z",
-    "created_by": "user_12345",
-    "forge_version": "1.0.0"
-  },
+  "$origin": { "name": "connector_forge", "version": "1.0.0" },
   "$hostname": "...",
-  "$authentication": "...",
+  "$authentication": { ... },
   "$tables": { ... }
 }
           ]]>
         </structure>
-      </metadata_placement>
-    </metadata_generation>
+      </origin_placement>
+    </origin_generation>
 
     <structure>
       <root_fields>
@@ -491,39 +423,20 @@
           <note>Use clear, descriptive sentences</note>
         </field>
         
-        <field name="$metadata" required="true">
-          <description>Metadata about the connector for tracking and analytics</description>
+        <field name="$origin" required="true">
+          <description>Identifies the tool and version that created this configuration.</description>
           <auto_generated>true</auto_generated>
           <fields>
-            <field name="connector_source">
-              <value>Always "connector_forge"</value>
-              <auto_populated>true</auto_populated>
+            <field name="name">
+              <value>connector_forge</value>
+              <rule>Always "connector_forge" for Forge-created connectors</rule>
             </field>
-            <field name="target_service">
-              <description>Name of the service/API (e.g., "Salesforce", "GitHub", "SpaceX API")</description>
-              <inference>Inferred from hostname, confirmed with user</inference>
-              <example>SpaceX API</example>
-            </field>
-            <field name="connector_type">
-              <value>Always "rest_api"</value>
-              <auto_populated>true</auto_populated>
-            </field>
-            <field name="created_at">
-              <description>ISO 8601 timestamp of creation</description>
-              <auto_generated>true</auto_generated>
-              <example>2026-05-06T12:00:00Z</example>
-            </field>
-            <field name="created_by">
-              <description>User ID of creator</description>
-              <default>unknown</default>
-              <note>Extract from environment if available</note>
-            </field>
-            <field name="forge_version">
-              <description>Version of Connector Forge</description>
-              <format>Semantic versioning</format>
-              <example>1.0.0</example>
+            <field name="version">
+              <value>1.0.0</value>
+              <rule>Current Connector Forge version (semantic versioning)</rule>
             </field>
           </fields>
+          <example>"$origin": { "name": "connector_forge", "version": "1.0.0" }</example>
         </field>
         
         <field name="$hostname" required="true">
@@ -532,10 +445,64 @@
           <example>https://api.spacexdata.com</example>
         </field>
         
+        <field name="$path_properties" required="false">
+          <description>
+            Optional array declaring connection-scoped URL path variables.
+            Use this whenever the API URL contains a constant, account-wide identifier
+            (e.g., merchant_id in /merchants/{merchant_id}/customers).
+            Each entry becomes a connection property in CP4D (shown in the connection UI)
+            and its value is substituted into every $path that contains the matching $var placeholder.
+          </description>
+          <when_to_use>
+            When one or more URL path segments carry a value that:
+            - Is unique to the user's account / tenant / organization
+            - Is the same for ALL requests from a given connection (not row-level data)
+            - Must be supplied by the user at connection-creation time
+            Common examples: merchant_id, company_id, org_id, account_id, tenant_id, workspace_id
+          </when_to_use>
+          <entry_fields>
+            <field name="name">Property key — also the $var placeholder used in $path strings. Use snake_case.</field>
+            <field name="label">Human-readable label shown in CP4D connection UI.</field>
+            <field name="description">Hint text explaining where the user can find this value.</field>
+            <field name="masked">true to hide value in UI (rare — most identifiers are not secrets).</field>
+          </entry_fields>
+          <path_placeholder_syntax>
+            In the table's $path array, reference the property with a leading dollar sign: $name
+            Example: "$path": ["/merchants/$merchant_id/customers"]
+            The engine replaces $merchant_id with the connection-property value at request time.
+          </path_placeholder_syntax>
+          <example>
+            <![CDATA[
+"$path_properties": [
+  {
+    "name": "merchant_id",
+    "label": "Merchant ID",
+    "description": "Your Braintree merchant ID, found in Account > Business > Merchant Account ID",
+    "masked": false
+  }
+]
+            ]]>
+          </example>
+        </field>
+
         <field name="$authentication" required="true">
-          <description>Authentication method</description>
-          <valid_values>none, api_key, oauth2, basic</valid_values>
-          <default>none</default>
+          <description>Authentication configuration object</description>
+          <structure>
+            Object with a "type" field and, for all non-none types, a "headers" array.
+            Each headers entry has: name, label, description, masked, header, value.
+            See 3_examples.xml / authentication_reference for all patterns.
+          </structure>
+          <valid_types>none, api_key, oauth2, basic, custom</valid_types>
+          <default_patterns>
+            <none>{ "type": "none" }</none>
+            <api_key>{ "type": "api_key", "headers": [{ "name": "api_key", "label": "API Key", "description": "", "masked": true, "header": "Authorization", "value": "ApiKey $api_key" }] }</api_key>
+            <oauth2>{ "type": "oauth2", "headers": [{ "name": "bearer_token", "label": "Bearer Token", "description": "", "masked": true, "header": "Authorization", "value": "Bearer $bearer_token" }] }</oauth2>
+            <basic>{ "type": "basic", "headers": [{ "name": "username", "label": "Username", "description": "", "masked": false, "header": "Authorization", "value": "Basic base64($username:$password)" }, { "name": "password", "label": "Password", "description": "", "masked": true, "header": null, "value": null }] }</basic>
+          </default_patterns>
+          <customisation>
+            Any field (label, header, value, masked) can be changed by the connector author to match
+            the actual API requirements. For custom type, define as many headers entries as needed.
+          </customisation>
         </field>
         
         <field name="$tables" required="true">
@@ -545,16 +512,105 @@
       </root_fields>
 
       <optional_features>
+        <note>These features are declared INSIDE a table definition, alongside $path and column mappings.</note>
+
         <feature name="$data_path">
           <description>Navigate to nested data array in API response</description>
           <when_to_use>API wraps data in parent objects (e.g., {"result": {"users": [...]}})</when_to_use>
           <example>"$data_path": "result.users"</example>
         </feature>
+
         <feature name="$pagination">
           <description>Configure pagination for APIs that return data across multiple pages</description>
           <when_to_use>API returns large datasets split across multiple pages</when_to_use>
           <types>offset, page, cursor, link_header, next_url</types>
           <see_also>Refer to 5_pagination_guide.xml for detailed documentation</see_also>
+        </feature>
+
+        <feature name="$path_keys">
+          <placement>INSIDE the table definition that needs enumerated path variables — NOT at the connector root level.</placement>
+          <description>
+            Array of lookup steps for enumerating path variable values at read time.
+            Use when the table's $path contains a $variable that must be discovered by calling
+            another API endpoint first — i.e., the valid values are NOT known at connection time.
+          </description>
+          <when_to_use>
+            The $path contains a variable whose valid values are row-level data (e.g., post IDs,
+            project slugs, order IDs) that must be fetched from a "list" endpoint before the
+            per-item endpoint can be called.
+            Contrast with $path_properties: if the value is the same for every request from a
+            given connection and the user knows it at setup time → use $path_properties instead.
+          </when_to_use>
+          <entry_fields>
+            <field name="variable" required="true">
+              The placeholder name used in $path (without the leading $).
+              Example: "postId" matches $postId in "$path": ["/posts/$postId/comments"]
+            </field>
+            <field name="source_path" required="true">
+              API endpoint to call to obtain the list of values.
+              May reference $var placeholders resolved by earlier entries in this array.
+            </field>
+            <field name="source_field" required="true">
+              JSON field to extract from each element returned by source_path.
+              Supports dot notation for nested fields (e.g., "user.id").
+            </field>
+            <field name="source_data_path" required="false">
+              Unwrap a response envelope before iterating the array.
+              Use when the response is {"posts": [...]} instead of a bare array.
+            </field>
+            <field name="lookup_delay_ms" required="false">
+              Milliseconds to sleep between consecutive lookup HTTP calls (default 0).
+              Set to e.g. 100–500 to avoid HTTP 429 from rate-limited APIs.
+            </field>
+          </entry_fields>
+          <ordering_rule>
+            Entries must be in dependency order. If entry N's source_path references $var from
+            entry M, M must come before N. The engine resolves entries sequentially.
+          </ordering_rule>
+          <example name="simple">
+            <![CDATA[
+"POST_COMMENTS": {
+  "$path": ["/posts/$postId/comments"],
+  "$path_keys": [
+    {
+      "variable": "postId",
+      "source_path": "/posts",
+      "source_field": "id"
+    }
+  ],
+  "id": "INTEGER,$key",
+  "postId": "INTEGER",
+  "name": "VARCHAR",
+  "body": "VARCHAR"
+}
+            ]]>
+          </example>
+          <example name="chained">
+            <![CDATA[
+"TASKS": {
+  "$path": ["/api/$org_slug/projects/$project_id/tasks"],
+  "$path_keys": [
+    {
+      "variable": "org_slug",
+      "source_path": "/api/organizations",
+      "source_field": "slug"
+    },
+    {
+      "variable": "project_id",
+      "source_path": "/api/$org_slug/projects",
+      "source_field": "id"
+    }
+  ],
+  "id": "INTEGER,$key",
+  "name": "VARCHAR",
+  "due_date": "TIMESTAMP"
+}
+            ]]>
+          </example>
+          <contrast_with_path_properties>
+            $path_properties (root-level) = single constant value per connection, user supplies at setup time.
+            $path_keys (table-level)      = list of values enumerated by API call at read time.
+          </contrast_with_path_properties>
         </feature>
       </optional_features>
 
@@ -738,8 +794,12 @@
       </step>
       
       <step number="3">
-        <action>Ask for confirmation</action>
-        <question>Does this configuration correctly represent the API structure you want to map?</question>
+        <action>Ask for confirmation using ask_followup_question</action>
+        <ask_followup_question>
+          <question>Does this configuration correctly represent the API structure you want to map?</question>
+          <suggest>Yes — save this configuration and proceed</suggest>
+          <suggest>No — I need some changes (describe what to adjust)</suggest>
+        </ask_followup_question>
       </step>
       
       <step number="4">
@@ -767,20 +827,23 @@
   <validation_checklist>
     <title>Before Final Output</title>
     <checks>
-      <check>$metadata section is present with all required fields</check>
-      <check>connector_source is set to "connector_forge"</check>
-      <check>target_service is populated and confirmed with user</check>
-      <check>connector_type is set to "rest_api"</check>
-      <check>created_at is valid ISO 8601 timestamp</check>
-      <check>created_by is populated (or "unknown")</check>
-      <check>forge_version follows semantic versioning</check>
+      <check>$origin field is present with "name" and "version" sub-fields</check>
+      <check>$origin.name is set to "connector_forge"</check>
+      <check>$origin.version follows semantic versioning (e.g. "1.0.0")</check>
       <check>Each table has exactly one $path entry (array with single element)</check>
+      <check>If any $path contains a $variable placeholder, determine whether it is account-scoped (→ $path_properties) or enumerated at read time (→ $path_keys)</check>
+      <check>Account-scoped path constants are declared in $path_properties — never hard-coded as literals</check>
+      <check>Each $path_properties entry has name, label, description, masked</check>
+      <check>If $path_keys is used: each entry has variable, source_path, and source_field</check>
+      <check>If $path_keys entries reference each other's variables, they are in dependency order (earlier entries resolved first)</check>
+      <check>$path_keys is NOT used for a single account-wide constant (use $path_properties for that)</check>
       <check>All nested objects are mapped with "[]" syntax</check>
       <check>All nested arrays are mapped as VARCHAR</check>
       <check>At least one field is marked with ,$key</check>
       <check>All field names match exact JSON field names</check>
       <check>Data types are valid and appropriate</check>
-      <check>$authentication field is set to valid value</check>
+      <check>$authentication is a valid object with "type" and (for non-none) a non-empty "headers" array</check>
+      <check>Each headers entry has name, label, masked, header (or null), value (or null)</check>
       <check>$hostname includes protocol (https:// or http://)</check>
       <check>JSON is valid and properly formatted</check>
     </checks>

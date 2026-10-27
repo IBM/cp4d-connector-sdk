@@ -9,111 +9,70 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Represents a table (endpoint) definition parsed from a .rest mapping file.
+ * Represents a table (endpoint) definition parsed from a JSON mapping file.
  * Holds the API path, optional data path for nested responses, optional pagination configuration,
- * and the list of field definitions.
+ * an ordered list of path-key definitions for foreign-key-style dynamic paths, and the list of
+ * field definitions.
  */
 public class RestTableDefinition
 {
     private final String path;
     private final String dataPath;
     private final PaginationConfig paginationConfig;
+    private final List<PathKeyDef> pathKeys;
     private final List<RestFieldDefinition> fields;
 
     /**
-     * Creates a table definition.
+     * Creates a full table definition. Any of the optional parameters may be {@code null}.
      *
      * @param path
-     *            the URL path to append to the base URL (e.g. "/v4/rockets")
-     * @param fields
-     *            the list of field definitions for this table
-     */
-    public RestTableDefinition(String path, List<RestFieldDefinition> fields)
-    {
-        this(path, null, null, fields);
-    }
-
-    /**
-     * Creates a table definition with an optional data path for nested responses.
-     *
-     * @param path
-     *            the URL path to append to the base URL (e.g. "/v4/rockets")
+     *            the API path for this table (may contain {@code $var} placeholders)
      * @param dataPath
-     *            optional JSON path to the data array (e.g. "result" for {"result": [...]})
-     * @param fields
-     *            the list of field definitions for this table
-     */
-    public RestTableDefinition(String path, String dataPath, List<RestFieldDefinition> fields)
-    {
-        this(path, dataPath, null, fields);
-    }
-
-    /**
-     * Creates a table definition with optional data path and pagination configuration.
-     *
-     * @param path
-     *            the URL path to append to the base URL (e.g. "/v4/rockets")
-     * @param dataPath
-     *            optional JSON path to the data array (e.g. "result" for {"result": [...]})
+     *            optional dot-notation path to the data array inside the response; {@code null}
+     *            if the response is a direct top-level array
      * @param paginationConfig
-     *            optional pagination configuration for this table
+     *            optional pagination configuration; {@code null} for non-paginated tables
+     * @param pathKeys
+     *            ordered list of path-key definitions for tables whose path contains variables
+     *            whose values are fetched from other endpoints at discovery time; {@code null}
+     *            or empty for ordinary tables. Order matters: each entry's {@code source_path}
+     *            may reference {@code $variable} placeholders resolved by earlier entries.
      * @param fields
-     *            the list of field definitions for this table
+     *            the ordered list of field definitions for this table
      */
-    public RestTableDefinition(String path, String dataPath, PaginationConfig paginationConfig, List<RestFieldDefinition> fields)
+    public RestTableDefinition(String path, String dataPath, PaginationConfig paginationConfig,
+            List<PathKeyDef> pathKeys, List<RestFieldDefinition> fields)
     {
-        this.path = path;
-        this.dataPath = dataPath;
+        this.path             = path;
+        this.dataPath         = dataPath;
         this.paginationConfig = paginationConfig;
-        this.fields = Collections.unmodifiableList(fields);
+        this.pathKeys         = (pathKeys != null && !pathKeys.isEmpty())
+                ? Collections.unmodifiableList(pathKeys)
+                : Collections.emptyList();
+        this.fields           = Collections.unmodifiableList(fields);
     }
 
-    /**
-     * Returns the URL path for this table's endpoint.
-     *
-     * @return the URL path (e.g. "/v4/rockets")
-     */
-    public String getPath()
-    {
-        return path;
-    }
+    public String getPath()                        { return path;             }
+    public String getDataPath()                    { return dataPath;         }
+    public PaginationConfig getPaginationConfig()  { return paginationConfig; }
 
     /**
-     * Returns the JSON path to the data array in nested responses.
-     *
-     * @return the data path (e.g. "result"), or null if data is at root level
+     * Returns the ordered list of path-key definitions, or an empty list if this table
+     * has no dynamic path variables.
      */
-    public String getDataPath()
-    {
-        return dataPath;
-    }
+    public List<PathKeyDef> getPathKeys()          { return pathKeys;         }
 
-    /**
-     * Returns the pagination configuration for this table.
-     *
-     * @return the pagination configuration, or null if no pagination is configured
-     */
-    public PaginationConfig getPaginationConfig()
-    {
-        return paginationConfig;
-    }
+    /** Returns {@code true} if this table has at least one path-key definition. */
+    public boolean hasPathKeys()                   { return !pathKeys.isEmpty(); }
 
-    /**
-     * Returns the list of field definitions for this table.
-     *
-     * @return an unmodifiable list of field definitions
-     */
-    public List<RestFieldDefinition> getFields()
-    {
-        return fields;
-    }
+    public List<RestFieldDefinition> getFields()   { return fields;           }
 
     @Override
     public String toString()
     {
         return "RestTableDefinition{path='" + path + "', dataPath='" + dataPath
-                + "', paginationConfig=" + paginationConfig + ", fields=" + fields + "}";
+                + "', paginationConfig=" + paginationConfig
+                + ", pathKeys=" + pathKeys
+                + ", fields=" + fields + "}";
     }
 }
-
-// Made with Bob

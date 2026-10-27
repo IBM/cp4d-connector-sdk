@@ -289,7 +289,7 @@
 {
   "$connector_name": "JSONPlaceholder Connector",
   "$hostname": "https://jsonplaceholder.typicode.com",
-  "$authentication": "none",
+  "$authentication": { "type": "none" },
   "$tables": {
     "POSTS": {
       "$path": ["/posts"],

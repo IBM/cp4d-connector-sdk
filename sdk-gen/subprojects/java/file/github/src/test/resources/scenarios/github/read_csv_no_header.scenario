@@ -1,0 +1,18 @@
+# ============================================================
+# GitHub — read cars.csv with first_line_header=false
+# ============================================================
+# When header is suppressed the connector names columns _c0.._c4 and
+# the header row becomes data row 0.
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/cars.csv
+Interaction.first_line_header=false
+ExpectedColumns=_c0|_c1|_c2|_c3|_c4
+# 4 data rows (1 original header + 3 data)
+ExpectedRowCount=4
+# Row 0 is the original header line
+ExpectedRows.0=year|make|model|comment|blank
+# Row 3 is the last data row
+ExpectedRows.3=2015|Chevy|Volt|<NULL>|<NULL>

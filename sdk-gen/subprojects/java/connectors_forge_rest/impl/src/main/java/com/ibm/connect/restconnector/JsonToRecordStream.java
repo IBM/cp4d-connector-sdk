@@ -10,8 +10,10 @@ import static org.slf4j.LoggerFactory.getLogger;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -24,13 +26,16 @@ import java.time.format.DateTimeParseException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ibm.connect.sdk.api.Record;
@@ -58,14 +63,15 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private final String baseUrl;
     private final String dataPath;
     private final List<RestFieldDefinition> fieldDefs;
-    private final java.util.Map<String, String> authHeaders;
+    private final Map<String, String> authHeaders;
+    private final String acceptHeader;
     private final PaginationConfig paginationConfig;
     private final ObjectMapper objectMapper;
 
     private HttpClient httpClient;
     private InputStream responseStream;
     private JsonParser jsonParser;
-    private java.net.http.HttpHeaders lastResponseHeaders;
+    private HttpHeaders lastResponseHeaders;
 
     private Record nextRecord;
     private boolean initialized;
@@ -80,76 +86,35 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private int totalPagesFetched;
 
     /**
-     * Creates a streaming record iterator for the given URL and field definitions.
+     * Creates a streaming record iterator with full configuration.
      *
      * @param url
-     *            the full URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
-     * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
-     */
-    public JsonToRecordStream(String url, List<RestFieldDefinition> fieldDefs)
-    {
-        this(url, null, fieldDefs, null, null);
-    }
-
-    /**
-     * Creates a streaming record iterator for the given URL, field definitions, and authentication headers.
-     *
-     * @param url
-     *            the full URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
-     * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
-     * @param authHeaders
-     *            optional authentication headers to include in the HTTP request (may be null)
-     */
-    public JsonToRecordStream(String url, List<RestFieldDefinition> fieldDefs, java.util.Map<String, String> authHeaders)
-    {
-        this(url, null, fieldDefs, authHeaders, null);
-    }
-
-    /**
-     * Creates a streaming record iterator for the given URL, data path, field definitions, and authentication headers.
-     *
-     * @param url
-     *            the full URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
+     *            the base URL to fetch
      * @param dataPath
-     *            optional JSON path to the data array (e.g. "result" for {"result": [...]})
+     *            optional JSON path to the data array (may be null)
      * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
+     *            the field definitions
      * @param authHeaders
-     *            optional authentication headers to include in the HTTP request (may be null)
-     */
-    public JsonToRecordStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs, java.util.Map<String, String> authHeaders)
-    {
-        this(url, dataPath, fieldDefs, authHeaders, null);
-    }
-
-    /**
-     * Creates a streaming record iterator with full configuration including pagination support.
-     *
-     * @param url
-     *            the base URL to fetch (e.g. "https://api.spacexdata.com/v4/rockets")
-     * @param dataPath
-     *            optional JSON path to the data array (e.g. "result" for {"result": [...]})
-     * @param fieldDefs
-     *            the field definitions that define the expected fields and their types
-     * @param authHeaders
-     *            optional authentication headers to include in the HTTP request (may be null)
+     *            optional authentication headers (may be null)
      * @param paginationConfig
      *            optional pagination configuration (may be null for non-paginated APIs)
+     * @param acceptHeader
+     *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
      */
     public JsonToRecordStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
-            java.util.Map<String, String> authHeaders, PaginationConfig paginationConfig)
+            Map<String, String> authHeaders, PaginationConfig paginationConfig,
+            String acceptHeader)
     {
         this.baseUrl = url;
         this.dataPath = dataPath;
         this.fieldDefs = fieldDefs;
         this.authHeaders = authHeaders;
+        this.acceptHeader = acceptHeader;
         this.paginationConfig = paginationConfig;
         this.objectMapper = new ObjectMapper();
         this.initialized = false;
         this.done = false;
-        
+
         // Initialize pagination state
         this.recordsInCurrentPage = 0;
         this.totalPagesFetched = 0;
@@ -247,12 +212,12 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(currentUrl))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .header("Accept", "application/json")
+                .header("Accept", acceptHeader)
                 .header("User-Agent", "CP4D-REST-Connector/1.0");
 
         // Add authentication headers if provided
         if (authHeaders != null && !authHeaders.isEmpty()) {
-            for (final java.util.Map.Entry<String, String> header : authHeaders.entrySet()) {
+            for (final Map.Entry<String, String> header : authHeaders.entrySet()) {
                 requestBuilder.header(header.getKey(), header.getValue());
                 LOGGER.debug("Adding authentication header: {}", header.getKey());
             }
@@ -470,13 +435,13 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(nextUrl))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .header("Accept", "application/json")
+                .header("Accept", acceptHeader)
                 .header("User-Agent", "CP4D-REST-Connector/1.0")
                 .GET();
 
         // Add authentication headers
         if (authHeaders != null && !authHeaders.isEmpty()) {
-            for (final java.util.Map.Entry<String, String> header : authHeaders.entrySet()) {
+            for (final Map.Entry<String, String> header : authHeaders.entrySet()) {
                 requestBuilder.header(header.getKey(), header.getValue());
             }
         }
@@ -524,7 +489,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private void parseResponseWithMetadata() throws IOException
     {
         // Parse the entire response into a JsonNode to extract metadata
-        final com.fasterxml.jackson.databind.JsonNode rootNode = objectMapper.readTree(responseStream);
+        final JsonNode rootNode = objectMapper.readTree(responseStream);
         
         final String type = paginationConfig.getType();
         
@@ -532,7 +497,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
             // Extract next cursor from the response
             final String cursorPath = paginationConfig.getNextCursorPath();
             if (cursorPath != null) {
-                final com.fasterxml.jackson.databind.JsonNode cursorNode = extractJsonPath(rootNode, cursorPath);
+                final JsonNode cursorNode = extractJsonPath(rootNode, cursorPath);
                 if (cursorNode != null && !cursorNode.isNull()) {
                     nextCursor = cursorNode.asText();
                     LOGGER.debug("Extracted next cursor");
@@ -545,7 +510,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
             // Extract next URL from the response
             final String nextUrlPath = paginationConfig.getNextUrlPath();
             if (nextUrlPath != null) {
-                final com.fasterxml.jackson.databind.JsonNode urlNode = extractJsonPath(rootNode, nextUrlPath);
+                final JsonNode urlNode = extractJsonPath(rootNode, nextUrlPath);
                 if (urlNode != null && !urlNode.isNull()) {
                     nextPageUrl = urlNode.asText();
                     LOGGER.debug("Extracted next URL");
@@ -557,7 +522,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         }
         
         // Now extract the data array from the parsed response
-        com.fasterxml.jackson.databind.JsonNode dataNode = rootNode;
+        JsonNode dataNode = rootNode;
         if (dataPath != null && !dataPath.isEmpty()) {
             dataNode = extractJsonPath(rootNode, dataPath);
             if (dataNode == null) {
@@ -593,14 +558,13 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
      * @param path the dot-separated path (e.g., "pagination.next_cursor")
      * @return the value at the path, or null if not found
      */
-    private com.fasterxml.jackson.databind.JsonNode extractJsonPath(
-            com.fasterxml.jackson.databind.JsonNode node, String path)
+    private JsonNode extractJsonPath(JsonNode node, String path)
     {
         if (path == null || path.isEmpty()) {
             return node;
         }
-        
-        com.fasterxml.jackson.databind.JsonNode current = node;
+
+        JsonNode current = node;
         final String[] segments = path.split("\\.");
         
         for (final String segment : segments) {
@@ -627,7 +591,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final Record record = new Record(fieldDefs.size());
         for (final RestFieldDefinition fieldDef : fieldDefs) {
             final String fieldName = fieldDef.getName();
-            final com.fasterxml.jackson.databind.JsonNode valueNode;
+            final JsonNode valueNode;
             
             // Check if this is a flattened field (contains dot indicating nested path)
             if (fieldName.contains(".")) {
@@ -649,17 +613,17 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
      * @param flattenedName the flattened field name (e.g. "rates.currency")
      * @return the nested value, or null if not found
      */
-    private com.fasterxml.jackson.databind.JsonNode getNestedValue(ObjectNode objectNode, String flattenedName)
+    private JsonNode getNestedValue(ObjectNode objectNode, String flattenedName)
     {
         final int dotIndex = flattenedName.indexOf('.');
         if (dotIndex < 0) {
             return objectNode.get(flattenedName);
         }
-        
+
         final String parentKey = flattenedName.substring(0, dotIndex);
         final String remainingPath = flattenedName.substring(dotIndex + 1);
-        
-        final com.fasterxml.jackson.databind.JsonNode parentNode = objectNode.get(parentKey);
+
+        final JsonNode parentNode = objectNode.get(parentKey);
         if (parentNode == null || !parentNode.isObject()) {
             return null;
         }
@@ -682,7 +646,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
      *            the field definition
      * @return the Java value, or null if the node is null or JSON null
      */
-    private java.io.Serializable convertValue(com.fasterxml.jackson.databind.JsonNode node, RestFieldDefinition fieldDef)
+    private Serializable convertValue(JsonNode node, RestFieldDefinition fieldDef)
     {
         if (node == null || node.isNull()) {
             return null;
@@ -914,9 +878,9 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
      * @param headers the HTTP response headers
      * @return the next page URL, or null if not found
      */
-    private String extractLinkHeader(java.net.http.HttpHeaders headers)
+    private String extractLinkHeader(HttpHeaders headers)
     {
-        final java.util.Optional<String> linkHeader = headers.firstValue("Link");
+        final Optional<String> linkHeader = headers.firstValue("Link");
         if (!linkHeader.isPresent()) {
             return null;
         }

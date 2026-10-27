@@ -1,0 +1,32 @@
+// Shared Maven publishing configuration for SDK library subprojects.
+//
+// Apply from each subproject that should be published:
+//   apply from: "${rootProject.projectDir}/publish.gradle"
+//
+// Pass Maven credentials via system properties (same as dependency resolution):
+//   -Drepos.maven.url=https://...
+//   -Drepos.maven.username=<your-user>
+//   -Drepos.maven.password=<your-api-key>
+//
+// Falls back to mavenLocal() when no remote URL is configured (useful for local testing).
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      from components.java
+    }
+  }
+  repositories {
+    if (repos.mavenPublish.url && repos.mavenPublish.username && repos.mavenPublish.password) {
+      maven {
+        url repos.mavenPublish.url
+        credentials {
+          username = repos.mavenPublish.username
+          password = repos.mavenPublish.password
+        }
+      }
+    } else {
+      mavenLocal()
+    }
+  }
+}

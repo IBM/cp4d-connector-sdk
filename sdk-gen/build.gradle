@@ -60,6 +60,21 @@ gradle.rootProject {
 //
 allprojects {
 
+  repositories {
+    mavenLocal()
+    if (repos.maven.url && repos.maven.username && repos.maven.password) {
+      maven {
+        url repos.maven.url
+        credentials {
+          username = repos.maven.username
+          password = repos.maven.password
+        }
+      }
+    }
+    mavenCentral() // fallback for build-time codegen deps (jackson-annotations, gson, swagger-annotations) not mirrored in Artifactory
+  }
+
+
   tasks.withType(JavaCompile) {
     options.release = 11
   }
@@ -101,8 +116,9 @@ spotless {
     target fileTree(dir: "${project.projectDir}", include: '**/*.gradle', excludes: [
       '.gradle/**/*',
       '**/bin/**/*',
-      '**/build/**/*'
-    ]).files
+      '**/build/**/*',
+      '**/node_modules/**/*'
+    ])
     endWithNewline()
     trimTrailingWhitespace()
     def groovyEclipseConfigFile = file("$rootDir/config/spotless/groovy.xml")
@@ -110,6 +126,15 @@ spotless {
     if (groovyEclipseConfigFile.exists() && groovyEclipsePropertiesFile.exists()) {
       greclipse().configFile(groovyEclipseConfigFile.absolutePath, groovyEclipsePropertiesFile.absolutePath)
     }
+  }
+}
+
+// Ensure spotless does not race with npmInstall writing into the sdk-gen subtree
+afterEvaluate {
+  def npmTask = project.tasks.findByPath(':wdp-connect-sdk-gen-java-api-models:npmInstall')
+  if (npmTask) {
+    tasks.named('spotlessGroovyGradle') { mustRunAfter npmTask }
+    tasks.named('spotlessGroovyGradleApply') { mustRunAfter npmTask }
   }
 }
 
@@ -142,7 +167,11 @@ subprojects {
         microServiceAppVersion = project.version.toString()
       }
 
-      def isWarProject = project.tasks.find { it.name == 'war' } || project.configurations.find { it.name == 'wars' }
+      def isWarProject = project.tasks.find {
+        it.name == 'war'
+      } || project.configurations.find {
+        it.name == 'wars'
+      }
       if (isWarProject) {
         project.sourceSets {
           dist
@@ -176,7 +205,7 @@ subprojects {
           project.war {
             def keyStoreFile = file("${rootProject.buildDir}/scripts/keystore.properties")
             if (keyStoreFile.exists()) {
-              from (keyStoreFile) {
+              from(keyStoreFile) {
                 into 'resources'
               }
             }
@@ -204,7 +233,7 @@ subprojects {
             }
           }
           // Service contract - packaging the installable shared library of service manifest
-          from (file("${rootProject.buildDir}/scripts/startupScript.sh")) {
+          from(file("${rootProject.buildDir}/scripts/startupScript.sh")) {
             into 'payload/.profile.d'
           }
         }
@@ -213,13 +242,14 @@ subprojects {
         }
       }
 
-      def imageRegistry = project.properties['image.registry'] ?: 'index.docker.io/v1'
-      def imageTargetRegistry = project.properties['target.image.registry'] ?: imageRegistry
+      def imageRegistry = project.properties['image.registry'] ? docker.validateImageRef(project.properties['image.registry'], 'image.registry') : 'index.docker.io/v1'
+      def imageTargetRegistry = project.properties['target.image.registry'] ? docker.validateImageRef(project.properties['target.image.registry'], 'target.image.registry') : imageRegistry
       def imageTargetProject = project.properties['target.image.project']
       def dockerUrl = project.properties['image.registry'] ? "https://${imageRegistry}" : repos.docker.url ?: "https://${imageRegistry}"
       def dockerTargetUrl = project.properties['target.image.registry'] ? "https://${imageTargetRegistry}" : repos.dockerTarget.url ?: "https://${imageTargetRegistry}"
-      def ubiimageName = project.properties['image.name'] ?: isWarProject ? "ibmcom/websphere-liberty" : "ibm-semeru-runtimes"
-      def ubibaseimageTag = project.properties['image.tag'] ?: isWarProject ? 'kernel-java17-openj9-ubi' : 'open-17-jre'
+      def imageRegistryPrefix = repos.imageRegistryPrefix ? "${repos.imageRegistryPrefix}/" : ''
+      def ubiimageName = project.properties['image.name'] ? docker.validateImageRef(project.properties['image.name'], 'image.name') : isWarProject ? "${imageRegistryPrefix}ibmcom/websphere-liberty" : "${imageRegistryPrefix}ibm-semeru-runtimes"
+      def ubibaseimageTag = project.properties['image.tag'] ? docker.validateImageRef(project.properties['image.tag'], 'image.tag') : isWarProject ? 'kernel-java17-openj9-ubi' : 'open-17-jre'
 
       def microServiceUBIImageName = microServiceAppName
       def microServiceImageTag = project.properties['target.image.tag'] ?: project.version.toString()
@@ -286,7 +316,7 @@ subprojects {
         }
       }
       //docker build for ubi
-      task dockerBuild (dependsOn: ubidockerPull) {
+      task dockerBuild(dependsOn: ubidockerPull) {
         if (isWarProject) {
           dependsOn configurations.wars
           dependsOn processServerResources
@@ -308,12 +338,12 @@ subprojects {
           try {
             // Create a dockerfile
             def timeStamp = new Date()
-            def imageDescription=project.properties['target.image.description'] ?: "This image runs ${microServiceUBIImageName} service"
-            def imageRelease=project.properties['target.image.release'] ?: "1.0"
-            def imageMaintainer=project.properties['maintainer.name'] ?: "IBM"
-            def imageVendor=project.properties['vendor.name'] ?: "IBM"
-            def serviceUser=project.properties['service.user'] ?: "1000321001"
-            def imageSummary=project.properties['target.image.summary'] ?: " "
+            def imageDescription = project.properties['target.image.description'] ?: "This image runs ${microServiceUBIImageName} service"
+            def imageRelease = project.properties['target.image.release'] ?: "1.0"
+            def imageMaintainer = project.properties['maintainer.name'] ?: "IBM"
+            def imageVendor = project.properties['vendor.name'] ?: "IBM"
+            def serviceUser = project.properties['service.user'] ?: "1000321001"
+            def imageSummary = project.properties['target.image.summary'] ?: " "
 
             if (isWarProject) {
               copy {
@@ -492,11 +522,11 @@ def generateConnectorProject = { connectorType, configurationName, projectPath, 
   println "Generating " + connectorType + " Java connector project"
   ant.input(message: "Connector's label:", addproperty: 'connectorLabel', defaultValue: 'Custom DataSource')
   String defaultConnectorName = ant.connectorLabel.toLowerCase().replaceAll("[^A-Za-z0-9]","_")
-  ant.input(message: "Connector's name:", addproperty: 'connectorName',defaultvalue: defaultConnectorName)
+  ant.input(message: "Connector's name:", addproperty: 'connectorName', defaultvalue: defaultConnectorName)
   String defaultClassName = camelCase(ant.connectorName) - ~/Connector$/
-  ant.input(message: "Connector's classes names' prefix:", addproperty: 'connectorClassPrefix',defaultvalue: defaultClassName)
+  ant.input(message: "Connector's classes names' prefix:", addproperty: 'connectorClassPrefix', defaultvalue: defaultClassName)
   String defaultJavaPackage = "com.yourorganizationname.connect."+ant.connectorName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
-  ant.input(message: "Java package for the connector:", addproperty: 'connectorJavaPackage',defaultvalue: defaultJavaPackage)
+  ant.input(message: "Java package for the connector:", addproperty: 'connectorJavaPackage', defaultvalue: defaultJavaPackage)
   String defaultDesc = "${ant.connectorLabel} (SDK)"
   ant.input(message: "Connector's description:", addproperty: 'connectorDescription', defaultValue: defaultDesc)
   generateConnectorProjectFromValues(configurationName, srcJavaPackage, ant.connectorName, ant.connectorLabel, ant.connectorClassPrefix, ant.connectorJavaPackage, ant.connectorDescription)
@@ -576,7 +606,9 @@ tasks.register('generateJavaConnectorsForgeRest'){
     copy{
       from connTree
       into "${project.rootDir}/subprojects/${connectorName}"
-      eachFile{ path = path.replace(srcJavaPackage.replace('.','/'), ant.connectorJavaPackage.replace('.','/')) }
+      eachFile{
+        path = path.replace(srcJavaPackage.replace('.','/'), ant.connectorJavaPackage.replace('.','/'))
+      }
       filter{line -> line.replace srcJavaPackage, ant.connectorJavaPackage }
       filter{line -> line.replace'  isTemplate = true', '' }
     }
@@ -584,7 +616,11 @@ tasks.register('generateJavaConnectorsForgeRest'){
 }
 
 def chooseConnectorProjects = { question ->
-  def projectsList = rootProject.subprojects.findAll {!(it.hasProperty('isServer') && it['isServer'] == true) && !it.hasProperty('isTemplate') && file("${it.projectDir}/src/main/resources/META-INF/services/org.apache.arrow.flight.FlightProducer").exists()}.collect{[it, false]}
+  def projectsList = rootProject.subprojects.findAll {
+    !(it.hasProperty('isServer') && it['isServer'] == true) && !it.hasProperty('isTemplate') && file("${it.projectDir}/src/main/resources/META-INF/services/org.apache.arrow.flight.FlightProducer").exists()
+  }.collect{
+    [it, false]
+  }
   if (projectsList.isEmpty()){
     return []
   }
@@ -592,9 +628,9 @@ def chooseConnectorProjects = { question ->
     projectsList.eachWithIndex{ proj, index ->
       println "[${proj[1]?'x':' '}] ${index+1}. ${proj[0].name} "
     }
-    String ok = projectsList.find{it[1]}?",ok":""
+    String ok = projectsList.find{it[1]}?",ok": ""
     // ant.input can be execute once with the same property
-    ant.input(message: question, addproperty: "chosenProject$i",validargs:(1..projectsList.size()).join(',')+ok)
+    ant.input(message: question, addproperty: "chosenProject$i", validargs: (1..projectsList.size()).join(',')+ok)
     if ('ok'.equals(ant.properties["chosenProject$i"])){
       break
     }
@@ -609,14 +645,16 @@ tasks.register('generateFlightApp'){
   description = "Generate a Flight app project"
   doLast{
     println "Generating a Flight app project"
-    ant.input(message: "Flight App project's name:", addproperty: 'flightProjectName',defaultvalue: 'flight')
+    ant.input(message: "Flight App project's name:", addproperty: 'flightProjectName', defaultvalue: 'flight')
     def projectToInclude = chooseConnectorProjects("Choose connector to be added to the service.")
     String newLine
     if (projectToInclude.isEmpty()){
       println "There are not connectors projects to be added to this flight service. They can be added later on as runtimeOnly dependency in ${project.rootDir}/subprojects/${ant.flightProjectName}/build.gradle"
       newLine = "//  runtimeOnly project(\':<name-of-connector-project>\')"
     }else{
-      newLine = projectToInclude.collect {"  runtimeOnly project(path: \':"+it+"\')"}.join("\n")
+      newLine = projectToInclude.collect {
+        "  runtimeOnly project(path: \':"+it+"\')"
+      }.join("\n")
     }
 
     println configurations.basicFlight.allDependencies
@@ -624,7 +662,9 @@ tasks.register('generateFlightApp'){
     copy{
       from connTree
       into "${project.rootDir}/subprojects/${ant.flightProjectName}"
-      filter { line -> line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line }
+      filter { line ->
+        line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line
+      }
       filter{line -> line.replace'  isTemplate = true', '' }
     }
   }
@@ -688,26 +728,40 @@ tasks.register('quickstart'){
     copy{
       from connTree
       into "${project.rootDir}/subprojects/${defaultConnectorName}"
-      eachFile{ path = path.replace("com/ibm/connect/sdk/basic/impl",defaultJavaPackage.replace('.','/')) }
+      eachFile{
+        path = path.replace("com/ibm/connect/sdk/basic/impl", defaultJavaPackage.replace('.','/'))
+      }
       rename{filename -> filename.replace '$_CONNNAME_$', defaultConnectorName }
-      rename{filename -> filename.replace '$_CONNNAMEPREFIX_$', defaultClassName }
+      rename{filename ->
+        filename.replace '$_CONNNAMEPREFIX_$', defaultClassName
+      }
       filter{line -> line.replace '$_CONNNAME_$', defaultConnectorName}
       filter{line -> line.replace '$_CONNLABEL_$', ant.connectorLabel}
       filter{line -> line.replace '$_CONNDESCRIPTION_$', defaultDesc}
       filter{line -> line.replace'$_CONNNAMEPREFIX_$', defaultClassName }
-      filter{line -> line.replace'com.ibm.connect.sdk.basic.impl', defaultJavaPackage }
+      filter{line ->
+        line.replace'com.ibm.connect.sdk.basic.impl', defaultJavaPackage
+      }
       filter{line -> line.replace'  isTemplate = true', '' }
     }
     String flightProjectName = defaultConnectorName+"flight"
-    String flightClassPrefix = flightProjectName.replaceAll("(-)([A-Za-z0-9])",{Object[] fit -> fit[2].toUpperCase() } ).capitalize()
+    String flightClassPrefix = flightProjectName.replaceAll("(-)([A-Za-z0-9])",{Object[] fit ->
+      fit[2].toUpperCase()
+    }).capitalize()
     String flightJavaPackage = "com.yourorganizationname.connect."+flightProjectName.toLowerCase().replaceAll("[^A-Za-z0-9]",'')
-    def projectsToIncludeDefault = rootProject.subprojects.findAll {!(it.hasProperty('isMicroServiceApp') && it['isMicroServiceApp'] == true)}.collect { it.name }
+    def projectsToIncludeDefault = rootProject.subprojects.findAll {
+      !(it.hasProperty('isMicroServiceApp') && it['isMicroServiceApp'] == true)
+    }.collect {
+      it.name
+    }
     String newLine = "  runtimeOnly project(\':"+rootProject.name+"-"+defaultConnectorName+"\')"
     FileTree flightTree = zipTree(configurations.basicFlight.singleFile)
     copy{
       from flightTree
       into "${project.rootDir}/subprojects/${flightProjectName}"
-      filter { line -> line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line }
+      filter { line ->
+        line.contains('$_INSERT_SUBPROJECTS_$') ? newLine : line
+      }
       filter{line -> line.replace'  isTemplate = true', '' }
     }
   }

@@ -17,18 +17,6 @@ public class RestFieldDefinition
     private final boolean isKey;
     private final boolean isNotNull;
 
-    /**
-     * Creates a field definition.
-     *
-     * @param name
-     *            the field name (may be a nested path like "headquarters.address")
-     * @param typeString
-     *            the raw type string from the JSON file (e.g. "VARCHAR")
-     * @param isKey
-     *            true if this field is marked as a key ($key modifier)
-     * @param isNotNull
-     *            true if this field is marked as not null ($notnull modifier)
-     */
     public RestFieldDefinition(String name, String typeString, boolean isKey, boolean isNotNull)
     {
         this.name = name;
@@ -37,45 +25,10 @@ public class RestFieldDefinition
         this.isNotNull = isNotNull;
     }
 
-    /**
-     * Returns the field name (may be a nested path like "headquarters.address").
-     *
-     * @return the field name
-     */
-    public String getName()
-    {
-        return name;
-    }
-
-    /**
-     * Returns the raw type string from the JSON file.
-     *
-     * @return the raw type string
-     */
-    public String getTypeString()
-    {
-        return typeString;
-    }
-
-    /**
-     * Returns true if this field is a primary key.
-     *
-     * @return true if this field is a primary key
-     */
-    public boolean isKey()
-    {
-        return isKey;
-    }
-
-    /**
-     * Returns true if this field is marked as not null.
-     *
-     * @return true if this field is not null
-     */
-    public boolean isNotNull()
-    {
-        return isNotNull;
-    }
+    public String getName() { return name; }
+    public String getTypeString() { return typeString; }
+    public boolean isKey() { return isKey; }
+    public boolean isNotNull() { return isNotNull; }
 
     @Override
     public String toString()
@@ -84,5 +37,3 @@ public class RestFieldDefinition
                 + ", isNotNull=" + isNotNull + "}";
     }
 }
-
-// Made with Bob

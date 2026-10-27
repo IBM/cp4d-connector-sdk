@@ -1,0 +1,26 @@
+# ============================================================
+# S3 — read a binary object written to the test work bucket
+# ============================================================
+# Writes a small binary payload, then reads it back in binary
+# mode and verifies the schema has a single "content" field.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+[Step]
+Type=Write
+Interaction.file_name=/${work_dir}/test_binary.bin
+Interaction.file_format=binary
+Schema=content|varbinary
+Row.0=aGVsbG8=
+
+[Step]
+Type=Metadata
+Interaction.file_name=/${work_dir}/test_binary.bin
+Interaction.file_format=binary
+ExpectedInteractionProperty.file_format=binary
+ExpectedSchemaFields=content
+
+[Step]
+Type=Read
+Interaction.file_name=/${work_dir}/test_binary.bin
+Interaction.file_format=binary
+ExpectedRowCount=1
