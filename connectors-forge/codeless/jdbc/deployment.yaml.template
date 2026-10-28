@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{IMAGE_NAME}}
+  namespace: {{OC_NAMESPACE}}
+  labels:
+    app: {{IMAGE_NAME}}
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: {{IMAGE_NAME}}
+
+  template:
+    metadata:
+      labels:
+        app: {{IMAGE_NAME}}
+
+    spec:
+      containers:
+      - name: {{IMAGE_NAME}}
+        image: {{PREBUILT_IMAGE}}
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: http
+        - containerPort: 9443
+          protocol: TCP
+          name: grpcs
+
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "200m"
+            
+        env:
+        - name: DRIVER_PATH
+          value: "/drivers"
+        envFrom:
+        - configMapRef:
+            name: jdbc-connector-config
+
+        volumeMounts:
+        - name: drivers-storage
+          mountPath: /drivers
+
+      volumes:
+      - name: drivers-storage
+        persistentVolumeClaim:
+          claimName: {{IMAGE_NAME}}-drivers-pvc
