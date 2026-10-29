@@ -37,7 +37,7 @@ public final class IntegTestConfig {
     private static final Set<String> KNOWN_KEYS = new HashSet<>(Arrays.asList(
             "connector.json", "host", "port",
             "auth.type", "api.key", "username", "password", "bearer.token",
-            "row.limit", "tables", "strict"));
+            "row.limit", "tables", "fail.on.empty.tables", "request.delay.ms"));
 
     private final String connectorJson;
     private final String host;
@@ -48,8 +48,9 @@ public final class IntegTestConfig {
     private final String password;
     private final String bearerToken;
     private final int rowLimit;
+    private final int requestDelayMs;
     private final List<String> tables;
-    private final boolean strict;
+    private final boolean failOnEmptyTables;
     private final Map<String, String> extraProperties;
 
     private IntegTestConfig(
@@ -62,8 +63,9 @@ public final class IntegTestConfig {
             String password,
             String bearerToken,
             int rowLimit,
+            int requestDelayMs,
             List<String> tables,
-            boolean strict,
+            boolean failOnEmptyTables,
             Map<String, String> extraProperties) {
         this.connectorJson = connectorJson;
         this.host = host;
@@ -74,8 +76,9 @@ public final class IntegTestConfig {
         this.password = password;
         this.bearerToken = bearerToken;
         this.rowLimit = rowLimit;
+        this.requestDelayMs = requestDelayMs;
         this.tables = tables;
-        this.strict = strict;
+        this.failOnEmptyTables = failOnEmptyTables;
         this.extraProperties = Collections.unmodifiableMap(extraProperties);
     }
 
@@ -122,6 +125,11 @@ public final class IntegTestConfig {
                 ? DEFAULT_ROW_LIMIT
                 : parseInt("row.limit", rowLimitStr, path);
 
+        final String requestDelayStr = props.getProperty("request.delay.ms");
+        final int requestDelayMs = isBlank(requestDelayStr)
+                ? 0
+                : parseInt("request.delay.ms", requestDelayStr, path);
+
         final String tablesStr = props.getProperty("tables");
         final List<String> tables = isBlank(tablesStr)
                 ? null
@@ -130,13 +138,13 @@ public final class IntegTestConfig {
                         .collect(Collectors.toUnmodifiableList());
 
         // When true, testTableReturnsRows fails (instead of warns) on empty tables.
-        final String strictStr = props.getProperty("strict");
-        final boolean strict = strictStr != null && "true".equalsIgnoreCase(strictStr.strip());
+        final String failOnEmptyTablesStr = props.getProperty("fail.on.empty.tables");
+        final boolean failOnEmptyTables = failOnEmptyTablesStr != null && "true".equalsIgnoreCase(failOnEmptyTablesStr.strip());
 
         return new IntegTestConfig(
                 connectorJson, hostVal, portVal,
-                authType, apiKey, username, password, bearerToken, rowLimit, tables, strict,
-                collectExtraProperties(props));
+                authType, apiKey, username, password, bearerToken, rowLimit, requestDelayMs,
+                tables, failOnEmptyTables, collectExtraProperties(props));
     }
 
     /**
@@ -296,6 +304,9 @@ public final class IntegTestConfig {
     /** Maximum rows to sample per table. */
     public int rowLimit()             { return rowLimit; }
 
+    /** Milliseconds to sleep before each HTTP request. Use to avoid rate-limiting on slow APIs. Defaults to 0. */
+    public int requestDelayMs()       { return requestDelayMs; }
+
     /**
      * Table names to test, or {@code null} to test all tables defined in the connector JSON.
      */
@@ -306,7 +317,7 @@ public final class IntegTestConfig {
      * returns 0 rows. Useful when testing against a sidecar with seeded data.
      * Defaults to {@code false}.
      */
-    public boolean strict()           { return strict; }
+    public boolean failOnEmptyTables() { return failOnEmptyTables; }
 
     /**
      * Extra properties from the {@code .properties} file that are not consumed by the framework.

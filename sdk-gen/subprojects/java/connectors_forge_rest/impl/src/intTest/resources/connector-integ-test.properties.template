@@ -57,5 +57,9 @@ connector.json=openbrewerydb.json
 # row.limit=50
 # tables=TABLE1,TABLE2
 #
-# strict=false
+# fail.on.empty.tables=false
 # When true, testTableReturnsRows fails (not just warns) on empty tables.
+#
+# request.delay.ms=0
+# Milliseconds to sleep before each HTTP request in the table loop.
+# Set to a non-zero value (e.g. 500) when the API enforces a rate limit.

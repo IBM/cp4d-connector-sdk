@@ -141,7 +141,9 @@ final class PropertiesFileGenerator {
         if (!tableHint.isEmpty()) {
             sb.append("# tables=").append(tableHint).append('\n');
         }
-        sb.append("# strict=false\n");
+        sb.append("# fail.on.empty.tables=false\n");
+        sb.append("# request.delay.ms=0\n");
+        sb.append("# Milliseconds to sleep before each HTTP request. Set >0 for rate-limited APIs.\n");
     }
 
     private static String hostOf(String baseUrl) {

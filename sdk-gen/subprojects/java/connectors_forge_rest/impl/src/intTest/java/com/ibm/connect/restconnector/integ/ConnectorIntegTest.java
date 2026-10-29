@@ -176,15 +176,24 @@ public class ConnectorIntegTest {
     // ── Convenience delegates ─────────────────────────────────────────────────
 
     private Schema readLiveSchema(String tableName) throws Exception {
+        delayIfConfigured();
         return FlightTableReader.readLiveSchema(
                 client, session.mapping().getConnectorName(),
                 tableName, session.connectionProps());
     }
 
     private List<Map<String, Object>> readRows(String tableName, int rowLimit) throws Exception {
+        delayIfConfigured();
         return FlightTableReader.readRows(
                 client, session.mapping().getConnectorName(),
                 tableName, session.connectionProps(), rowLimit);
+    }
+
+    private void delayIfConfigured() throws InterruptedException {
+        final int delayMs = session.config().requestDelayMs();
+        if (delayMs > 0) {
+            Thread.sleep(delayMs);
+        }
     }
 
     private Set<Entry<String, RestTableDefinition>> tablesToTest() {
@@ -326,7 +335,7 @@ public class ConnectorIntegTest {
      * Real API returns at least one row for each table (R-05).
      *
      * <p>By default, tables returning 0 rows produce a warning but do not fail — the real
-     * API may legitimately have empty tables. Set {@code strict=true} in the
+     * API may legitimately have empty tables. Set {@code fail.on.empty.tables=true} in the
      * {@code .properties} file to make empty tables a hard failure (useful against a sidecar
      * with seeded data).
      */
@@ -337,7 +346,7 @@ public class ConnectorIntegTest {
             try {
                 final List<Map<String, Object>> rows = readRows(e.getKey(), session.config().rowLimit());
                 if (rows.isEmpty()) {
-                    if (session.config().strict()) {
+                    if (session.config().failOnEmptyTables()) {
                         failures.add("  " + e.getKey() + ": [R-05] returned 0 rows");
                     } else {
                         LOGGER.warn("[R-05] Table '{}' returned 0 rows",
@@ -365,6 +374,7 @@ public class ConnectorIntegTest {
         for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
             final String tableName = e.getKey();
             try {
+                delayIfConfigured();
                 final List<Integer> batchSizes = FlightTableReader.readBatchSizes(
                         client, session.mapping().getConnectorName(),
                         tableName, session.connectionProps(), requestedBatchSize);

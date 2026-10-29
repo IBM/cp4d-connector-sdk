@@ -151,6 +151,12 @@ task integTestForge(type: Test) {
 
   include '**/integ/**/ConnectorIntegTest*'
 
+  // Enable strict type parsing — parse errors throw instead of logging a warning and returning null
+  systemProperty 'com.ibm.connect.restconnector.strictParsing', 'true'
+
+  // Skip the connectivity ping on every connect() — avoids rate-limiting
+  systemProperty 'com.ibm.connect.restconnector.skipPing', 'true'
+
   // Show log output in the console as tests run
   testLogging {
     events 'passed', 'skipped', 'failed'
