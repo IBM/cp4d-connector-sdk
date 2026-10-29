@@ -63,6 +63,23 @@ artifacts {
     builtBy(assembleArtifact)
   }
 }
+
+// ── intTest source set + configurations (must precede dependencies{}) ─────
+
+sourceSets {
+  intTest {
+    java.srcDirs      = ['src/intTest/java']
+    resources.srcDirs = ['src/intTest/resources']
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
+configurations {
+  intTestImplementation.extendsFrom implementation
+  intTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
 //
 // Declare project dependencies
 //
@@ -88,6 +105,115 @@ dependencies {
   implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: project['jackson.version']
 
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+
+  // ── intTest ───────────────────────────────────────────────────────────────
+  intTestImplementation group: 'junit', name: 'junit', version: project['junit.version']
+  intTestImplementation project(':' + rootProject.name + '-java-test')
+  intTestRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
+  intTestRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
+  intTestRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
+  intTestRuntimeOnly group: 'org.slf4j', name: 'log4j-over-slf4j', version: project['slf4j.version']
+  intTestRuntimeOnly group: 'org.slf4j', name: 'slf4j-jdk14', version: project['slf4j.version']
+}
+
+// ── shared helper ─────────────────────────────────────────────────────────
+
+/**
+ * Returns the canonical DSL resources directory:
+ *   sdk-gen/subprojects/connectors_forge_rest/src/main/resources/
+ */
+def dslResourcesDir() {
+  return file("${projectDir}/../../../connectors_forge_rest/src/main/resources").canonicalFile
+}
+
+/**
+ * If {@code name} is a plain filename (no path separator), resolves it against
+ * {@code baseDir}. Otherwise returns it unchanged.
+ */
+def resolveToDir(String name, File baseDir) {
+  return (name.contains('/') || name.contains('\\')) ? name : new File(baseDir, name).absolutePath
+}
+
+// ── integTestForge ────────────────────────────────────────────────────────
+
+/**
+ * Runs the Connector Forge integration tests against one or more live REST APIs.
+ *
+ * Pass one of:
+ *   -Pinteg.configs=my-api.properties         (single connector, plain filename resolved to DSL resources dir)
+ *   -Pinteg.configs=a.properties,b.properties (explicit list)
+ *   (no flag) — picks up all *.properties in src/intTest/resources/
+ */
+task integTestForge(type: Test) {
+  outputs.upToDateWhen { false }
+  testClassesDirs = sourceSets.intTest.output.classesDirs
+  classpath       = sourceSets.intTest.runtimeClasspath
+
+  include '**/integ/**/ConnectorIntegTest*'
+
+  // Enable strict type parsing — parse errors throw instead of logging a warning and returning null
+  systemProperty 'com.ibm.connect.restconnector.strictParsing', 'true'
+
+  // Skip the connectivity ping on every connect() — avoids rate-limiting
+  systemProperty 'com.ibm.connect.restconnector.skipPing', 'true'
+
+  // Show log output in the console as tests run
+  testLogging {
+    events 'passed', 'skipped', 'failed'
+    showStandardStreams = true
+  }
+
+  // Forward integ.configs to the forked test JVM.
+  // Plain filenames are resolved to the DSL resources directory.
+  // With no flag, all *.properties in src/intTest/resources/ are used.
+  doFirst {
+    if (project.hasProperty('integ.configs')) {
+      final resolved = project.property('integ.configs')
+          .split(',')
+          .collect { resolveToDir(it.strip(), dslResourcesDir()) }
+          .findAll { !it.isBlank() }
+          .join(',')
+      systemProperty 'integ.configs', resolved
+    } else {
+      final defaultDir = file('src/intTest/resources')
+      def filesString = ''
+      if (defaultDir.isDirectory()) {
+        final files = fileTree(dir: defaultDir, include: '*.properties').files.sort()
+        if (files) {
+          filesString = files.collect { it.absolutePath }.join(',')
+        }
+      }
+      systemProperty 'integ.configs', filesString
+    }
+  }
+}
+
+// ── generateIntegProperties ───────────────────────────────────────────────
+
+/**
+ * Generates a ready-to-fill .properties file beside each DSL JSON.
+ *
+ * Usage:
+ *   ./gradlew :...:generateIntegProperties -Pdsls=my-api.json
+ *   ./gradlew :...:generateIntegProperties -Pdsls=path/to/my-api.json
+ *   ./gradlew :...:generateIntegProperties          (all DSLs in DSL resources dir)
+ *
+ * Plain filenames are resolved to the DSL resources directory automatically.
+ */
+task generateIntegProperties(type: JavaExec) {
+  classpath = sourceSets.intTest.runtimeClasspath
+  mainClass = 'com.ibm.connect.restconnector.integ.GeneratePropertiesMain'
+
+  doFirst {
+    if (project.hasProperty('dsls')) {
+      args project.property('dsls').split(',').collect { resolveToDir(it.strip(), dslResourcesDir()) }
+    } else {
+      final dslDir = dslResourcesDir()
+      if (dslDir.isDirectory()) {
+        args fileTree(dir: dslDir, include: '*.json').files.collect { it.absolutePath }
+      }
+    }
+  }
 }
 
 apply from: "${rootProject.projectDir}/publish.gradle"

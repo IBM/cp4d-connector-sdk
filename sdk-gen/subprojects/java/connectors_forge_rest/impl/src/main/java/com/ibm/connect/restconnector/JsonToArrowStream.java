@@ -402,9 +402,15 @@ public class JsonToArrowStream implements Closeable
             final JsonNode valueNode = fieldName.contains(".")
                     ? getNestedValue(objectNode, fieldName)
                     : objectNode.get(fieldName);
-            final Object value = convertValue(valueNode, fieldDef, strict);
-            if (value != null) {
-                writer.set(fieldName, value);
+            try {
+                final Object value = convertValue(valueNode, fieldDef, strict);
+                if (value != null) {
+                    writer.set(fieldName, value);
+                }
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException(
+                        "Failed to parse field '" + fieldName + "' (type="
+                        + fieldDef.getTypeString() + "): " + e.getMessage(), e);
             }
         }
         writer.endRow();
