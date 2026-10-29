@@ -1,0 +1,467 @@
+import groovy.json.JsonSlurper
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.util.regex.Pattern
+
+/**
+ * Gradle task to customize JDBC connector code using DSL-jdbc.json configuration
+ *
+ * Usage: ./gradlew customizeJdbcConnector -PdslFile=DSL-jdbc.json -PconnectorDir=subprojects/jdbc_mydb
+ */
+
+task customizeJdbcConnector {
+  description = 'Customizes JDBC connector code using DSL-jdbc.json configuration'
+  group = 'connector'
+
+  doLast {
+    // Get parameters
+    def dslFilePath = project.hasProperty('dslFile') ? project.property('dslFile') : 'DSL-jdbc.json'
+    def connectorDir = project.hasProperty('connectorDir') ? project.property('connectorDir') : null
+
+    if (!connectorDir) {
+      throw new GradleException("Please specify connector directory: -PconnectorDir=subprojects/jdbc_mydb")
+    }
+
+    def connectorPath = new File(project.rootDir, connectorDir)
+    if (!connectorPath.exists()) {
+      throw new GradleException("Connector directory not found: ${connectorPath.absolutePath}")
+    }
+
+    // Look for DSL file first in connector directory, then in project root
+    def dslFile = new File(connectorPath, dslFilePath)
+    if (!dslFile.exists()) {
+      dslFile = new File(project.rootDir, dslFilePath)
+      if (!dslFile.exists()) {
+        throw new GradleException("DSL file not found in connector directory (${new File(connectorPath, dslFilePath).absolutePath}) or project root (${dslFile.absolutePath})")
+      }
+    }
+
+    println "Reading DSL configuration from: ${dslFile.absolutePath}"
+    def dsl = new JsonSlurper().parse(dslFile)
+
+    // Extract connector name from directory
+    def connectorName = connectorPath.name
+    println "Customizing connector: ${connectorName}"
+
+    // Find the package directory
+    def srcDir = new File(connectorPath, "src/main/java")
+    def packageDir = findPackageDirectory(srcDir, connectorName)
+
+    if (!packageDir) {
+      throw new GradleException("Could not find package directory for connector: ${connectorName}")
+    }
+
+    println "Found package directory: ${packageDir.absolutePath}"
+
+    // 1. Update Connector.java with driver class name
+    if (dsl.jdbc_driver?.driver_class_name) {
+      updateDriverClassName(packageDir, connectorName, dsl.jdbc_driver.driver_class_name)
+    }
+
+    // 2. Update Connector.java with JDBC URL
+    if (dsl.jdbc_driver?.jdbc_url) {
+      updateJdbcUrl(packageDir, connectorName, dsl.jdbc_driver.jdbc_url)
+    }
+
+    // 3. Update DatasourceType.java with metadata
+    if (dsl.connector_metadata) {
+      updateDatasourceTypeMetadata(packageDir, connectorName, dsl.connector_metadata)
+    }
+
+    // 4. Add additional connection properties
+    if (dsl.connection_properties?.additional_properties) {
+      addConnectionProperties(packageDir, connectorName, dsl.connection_properties.additional_properties)
+    }
+
+    // 5. Update build.gradle with JDBC driver dependency
+    if (dsl.implementation_notes?.dependencies) {
+      updateBuildGradle(connectorPath, dsl.implementation_notes.dependencies)
+    }
+
+    // 6. Create configuration summary
+    createConfigurationSummary(connectorPath, dsl)
+
+    println "\n✅ Connector customization complete!"
+    println "Next steps:"
+    println "  1. Review generated files in: ${connectorPath.absolutePath}"
+    println "  2. Add JDBC driver dependency to build.gradle if not already present"
+    println "  3. Build the connector: ./gradlew :${connectorName}:build"
+    println "  4. Test the connector: ./gradlew :${connectorName}:test"
+  }
+}
+
+def findPackageDirectory(File srcDir, String connectorName) {
+  def queue = [srcDir] as Queue
+  while (!queue.isEmpty()) {
+    def dir = queue.poll()
+    if (dir.name == connectorName.toLowerCase().replaceAll('_', '')) {
+      return dir
+    }
+    dir.listFiles()?.each { file ->
+      if (file.isDirectory()) {
+        queue.offer(file)
+      }
+    }
+  }
+  return null
+}
+
+def updateDriverClassName(File packageDir, String connectorName, String driverClassName) {
+  def connectorFile = findFile(packageDir, "*Connector.java")
+  if (!connectorFile) {
+    println "⚠️  Warning: Connector.java not found"
+    return
+  }
+
+  println "Updating driver class name in: ${connectorFile.name}"
+
+  def content = connectorFile.text
+  def updated = content.replaceAll(
+      /private static final String DRIVER_CLASS_NAME = ".*?";/,
+      "private static final String DRIVER_CLASS_NAME = \"${driverClassName}\";"
+      )
+
+  if (content != updated) {
+    connectorFile.text = updated
+    println "  ✓ Updated DRIVER_CLASS_NAME to: ${driverClassName}"
+  } else {
+    println "  ℹ️  DRIVER_CLASS_NAME already set or pattern not found"
+  }
+}
+
+def updateJdbcUrl(File packageDir, String connectorName, String jdbcUrl) {
+  def connectorFile = findFile(packageDir, "*Connector.java")
+  if (!connectorFile) {
+    println "⚠️  Warning: Connector.java not found"
+    return
+  }
+
+  println "Updating JDBC URL construction in: ${connectorFile.name}"
+
+  def content = connectorFile.text
+
+  // Generate the getConnectionURL() method body from the DSL jdbc_url template
+  def urlMethodBody = generateConnectionURLMethod(jdbcUrl)
+
+  // Find and replace the entire getConnectionURL() method
+  def methodPattern = /(@Override\s+protected String getConnectionURL\(\)\s*\{)(.*?)(\n\s*\})/
+  def matcher = content =~ /(?s)@Override\s+protected String getConnectionURL\(\)\s*\{.*?\n\s*\}/
+
+  if (matcher.find()) {
+    def updated = content.replaceFirst(
+        /(?s)(@Override\s+protected String getConnectionURL\(\)\s*\{).*?(\n\s*\})/,
+        "\$1\n${urlMethodBody}\$2"
+        )
+
+    if (content != updated) {
+      connectorFile.text = updated
+      println "  ✓ Updated getConnectionURL() method based on DSL template: ${jdbcUrl}"
+    } else {
+      println "  ℹ️  getConnectionURL() method unchanged"
+    }
+  } else {
+    println "  ⚠️  Could not find getConnectionURL() method"
+  }
+}
+
+def generateConnectionURLMethod(String jdbcUrl) {
+  def methodBody = new StringBuilder()
+  methodBody.append("        final StringBuilder urlBuilder = new StringBuilder(50);\n")
+
+  // Parse the JDBC URL template and generate code
+  // Example: "jdbc:db2://{host}:{port}/{database}"
+  // becomes: urlBuilder.append("jdbc:db2://").append(connectionProperties.getProperty("host"))...
+
+  def parts = []
+  def currentPart = new StringBuilder()
+  def inPlaceholder = false
+  def placeholderName = new StringBuilder()
+
+  for (int i = 0; i < jdbcUrl.length(); i++) {
+    char c = jdbcUrl.charAt(i)
+
+    if (c == '{') {
+      // Start of placeholder
+      if (currentPart.length() > 0) {
+        parts.add(['type': 'literal', 'value': currentPart.toString()])
+        currentPart = new StringBuilder()
+      }
+      inPlaceholder = true
+      placeholderName = new StringBuilder()
+    } else if (c == '}' && inPlaceholder) {
+      // End of placeholder
+      parts.add(['type': 'property', 'value': placeholderName.toString()])
+      inPlaceholder = false
+    } else if (inPlaceholder) {
+      placeholderName.append(c)
+    } else {
+      currentPart.append(c)
+    }
+  }
+
+  // Add any remaining literal part
+  if (currentPart.length() > 0) {
+    parts.add(['type': 'literal', 'value': currentPart.toString()])
+  }
+
+  // Generate the urlBuilder code
+  parts.each { part ->
+    if (part.type == 'literal') {
+      methodBody.append("        urlBuilder.append(\"${part.value}\");\n")
+    } else if (part.type == 'property') {
+      methodBody.append("        urlBuilder.append(connectionProperties.getProperty(\"${part.value}\"));\n")
+    }
+  }
+
+  methodBody.append("        return urlBuilder.toString();\n")
+
+  return methodBody.toString()
+}
+
+def updateDatasourceTypeMetadata(File packageDir, String connectorName, Map metadata) {
+  def datasourceTypeFile = findFile(packageDir, "*DatasourceType.java")
+  if (!datasourceTypeFile) {
+    println "⚠️  Warning: DatasourceType.java not found"
+    return
+  }
+
+  println "Updating datasource type metadata in: ${datasourceTypeFile.name}"
+
+  def content = datasourceTypeFile.text
+  def updated = content
+
+  // Skip updating connector_label - it should remain as set during generation
+  // if (metadata.connector_label) {
+  //   updated = updated.replaceAll(
+  //       /private static final String DATASOURCE_TYPE_LABEL = ".*?";/,
+  //       "private static final String DATASOURCE_TYPE_LABEL = \"${metadata.connector_label}\";"
+  //       )
+  //   println "  ✓ Updated DATASOURCE_TYPE_LABEL to: ${metadata.connector_label}"
+  // }
+
+  if (metadata.connector_description) {
+    updated = updated.replaceAll(
+        /private static final String DATASOURCE_TYPE_DESCRIPTION = ".*?";/,
+        "private static final String DATASOURCE_TYPE_DESCRIPTION = \"${metadata.connector_description}\";"
+        )
+    println "  ✓ Updated DATASOURCE_TYPE_DESCRIPTION to: ${metadata.connector_description}"
+  }
+
+  if (content != updated) {
+    datasourceTypeFile.text = updated
+  }
+}
+
+def addConnectionProperties(File packageDir, String connectorName, List properties) {
+  def datasourceTypeFile = findFile(packageDir, "*DatasourceType.java")
+  if (!datasourceTypeFile) {
+    println "⚠️  Warning: DatasourceType.java not found"
+    return
+  }
+
+  println "Adding additional connection properties..."
+
+  def content = datasourceTypeFile.text
+
+  // Find the location to insert new properties (after existing connection properties)
+  def insertPattern = /properties\.addConnectionItem\(new CustomDatasourceTypeProperty\(\)\.name\("password"\).*?\);/
+  def matcher = content =~ insertPattern
+
+  if (matcher.find()) {
+    def insertPosition = matcher.end()
+    def newProperties = new StringBuilder("\n\n        // Additional connection properties from DSL\n")
+
+    properties.each { prop ->
+      if (prop._example) {
+        return // Skip example entries
+      }
+
+      newProperties.append("        properties.addConnectionItem(new CustomDatasourceTypeProperty()")
+      newProperties.append(".name(\"${prop.name}\")")
+      newProperties.append(".label(\"${prop.label}\")")
+      newProperties.append(".description(\"${prop.description}\")")
+      newProperties.append(".type(TypeEnum.${prop.type.toUpperCase()})")
+      newProperties.append(".required(${prop.required})")
+
+      if (prop.default_value) {
+        newProperties.append(".defaultValue(\"${prop.default_value}\")")
+      }
+      if (prop.masked) {
+        newProperties.append(".masked(true)")
+      }
+      if (prop.group) {
+        newProperties.append(".group(\"${prop.group}\")")
+      }
+
+      newProperties.append(");\n")
+      println "  ✓ Added property: ${prop.name}"
+    }
+
+    def updated = content.substring(0, insertPosition) + newProperties.toString() + content.substring(insertPosition)
+    datasourceTypeFile.text = updated
+  } else {
+    println "  ⚠️  Could not find insertion point for additional properties"
+  }
+}
+
+def updateBuildGradle(File connectorPath, List dependencies) {
+  def buildFile = new File(connectorPath, "build.gradle")
+  if (!buildFile.exists()) {
+    println "⚠️  Warning: build.gradle not found"
+    return
+  }
+
+  println "Updating build.gradle with JDBC driver dependencies..."
+
+  def content = buildFile.text
+  def updated = false
+
+  dependencies.each { dep ->
+    // Skip entries that are just notes or examples
+    if (dep._note || dep._example || dep._examples) {
+      return
+    }
+
+    // Process driver_dependencies array
+    if (dep.driver_dependencies && dep.driver_dependencies instanceof List) {
+      dep.driver_dependencies.each { driverDep ->
+        if (driverDep && driverDep.trim()) {
+          // Check if dependency already exists
+          if (!content.contains(driverDep)) {
+            // Find the dependencies block and add the new dependency
+            def dependenciesPattern = /(dependencies\s*\{[^}]*)(testImplementation[^\n]*\n)/
+            def matcher = content =~ dependenciesPattern
+
+            if (matcher.find()) {
+              def beforeTest = matcher.group(1)
+              def testLine = matcher.group(2)
+
+              // Insert the JDBC driver dependency before test dependencies
+              def newDependency = "\n  // JDBC Driver dependency\n  implementation '${driverDep}'\n\n  "
+              content = content.replaceFirst(
+                  Pattern.quote(beforeTest + testLine),
+                  beforeTest + newDependency + testLine
+                  )
+              updated = true
+              println "  ✓ Added JDBC driver dependency: ${driverDep}"
+            } else {
+              println "  ⚠️  Could not find insertion point in dependencies block"
+              println "  ℹ️  Please add manually: implementation '${driverDep}'"
+            }
+          } else {
+            println "  ℹ️  Dependency already exists: ${driverDep}"
+          }
+        }
+      }
+    }
+  }
+
+  if (updated) {
+    buildFile.text = content
+    println "  ✓ build.gradle updated successfully"
+  } else {
+    println "  ℹ️  No dependencies to add or all dependencies already present"
+
+    // Print helpful information about available drivers
+    dependencies.each { dep ->
+      if (dep._examples) {
+        println "\n  💡 Available JDBC driver examples:"
+        dep._examples.each { db, depString ->
+          println "     ${db.padRight(12)}: implementation '${depString}'"
+        }
+        println "\n  To use a driver, add it to the DSL file under:"
+        println "  implementation_notes.dependencies[0].driver_dependencies = [\"group:artifact:version\"]"
+      }
+    }
+  }
+}
+
+def createConfigurationSummary(File connectorPath, Map dsl) {
+  def summaryFile = new File(connectorPath, "CUSTOMIZATION_SUMMARY.md")
+
+  def summary = new StringBuilder()
+  summary.append("# Connector Customization Summary\n\n")
+  summary.append("Generated: ${new Date()}\n\n")
+
+  if (dsl.connector_metadata) {
+    summary.append("## Connector Metadata\n")
+    summary.append("- **Name**: ${dsl.connector_metadata.connector_name}\n")
+    summary.append("- **Label**: ${dsl.connector_metadata.connector_label}\n")
+    summary.append("- **Description**: ${dsl.connector_metadata.connector_description}\n\n")
+  }
+
+  if (dsl.jdbc_driver) {
+    summary.append("## JDBC Driver\n")
+    summary.append("- **Driver Class**: `${dsl.jdbc_driver.driver_class_name}`\n\n")
+  }
+
+  if (dsl.url_template) {
+    summary.append("## JDBC URL Template\n")
+    summary.append("```\n${dsl.url_template.template}\n```\n\n")
+  }
+
+  if (dsl.database_specific_features) {
+    summary.append("## Database Features\n")
+    dsl.database_specific_features.each { key, value ->
+      if (!key.startsWith('_')) {
+        summary.append("- **${key}**: ${value}\n")
+      }
+    }
+    summary.append("\n")
+  }
+
+  // Check if dependencies were added
+  def depsAdded = false
+  if (dsl.implementation_notes?.dependencies) {
+    dsl.implementation_notes.dependencies.each { dep ->
+      if (dep.driver_dependencies && dep.driver_dependencies.size() > 0) {
+        depsAdded = true
+      }
+    }
+  }
+
+  summary.append("## Next Steps\n\n")
+
+  if (!depsAdded) {
+    summary.append("1. **Add JDBC Driver Dependency**\n")
+    summary.append("   Add to DSL file under `implementation_notes.dependencies[0].driver_dependencies`:\n")
+    summary.append("   ```json\n")
+    summary.append("   \"driver_dependencies\": [\"group:artifact:version\"]\n")
+    summary.append("   ```\n")
+    summary.append("   Then re-run: `./gradlew customizeJdbcConnector -PdslFile=<your-dsl>.json -PconnectorDir=${connectorPath.name}`\n\n")
+    summary.append("   Available drivers:\n")
+    if (dsl.implementation_notes?.dependencies) {
+      dsl.implementation_notes.dependencies.each { dep ->
+        if (dep._examples) {
+          dep._examples.each { db, depString ->
+            summary.append("   - ${db}: ${depString}\n")
+          }
+        }
+      }
+    }
+    summary.append("\n")
+  } else {
+    summary.append("1. **✓ JDBC Driver Dependency Added**\n")
+    summary.append("   Dependencies have been automatically added to `build.gradle`\n\n")
+  }
+
+  summary.append("2. **Build the Connector**\n")
+  summary.append("   ```bash\n")
+  summary.append("   ./gradlew :${connectorPath.name}:build\n")
+  summary.append("   ```\n\n")
+
+  summary.append("3. **Test the Connector**\n")
+  summary.append("   ```bash\n")
+  summary.append("   ./gradlew :${connectorPath.name}:test\n")
+  summary.append("   ```\n\n")
+
+  summaryFile.text = summary.toString()
+  println "Created customization summary: ${summaryFile.absolutePath}"
+}
+
+def findFile(File dir, String pattern) {
+  def files = dir.listFiles()?.findAll { it.name.matches(pattern.replace('*', '.*')) }
+  return files?.size() > 0 ? files[0] : null
+}
+
+// Made with Bob
