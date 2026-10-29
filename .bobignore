@@ -3,3 +3,4 @@ sdk-gen/subprojects/flight/src/dist/resources/payload/envs/
 connectors-forge/codeless/*.properties
 connectors-forge/scripts/*.properties
 sdk-gen/subprojects/java/test/src/main/resources/tests.properties
+sdk-gen/subprojects/connectors_forge_rest/src/main/resources/*.properties
