@@ -7,6 +7,7 @@ package com.ibm.connect.sdk.file.box;
 
 import java.util.Collections;
 
+import com.ibm.connect.sdk.file.FileConnector;
 import com.ibm.connect.sdk.file.FileLabels;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeAction;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeActionProperties;
@@ -112,7 +113,7 @@ public class BoxDatasourceType extends CustomFlightDatasourceType
                         .addValuesItem(
                                 new DatasourceTypePropertyValues().value("avro").label(FileLabels.TARGET_FILE_FORMAT_VALUE_AVRO_LABEL.format()))
                         .addValuesItem(
-                                new DatasourceTypePropertyValues().value("binary").label(BoxLabels.TARGET_FILE_FORMAT_BINARY_LABEL.format()))
+                                new DatasourceTypePropertyValues().value(FileConnector.FILE_FORMAT_BINARY).label(BoxLabels.TARGET_FILE_FORMAT_BINARY_LABEL.format()))
                         .addValuesItem(
                                 new DatasourceTypePropertyValues().value("csv").label(FileLabels.TARGET_FILE_FORMAT_VALUE_CSV_LABEL.format()))
                         .addValuesItem(new DatasourceTypePropertyValues().value("delimited")
@@ -193,7 +194,7 @@ public class BoxDatasourceType extends CustomFlightDatasourceType
                         .addValuesItem(
                                 new DatasourceTypePropertyValues().value("avro").label(FileLabels.SOURCE_FILE_FORMAT_VALUE_AVRO_LABEL.format()))
                         .addValuesItem(
-                                new DatasourceTypePropertyValues().value("binary").label(BoxLabels.SOURCE_FILE_FORMAT_BINARY_LABEL.format()))
+                                new DatasourceTypePropertyValues().value(FileConnector.FILE_FORMAT_BINARY).label(BoxLabels.SOURCE_FILE_FORMAT_BINARY_LABEL.format()))
                         .addValuesItem(
                                 new DatasourceTypePropertyValues().value("csv").label(FileLabels.SOURCE_FILE_FORMAT_VALUE_CSV_LABEL.format()))
                         .addValuesItem(new DatasourceTypePropertyValues().value("delimited")

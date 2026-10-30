@@ -15,6 +15,7 @@ import org.apache.arrow.flight.Ticket;
 
 import com.ibm.connect.sdk.api.Record;
 import com.ibm.connect.sdk.api.TicketInfo;
+import com.ibm.connect.sdk.file.FileConnector;
 import com.ibm.connect.sdk.file.FileMsgs;
 import com.ibm.connect.sdk.file.FileSourceInteraction;
 import com.ibm.connect.sdk.file.FileUtils;
@@ -42,7 +43,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
 public class BoxSourceInteraction extends FileSourceInteraction
 {
     private static final String CONTENT_FIELD_NAME = "content";
-    private static final String FILE_FORMAT_BINARY = "binary";
     private static final int DEFAULT_BATCH_SIZE = 1000;
 
     private final BoxConnector connector;
@@ -74,23 +74,43 @@ public class BoxSourceInteraction extends FileSourceInteraction
             throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format("file_name"));
         }
 
-        // Resolve file format.
-        String fileFormat = interactionProperties.getProperty("file_format");
-        if (fileFormat == null) {
-            fileFormat = FILE_FORMAT_BINARY;
+        // When file format is unknown or fields are missing (and the caller hasn't
+        // explicitly requested binary mode), stream a prefix of the file to detect
+        // MIME type, file format, CSV properties, and typed field definitions.
+        // This mirrors the pattern used by S3 and localfs connectors.
+        String fileFormat = interactionProperties.getProperty(PROP_FILE_FORMAT);
+        boolean fileOpened = false;
+        if (fileFormat == null || (asset.getFields() == null && !FileConnector.FILE_FORMAT_BINARY.equals(fileFormat))) {
+            connector.addFileDetails(asset, fileName);
+            fileOpened = true;
+            fileFormat = getInteractionProperties().getProperty(PROP_FILE_FORMAT, FileConnector.FILE_FORMAT_BINARY);
         }
-        rawMode = FILE_FORMAT_BINARY.equals(fileFormat);
+        rawMode = FileConnector.FILE_FORMAT_BINARY.equals(fileFormat);
 
-        if (rawMode) {
-            // Inject a single varbinary field so the schema is well-defined.
-            if (asset.getFields() == null || asset.getFields().isEmpty()) {
-                asset.addFieldsItem(new CustomFlightAssetField().name(CONTENT_FIELD_NAME).type("varbinary").nullable(false));
-            }
+        // In raw mode inject a single varbinary field so the schema is well-defined.
+        if (rawMode && (asset.getFields() == null || asset.getFields().isEmpty())) {
+            asset.addFieldsItem(new CustomFlightAssetField().name(CONTENT_FIELD_NAME).type("varbinary").nullable(false));
         }
 
         if (asset.getBatchSize() == null) {
             asset.setBatchSize(DEFAULT_BATCH_SIZE);
         }
+
+        // On the getFlightInfo path (no ticket) fail fast when the file does not exist,
+        // including in binary mode where no content has been read yet. Skipped when
+        // addFileDetails() already opened (and thereby validated) the file.
+        if (ticket == null && !fileOpened) {
+            validateFile(fileName);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void validateFile(String name) throws Exception
+    {
+        connector.resolveFile(name);
     }
 
     /**
@@ -103,7 +123,7 @@ public class BoxSourceInteraction extends FileSourceInteraction
     protected String getFilename()
     {
         try {
-            final String fileFormat = getInteractionProperties().getProperty("file_format", FileUtils.FILE_FORMAT_DELIMITED);
+            final String fileFormat = getInteractionProperties().getProperty(PROP_FILE_FORMAT, FileUtils.FILE_FORMAT_DELIMITED);
             final String baseName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
             try (InputStream fileStream = connector.openFile(fileName)) {
                 tempFilename = FileUtils.createTempFile(fileStream, baseName, fileFormat);

@@ -29,9 +29,15 @@ dependencies {
     exclude group: 'com.google.j2objc'
     exclude group: 'org.checkerframework'
   }
-  implementation group: 'com.box', name: 'box-java-sdk', version: '4.15.0'
-  implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15to18', version: project['bouncycastle.version']
-  implementation group: 'org.bouncycastle', name: 'bcprov-jdk15to18', version: project['bouncycastle.version']
+  // Box SDK v5 (legacy com.box.sdk package, Apache-2.0). v4 is EOL. Jackson and zstd-jni are only needed by
+  // the generated com.box.sdkgen package, which is not used here; excluding them keeps the Jackson/zstd
+  // versions aligned with Spark (a Jackson 2.21 databind would clash with Spark's jackson-module-scala 2.18).
+  implementation(group: 'com.box', name: 'box-java-sdk', version: '5.19.0') {
+    exclude group: 'com.fasterxml.jackson.core'
+    exclude group: 'com.github.luben', module: 'zstd-jni'
+  }
+  implementation group: 'org.bouncycastle', name: 'bcpkix-jdk18on', version: project['bouncycastle.version']
+  implementation group: 'org.bouncycastle', name: 'bcprov-jdk18on', version: project['bouncycastle.version']
 
   testImplementation project(':wdp-connect-sdk-gen-java-test')
 
@@ -46,7 +52,23 @@ dependencies {
 test {
   systemProperties = System.properties
   systemProperties.remove("java.endorsed.dirs")
+  systemProperties['buildDir'] = project.buildDir.absolutePath
+  systemProperties['spark.driver.bindAddress'] = '127.0.0.1'
+  systemProperties['spark.driver.host'] = '127.0.0.1'
   testLogging {
     events "PASSED", "SKIPPED", "FAILED"
   }
 }
+
+task verifyTestWorkDir {
+  description = 'Placeholder required by the file test framework. The Box work folder must already exist; test files are created and removed by TestBoxFlightProducer (@Before / @AfterClass).'
+  group = 'verification'
+}
+
+task cleanTestWorkDir {
+  description = 'Placeholder required by the file test framework. Cleanup of the Box work folder is done by TestBoxFlightProducer (@AfterClass).'
+  group = 'verification'
+}
+
+test.dependsOn verifyTestWorkDir
+test.finalizedBy cleanTestWorkDir

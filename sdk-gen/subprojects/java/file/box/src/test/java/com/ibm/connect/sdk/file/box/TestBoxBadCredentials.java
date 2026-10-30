@@ -15,10 +15,9 @@ import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
  * Unit tests verifying that {@link BoxConnector#connect()} surfaces an
  * authentication error immediately when given invalid credentials.
  *
- * <p>Box SDK uses lazy authentication and only fetches an access token on the
- * first real API call. A lightweight call was added to {@code connect()} so
- * that ACTION_TEST catches bad credentials at connection time rather than
- * silently succeeding. These tests confirm that behaviour.
+ * <p>{@code connect()} authenticates eagerly (JWT token request) so that
+ * ACTION_TEST catches bad credentials at connection time rather than silently
+ * succeeding. These tests confirm that behaviour.
  *
  * <p>Tests run unconditionally — they do not require a real Box account.
  * A real HTTP call is made to the Box token endpoint; the call fails fast

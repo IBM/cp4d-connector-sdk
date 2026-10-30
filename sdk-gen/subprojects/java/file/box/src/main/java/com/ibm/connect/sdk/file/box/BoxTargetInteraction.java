@@ -6,7 +6,10 @@
 package com.ibm.connect.sdk.file.box;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Properties;
 
@@ -101,10 +104,10 @@ public class BoxTargetInteraction extends FileTargetInteraction
         final String fileFormat = interactionProperties.getProperty("file_format", FileUtils.FILE_FORMAT_DELIMITED);
         final String baseName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
         try {
-            tempFilename = java.nio.file.Files.createTempFile(baseName, FileUtils.getFilenameExtension(fileFormat)).toAbsolutePath().toString();
+            tempFilename = Files.createTempFile(baseName, FileUtils.getFilenameExtension(fileFormat)).toAbsolutePath().toString();
             return tempFilename;
         }
-        catch (java.io.IOException e) {
+        catch (IOException e) {
             throw new UnsupportedOperationException(e.getMessage(), e);
         }
     }
@@ -162,7 +165,7 @@ public class BoxTargetInteraction extends FileTargetInteraction
     public CustomFlightAssetDescriptor putWrapup() throws Exception
     {
         if (!rawMode && tempFilename != null) {
-            try (InputStream in = Files.newInputStream(java.nio.file.Paths.get(tempFilename))) {
+            try (InputStream in = Files.newInputStream(Paths.get(tempFilename))) {
                 connector.uploadFile(fileName, in);
             }
         }

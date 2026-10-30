@@ -79,6 +79,24 @@ file.github.repository_name=spark
 # file.github.test_csv_path=data/cars.csv
 
 # =============================================================================
+# Box file connector
+# =============================================================================
+
+# ── Connection ────────────────────────────────────────────────────────────────
+# file.box.client_id=
+# file.box.client_secret=
+# file.box.enterprise_id=
+# file.box.private_key=
+# file.box.private_key_password=   # optional
+# file.box.public_key=
+# file.box.username=               # optional — email of user to impersonate
+
+# ── Test work folder (isolated write/delete sandbox) ─────────────────────────
+# A pre-existing Box folder path, e.g. "sdk-test-runs".
+# When absent, write scenarios and write tests are skipped automatically.
+# file.box.test_work_dir=sdk-test-runs
+
+# =============================================================================
 # LocalFS file connector (no credentials needed)
 # =============================================================================
 

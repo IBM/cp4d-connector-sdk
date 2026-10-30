@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2025                        */
+/* (C) Copyright IBM Corp. 2025, 2026                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.file;
@@ -8,6 +8,7 @@ package com.ibm.connect.sdk.file;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -49,6 +50,8 @@ import com.ibm.connect.sdk.util.ModelMapper;
 import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
+import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetDetails;
+import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionProperties;
 
 import scala.collection.Iterator;
 
@@ -58,6 +61,11 @@ import scala.collection.Iterator;
 public abstract class FileConnector extends RowBasedConnector<FileSourceInteraction, FileTargetInteraction>
 {
     private static final Logger LOGGER = getLogger(FileConnector.class);
+
+    /**
+     * The file format value representing raw / unstructured binary content.
+     */
+    public static final String FILE_FORMAT_BINARY = "binary";
 
     private static final Map<String, String> PROPERTY_TO_SPARK_OPTION_MAP = new HashMap<>();
     static {
@@ -98,6 +106,87 @@ public abstract class FileConnector extends RowBasedConnector<FileSourceInteract
         // java.sql.Timestamp.
         final SparkConf conf = new SparkConf().set("spark.sql.datetime.java8API.enabled", "false");
         spark = SparkSession.builder().appName(FileConnector.class.getName()).config(conf).master("local[*]").getOrCreate();
+    }
+
+    /**
+     * Opens a readable {@link InputStream} over the remote file identified by
+     * {@code filePath}.
+     *
+     * <p>
+     * Subclasses that support remote file streaming (Box, Dropbox, OneDrive,
+     * SharePoint, …) must override this method. The default implementation throws
+     * {@link UnsupportedOperationException} so that connectors that use a different
+     * abstraction (LocalFS via {@code Path}, S3 via object key, GitHub via JSON
+     * object) are not forced to implement it.
+     *
+     * @param filePath
+     *            connector-specific path to the file
+     * @return a fresh, open {@link InputStream} over the file content; the caller
+     *         is responsible for closing it
+     * @throws Exception
+     *             if the file cannot be opened (e.g. not found, access denied)
+     */
+    protected InputStream openFile(String filePath) throws Exception
+    {
+        throw new UnsupportedOperationException("openFile is not implemented by this connector");
+    }
+
+    /**
+     * Enriches the given asset descriptor with MIME type, file format, CSV
+     * properties, and typed field definitions by streaming a prefix of the file at
+     * {@code filePath}.
+     *
+     * <p>
+     * The default implementation calls {@link #openFile(String)} and is suitable
+     * for all stream-based remote connectors (Box, Dropbox, OneDrive, SharePoint).
+     * Connectors that use a non-path abstraction (LocalFS, S3, GitHub) override
+     * {@code addFileDetails} with their own parameter type; they do not need to
+     * override this method.
+     *
+     * @param asset
+     *            the descriptor to enrich; interaction properties and fields are
+     *            written in-place
+     * @param filePath
+     *            connector-specific path to the file
+     * @throws Exception
+     */
+    public void addFileDetails(CustomFlightAssetDescriptor asset, String filePath) throws Exception
+    {
+        final String fileName = filePath.contains("/") ? filePath.substring(filePath.lastIndexOf('/') + 1) : filePath;
+        try (InputStream objectStream = FileUtils.ensureMarkSupported(openFile(filePath))) {
+            // Detect MIME type.
+            final String mimeType = FileUtils.detectMimeType(objectStream, fileName);
+            if (mimeType != null) {
+                if (asset.getDetails() == null) {
+                    asset.setDetails(new DiscoveredAssetDetails());
+                }
+                asset.getDetails().put("mime_type", mimeType);
+            }
+
+            // Detect file format.
+            final String detectedFileFormat = FileUtils.detectFileFormat(mimeType, fileName, objectStream);
+            final String fileFormat = detectedFileFormat != null ? detectedFileFormat : FileUtils.FILE_FORMAT_DELIMITED;
+            if (asset.getInteractionProperties() == null) {
+                asset.setInteractionProperties(new DiscoveredAssetInteractionProperties());
+            }
+            asset.getInteractionProperties().put("file_format", fileFormat);
+
+            // Detect delimited file properties.
+            if (FileUtils.FILE_FORMAT_CSV.equals(fileFormat) || FileUtils.FILE_FORMAT_DELIMITED.equals(fileFormat)) {
+                FileUtils.detectDelimitedProperties(objectStream, asset.getInteractionProperties());
+            }
+
+            // Describe fields using Spark (only for structured formats).
+            if (!FILE_FORMAT_BINARY.equals(fileFormat)) {
+                final String tempFilename = FileUtils.createTempFile(objectStream, fileName, fileFormat);
+                try {
+                    addAssetFields(asset, tempFilename);
+                }
+                finally {
+                    FileUtils.deleteTempFile(tempFilename);
+                }
+            }
+        }
     }
 
     protected void addAssetFields(CustomFlightAssetDescriptor asset, String filename)

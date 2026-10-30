@@ -13,12 +13,17 @@ import static org.junit.Assume.assumeNotNull;
 import static org.junit.Assume.assumeTrue;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.apache.arrow.flight.AsyncPutListener;
@@ -179,7 +184,9 @@ public abstract class FileTestSuite extends ConnectorTestSuite
             // TEMP without the Gradle task means no container was created; skip injection
             return null;
         }
-        return configured.trim();
+        // Strip any leading/trailing slashes so callers can safely prepend "/" without
+        // creating double-slash paths (e.g. tests.properties value "OpenSource/TestData/").
+        return configured.trim().replaceAll("^/+|/+$", "");
     }
 
     /**
@@ -195,6 +202,64 @@ public abstract class FileTestSuite extends ConnectorTestSuite
     protected TestScenario.WriteHook createScenarioWriteHook()
     {
         return null;
+    }
+
+    /**
+     * Converts a raw {@code String} value from a scenario DSL row into the
+     * {@link Serializable} type expected by
+     * {@link com.ibm.connect.sdk.api.ArrowConversions.ArrowFieldSetter#setValue}.
+     *
+     * <p>
+     * {@code colDef} is the full schema-spec token for a column, in the form
+     * {@code "colName|typeName"} (as written in a scenario {@code Schema=} line).
+     * The type is extracted automatically; if no pipe separator is present,
+     * {@code varchar} is assumed.
+     *
+     * <p>
+     * Subclasses that implement {@link #createScenarioWriteHook()} should call
+     * this helper instead of passing the raw {@code String} directly, because
+     * Arrow setters for numeric types cast the value to {@code Number} and will
+     * throw a {@code ClassCastException} if given a {@code String}.
+     *
+     * @param value
+     *            the raw string token from the scenario DSL row
+     * @param colDef
+     *            the full column spec entry, e.g. {@code "id|integer"}
+     * @return a {@code Serializable} of the appropriate Java type
+     */
+    @SuppressWarnings("PMD.CyclomaticComplexity")
+    protected static Serializable coerceValue(final String value, final String colDef)
+    {
+        final String[] parts = colDef.split("\\|");
+        final String type = parts.length > 1 ? parts[1].trim() : "varchar";
+        switch (type.toLowerCase(Locale.ENGLISH)) {
+        case "integer":
+        case "int":
+            return Integer.parseInt(value);
+        case "bigint":
+            return Long.parseLong(value);
+        case "smallint":
+            return Short.parseShort(value);
+        case "tinyint":
+            return Byte.parseByte(value);
+        case "boolean":
+        case "bool":
+            return Boolean.parseBoolean(value);
+        case "real":
+        case "float":
+            return Float.parseFloat(value);
+        case "double":
+            return Double.parseDouble(value);
+        case "date":
+            return Date.valueOf(value);
+        case "timestamp":
+            return Timestamp.valueOf(value);
+        case "varbinary":
+        case "binary":
+            return value.getBytes(StandardCharsets.UTF_8);
+        default:
+            return value;
+        }
     }
 
     // -----------------------------------------------------------------------

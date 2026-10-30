@@ -7,14 +7,20 @@ package com.ibm.connect.sdk.file.box;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import org.apache.arrow.flight.Ticket;
 import org.slf4j.Logger;
@@ -65,6 +71,9 @@ public class BoxConnector extends FileConnector
     static final String ACTION_PATH_PROP = "path";
 
     private BoxAPIConnection api;
+
+    /** Folder path (from the Box root, e.g. {@code /a/b}) to Box folder ID. */
+    private final Map<String, String> folderIdCache = new ConcurrentHashMap<>();
 
     /**
      * Creates a Box connector.
@@ -152,13 +161,81 @@ public class BoxConnector extends FileConnector
     }
 
     /**
-     * Resolves a slash-delimited file path to the corresponding Box folder and
-     * returns the file ID for the final path segment.
+     * Splits a slash-delimited path into its non-empty segments. Leading, trailing
+     * and repeated slashes are ignored.
+     */
+    private static List<String> splitPath(String path)
+    {
+        final List<String> segments = new ArrayList<>();
+        if (path != null) {
+            for (final String segment : path.split("/")) {
+                if (!segment.isEmpty()) {
+                    segments.add(segment);
+                }
+            }
+        }
+        return segments;
+    }
+
+    /**
+     * Finds the immediate child of {@code parent} with the given name and kind.
+     * {@code getChildren} pages through the folder contents automatically.
+     *
+     * @return the child's Box ID, or {@code null} if there is no such child
+     */
+    private String findChildId(BoxFolder parent, String name, boolean folder)
+    {
+        for (final BoxItem.Info itemInfo : parent.getChildren("name", "type")) {
+            final boolean kindMatches = folder ? itemInfo instanceof BoxFolder.Info : itemInfo instanceof BoxFile.Info;
+            if (kindMatches && name.equals(itemInfo.getName())) {
+                return itemInfo.getID();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Walks the given folder segments down from the Box root. Folder IDs resolved
+     * along the way are cached for the lifetime of this connector, so repeated
+     * operations under the same folder do not re-list every ancestor.
+     *
+     * @param segments
+     *            folder names below the root
+     * @param create
+     *            whether to create missing folders
+     * @return the resolved folder, or {@code null} if a folder is missing and
+     *         {@code create} is false
+     */
+    private BoxFolder walkFolders(List<String> segments, boolean create)
+    {
+        BoxFolder current = BoxFolder.getRootFolder(api);
+        final StringBuilder key = new StringBuilder();
+        for (final String segment : segments) {
+            key.append('/').append(segment);
+            final String cachedId = folderIdCache.get(key.toString());
+            if (cachedId != null) {
+                current = new BoxFolder(api, cachedId);
+                continue;
+            }
+            final String childId = findChildId(current, segment, true);
+            if (childId != null) {
+                current = new BoxFolder(api, childId);
+            } else if (create) {
+                current = current.createFolder(segment).getResource();
+            } else {
+                return null;
+            }
+            folderIdCache.put(key.toString(), current.getID());
+        }
+        return current;
+    }
+
+    /**
+     * Resolves a slash-delimited file path to the corresponding {@link BoxFile}.
      *
      * <p>
-     * The path may start with a leading "/" which is stripped before processing.
-     * Each intermediate segment is resolved as a sub-folder; the last segment is
-     * matched as a file.
+     * Leading slashes are ignored. Each intermediate segment is resolved as a
+     * sub-folder; the last segment is matched as a file.
      *
      * @param filePath
      *            slash-delimited path (e.g. {@code "folder/subfolder/file.txt"} or
@@ -169,35 +246,16 @@ public class BoxConnector extends FileConnector
      */
     BoxFile resolveFile(String filePath) throws Exception
     {
-        // Strip leading slash.
-        final String normalized = filePath.startsWith("/") ? filePath.substring(1) : filePath;
-        final String[] parts = normalized.split("/");
-        BoxFolder currentFolder = BoxFolder.getRootFolder(api);
-
-        // Traverse intermediate folder segments.
-        for (int i = 0; i < parts.length - 1; i++) {
-            final String folderName = parts[i];
-            BoxFolder nextFolder = null;
-            for (final BoxItem.Info itemInfo : currentFolder.getChildren("name", "type")) {
-                if (itemInfo instanceof BoxFolder.Info && folderName.equals(itemInfo.getName())) {
-                    nextFolder = new BoxFolder(api, itemInfo.getID());
-                    break;
-                }
-            }
-            if (nextFolder == null) {
-                throw new IllegalArgumentException(BoxMsgs.FILE_NOT_FOUND.format(filePath));
-            }
-            currentFolder = nextFolder;
+        final List<String> segments = splitPath(filePath);
+        if (segments.isEmpty()) {
+            throw new IllegalArgumentException(BoxMsgs.FILE_NOT_FOUND.format(filePath));
         }
-
-        // Find the file in the resolved folder.
-        final String fileName = parts[parts.length - 1];
-        for (final BoxItem.Info itemInfo : currentFolder.getChildren("name", "type")) {
-            if (itemInfo instanceof BoxFile.Info && fileName.equals(itemInfo.getName())) {
-                return new BoxFile(api, itemInfo.getID());
-            }
+        final BoxFolder folder = walkFolders(segments.subList(0, segments.size() - 1), false);
+        final String fileId = folder == null ? null : findChildId(folder, segments.get(segments.size() - 1), false);
+        if (fileId == null) {
+            throw new IllegalArgumentException(BoxMsgs.FILE_NOT_FOUND.format(filePath));
         }
-        throw new IllegalArgumentException(BoxMsgs.FILE_NOT_FOUND.format(filePath));
+        return new BoxFile(api, fileId);
     }
 
     /**
@@ -206,54 +264,80 @@ public class BoxConnector extends FileConnector
      * @param folderPath
      *            slash-delimited path (e.g. {@code "/folder"} or {@code ""} for root)
      * @return the resolved BoxFolder
+     * @throws IllegalArgumentException
+     *             if the folder is not found
      */
     private BoxFolder resolveFolder(String folderPath)
     {
-        final String normalized = (folderPath == null || folderPath.equals("/")) ? "" : (folderPath.startsWith("/") ? folderPath.substring(1) : folderPath);
-        BoxFolder current = BoxFolder.getRootFolder(api);
-        if (normalized.isEmpty()) {
-            return current;
+        final BoxFolder folder = walkFolders(splitPath(folderPath), false);
+        if (folder == null) {
+            throw new IllegalArgumentException(BoxMsgs.FOLDER_NOT_FOUND.format(folderPath));
         }
-        for (final String segment : normalized.split("/")) {
-            BoxFolder next = null;
-            for (final BoxItem.Info itemInfo : current.getChildren("name", "type")) {
-                if (itemInfo instanceof BoxFolder.Info && segment.equals(itemInfo.getName())) {
-                    next = new BoxFolder(api, itemInfo.getID());
-                    break;
-                }
-            }
-            if (next == null) {
-                throw new IllegalArgumentException(BoxMsgs.FOLDER_NOT_FOUND.format(folderPath));
-            }
-            current = next;
-        }
-        return current;
+        return folder;
     }
 
     /**
-     * Opens an InputStream over the content of a Box file identified by path.
-     * The download runs in a background thread writing to a {@link PipedOutputStream};
-     * the returned {@link PipedInputStream} is the readable end of the pipe.
+     * Deletes the files and (recursively) folders directly under {@code folderPath}
+     * whose names satisfy {@code nameFilter}. Used to clean up test data without
+     * touching other content of a shared folder. Does nothing if the folder does
+     * not exist.
      *
-     * <p>The caller is responsible for closing the returned stream.
+     * @param folderPath
+     *            slash-delimited path of the parent folder
+     * @param nameFilter
+     *            selects the child names to delete
+     * @return the number of items deleted
+     */
+    int deleteChildren(String folderPath, Predicate<String> nameFilter)
+    {
+        final BoxFolder folder = walkFolders(splitPath(folderPath), false);
+        if (folder == null) {
+            return 0;
+        }
+        int deleted = 0;
+        for (final BoxItem.Info itemInfo : folder.getChildren("name", "type")) {
+            if (!nameFilter.test(itemInfo.getName())) {
+                continue;
+            }
+            if (itemInfo instanceof BoxFolder.Info) {
+                new BoxFolder(api, itemInfo.getID()).delete(true);
+                folderIdCache.clear();
+            } else {
+                new BoxFile(api, itemInfo.getID()).delete();
+            }
+            deleted++;
+        }
+        return deleted;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Opens an InputStream over the content of a Box file identified by path.
+     * The download runs in a background thread; if it fails, the returned stream
+     * throws an {@link IOException} on reaching end-of-stream.
      *
      * @param filePath
      *            slash-delimited path to the file
      * @return an InputStream over the file content
      * @throws Exception
      */
-    InputStream openFile(String filePath) throws Exception
+    @Override
+    protected InputStream openFile(String filePath) throws Exception
     {
         final BoxFile boxFile = resolveFile(filePath);
         final PipedOutputStream pipeOut = new PipedOutputStream();
         final PipedInputStream pipeIn = new PipedInputStream(pipeOut, 65536);
+        final AtomicReference<Throwable> downloadFailure = new AtomicReference<>();
 
         final Thread downloadThread = new Thread(() -> {
             try {
                 boxFile.download(pipeOut);
             }
             catch (Exception e) {
-                LOGGER.warn("Box download thread failed for '" + filePath + "': " + e.getMessage(), e);
+                // Record the failure so the reader sees an error instead of a silently truncated file.
+                downloadFailure.set(e);
+                LOGGER.warn("Box download failed for '" + filePath + "': " + e.getMessage(), e);
             }
             finally {
                 try {
@@ -267,7 +351,35 @@ public class BoxConnector extends FileConnector
         downloadThread.setDaemon(true);
         downloadThread.start();
 
-        return pipeIn;
+        return new FilterInputStream(pipeIn) {
+            @Override
+            public int read() throws IOException
+            {
+                final int b = super.read();
+                if (b == -1) {
+                    checkDownload();
+                }
+                return b;
+            }
+
+            @Override
+            public int read(byte[] buf, int off, int len) throws IOException
+            {
+                final int n = super.read(buf, off, len);
+                if (n == -1) {
+                    checkDownload();
+                }
+                return n;
+            }
+
+            private void checkDownload() throws IOException
+            {
+                final Throwable failure = downloadFailure.get();
+                if (failure != null) {
+                    throw new IOException("Download of Box file '" + filePath + "' failed: " + failure.getMessage(), failure);
+                }
+            }
+        };
     }
 
     /**
@@ -296,7 +408,20 @@ public class BoxConnector extends FileConnector
         final int offset = criteria.getOffset() == null || criteria.getOffset() < 0 ? 0 : criteria.getOffset();
         final int limit = criteria.getLimit() == null || criteria.getLimit() < 0 ? Integer.MAX_VALUE : criteria.getLimit();
 
-        final BoxFolder folder = resolveFolder(path);
+        final BoxFolder folder;
+        try {
+            folder = resolveFolder(path);
+        }
+        catch (IllegalArgumentException folderNotFound) {
+            // The path may identify a single file: describe it, including its detected
+            // format and schema, so the framework can complete the asset descriptor.
+            try {
+                return Collections.singletonList(describeFile(path));
+            }
+            catch (IllegalArgumentException fileNotFound) {
+                throw folderNotFound;
+            }
+        }
         final List<CustomFlightAssetDescriptor> descriptors = new ArrayList<>();
         int totalSeen = 0;
         int added = 0;
@@ -311,7 +436,8 @@ public class BoxConnector extends FileConnector
             }
             final String itemName = itemInfo.getName();
             // Build canonical asset path.
-            final String normalized = (path == null || path.equals("/")) ? "" : (path.startsWith("/") ? path : "/" + path);
+            final String trimmedPath = path == null ? "" : path.replaceAll("/+$", "");
+            final String normalized = trimmedPath.isEmpty() ? "" : (trimmedPath.startsWith("/") ? trimmedPath : "/" + trimmedPath);
             final String assetPath = normalized.isEmpty() ? "/" + itemName : normalized + "/" + itemName;
 
             if (itemInfo instanceof BoxFolder.Info) {
@@ -334,6 +460,28 @@ public class BoxConnector extends FileConnector
             added++;
         }
         return descriptors;
+    }
+
+    /**
+     * Builds a fully described file descriptor (size, MIME type, file format,
+     * delimited-file properties and fields) for a single file path.
+     */
+    private CustomFlightAssetDescriptor describeFile(String path) throws Exception
+    {
+        final BoxFile boxFile = resolveFile(path);
+        final String assetPath = path.startsWith("/") ? path : "/" + path;
+        final DiscoveredAssetDetails details = new DiscoveredAssetDetails();
+        details.put("file_size", boxFile.getInfo("size").getSize());
+        final DiscoveredAssetInteractionProperties interactionProperties = new DiscoveredAssetInteractionProperties();
+        interactionProperties.put("file_name", assetPath);
+        final CustomFlightAssetDescriptor asset = new CustomFlightAssetDescriptor()
+                .name(assetPath.substring(assetPath.lastIndexOf('/') + 1))
+                .path(assetPath)
+                .assetType(fileAssetType())
+                .details(details)
+                .interactionProperties(interactionProperties);
+        addFileDetails(asset, assetPath);
+        return asset;
     }
 
     private DiscoveredAssetType folderAssetType()
@@ -373,36 +521,18 @@ public class BoxConnector extends FileConnector
      */
     void uploadFile(String filePath, InputStream content) throws Exception
     {
-        // Strip leading slash.
-        final String normalized = filePath.startsWith("/") ? filePath.substring(1) : filePath;
-        final String[] parts = normalized.split("/");
-        final String targetFileName = parts[parts.length - 1];
+        final List<String> segments = splitPath(filePath);
+        if (segments.isEmpty()) {
+            throw new IllegalArgumentException(FileMsgs.INVALID_PATH.format(filePath));
+        }
+        final String targetFileName = segments.get(segments.size() - 1);
 
         // Resolve (or create) all intermediate folder segments.
-        BoxFolder currentFolder = BoxFolder.getRootFolder(api);
-        for (int i = 0; i < parts.length - 1; i++) {
-            final String folderName = parts[i];
-            BoxFolder next = null;
-            for (final BoxItem.Info itemInfo : currentFolder.getChildren("name", "type")) {
-                if (itemInfo instanceof BoxFolder.Info && folderName.equals(itemInfo.getName())) {
-                    next = new BoxFolder(api, itemInfo.getID());
-                    break;
-                }
-            }
-            if (next == null) {
-                next = currentFolder.createFolder(folderName).getResource();
-            }
-            currentFolder = next;
-        }
+        final BoxFolder currentFolder = walkFolders(segments.subList(0, segments.size() - 1), true);
 
         // Check whether the file already exists in the resolved folder.
-        BoxFile existingFile = null;
-        for (final BoxItem.Info itemInfo : currentFolder.getChildren("name", "type")) {
-            if (itemInfo instanceof BoxFile.Info && targetFileName.equals(itemInfo.getName())) {
-                existingFile = new BoxFile(api, itemInfo.getID());
-                break;
-            }
-        }
+        final String existingId = findChildId(currentFolder, targetFileName, false);
+        final BoxFile existingFile = existingId == null ? null : new BoxFile(api, existingId);
 
         if (existingFile != null) {
             existingFile.uploadNewVersion(content);
@@ -455,55 +585,50 @@ public class BoxConnector extends FileConnector
     /**
      * Executes the {@code get_acl} action for a given Box item path.
      *
-     * <p>The path may refer to either a file or folder. Collaborations on the
-     * resolved item are mapped to allow/deny lists in the standard ACLProvider
-     * contract.
+     * <p>The path may refer to either a file or folder. Box does not expose
+     * collaborations on individual files, so for a file the collaborations of its
+     * parent folder are returned; for a folder, its own collaborations are returned.
+     * Access inherited from further up the hierarchy (and enterprise-wide or shared
+     * link access) is not included. Collaborators are reported as allowed identities
+     * only: Box has no deny rules, so the deny lists are always empty and
+     * {@code inheritance.enabled} is always {@code false}.
      */
-    private ConnectionActionResponse performGetAcl(String path)
+    private ConnectionActionResponse performGetAcl(String path) throws Exception
     {
-        // Try to resolve as file first; fall back to folder.
         final List<String> allowUsers = new ArrayList<>();
         final List<String> allowGroups = new ArrayList<>();
 
+        // Box files do not expose getCollaborations(); we list collaborations on the
+        // parent folder instead, as file-level collaborations are inherited. Failures
+        // are propagated: an empty ACL returned on error would be indistinguishable
+        // from "nobody has access" for ACL consumers.
+        BoxFolder targetFolder;
         try {
-            // Locate the item id — we need it for collaboration listing.
-            BoxFolder targetFolder = null;
-
-            try {
-                // Box files do not expose getCollaborations(); we list collaborations on the
-                // parent folder instead, as file-level collaborations are inherited.
-                final BoxFile boxFile = resolveFile(path);
-                final BoxFile.Info fileInfo = boxFile.getInfo("parent");
-                final BoxItem.Info parent = fileInfo.getParent();
-                if (parent != null) {
-                    targetFolder = new BoxFolder(api, parent.getID());
-                }
-            }
-            catch (IllegalArgumentException e) {
-                // Not a file — try as a folder.
-                targetFolder = resolveFolder(path);
-            }
-
-            if (targetFolder != null) {
-                for (final BoxCollaboration.Info collabInfo : targetFolder.getCollaborations()) {
-                    final BoxCollaborator.Info collaborator = collabInfo.getAccessibleBy();
-                    if (collaborator == null) {
-                        continue;
-                    }
-                    final String identity = collaborator.getLogin() != null ? collaborator.getLogin() : collaborator.getName();
-                    if (identity == null) {
-                        continue;
-                    }
-                    if (collaborator.getType() == BoxCollaborator.CollaboratorType.GROUP) {
-                        allowGroups.add(identity);
-                    } else {
-                        allowUsers.add(identity);
-                    }
-                }
-            }
+            final BoxFile.Info fileInfo = resolveFile(path).getInfo("parent");
+            final BoxItem.Info parent = fileInfo.getParent();
+            targetFolder = parent != null ? new BoxFolder(api, parent.getID()) : null;
         }
-        catch (Exception e) {
-            LOGGER.warn("Could not retrieve collaborations for path '" + path + "': " + e.getMessage(), e);
+        catch (IllegalArgumentException e) {
+            // Not a file — try as a folder.
+            targetFolder = resolveFolder(path);
+        }
+
+        if (targetFolder != null) {
+            for (final BoxCollaboration.Info collabInfo : targetFolder.getCollaborations()) {
+                final BoxCollaborator.Info collaborator = collabInfo.getAccessibleBy();
+                if (collaborator == null) {
+                    continue;
+                }
+                final String identity = collaborator.getLogin() != null ? collaborator.getLogin() : collaborator.getName();
+                if (identity == null) {
+                    continue;
+                }
+                if (collaborator.getType() == BoxCollaborator.CollaboratorType.GROUP) {
+                    allowGroups.add(identity);
+                } else {
+                    allowUsers.add(identity);
+                }
+            }
         }
 
         return buildAclResponse(path, allowUsers, allowGroups);
@@ -553,5 +678,6 @@ public class BoxConnector extends FileConnector
     {
         super.close();
         api = null;
+        folderIdCache.clear();
     }
 }

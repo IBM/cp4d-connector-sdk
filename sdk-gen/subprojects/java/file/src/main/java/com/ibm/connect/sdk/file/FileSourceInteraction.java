@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2025                        */
+/* (C) Copyright IBM Corp. 2025, 2026                  */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.file;
@@ -30,6 +30,9 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
  */
 public abstract class FileSourceInteraction extends RowBasedSourceInteraction<FileConnector>
 {
+    /** Interaction property key for the file format (e.g. {@code "csv"}, {@code "json"}). */
+    protected static final String PROP_FILE_FORMAT = "file_format";
+
     private final static int DEFAULT_BATCH_SIZE = 1000;
 
     private final ModelMapper modelMapper = new ModelMapper();
@@ -70,6 +73,32 @@ public abstract class FileSourceInteraction extends RowBasedSourceInteraction<Fi
         if (asset.getBatchSize() == null) {
             asset.setBatchSize(DEFAULT_BATCH_SIZE);
         }
+    }
+
+    /**
+     * Hook for validating that the file exists on the getFlightInfo path
+     * ({@code ticket == null}), so that a missing file is reported at discovery time
+     * rather than only when the data is streamed.
+     *
+     * <p>
+     * This base class never calls it, because subclass fields (such as the
+     * connector) are not yet initialised while this constructor runs. A subclass
+     * that overrides it must call it itself at the end of its own constructor.
+     *
+     * <p>
+     * The default implementation is a no-op. Subclasses that can perform a cheap
+     * existence check (e.g. by resolving the file handle) should override this method
+     * and throw {@link IllegalArgumentException} when the file is not found.
+     *
+     * @param fileName
+     *            the value of the {@code file_name} interaction property
+     * @throws Exception
+     *             if the file cannot be found or accessed
+     */
+    @SuppressWarnings("PMD.EmptyMethodInAbstractClassShouldBeAbstract")
+    protected void validateFile(String fileName) throws Exception
+    {
+        // no-op by default
     }
 
     /**

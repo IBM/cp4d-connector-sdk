@@ -15,9 +15,12 @@ import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import com.ibm.wdp.connect.common.sdk.api.models.ConnectionProperties;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeProperty;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightDatasourceType;
 import com.ibm.wdp.connect.common.sdk.api.models.DatasourceTypePropertyValues;
+import com.ibm.wdp.connect.common.sdk.api.models.DiscoveredAssetInteractionProperties;
 
 /**
  * Unit tests for the Box connector write capabilities.
@@ -110,7 +113,7 @@ public class TestBoxWriteCapabilities
      *
      * <p>
      * This test exercises the in-repo validation path in
-     * {@link BoxTargetInteraction#BoxTargetInteraction(BoxConnector, com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor)}
+     * {@link BoxTargetInteraction#BoxTargetInteraction(BoxConnector, CustomFlightAssetDescriptor)}
      * without requiring a live Box connection.
      */
     @Test

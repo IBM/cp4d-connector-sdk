@@ -326,7 +326,8 @@ public class AWSS3Connector extends FileConnector
      *            the S3 object key
      * @throws Exception
      */
-    void addFileDetails(CustomFlightAssetDescriptor asset, String key) throws Exception
+    @Override
+    public void addFileDetails(CustomFlightAssetDescriptor asset, String key) throws Exception
     {
         final String fileName = objectName(key);
         try (InputStream objectStream = FileUtils.ensureMarkSupported(openObject(key))) {
