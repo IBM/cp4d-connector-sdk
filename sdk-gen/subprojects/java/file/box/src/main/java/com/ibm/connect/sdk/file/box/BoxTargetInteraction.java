@@ -1,6 +1,6 @@
 /* *************************************************** */
 /*                                                     */
-/* (C) Copyright IBM Corp. 2025                        */
+/* (C) Copyright IBM Corp. 2026                        */
 /*                                                     */
 /* *************************************************** */
 package com.ibm.connect.sdk.file.box;
@@ -162,7 +162,7 @@ public class BoxTargetInteraction extends FileTargetInteraction
     public CustomFlightAssetDescriptor putWrapup() throws Exception
     {
         if (!rawMode && tempFilename != null) {
-            try (InputStream in = java.nio.file.Files.newInputStream(java.nio.file.Paths.get(tempFilename))) {
+            try (InputStream in = Files.newInputStream(java.nio.file.Paths.get(tempFilename))) {
                 connector.uploadFile(fileName, in);
             }
         }

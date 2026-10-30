@@ -1,0 +1,9 @@
+# ============================================================
+# box — negative: read a path that does not exist
+# ============================================================
+# The connector must throw an exception when the file is
+# not found. No test data is required.
+
+[Step]
+Type=NegativeRead
+Interaction.file_name=/this/path/does/not/exist/at/all_xyz_abc.csv
