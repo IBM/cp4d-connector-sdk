@@ -160,8 +160,8 @@ ext {
       exeName(executable)
     }.each { executable ->
       if (!pathEntries.any{
-        java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(executable))
-      }) {
+            java.nio.file.Files.exists(java.nio.file.Paths.get(it).resolve(executable))
+          }) {
         throw new GradleException("Unable to locate the '${executable}' executable in your system path\n")
       }
     }

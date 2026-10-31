@@ -14,7 +14,6 @@ import static org.junit.Assume.assumeTrue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
@@ -23,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -357,9 +355,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
                             if (nullToken.equals(val)) {
                                 setter.setNull(ci);
                             } else {
-                                final String type = schemaSpec.get(ci).split("\\|").length > 1 ? schemaSpec.get(ci).split("\\|")[1].trim()
-                                        : "varchar";
-                                setter.setValue(ci, coerceValue(val, type));
+                                setter.setValue(ci, coerceValue(val, schemaSpec.get(ci)));
                             }
                         }
                     }
@@ -373,39 +369,6 @@ public class TestLocalFSFlightProducer extends FileTestSuite
                 }
             }
         };
-    }
-
-    @SuppressWarnings("PMD.CyclomaticComplexity")
-    private static Serializable coerceValue(final String value, final String type)
-    {
-        switch (type.toLowerCase(Locale.ENGLISH)) {
-        case "integer":
-        case "int":
-            return Integer.parseInt(value);
-        case "bigint":
-            return Long.parseLong(value);
-        case "smallint":
-            return Short.parseShort(value);
-        case "tinyint":
-            return Byte.parseByte(value);
-        case "boolean":
-        case "bool":
-            return Boolean.parseBoolean(value);
-        case "real":
-        case "float":
-            return Float.parseFloat(value);
-        case "double":
-            return Double.parseDouble(value);
-        case "date":
-            return Date.valueOf(value);
-        case "timestamp":
-            return Timestamp.valueOf(value);
-        case "varbinary":
-        case "binary":
-            return value.getBytes(StandardCharsets.UTF_8);
-        default:
-            return value;
-        }
     }
 
     // -----------------------------------------------------------------------
