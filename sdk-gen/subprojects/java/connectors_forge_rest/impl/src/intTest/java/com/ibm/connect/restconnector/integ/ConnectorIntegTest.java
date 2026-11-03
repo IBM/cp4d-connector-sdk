@@ -33,7 +33,7 @@ import org.apache.arrow.flight.Result;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.AfterClass;
-import org.junit.internal.AssumptionViolatedException;
+import org.junit.AssumptionViolatedException;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,6 +44,9 @@ import org.junit.runners.Parameterized.Parameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ibm.connect.restconnector.AuthenticationType;
 import com.ibm.connect.restconnector.PaginationConfig;
 import com.ibm.connect.restconnector.RestApiMapping;
@@ -84,6 +87,9 @@ public class ConnectorIntegTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConnectorIntegTest.class);
 
+    private static final ObjectMapper JSON_VALIDATOR = new ObjectMapper()
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+
     // ── Fields ────────────────────────────────────────────────────────────────
     // flight and client are static — one Flight server for the entire test run,
     // shared across all @Parameterized connector groups (started in @BeforeClass).
@@ -117,13 +123,22 @@ public class ConnectorIntegTest {
     // ── Setup / teardown ──────────────────────────────────────────────────────
 
     /**
-     * Starts one in-process Flight server for the entire test run.
+     * Starts one in-process Flight server for the entire test run and verifies it
+     * responds to {@code health_check} (C-01).
      * Port 0 lets the OS assign a free ephemeral port.
      */
     @BeforeClass
     public static void startServer() throws Exception {
         flight = TestFlight.createLocal(0, false, new RestFlightProducer(), null);
         client = flight.getClient();
+
+        final Iterator<Result> it = client.doAction(new Action("health_check"));
+        assertTrue("[C-01] health_check returned no result", it.hasNext());
+        final Result result = it.next();
+        assertNotNull("[C-01] health_check result body is null", result.getBody());
+        final CustomFlightActionResponse response =
+                new ModelMapper().fromBytes(result.getBody(), CustomFlightActionResponse.class);
+        assertEquals("[C-01] health_check status", "OK", response.getResponseProperties().get("status"));
     }
 
     /** Closes the shared Flight server after all connectors have been tested. */
@@ -160,8 +175,8 @@ public class ConnectorIntegTest {
             Assume.assumeTrue("Auth type mismatch: '" + propAuth + "' vs DSL '" + dslAuth + "'", false);
         }
 
-        LOGGER.info("Testing connector '{}' (json={}, auth={}, url={})",
-                mapping.getConnectorName(), config.connectorJson(), propAuth, mapping.getBaseUrl());
+        LOGGER.info("Testing connector '{}' (json={})",
+                mapping.getConnectorName(), config.connectorJson());
 
         RestConnectorFactory.getInstance().register(mapping);
 
@@ -171,6 +186,9 @@ public class ConnectorIntegTest {
             LOGGER.error("Test setup failed for '{}': {}", configPath, ex.getMessage());
             throw ex;
         }
+
+        Assume.assumeFalse("No tables to test for '" + configPath + "' — skipping",
+                session.tablesToTest().isEmpty());
     }
 
     // ── Convenience delegates ─────────────────────────────────────────────────
@@ -213,41 +231,17 @@ public class ConnectorIntegTest {
         return ex.toString();
     }
 
-    private static boolean looksLikeJson(String s) {
+    /** Returns {@code true} if {@code s} is a single, well-formed JSON value. */
+    private static boolean isValidJson(String s) {
         if (s.isEmpty()) {
             return false;
         }
-        final char first = s.charAt(0);
-        final char last = s.charAt(s.length() - 1);
-        if ((first == '{' && last == '}') || (first == '[' && last == ']')) {
-            return true;
-        }
-        if (s.startsWith("\"") && s.endsWith("\"")) {
-            return true;
-        }
-        if ("true".equals(s) || "false".equals(s) || "null".equals(s)) {
-            return true;
-        }
         try {
-            Double.parseDouble(s);
+            JSON_VALIDATOR.readTree(s);
             return true;
-        } catch (NumberFormatException ignored) {
+        } catch (JsonProcessingException ex) {
             return false;
         }
-    }
-
-    /**
-     * Local Flight server starts and responds to {@code health_check} (C-01).
-     */
-    @Test
-    public void testHealthCheckReturnsOk() throws Exception {
-        final Iterator<Result> it = client.doAction(new Action("health_check"));
-        assertTrue("health_check returned no result", it.hasNext());
-        final Result result = it.next();
-        assertNotNull("health_check result body is null", result.getBody());
-        final CustomFlightActionResponse response =
-                new ModelMapper().fromBytes(result.getBody(), CustomFlightActionResponse.class);
-        assertEquals("OK", response.getResponseProperties().get("status"));
     }
 
     /**
@@ -526,7 +520,7 @@ public class ConnectorIntegTest {
                             continue;
                         }
                         final String s = val.toString().strip();
-                        if (!looksLikeJson(s)) {
+                        if (!isValidJson(s)) {
                             failures.add("  " + tableName + "." + fd.getName()
                                     + " row " + i + ": [V-03] not valid JSON: "
                                     + (s.length() > 80 ? s.substring(0, 80) + "…" : s));

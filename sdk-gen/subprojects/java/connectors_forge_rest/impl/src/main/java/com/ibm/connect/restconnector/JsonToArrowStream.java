@@ -407,7 +407,7 @@ public class JsonToArrowStream implements Closeable
                 if (value != null) {
                     writer.set(fieldName, value);
                 }
-            } catch (RuntimeException e) {
+            } catch (IllegalArgumentException | DateTimeParseException e) {
                 throw new IllegalArgumentException(
                         "Failed to parse field '" + fieldName + "' (type="
                         + fieldDef.getTypeString() + "): " + e.getMessage(), e);
