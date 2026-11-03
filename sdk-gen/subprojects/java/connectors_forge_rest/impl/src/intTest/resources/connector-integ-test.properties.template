@@ -1,0 +1,65 @@
+# Connector Forge Integration Test — Configuration Template
+#
+# One file = one connector DSL. Copy, fill in, and gitignore if it contains secrets.
+#
+# Run a single connector (from sdk-gen/):
+#   ./gradlew :wdp-connect-sdk-gen-java-connectors_forge_rest-impl:integTestForge \
+#       -Pinteg.configs=path/to/openbrewery.properties
+#
+# Run multiple connectors:
+#   ./gradlew :wdp-connect-sdk-gen-java-connectors_forge_rest-impl:integTestForge \
+#       -Pinteg.configs=openbrewery.properties,servicenow.properties
+#
+# Run all connectors in src/intTest/resources/ (default):
+#   ./gradlew :wdp-connect-sdk-gen-java-connectors_forge_rest-impl:integTestForge
+
+# ── connector.json (optional when co-located with DSL JSON) ─────────────────
+# When this .properties file lives beside its .json DSL in the same directory
+# (e.g. connectors_forge_rest/src/main/resources/), the connector.json key is
+# optional — the framework infers it from the properties filename:
+#   myconnector.properties → myconnector.json (same directory)
+#
+# Set this key explicitly when the .properties file is not co-located with its .json,
+# or when the basename convention does not match:
+#   connector.json=openbrewerydb.json     ← plain name: resolved from DSL resources dir
+#   connector.json=../path/to/my.json     ← relative or absolute path
+connector.json=openbrewerydb.json
+
+# ── API coordinates (optional — defaults are parsed from $hostname in the JSON) ──
+# Uncomment only when you need to override the $hostname value, e.g. a sandbox instance
+# host=yourhostname.com
+# port=443
+
+# ── Authentication ───────────────────────────────────────────────────────────
+# auth.type defaults to none; uncomment the block that matches $authentication in the JSON
+# auth.type=none
+# auth.type=api_key
+# api.key=<your-api-key>
+# auth.type=basic
+# username=<username>
+# password=<password>
+# auth.type=oauth2
+# bearer.token=<token>
+
+# ── Path properties (only needed when the DSL uses $path_properties) ─────────
+# Connectors that embed user-supplied values in URL paths declare those
+# values as $path_properties in the DSL JSON (e.g. merchant_id, account_id).
+# Add one key=value line per declared property — the name matches the DSL entry:
+#
+#   merchant_id=abc123
+#   account_id=xyz789
+#
+# To generate a .properties file pre-filled with keys for a DSL JSON, run:
+#   ./gradlew :wdp-connect-sdk-gen-java-connectors_forge_rest-impl:generateIntegProperties \
+#       -Pdsls=myconnector.json
+
+# ── Tuning ───────────────────────────────────────────────────────────────────
+# row.limit=50
+# tables=TABLE1,TABLE2
+#
+# fail.on.empty.tables=false
+# When true, testTableReturnsRows fails (not just warns) on empty tables.
+#
+# request.delay.ms=0
+# Milliseconds to sleep before each HTTP request in the table loop.
+# Set to a non-zero value (e.g. 500) when the API enforces a rate limit.

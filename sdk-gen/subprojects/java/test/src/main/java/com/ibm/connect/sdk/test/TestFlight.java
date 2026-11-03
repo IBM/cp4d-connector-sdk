@@ -142,7 +142,6 @@ public class TestFlight implements Closeable
         serverAllocator = allocator.newChildAllocator("server", 0, Long.MAX_VALUE);
         clientAllocator = allocator.newChildAllocator("client", 0, Long.MAX_VALUE);
         final Location location = Utils.createLocation(host, port, useSSL);
-        uri = location.getUri();
         final KeyPair authKeyPair = AuthUtils.generateKeyPair();
         final List<PublicKey> verificationKeys = AuthUtils.getVerificationKeys();
         verificationKeys.add(authKeyPair.getPublic());
@@ -160,7 +159,8 @@ public class TestFlight implements Closeable
         }
         server = serverBuilder.build();
         server.start();
-        final FlightClient.Builder clientBuilder = FlightClient.builder(clientAllocator, location);
+        uri = server.getLocation().getUri();
+        final FlightClient.Builder clientBuilder = FlightClient.builder(clientAllocator, server.getLocation());
         if (useSSL) {
             clientBuilder.useTls().trustedCertificates(new ByteArrayInputStream(sslCert.getBytes(StandardCharsets.UTF_8)));
         }

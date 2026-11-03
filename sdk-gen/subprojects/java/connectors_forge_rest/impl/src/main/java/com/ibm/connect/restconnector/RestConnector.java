@@ -43,6 +43,8 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
 {
     private static final Logger LOGGER = getLogger(RestConnector.class);
 
+    public static final String SKIP_PING_PROPERTY = "com.ibm.connect.restconnector.skipPing";
+
     private static final int HTTP_TIMEOUT_SECONDS = 30;
     private static final int HTTP_STATUS_2XX = 2;
 
@@ -128,6 +130,10 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
      */
     protected void pingFirstTable() throws Exception
     {
+        if (Boolean.getBoolean(SKIP_PING_PROPERTY)) {
+            LOGGER.debug("Skipping connectivity ping ({} is set)", SKIP_PING_PROPERTY);
+            return;
+        }
         // Find first table that does not have $path_keys (its path is fully resolvable at connect time)
         Map.Entry<String, RestTableDefinition> firstEntry = null;
         for (final Map.Entry<String, RestTableDefinition> entry : apiMapping.getTables().entrySet()) {
