@@ -1,0 +1,74 @@
+//
+// Apply the java-library, and maven-publish plugins
+//
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+//
+// Declare project dependencies
+//
+dependencies {
+  // Exclude grpc packages that can conflict with those in Liberty.  Include everything for test runtime only.
+  api group: 'org.apache.arrow', name: 'flight-core', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'com.google.flatbuffers', name: 'flatbuffers-java', version: project['flatbuffers.version']
+  runtimeOnly group: 'com.google.protobuf', name: 'protobuf-java', version: project['protobuf.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-format', version: project['arrow.version']
+  implementation group: 'org.apache.arrow', name: 'arrow-memory-core', version: project['arrow.version']
+  runtimeOnly group: 'io.grpc', name: 'grpc-netty', version: project['grpc.version'], transitive: false
+  runtimeOnly group: 'io.netty', name: 'netty-buffer', version: project['netty.version']
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty', version: project['arrow.version'], transitive: false
+  runtimeOnly group: 'org.apache.arrow', name: 'arrow-memory-netty-buffer-patch', version: project['arrow.version'], transitive: false
+  // End of flight-core
+  api project(':wdp-connect-sdk-gen-java-api-models')
+  api project(':wdp-connect-sdk-gen-java-api')
+  implementation project(':wdp-connect-sdk-gen-java-file')
+  implementation project(':wdp-connect-sdk-gen-java-util')
+  implementation(group: 'com.google.guava', name: 'guava', version: project['guava.version']) {
+    exclude group: 'com.google.code.findbugs'
+    exclude group: 'com.google.errorprone'
+    exclude group: 'com.google.j2objc'
+    exclude group: 'org.checkerframework'
+  }
+  // Box SDK v5 (legacy com.box.sdk package, Apache-2.0). v4 is EOL. Jackson and zstd-jni are only needed by
+  // the generated com.box.sdkgen package, which is not used here; excluding them keeps the Jackson/zstd
+  // versions aligned with Spark (a Jackson 2.21 databind would clash with Spark's jackson-module-scala 2.18).
+  implementation(group: 'com.box', name: 'box-java-sdk', version: '5.19.0') {
+    exclude group: 'com.fasterxml.jackson.core'
+    exclude group: 'com.github.luben', module: 'zstd-jni'
+  }
+  implementation group: 'org.bouncycastle', name: 'bcpkix-jdk18on', version: project['bouncycastle.version']
+  implementation group: 'org.bouncycastle', name: 'bcprov-jdk18on', version: project['bouncycastle.version']
+
+  testImplementation project(':wdp-connect-sdk-gen-java-test')
+
+  testImplementation group: 'junit', name: 'junit', version: project['junit.version']
+  testRuntimeOnly group: 'io.grpc', name: 'grpc-all', version: project['grpc.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-all', version: project['netty.version']
+  testRuntimeOnly group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: project['netty.tcnative.version']
+  testRuntimeOnly group: 'org.slf4j', name: 'log4j-over-slf4j', version: project['slf4j.version']
+  testRuntimeOnly group: 'org.slf4j', name: 'slf4j-jdk14', version: project['slf4j.version']
+}
+
+test {
+  systemProperties = System.properties
+  systemProperties.remove("java.endorsed.dirs")
+  systemProperties['buildDir'] = project.buildDir.absolutePath
+  systemProperties['spark.driver.bindAddress'] = '127.0.0.1'
+  systemProperties['spark.driver.host'] = '127.0.0.1'
+  testLogging {
+    events "PASSED", "SKIPPED", "FAILED"
+  }
+}
+
+task verifyTestWorkDir {
+  description = 'Placeholder required by the file test framework. The Box work folder must already exist; test files are created and removed by TestBoxFlightProducer (@Before / @AfterClass).'
+  group = 'verification'
+}
+
+task cleanTestWorkDir {
+  description = 'Placeholder required by the file test framework. Cleanup of the Box work folder is done by TestBoxFlightProducer (@AfterClass).'
+  group = 'verification'
+}
+
+test.dependsOn verifyTestWorkDir
+test.finalizedBy cleanTestWorkDir

@@ -1,0 +1,10 @@
+# ============================================================
+# box — discover the root
+# ============================================================
+# Lists all top-level items at "/". No hardcoded paths needed.
+# box connector requires valid credentials to run.
+
+[Step]
+Type=Discover
+Path=/
+ExpectedNotEmpty=false

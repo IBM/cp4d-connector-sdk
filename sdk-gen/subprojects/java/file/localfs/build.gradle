@@ -44,6 +44,8 @@ test {
   systemProperties = System.properties
   systemProperties.remove("java.endorsed.dirs")
   systemProperties['buildDir'] = project.buildDir.absolutePath
+  systemProperties['spark.driver.bindAddress'] = '127.0.0.1'
+  systemProperties['spark.driver.host'] = '127.0.0.1'
   testLogging {
     events "PASSED", "SKIPPED", "FAILED"
   }
