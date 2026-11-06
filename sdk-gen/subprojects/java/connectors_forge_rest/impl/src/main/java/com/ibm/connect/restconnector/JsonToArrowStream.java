@@ -10,47 +10,66 @@ import static org.slf4j.LoggerFactory.getLogger;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
-import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
-import java.sql.Date;
-import java.sql.Timestamp;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 import org.slf4j.Logger;
 
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.ibm.wdp.connect.sdk.connector.RowWriter;
 
 /**
  * Fetches data from a REST API endpoint and streams each JSON object to a {@link RowWriter}.
  *
- * <p>This is the forge REST engine's JSON-to-Arrow streaming component. It replaces the old
- * {@code JsonToRecordStream} — the only change is that instead of creating {@code Record} objects
- * it calls {@link RowWriter#startRow()}, {@link RowWriter#set(String, Object)},
- * and {@link RowWriter#endRow()} for each JSON object.
+ * <p>This is the forge REST engine's JSON-to-Arrow streaming component. For each JSON object it calls
+ * {@link RowWriter#startRow()}, {@link RowWriter#set(String, Object)} and {@link RowWriter#endRow()}.
  *
- * <p>The HTTP connection is opened lazily. The JSON response is parsed using Jackson's streaming
- * API to avoid loading the entire response into memory.
+ * <h3>Memory behaviour</h3>
+ * <p>The HTTP response body is consumed incrementally by a {@link PageParser}: no {@code JsonNode} tree of the
+ * response, of the data array or of a record is ever built, for every pagination type and every {@code dataPath}.
+ * Records are handed to the writer as soon as they are complete. Parser memory is bounded by the current record,
+ * the single largest JSON-valued field of that record and the parser's token buffers, independent of the page size,
+ * the number of pages and the total number of records. Pagination state is a few scalars plus (for loop detection)
+ * one 32-byte digest per page, i.e. bounded by {@code maxPages}.
+ *
+ * <p>End-to-end memory also depends on the {@link RowWriter}. With the Flight {@code ArrowBatchWriter} it is bounded
+ * by one Arrow batch (default 1000 rows, off-heap), and a full batch is sent synchronously on the calling thread.
+ * A different writer that accumulates rows is outside the control of this class.
+ *
+ * <h3>Partial output</h3>
+ * <p>Rows are written while the response is still being read, so a failure (malformed JSON late in a page, a failed
+ * follow-up request, a pagination error, the page limit) leaves the rows written so far in the writer: neither
+ * page-level nor request-level atomicity is provided. A record is, however, converted completely before it is
+ * written, so a single record is never written partially because of a conversion or parsing problem.
+ *
+ * <h3>Cancellation</h3>
+ * <p>A thread interrupt is honoured between and during requests ({@link InterruptedException}, interrupt flag
+ * preserved). Cancellation of the Flight call by the client is <em>not</em> propagated into this class: the Flight
+ * producer only checks {@code isCancelled()} after {@code stream()} returns, and a cancelled listener makes
+ * {@code sendBatch} return silently, so the remaining pages are still downloaded and discarded until the stream
+ * ends or the thread is interrupted.
+ *
+ * <h3>Security</h3>
+ * <p>Server-supplied next-page URLs and redirects are validated (http/https only, no user information, no
+ * https-to-http downgrade). Authentication headers are only ever sent to the origin of the first request; with
+ * authentication configured a next-page URL on another origin is rejected, and redirects to another origin are
+ * followed without credentials (at most {@value #MAX_REDIRECTS} hops). Query strings, cursors and tokens are never
+ * logged or put into exception messages.
  *
  * <p>Supports all pagination strategies in {@link PaginationType}.
  */
@@ -60,23 +79,52 @@ public class JsonToArrowStream implements Closeable
 
     public static final String STRICT_PARSING_PROPERTY = "com.ibm.connect.restconnector.strictParsing";
 
+    /** Upper bound of pages per stream; reaching it while more data is announced is an error. */
+    static final int MAX_PAGES = 10000;
+    /** Maximum number of redirects followed for one request. */
+    static final int MAX_REDIRECTS = 5;
+    /** Maximum length of a cursor or next-page URL accepted from a server. */
+    static final int MAX_CONTINUATION_LENGTH = 16 * 1024;
+
     private static final int HTTP_TIMEOUT_SECONDS = 60;
     private static final int HTTP_STATUS_2XX = 2;
-    private static final int MAX_PAGES = 10000;
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String DEFAULT_ACCEPT = "application/json";
 
+    /** Redirects are followed by {@link #fetch} so that credentials can be withheld from other origins. */
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-            .followRedirects(HttpClient.Redirect.NORMAL)
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
+    static final HttpSender DEFAULT_SENDER = request -> HTTP_CLIENT.send(request, BodyHandlers.ofInputStream());
+
     private final String baseUrl;
-    private final String dataPath;
-    private final List<RestFieldDefinition> fieldDefs;
     private final Map<String, String> authHeaders;
     private final String acceptHeader;
     private final PaginationConfig paginationConfig;
-    private final boolean strict;
+    private final HttpSender sender;
+    private final int maxPages;
+    private final PageParser pageParser;
+
+    /** Sends one request; replaceable in tests. */
+    @FunctionalInterface
+    interface HttpSender
+    {
+        HttpResponse<InputStream> send(HttpRequest request) throws IOException, InterruptedException;
+    }
+
+    /** A response together with the URL that finally produced it (after redirects). */
+    static final class Fetched
+    {
+        final HttpResponse<InputStream> response;
+        final URI uri;
+
+        Fetched(HttpResponse<InputStream> response, URI uri)
+        {
+            this.response = response;
+            this.uri = uri;
+        }
+    }
 
     /**
      * Creates a streaming instance with full configuration and default (safe) type parsing.
@@ -117,122 +165,134 @@ public class JsonToArrowStream implements Closeable
      * @param acceptHeader
      *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
      * @param strict
-     *            if {@code true}, parsing errors throw exceptions instead of logging warnings
+     *            if {@code true}, conversion errors throw exceptions instead of logging warnings
+     * @throws IllegalArgumentException
+     *             if the pagination configuration or a JSON path is invalid
      */
     public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
             Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader,
             boolean strict)
     {
+        this(url, dataPath, fieldDefs, authHeaders, paginationConfig, acceptHeader, strict, DEFAULT_SENDER,
+                MAX_PAGES);
+    }
+
+    JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
+            Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader,
+            boolean strict, HttpSender sender, int maxPages)
+    {
+        validate(paginationConfig);
         this.baseUrl = url;
-        this.dataPath = dataPath;
-        this.fieldDefs = fieldDefs;
         this.authHeaders = authHeaders;
-        this.acceptHeader = acceptHeader;
+        this.acceptHeader = acceptHeader != null ? acceptHeader : DEFAULT_ACCEPT;
         this.paginationConfig = paginationConfig;
-        this.strict = strict;
+        this.sender = sender;
+        this.maxPages = maxPages;
+        String cursorPath = null;
+        String nextUrlPath = null;
+        if (paginationConfig != null) {
+            final PaginationType type = paginationConfig.getTypeEnum();
+            cursorPath = type == PaginationType.CURSOR ? paginationConfig.getNextCursorPath() : null;
+            nextUrlPath = type == PaginationType.NEXT_URL ? paginationConfig.getNextUrlPath() : null;
+        }
+        this.pageParser = new PageParser(new FieldPlan(fieldDefs), dataPath, cursorPath, nextUrlPath, strict);
     }
 
     /**
      * Fetches all data from the configured URL and streams it into the provided {@link RowWriter}.
      *
-     * <p>For each JSON object in the response, calls:
-     * <ol>
-     *   <li>{@link RowWriter#startRow()}</li>
-     *   <li>{@link RowWriter#set(String, Object)} for each field</li>
-     *   <li>{@link RowWriter#endRow()}</li>
-     * </ol>
+     * <p>For each JSON object in the response, calls {@link RowWriter#startRow()},
+     * {@link RowWriter#set(String, Object)} for each non-null field and {@link RowWriter#endRow()}. Every HTTP
+     * response body is closed on all paths (success, non-2xx status, parse failure, writer failure).
      *
      * @param writer
      *            the row writer to receive the data
      * @throws IOException
-     *             if an HTTP or JSON error occurs
+     *             if an HTTP, JSON or pagination error occurs, including reaching the page limit while the API
+     *             announces further pages
      * @throws InterruptedException
-     *             if the thread is interrupted during an HTTP request
+     *             if the thread is interrupted; the thread's interrupt flag is left set when the interruption
+     *             was detected through it
      */
-    @SuppressWarnings("PMD.CloseResource")
     public void streamTo(RowWriter writer) throws IOException, InterruptedException
     {
-        // Pagination state
-        int currentOffset = paginationConfig != null ? paginationConfig.getInitialOffset() : 0;
-        int currentPage = paginationConfig != null ? paginationConfig.getInitialPage() : 1;
-        String nextCursor = null;
-        String nextPageUrl = null;
-        int totalPagesFetched = 0;
+        final URI origin = PageUrls.parseHttp(baseUrl);
+        final boolean credentials = authHeaders != null && !authHeaders.isEmpty();
+        final PaginationType type = paginationConfig == null ? null : paginationConfig.getTypeEnum();
+        final Set<String> seen = new HashSet<>();
+        seen.add(fingerprint(origin.toString()));
 
-        while (true) {
-            if (totalPagesFetched >= MAX_PAGES) {
-                LOGGER.warn("Reached maximum page limit of {}", MAX_PAGES);
-                break;
-            }
+        long offset = paginationConfig != null ? paginationConfig.getInitialOffset() : 0;
+        long page = paginationConfig != null ? paginationConfig.getInitialPage() : 1;
+        String cursor = null;
+        URI nextUri = null;
+        int pagesFetched = 0;
 
-            final String url = buildCurrentPageUrl(currentOffset, currentPage, nextCursor, nextPageUrl);
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Fetching page {}: {}", totalPagesFetched + 1, url);
-            }
-
-            final HttpRequest request = buildRequest(url);
-            final HttpResponse<InputStream> response = HTTP_CLIENT.send(request, BodyHandlers.ofInputStream());
-
-            if (response.statusCode() / 100 != HTTP_STATUS_2XX) {
-                throw new IOException("HTTP request failed with status " + response.statusCode());
-            }
-
-            final HttpHeaders headers = response.headers();
-
-            // For link_header pagination, extract next URL from response headers
-            if (paginationConfig != null && "link_header".equals(paginationConfig.getType())) {
-                nextPageUrl = extractLinkHeader(headers);
-            }
-
-            totalPagesFetched++;
-            int recordsInPage;
-
-            // Cursor and next_url need full parse to extract metadata
-            if (paginationConfig != null &&
-                ("cursor".equals(paginationConfig.getType()) || "next_url".equals(paginationConfig.getType()))) {
-
-                final JsonNode rootNode = OBJECT_MAPPER.readTree(response.body());
-
-                if ("cursor".equals(paginationConfig.getType())) {
-                    final JsonNode cursorNode = extractJsonPath(rootNode, paginationConfig.getNextCursorPath());
-                    nextCursor = (cursorNode != null && !cursorNode.isNull()) ? cursorNode.asText() : null;
-                } else {
-                    final JsonNode urlNode = extractJsonPath(rootNode, paginationConfig.getNextUrlPath());
-                    nextPageUrl = (urlNode != null && !urlNode.isNull()) ? urlNode.asText() : null;
+        pageParser.resetFailureCounts();
+        try {
+            while (true) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedException("Interrupted before requesting the next page");
+                }
+                final URI requestUri = buildPageUri(origin, offset, page, cursor, nextUri);
+                pagesFetched++;
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("Fetching page {} from {}", pagesFetched, PageUrls.redact(requestUri));
                 }
 
-                JsonNode dataNode = rootNode;
-                if (dataPath != null && !dataPath.isEmpty()) {
-                    dataNode = extractJsonPath(rootNode, dataPath);
-                    if (dataNode == null) {
-                        throw new IOException("Data path '" + dataPath + "' not found in JSON response");
+                final Fetched fetched = fetch(sender, requestUri, origin, authHeaders, acceptHeader);
+                String linkReference = null;
+                try (InputStream body = fetched.response.body()) {
+                    checkStatus(fetched, false);
+                    if (type == PaginationType.LINK_HEADER) {
+                        linkReference = LinkHeaderParser.findNext(fetched.response.headers().allValues("Link"));
+                    }
+                    try (JsonParser jsonParser = PageParser.open(body)) {
+                        pageParser.parse(jsonParser, writer);
+                    }
+                } catch (JsonProcessingException e) {
+                    throw invalidJson(fetched.uri, e);
+                } catch (InterruptedIOException e) {
+                    throw ioOrInterrupted(e);
+                }
+
+                // Decide whether, and where, to continue
+                final int records = pageParser.recordCount();
+                boolean more = false;
+                cursor = null;
+                nextUri = null;
+                if (type == PaginationType.OFFSET && paginationConfig != null) {
+                    offset += paginationConfig.getPageSize();
+                    more = records >= paginationConfig.getPageSize();
+                } else if (type == PaginationType.PAGE && paginationConfig != null) {
+                    page++;
+                    more = records >= paginationConfig.getPageSize();
+                } else if (type == PaginationType.CURSOR) {
+                    final String found = pageParser.nextCursor();
+                    if (found != null && !found.isEmpty()) {
+                        requireUsable(found, seen, "cursor");
+                        cursor = found;
+                        more = true;
+                    }
+                } else if (type == PaginationType.LINK_HEADER || type == PaginationType.NEXT_URL) {
+                    final String reference = type == PaginationType.LINK_HEADER ? linkReference
+                            : pageParser.nextPageUrl();
+                    if (reference != null && !reference.isEmpty()) {
+                        nextUri = PageUrls.resolveNext(fetched.uri, origin, reference.trim(), credentials);
+                        requireUsable(nextUri.toString(), seen, "next-page URL");
+                        more = true;
                     }
                 }
-
-                recordsInPage = streamNodeToWriter(dataNode, writer);
-
-            } else {
-                // Streaming parse for offset/page/link_header/no-pagination
-                final JsonFactory factory = new JsonFactory();
-                try (JsonParser jsonParser = factory.createParser(response.body())) {
-                    recordsInPage = streamParserToWriter(jsonParser, writer);
+                if (!more) {
+                    return;
+                }
+                if (pagesFetched >= maxPages) {
+                    throw new IOException("Stopped after the maximum of " + maxPages
+                            + " pages although the API announces more data; the result would be incomplete");
                 }
             }
-
-            // Advance pagination state
-            if (paginationConfig != null) {
-                if ("offset".equals(paginationConfig.getType())) {
-                    currentOffset += paginationConfig.getPageSize();
-                } else if ("page".equals(paginationConfig.getType())) {
-                    currentPage++;
-                }
-            }
-
-            // Determine if there are more pages
-            if (!hasMorePages(paginationConfig, recordsInPage, nextCursor, nextPageUrl, totalPagesFetched)) {
-                break;
-            }
-
+        } finally {
+            pageParser.logFailureSummary();
         }
     }
 
@@ -248,20 +308,22 @@ public class JsonToArrowStream implements Closeable
     /**
      * Fetches all values of a single field from a lookup endpoint.
      *
-     * <p>Used by {@link RestDiscoveryInteraction} when a table declares a {@code $path_key}:
-     * the engine calls this method against the lookup {@code source_path} to collect the set of
-     * possible key values, then emits one discovered asset per value.
+     * <p>Used by {@link RestInputInteraction} when a table declares a {@code $path_key}: the engine calls this
+     * method against the lookup {@code source_path} to collect the possible key values.
      *
-     * <p>Pagination is not supported for lookup endpoints — they are expected to return all
-     * values in a single response.
+     * <p>The response is parsed incrementally (no JSON tree), but the method returns a {@code List<String>}, so the
+     * extracted values themselves are necessarily retained: memory is proportional to the number and size of the
+     * returned values, not to the size of the response. Pagination is not supported for lookup endpoints.
+     *
+     * <p>Behaviour notes: an object whose field is missing, {@code null}, empty or a JSON object/array is skipped;
+     * a {@code dataPath} that is missing or holds a scalar is an {@link IOException}.
      *
      * @param url
      *            the fully-assembled lookup URL (base URL + source_path)
      * @param dataPath
-     *            optional dot-notation path to the array inside the response; {@code null} for
-     *            top-level arrays
+     *            optional dot-notation path to the array inside the response; {@code null} for top-level arrays
      * @param fieldName
-     *            the JSON field name whose value to collect from each object
+     *            the JSON field name (dot-notation for nested objects) whose value to collect from each object
      * @param authHeaders
      *            optional HTTP authentication headers; may be {@code null}
      * @param acceptHeader
@@ -276,489 +338,295 @@ public class JsonToArrowStream implements Closeable
             Map<String, String> authHeaders, String acceptHeader)
             throws IOException, InterruptedException
     {
-
-        final HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .header("Accept", acceptHeader != null ? acceptHeader : "application/json")
-                .header("User-Agent", "CP4D-REST-Connector/1.0")
-                .GET();
-        if (authHeaders != null) {
-            authHeaders.forEach(builder::header);
-        }
-
-        final HttpResponse<InputStream> response =
-                HTTP_CLIENT.send(builder.build(), BodyHandlers.ofInputStream());
-        if (response.statusCode() / 100 != HTTP_STATUS_2XX) {
-            throw new IOException("Lookup request failed with HTTP " + response.statusCode()
-                    + " for URL: " + url);
-        }
-
-        JsonNode root = OBJECT_MAPPER.readTree(response.body());
-
-        // Navigate to the data array if a data path is given
-        if (dataPath != null && !dataPath.isEmpty()) {
-            root = extractJsonPath(root, dataPath);
-            if (root == null) {
-                throw new IOException("source_data_path '" + dataPath + "' not found in lookup response from: " + url);
-            }
-        }
-
-        final List<String> values = new ArrayList<>();
-        if (root.isArray()) {
-            for (final JsonNode item : root) {
-                if (item.isObject()) {
-                    final JsonNode valueNode = resolveFieldPath(item, fieldName);
-                    if (valueNode != null && !valueNode.isNull()) {
-                        final String val = valueNode.asText(null);
-                        if (val != null && !val.isEmpty()) {
-                            values.add(val);
-                        }
-                    }
-                }
-            }
-        } else if (root.isObject()) {
-            // Single-object response — unlikely for a lookup but handle gracefully
-            final JsonNode valueNode = resolveFieldPath(root, fieldName);
-            if (valueNode != null && !valueNode.isNull()) {
-                final String val = valueNode.asText(null);
-                if (val != null && !val.isEmpty()) {
-                    values.add(val);
-                }
-            }
-        }
-
-        LOGGER.debug("Fetched {} value(s) of field '{}' from {}", values.size(), fieldName, url);
-        return values;
+        return fetchStringValues(DEFAULT_SENDER, url, dataPath, fieldName, authHeaders, acceptHeader);
     }
 
-    // ---- private helpers ----
-
-    private int streamNodeToWriter(JsonNode dataNode, RowWriter writer) throws IOException
+    static List<String> fetchStringValues(HttpSender sender, String url, String dataPath, String fieldName,
+            Map<String, String> authHeaders, String acceptHeader)
+            throws IOException, InterruptedException
     {
-        int count = 0;
-        if (dataNode.isArray()) {
-            for (final JsonNode item : dataNode) {
-                if (item.isObject()) {
-                    writeObjectToWriter((ObjectNode) item, writer);
-                    count++;
-                }
-            }
-        } else if (dataNode.isObject()) {
-            writeObjectToWriter((ObjectNode) dataNode, writer);
-            count = 1;
+        final URI origin = PageUrls.parseHttp(url);
+        final PageParser parser = new PageParser(FieldPlan.forLookup(fieldName), dataPath, null, null, false);
+        final LookupCollector collector = new LookupCollector();
+        final Fetched fetched = fetch(sender, origin, origin, authHeaders,
+                acceptHeader != null ? acceptHeader : DEFAULT_ACCEPT);
+        consume(fetched, parser, collector, true);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Fetched {} value(s) of field '{}' from {}", collector.values.size(), fieldName,
+                    PageUrls.redact(fetched.uri));
         }
-        return count;
+        return collector.values;
     }
 
-    private int streamParserToWriter(JsonParser jsonParser, RowWriter writer) throws IOException
+    /** Collects the single text value written per row; empty values are dropped. */
+    private static final class LookupCollector implements RowWriter
     {
-        int count = 0;
-        final JsonToken firstToken = jsonParser.nextToken();
+        private final List<String> values = new ArrayList<>();
 
-        if (dataPath != null && !dataPath.isEmpty()) {
-            // Fall back to tree-mode for any dataPath. The streaming parser cannot navigate
-            // dotted multi-segment paths (e.g. "response.data") by key-name comparison alone;
-            // extractJsonPath handles both single-segment and dotted paths uniformly.
-            // For a root-array response, readTree consumes the parser positioned at START_ARRAY.
-            // For a root-object response, we must reposition: readTree needs to start from the
-            // token already consumed (firstToken), so pass the parser directly.
-            if (firstToken != JsonToken.START_OBJECT && firstToken != JsonToken.START_ARRAY) {
-                throw new IOException(
-                        "Expected START_OBJECT or START_ARRAY at root when dataPath is specified, got: "
-                                + firstToken);
-            }
-            final JsonNode rootNode = OBJECT_MAPPER.readTree(jsonParser);
-            final JsonNode dataNode = extractJsonPath(rootNode, dataPath);
-            if (dataNode == null) {
-                throw new IOException("Data path '" + dataPath + "' not found in JSON response");
-            }
-            return streamNodeToWriter(dataNode, writer);
+        @Override
+        public void startRow()
+        {
+            // nothing to prepare
         }
 
-        if (firstToken == JsonToken.START_ARRAY) {
-            JsonToken token;
-            while ((token = jsonParser.nextToken()) != JsonToken.END_ARRAY && token != null) {
-                if (token == JsonToken.START_OBJECT) {
-                    final ObjectNode objectNode = OBJECT_MAPPER.readTree(jsonParser);
-                    writeObjectToWriter(objectNode, writer);
-                    count++;
-                }
+        @Override
+        public void set(String fieldName, Object value)
+        {
+            if (value instanceof String && !((String) value).isEmpty()) {
+                values.add((String) value);
             }
-        } else if (firstToken == JsonToken.START_OBJECT) {
-            final ObjectNode objectNode = OBJECT_MAPPER.readTree(jsonParser);
-            writeObjectToWriter(objectNode, writer);
-            count = 1;
         }
 
-        return count;
+        @Override
+        public void endRow()
+        {
+            // nothing to finish
+        }
     }
 
-    private void writeObjectToWriter(ObjectNode objectNode, RowWriter writer) throws IOException
+    // ---- request execution ----
+
+    /**
+     * Sends a GET request and follows redirects manually (at most {@value #MAX_REDIRECTS}). Authentication
+     * headers are attached only while the request goes to the origin of the first request, so credentials are never
+     * forwarded to another host. The returned response body is open and must be closed by the caller.
+     */
+    static Fetched fetch(HttpSender sender, URI start, URI origin, Map<String, String> authHeaders,
+            String accept) throws IOException, InterruptedException
     {
-        writer.startRow();
-        for (final RestFieldDefinition fieldDef : fieldDefs) {
-            final String fieldName = fieldDef.getName();
-            final JsonNode valueNode = fieldName.contains(".")
-                    ? getNestedValue(objectNode, fieldName)
-                    : objectNode.get(fieldName);
-            final Object value = convertValue(valueNode, fieldDef, strict);
-            if (value != null) {
-                writer.set(fieldName, value);
+        URI current = start;
+        int redirects = 0;
+        while (true) {
+            final HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(current)
+                    .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
+                    .header("Accept", accept)
+                    .header("User-Agent", "CP4D-REST-Connector/1.0")
+                    .GET();
+            if (authHeaders != null && PageUrls.sameOrigin(origin, current)) {
+                authHeaders.forEach(builder::header);
             }
+            final HttpResponse<InputStream> response = sender.send(builder.build());
+            final String location = isRedirect(response.statusCode())
+                    ? response.headers().firstValue("Location").orElse(null)
+                    : null;
+            if (location == null) {
+                return new Fetched(response, current);
+            }
+            closeQuietly(response);
+            if (redirects >= MAX_REDIRECTS) {
+                throw new IOException("Too many redirects (limit " + MAX_REDIRECTS + ") from "
+                        + PageUrls.redact(start));
+            }
+            redirects++;
+            current = PageUrls.resolveNext(current, origin, location, false);
         }
-        writer.endRow();
+    }
+
+    private static void checkStatus(Fetched fetched, boolean lookup) throws IOException
+    {
+        final int status = fetched.response.statusCode();
+        if (status / 100 != HTTP_STATUS_2XX) {
+            throw new IOException((lookup ? "Lookup request failed with HTTP " : "HTTP request failed with status ")
+                    + status + " for " + PageUrls.redact(fetched.uri));
+        }
     }
 
     /**
-     * Resolves a possibly dot-notated field path (e.g. {@code "user.id"}) from a
-     * {@link JsonNode}.  For simple names (no dot) this is equivalent to
-     * {@link JsonNode#get(String)}.  Returns {@code null} if any segment is missing
-     * or is not an object.
+     * Checks the status, then parses the body into {@code writer}. The body is closed on every path: success,
+     * non-2xx status, malformed JSON, conversion failure and writer failure.
      */
-    private static JsonNode resolveFieldPath(JsonNode node, String fieldPath)
+    private static void consume(Fetched fetched, PageParser parser, RowWriter writer, boolean lookup)
+            throws IOException, InterruptedException
     {
-        final int dotIndex = fieldPath.indexOf('.');
-        if (dotIndex < 0) {
-            return node.get(fieldPath);
+        try (InputStream body = fetched.response.body()) {
+            checkStatus(fetched, lookup);
+            try (JsonParser jsonParser = PageParser.open(body)) {
+                parser.parse(jsonParser, writer);
+            }
+        } catch (JsonProcessingException e) {
+            throw invalidJson(fetched.uri, e);
+        } catch (InterruptedIOException e) {
+            throw ioOrInterrupted(e);
         }
-        final String head = fieldPath.substring(0, dotIndex);
-        final String tail = fieldPath.substring(dotIndex + 1);
-        final JsonNode child = node.get(head);
-        if (child == null || child.isNull() || !child.isObject()) {
-            return null;
-        }
-        return resolveFieldPath(child, tail);
     }
 
-    private static JsonNode getNestedValue(ObjectNode objectNode, String flattenedName)
+    private static boolean isRedirect(int status)
     {
-        final int dotIndex = flattenedName.indexOf('.');
-        if (dotIndex < 0) {
-            return objectNode.get(flattenedName);
-        }
-        final String parentKey = flattenedName.substring(0, dotIndex);
-        final String remainingPath = flattenedName.substring(dotIndex + 1);
-        final JsonNode parentNode = objectNode.get(parentKey);
-        if (parentNode == null || !parentNode.isObject()) {
-            return null;
-        }
-        if (remainingPath.contains(".")) {
-            return getNestedValue((ObjectNode) parentNode, remainingPath);
-        }
-        return parentNode.get(remainingPath);
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
-    private static Object convertValue(JsonNode node, RestFieldDefinition fieldDef, boolean strict)
+    private static void closeQuietly(HttpResponse<InputStream> response)
     {
-        if (node == null || node.isNull()) {
-            return null;
+        try (InputStream ignored = response.body()) {
+            // closing releases the connection; the redirect body is not needed
+        } catch (IOException e) {
+            LOGGER.debug("Ignoring failure while closing a redirect response body");
         }
-        if (node.isObject() || node.isArray()) {
-            return node.toString();
+    }
+
+    /**
+     * Distinguishes a real thread interruption from a timeout or other interrupted I/O. The interrupt flag is not
+     * cleared here, so callers up the stack still see it.
+     */
+    private static IOException ioOrInterrupted(InterruptedIOException e) throws InterruptedException
+    {
+        if (Thread.currentThread().isInterrupted()) {
+            final InterruptedException interrupted = new InterruptedException("Interrupted while reading the response");
+            interrupted.initCause(e);
+            throw interrupted;
         }
+        return new IOException("Reading the response timed out or was interrupted: " + e.getClass().getSimpleName(), e);
+    }
 
-        final String baseType = extractBaseType(fieldDef.getTypeString().toLowerCase(Locale.ENGLISH));
+    /** Never includes response content: Jackson's message may quote the offending token. */
+    private static IOException invalidJson(URI uri, JsonProcessingException e)
+    {
+        final StringBuilder message = new StringBuilder("Invalid JSON in the response from ")
+                .append(PageUrls.redact(uri));
+        if (e.getLocation() != null) {
+            message.append(" at line ").append(e.getLocation().getLineNr())
+                    .append(", column ").append(e.getLocation().getColumnNr());
+        }
+        if (e instanceof StreamConstraintsException) {
+            message.append(": ").append(e.getOriginalMessage());
+        }
+        return new IOException(message.toString());
+    }
 
-        switch (baseType) {
-        case "integer":
-        case "int":
-        case "smallint":
-        case "tinyint":
-            if (node.isNumber()) { return node.intValue(); }
-            return strict ? parseIntStrict(node.asText()) : parseIntSafe(node.asText());
-        case "bigint":
-            if (node.isNumber()) { return node.longValue(); }
-            return strict ? parseLongStrict(node.asText()) : parseLongSafe(node.asText());
-        case "boolean":
-        case "bool":
-        case "bit":
-            if (node.isBoolean()) { return node.booleanValue(); }
-            return strict ? parseBooleanStrict(node.asText()) : parseBooleanSafe(node.asText());
-        case "double":
-        case "float8":
-        case "float":
-        case "real":
-        case "float4":
-            if (node.isNumber()) { return node.doubleValue(); }
-            return strict ? parseDoubleStrict(node.asText()) : parseDoubleSafe(node.asText());
-        case "decimal":
-        case "numeric":
-            if (node.isNumber()) { return node.decimalValue(); }
-            return strict ? parseBigDecimalStrict(node.asText()) : parseBigDecimalSafe(node.asText());
-        case "date":
-            return strict ? parseDateStrict(node.asText()) : parseDateSafe(node.asText());
-        case "timestamp":
-        case "datetime":
-            return strict ? parseTimestampStrict(node.asText()) : parseTimestampSafe(node.asText());
-        case "json":
-        case "jsonb":
-        case "array":
-        case "object":
-            return node.toString();
+    // ---- pagination ----
+
+    private static void validate(PaginationConfig config)
+    {
+        if (config == null) {
+            return;
+        }
+        final PaginationType type = config.getTypeEnum();
+        if (type == null) {
+            throw new IllegalArgumentException("Pagination type is missing. Valid types: "
+                    + PaginationType.validValues());
+        }
+        final boolean limitSent = limitParam(config) != null;
+        switch (type) {
+        case OFFSET:
+            require(config.getOffsetParam(), "offset_param", type);
+            requirePositivePageSize(config, type);
+            if (config.getInitialOffset() < 0) {
+                throw new IllegalArgumentException("Pagination type 'offset' requires initial_offset >= 0");
+            }
+            break;
+        case PAGE:
+            require(config.getPageParam(), "page_param", type);
+            requirePositivePageSize(config, type);
+            if (config.getInitialPage() < 0) {
+                throw new IllegalArgumentException("Pagination type 'page' requires initial_page >= 0");
+            }
+            break;
+        case CURSOR:
+            require(config.getCursorParam(), "cursor_param", type);
+            require(config.getNextCursorPath(), "next_cursor_path", type);
+            break;
+        case NEXT_URL:
+            require(config.getNextUrlPath(), "next_url_path", type);
+            break;
+        case LINK_HEADER:
         default:
-            return node.asText();
+            break;
+        }
+        if (limitSent) {
+            requirePositivePageSize(config, type);
         }
     }
 
-    private static String extractBaseType(String typeLower)
+    private static void require(String value, String name, PaginationType type)
     {
-        final int parenIdx = typeLower.indexOf('(');
-        return parenIdx >= 0 ? typeLower.substring(0, parenIdx).trim() : typeLower.trim();
+        if (isBlank(value)) {
+            throw new IllegalArgumentException("Pagination type '" + type.getValue() + "' requires '" + name + "'");
+        }
     }
 
-    private static Integer parseIntStrict(String text)
+    private static void requirePositivePageSize(PaginationConfig config, PaginationType type)
     {
-        if (text == null || text.isEmpty()) { return null; }
-        return Integer.parseInt(text.trim());
+        if (config.getPageSize() <= 0) {
+            throw new IllegalArgumentException("Pagination type '" + type.getValue()
+                    + "' requires page_size > 0 but it is " + config.getPageSize());
+        }
     }
 
-    private static Integer parseIntSafe(String text)
+    private static String limitParam(PaginationConfig config)
     {
-        try {
-            return parseIntStrict(text);
-        }
-        catch (NumberFormatException e) {
-            LOGGER.warn("Cannot parse integer: '{}'", text);
-            return null;
-        }
+        final String limit = config.getLimitParam();
+        return isBlank(limit) ? null : limit;
     }
 
-    private static Long parseLongStrict(String text)
+    private static boolean isBlank(String value)
     {
-        if (text == null || text.isEmpty()) { return null; }
-        return Long.parseLong(text.trim());
+        if (value == null) {
+            return true;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isWhitespace(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    private static Long parseLongSafe(String text)
-    {
-        try {
-            return parseLongStrict(text);
-        }
-        catch (NumberFormatException e) {
-            LOGGER.warn("Cannot parse long: '{}'", text);
-            return null;
-        }
-    }
-
-    private static Double parseDoubleStrict(String text)
-    {
-        if (text == null || text.isEmpty()) { return null; }
-        return Double.parseDouble(text.trim());
-    }
-
-    private static Double parseDoubleSafe(String text)
-    {
-        try {
-            return parseDoubleStrict(text);
-        }
-        catch (NumberFormatException e) {
-            LOGGER.warn("Cannot parse double: '{}'", text);
-            return null;
-        }
-    }
-
-    private static Boolean parseBooleanStrict(String text)
-    {
-        if (text == null || text.isEmpty()) { return null; }
-        final String t = text.trim().toLowerCase(Locale.ENGLISH);
-        if ("true".equals(t) || "1".equals(t) || "yes".equals(t)) { return Boolean.TRUE; }
-        if ("false".equals(t) || "0".equals(t) || "no".equals(t)) { return Boolean.FALSE; }
-        throw new IllegalArgumentException("Cannot parse boolean: '" + text + "'");
-    }
-
-    private static Boolean parseBooleanSafe(String text)
-    {
-        try {
-            return parseBooleanStrict(text);
-        }
-        catch (IllegalArgumentException e) {
-            LOGGER.warn("Cannot parse boolean: '{}'", text);
-            return null;
-        }
-    }
-
-    private static BigDecimal parseBigDecimalStrict(String text)
-    {
-        if (text == null || text.isEmpty()) { return null; }
-        return new BigDecimal(text.trim());
-    }
-
-    private static BigDecimal parseBigDecimalSafe(String text)
-    {
-        try {
-            return parseBigDecimalStrict(text);
-        }
-        catch (NumberFormatException e) {
-            LOGGER.warn("Cannot parse decimal: '{}'", text);
-            return null;
-        }
-    }
-
-    private static Date parseDateStrict(String text)
-    {
-        if (text == null || text.isEmpty()) { return null; }
-        return Date.valueOf(LocalDate.parse(text.trim()));
-    }
-
-    private static Date parseDateSafe(String text)
-    {
-        try {
-            return parseDateStrict(text);
-        }
-        catch (DateTimeParseException | IllegalArgumentException e) {
-            LOGGER.warn("Cannot parse date: '{}'", text);
-            return null;
-        }
-    }
-
-     private static Timestamp parseTimestampStrict(String text)
-    {
-        if (text == null || text.isEmpty()) { return null; }
-        final String trimmed = text.trim();
-        try {
-            return Timestamp.from(Instant.parse(trimmed));
-        }
-        catch (DateTimeParseException e) {
-            return Timestamp.valueOf(trimmed.replace("T", " ").replaceAll("\\.\\d+Z?$", ""));
-        }
-    }
-
-    private static Timestamp parseTimestampSafe(String text)
-    {
-        try {
-            return parseTimestampStrict(text);
-        }
-        catch (IllegalArgumentException e) {
-            LOGGER.warn("Cannot parse timestamp: '{}'", text);
-            return null;
-        }
-    }
-
-    private HttpRequest buildRequest(String url)
-    {
-        final HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .header("Accept", acceptHeader)
-                .header("User-Agent", "CP4D-REST-Connector/1.0")
-                .GET();
-        if (authHeaders != null) {
-            authHeaders.forEach(builder::header);
-        }
-        return builder.build();
-    }
-
-    private String buildCurrentPageUrl(int currentOffset, int currentPage, String nextCursor, String nextPageUrl)
+    private URI buildPageUri(URI origin, long offset, long page, String cursor, URI nextUri) throws IOException
     {
         if (paginationConfig == null) {
-            return baseUrl;
+            return origin;
         }
-
-        final String type = paginationConfig.getType();
-        final boolean hasParams = baseUrl.contains("?");
-        final String sep = hasParams ? "&" : "?";
-        final StringBuilder sb = new StringBuilder(baseUrl);
-
-        switch (type) {
-        case "offset":
-            sb.append(sep).append(paginationConfig.getOffsetParam()).append('=').append(currentOffset);
-            if (paginationConfig.getLimitParam() != null) {
-                sb.append('&').append(paginationConfig.getLimitParam()).append('=').append(paginationConfig.getPageSize());
-            }
-            break;
-        case "page":
-            sb.append(sep).append(paginationConfig.getPageParam()).append('=').append(currentPage);
-            if (paginationConfig.getLimitParam() != null) {
-                sb.append('&').append(paginationConfig.getLimitParam()).append('=').append(paginationConfig.getPageSize());
-            }
-            break;
-        case "cursor":
-            if (nextCursor != null && !nextCursor.isEmpty()) {
-                sb.append(sep).append(paginationConfig.getCursorParam()).append('=')
-                        .append(URLEncoder.encode(nextCursor, StandardCharsets.UTF_8));
-                if (paginationConfig.getLimitParam() != null) {
-                    sb.append('&').append(paginationConfig.getLimitParam()).append('=').append(paginationConfig.getPageSize());
-                }
-            } else if (paginationConfig.getLimitParam() != null) {
-                sb.append(sep).append(paginationConfig.getLimitParam()).append('=').append(paginationConfig.getPageSize());
-            }
-            break;
-        case "link_header":
-        case "next_url":
-            if (nextPageUrl != null && !nextPageUrl.isEmpty()) {
-                return nextPageUrl;
-            }
-            if (paginationConfig.getLimitParam() != null) {
-                sb.append(sep).append(paginationConfig.getLimitParam()).append('=').append(paginationConfig.getPageSize());
-            }
-            break;
+        if (nextUri != null) {
+            return nextUri; // validated server-supplied URL, used exactly as given
+        }
+        final String limit = limitParam(paginationConfig);
+        final String size = Integer.toString(paginationConfig.getPageSize());
+        final String url = origin.toString();
+        switch (paginationConfig.getTypeEnum()) {
+        case OFFSET:
+            return PageUrls.parseHttp(PageUrls.withParams(url, paginationConfig.getOffsetParam(),
+                    Long.toString(offset), limit, size));
+        case PAGE:
+            return PageUrls.parseHttp(PageUrls.withParams(url, paginationConfig.getPageParam(),
+                    Long.toString(page), limit, size));
+        case CURSOR:
+            return PageUrls.parseHttp(PageUrls.withParams(url,
+                    cursor != null ? paginationConfig.getCursorParam() : null, cursor, limit, size));
+        case LINK_HEADER:
+        case NEXT_URL:
         default:
-            break;
-        }
-
-        return sb.toString();
-    }
-
-    private static boolean hasMorePages(PaginationConfig config, int recordsInPage, String nextCursor,
-            String nextPageUrl, int totalPagesFetched)
-    {
-        if (config == null || totalPagesFetched >= MAX_PAGES) {
-            return false;
-        }
-        switch (config.getType()) {
-        case "offset":
-        case "page":
-            return recordsInPage >= config.getPageSize();
-        case "cursor":
-            return nextCursor != null && !nextCursor.isEmpty();
-        case "link_header":
-        case "next_url":
-            return nextPageUrl != null && !nextPageUrl.isEmpty();
-        default:
-            return false;
+            return limit == null ? origin : PageUrls.parseHttp(PageUrls.withParams(url, limit, size));
         }
     }
 
-    private static String extractLinkHeader(HttpHeaders headers)
+    /**
+     * Rejects oversized continuation values and values seen before in this stream (pagination loop). Only a
+     * digest of each value is remembered, not the value itself.
+     */
+    private static void requireUsable(String value, Set<String> seen, String what) throws IOException
     {
-        final Optional<String> linkHeader = headers.firstValue("Link");
-        if (!linkHeader.isPresent()) {
-            return null;
+        if (value.length() > MAX_CONTINUATION_LENGTH) {
+            throw new IOException("The " + what + " returned by the API is longer than "
+                    + MAX_CONTINUATION_LENGTH + " characters");
         }
-        for (final String link : linkHeader.get().split(",")) {
-            if (link.contains("rel=\"next\"") || link.contains("rel='next'")) {
-                final int start = link.indexOf('<') + 1;
-                final int end = link.indexOf('>');
-                if (start > 0 && end > start) {
-                    return link.substring(start, end);
-                }
-            }
+        if (!seen.add(fingerprint(value))) {
+            throw new IOException("The API returned the same " + what
+                    + " twice; stopping to avoid an endless pagination loop");
         }
-        return null;
     }
 
-    private static JsonNode extractJsonPath(JsonNode node, String path)
+    private static String fingerprint(String value)
     {
-        if (path == null || path.isEmpty()) {
-            return node;
-        }
-        JsonNode current = node;
-        for (final String segment : path.split("\\.")) {
-            if (current == null || current.isNull()) {
-                return null;
+        try {
+            final byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            final StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (final byte b : digest) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
             }
-            if (current.isArray()) {
-                // ArrayNode.get(String) returns null — must use get(int)
-                try {
-                    current = current.get(Integer.parseInt(segment));
-                } catch (NumberFormatException e) {
-                    return null; // non-numeric key on an array — path not found
-                }
-            } else {
-                current = current.get(segment);
-            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
         }
-        return current;
     }
 }

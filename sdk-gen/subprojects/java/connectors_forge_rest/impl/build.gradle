@@ -90,6 +90,16 @@ dependencies {
   testImplementation group: 'junit', name: 'junit', version: project['junit.version']
 }
 
+// Opt-in large streaming tests/benchmarks: ./gradlew ...:test --tests '*TestStreamMemory' -Drest.stream.big=true
+test {
+  systemProperty 'rest.stream.big', System.getProperty('rest.stream.big', 'false')
+  if (Boolean.getBoolean('rest.stream.big')) {
+    testLogging {
+      showStandardStreams = true
+    }
+  }
+}
+
 apply from: "${rootProject.projectDir}/publish.gradle"
 
 // Made with Bob

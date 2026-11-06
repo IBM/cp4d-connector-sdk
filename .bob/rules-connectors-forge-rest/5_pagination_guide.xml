@@ -130,6 +130,9 @@
       <important>
         The next_cursor_path uses dot notation to navigate nested JSON.
         Example: "pagination.next_cursor" looks for response.pagination.next_cursor
+        Numeric array positions are written as plain numbers (e.g., "pages.0.token").
+        The cursor is read while the response is streamed; it may appear before or after the data.
+        The path must not lie inside the data node ($data_path).
       </important>
     </type>
 
@@ -164,7 +167,9 @@
       </example_apis>
       <important>
         This is the simplest pagination type - the connector automatically
-        extracts the next page URL from the Link header.
+        extracts the next page URL from the Link header. All Link header lines are read, commas inside
+        &lt;URI&gt; and quoted values are handled, and relation lists such as rel="prev next" are understood.
+        A relative URI is resolved against the URL of the page that returned it.
       </important>
     </type>
 
@@ -200,7 +205,9 @@
       </example_apis>
       <important>
         The next_url_path uses dot notation to navigate nested JSON.
-        The URL can be absolute or relative.
+        The URL can be absolute or relative; a relative URL is resolved against the URL of the page that
+        returned it. The URL is read while the response is streamed and may appear before or after the data.
+        The path must not lie inside the data node ($data_path).
       </important>
     </type>
   </pagination_types>
@@ -211,6 +218,22 @@
     <rule>Each table can have its own pagination configuration</rule>
     <rule>If API doesn't use pagination, omit $pagination entirely</rule>
   </configuration_placement>
+
+  <runtime_behavior>
+    <title>Streaming, limits and safety rules applied by the engine</title>
+    <rule>Responses are parsed incrementally and records are written as soon as they are complete; memory does not depend on the page size, the number of pages or the number of records.</rule>
+    <rule>$data_path may be a root array, a root object (one record), or a dot path such as "response.data" (numeric segments index arrays). A null data node is an empty page; a missing path or a scalar is an error.</rule>
+    <rule>Only objects that are direct elements of the data array are records; objects nested in other arrays are ignored.</rule>
+    <rule>Pagination is validated before the first request: page_size must be greater than 0 whenever limit_param is set (and for offset/page), and offset_param, page_param, cursor_param, next_cursor_path and next_url_path are required for the types that use them.</rule>
+    <rule>Pagination parameters replace same-named parameters already present in the request URL and are percent-encoded.</rule>
+    <rule>offset and page pagination stop when a page holds fewer than page_size records; with an exact multiple of page_size one extra (empty) request is made. cursor, next_url and link_header stop as soon as the server gives no continuation.</rule>
+    <rule>At most 10000 pages are read. If the API still announces more data at that point the request fails with an error instead of returning incomplete data.</rule>
+    <rule>A repeated cursor or next-page URL is treated as a pagination loop and fails the request.</rule>
+    <rule>Server-supplied next-page URLs and redirects must use http or https, must not contain user information and must not downgrade https to http. When authentication headers are configured, credentials are only sent to the origin (scheme, host, port) of the first request: a next-page URL on another origin is rejected, and a redirect to another origin is followed without credentials (at most 5 redirects).</rule>
+    <rule>Rows already written stay written if a later page or record fails: a failed request is not rolled back. A single record is never written partially.</rule>
+    <rule>Logs and error messages never contain query strings, cursors, tokens or response values.</rule>
+  </runtime_behavior>
+
 
   <complete_examples>
     <example>
@@ -247,22 +270,22 @@
     </example>
 
     <example>
-      <title>Stripe Charges (Cursor-Based)</title>
-      <api_docs>https://stripe.com/docs/api/charges/list</api_docs>
+      <title>Orders (Cursor-Based, cursor in response metadata)</title>
       <configuration>
         <![CDATA[
 {
-  "$connector_name": "Stripe API Connector",
-  "$hostname": "https://api.stripe.com",
+  "$connector_name": "Orders API Connector",
+  "$hostname": "https://api.example.com",
   "$authentication": "api_key",
   "$tables": {
-    "CHARGES": {
-      "$path": ["/v1/charges"],
+    "ORDERS": {
+      "$path": ["/v1/orders"],
       "$data_path": "data",
       "$pagination": {
         "type": "cursor",
-        "cursor_param": "starting_after",
-        "next_cursor_path": "data.-1.id",
+        "cursor_param": "cursor",
+        "next_cursor_path": "meta.next_cursor",
+        "limit_param": "limit",
         "page_size": 100
       },
       "id": "VARCHAR,$key",
@@ -276,8 +299,9 @@
         ]]>
       </configuration>
       <note>
-        Stripe uses the last item's ID as the cursor.
-        The path "data.-1.id" means: get the last item in the data array, then get its id field.
+        The response looks like {"data": [...], "meta": {"next_cursor": "abc"}}. The cursor may appear before or
+        after the data array. The cursor must be a value of its own in the response; it cannot be derived from a
+        field of the last record, and next_cursor_path must not lie inside the data node.
       </note>
     </example>
 
