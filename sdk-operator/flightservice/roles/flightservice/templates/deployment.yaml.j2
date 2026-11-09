@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: '{{ ansible_operator_meta.name }}-flightservice'
-        image: "{{ docker_image }}"
+        image: {{ docker_image | to_json }}
         ports:
         - containerPort: 9443
           protocol: TCP
