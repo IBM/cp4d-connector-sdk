@@ -52,15 +52,23 @@ spec:
                     properties:
                       limits:
                         type: string
+                        maxLength: 16
+                        pattern: '^[0-9]+(\.[0-9]+)?m?$'
                       requests:
                         type: string
+                        maxLength: 16
+                        pattern: '^[0-9]+(\.[0-9]+)?m?$'
                   memory:
                     type: object
                     properties:
                       limits:
                         type: string
+                        maxLength: 16
+                        pattern: '^[0-9]+(\.[0-9]+)?(Ki|Mi|Gi|Ti)?$'
                       requests:
                         type: string
+                        maxLength: 16
+                        pattern: '^[0-9]+(\.[0-9]+)?(Ki|Mi|Gi|Ti)?$'
           status:
             description: Status defines the observed state of FlightService
             type: object
