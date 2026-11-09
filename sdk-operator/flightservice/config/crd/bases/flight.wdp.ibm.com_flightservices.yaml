@@ -61,7 +61,6 @@ spec:
                         type: string
                       requests:
                         type: string
-            additionalProperties: false
           status:
             description: Status defines the observed state of FlightService
             type: object
