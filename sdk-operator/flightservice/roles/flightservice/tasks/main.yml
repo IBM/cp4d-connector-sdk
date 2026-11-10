@@ -1,8 +1,23 @@
 ---
 # tasks file for FlightService
+- name: "Render deployment definition for {{ ansible_operator_meta.name }}-flightservice"
+  set_fact:
+    _deployment_def: "{{ lookup('template', 'deployment.yaml.j2') | from_yaml }}"
+
+- name: "Assert rendered namespace matches CR namespace"
+  assert:
+    that: _deployment_def.metadata.namespace == ansible_operator_meta.namespace
+    fail_msg: >-
+      Rendered deployment namespace '{{ _deployment_def.metadata.namespace }}'
+      does not match CR namespace '{{ ansible_operator_meta.namespace }}'.
+      Possible template injection attempt.
+
 - name: "Create deployment {{ ansible_operator_meta.name }}-flightservice"
   kubernetes.core.k8s:
-    definition: "{{ lookup('template','deployment.yaml.j2') | from_yaml }}"
+    definition: "{{ _deployment_def }}"
+    namespace: "{{ ansible_operator_meta.namespace }}"
+
 - name: "Create service {{ ansible_operator_meta.name }}-flightservice"
   kubernetes.core.k8s:
     definition: "{{ lookup('template','service.yaml.j2') | from_yaml }}"
+    namespace: "{{ ansible_operator_meta.namespace }}"

@@ -10,10 +10,6 @@ rules:
   - apiGroups:
       - ""
     resources:
-      - secrets
-      - pods
-      - pods/exec
-      - pods/log
       - services
     verbs:
       - create
