@@ -107,7 +107,8 @@ public class ConnectorIntegTest {
         final String csv = System.getProperty("integ.configs", "");
         if (csv.isEmpty()) {
             throw new IllegalArgumentException("No configuration files found. "
-                    + "Please specify configurations via -Pinteg.configs or create *.properties files in src/intTest/resources/");
+                    + "Please specify configurations via -Pinteg.configs or create *.properties files in the DSL resources directory "
+                    + "(sdk-gen/subprojects/connectors_forge_rest/src/main/resources/)");
         }
         return Arrays.stream(csv.split(","))
                 .map(String::strip)
@@ -266,12 +267,16 @@ public class ConnectorIntegTest {
     }
 
     /**
-     * The live Arrow schema column set exactly matches the connector JSON field list (R-02, R-03),
-     * and live Arrow field types satisfy {@link ArrowTypeChecker} for every column (R-04).
+     * The Arrow schema column set exactly matches the connector JSON field list (R-02, R-03),
+     * and Arrow field types satisfy {@link ArrowTypeChecker} for every column (R-04).
      *
      * <p>This test makes a real HTTP call; it fails if the API is unreachable.
-     * R-03 catches cases where the API returns fields the JSON does not declare.
-     * R-04 catches cases where the connector maps a live JSON value to the wrong Arrow type.
+     *
+     * <p>Note: the schema is built from the connector JSON itself, not inferred from the API
+     * response. These checks therefore guard against bugs in the connector's schema building
+     * and type mapping. They cannot detect a JSON field that does not exist in the API, nor
+     * fields the API returns that the JSON does not declare. See R-10
+     * ({@link #testNoAllNullColumns()}) for the former.
      */
     @Test
     public void testSchemaMatchesDescriptor() throws Exception {
@@ -300,17 +305,17 @@ public class ConnectorIntegTest {
                 arrowNames.add(f.getName());
             }
 
-            // R-02: every JSON field must appear in the live schema
+            // R-02: every JSON field must appear in the schema
             for (final RestFieldDefinition fd : fieldDefs) {
                 if (!arrowNames.contains(fd.getName())) {
-                    failures.add("  " + tableName + ": [R-02] column missing from live schema: " + fd.getName());
+                    failures.add("  " + tableName + ": [R-02] column missing from schema: " + fd.getName());
                 }
             }
-            // R-03: every live field must be declared in connector JSON
-            // R-04: live Arrow type must match the DSL-declared type
+            // R-03: every schema field must be declared in connector JSON
+            // R-04: Arrow type must match the type the connector's type mapper derives from the DSL type
             for (final Field f : schema.getFields()) {
                 if (!jsonNames.contains(f.getName())) {
-                    failures.add("  " + tableName + ": [R-03] unexpected live column not in JSON: " + f.getName());
+                    failures.add("  " + tableName + ": [R-03] unexpected schema column not in JSON: " + f.getName());
                     continue;
                 }
                 final RestFieldDefinition fd = byName.get(f.getName());
@@ -441,6 +446,54 @@ public class ConnectorIntegTest {
             }
         }
         assertTrue("Data constraint violations:\n" + join(failures), failures.isEmpty());
+    }
+
+    /**
+     * DSL columns must not be null in every sampled row (R-10).
+     *
+     * <p>The Arrow schema is built from the DSL, so a field name that does not exist in the API
+     * response still yields a column, filled with nulls. This is the only check that notices it.
+     * It cannot tell a misspelled field from a field the API legitimately returns as null, so
+     * set {@code fail.on.all.null.columns=false} in the {@code .properties} file for APIs with
+     * sparse fields; the check then only logs a warning. Defaults to failing.
+     * Tables that returned 0 rows are skipped.
+     */
+    @Test
+    public void testNoAllNullColumns() throws Exception {
+        final List<String> failures = new ArrayList<>();
+        for (final Entry<String, RestTableDefinition> e : tablesToTest()) {
+            final String tableName = e.getKey();
+            final List<Map<String, Object>> rows;
+            try {
+                rows = readRows(tableName, session.config().rowLimit());
+            } catch (Exception ex) {
+                failures.add("  " + tableName + ": exception: " + describeException(ex));
+                continue;
+            }
+            if (rows.isEmpty()) {
+                continue;
+            }
+
+            for (final RestFieldDefinition fd : e.getValue().getFields()) {
+                boolean allNull = true;
+                for (final Map<String, Object> row : rows) {
+                    if (row.get(fd.getName()) != null) {
+                        allNull = false;
+                        break;
+                    }
+                }
+                if (allNull) {
+                    if (session.config().failOnAllNullColumns()) {
+                        failures.add("  " + tableName + "." + fd.getName()
+                                + ": [R-10] null in all " + rows.size() + " sampled rows");
+                    } else {
+                        LOGGER.warn("{}.{}: [R-10] null in all {} sampled rows",
+                                tableName, fd.getName(), rows.size());
+                    }
+                }
+            }
+        }
+        assertTrue("All-null columns or read errors:\n" + join(failures), failures.isEmpty());
     }
 
     /**
