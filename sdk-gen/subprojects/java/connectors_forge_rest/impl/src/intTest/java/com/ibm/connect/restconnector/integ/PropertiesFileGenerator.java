@@ -142,6 +142,7 @@ final class PropertiesFileGenerator {
             sb.append("# tables=").append(tableHint).append('\n');
         }
         sb.append("# fail.on.empty.tables=false\n");
+        sb.append("# fail.on.all.null.columns=true\n");
         sb.append("# request.delay.ms=0\n");
         sb.append("# Milliseconds to sleep before each HTTP request. Set >0 for rate-limited APIs.\n");
     }
