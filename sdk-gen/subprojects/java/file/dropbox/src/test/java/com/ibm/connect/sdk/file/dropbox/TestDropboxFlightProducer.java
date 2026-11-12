@@ -11,7 +11,9 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeNotNull;
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -87,12 +89,40 @@ public class TestDropboxFlightProducer extends FileTestSuite
     private static final String DROPBOX_APP_KEY = TestConfig.get("file.dropbox.app_key");
     private static final String DROPBOX_APP_SECRET = TestConfig.get("file.dropbox.app_secret");
 
-    /** Skip every test when Dropbox credentials are absent from tests.properties. */
+    /** Content of the seed CSV that the inherited read tests use as the "known readable file". */
+    private static final String SEED_CSV = "year,make,model\n2012,Tesla,S\n2015,Chevy,Volt";
+
+    private static boolean seeded;
+
+    /**
+     * Skip every test when Dropbox credentials are absent from tests.properties, and
+     * make sure the known read file exists in the work folder.
+     */
     @Before
-    public void setUp()
+    public void setUp() throws Exception
     {
         assumeNotNull("Dropbox credentials not configured — set file.dropbox.access_token in tests.properties",
                 DROPBOX_ACCESS_TOKEN);
+        seedKnownFile();
+    }
+
+    /**
+     * Uploads {@code suite_known_read.csv} to the Dropbox work folder once per run,
+     * directly through the Dropbox SDK. Existing files are overwritten, and missing
+     * parent folders are created by Dropbox.
+     */
+    private void seedKnownFile() throws Exception
+    {
+        final String knownFilePath = getKnownFilePath();
+        if (seeded || knownFilePath == null) {
+            return;
+        }
+        try (DropboxConnector connector = new DropboxConnector(createConnectionProperties())) {
+            connector.connect();
+            connector.uploadFile(knownFilePath, new ByteArrayInputStream(SEED_CSV.getBytes(StandardCharsets.UTF_8)));
+        }
+        seeded = true;
+        LOGGER.info("Seeded Dropbox file {}", knownFilePath);
     }
 
     @BeforeClass
@@ -118,9 +148,50 @@ public class TestDropboxFlightProducer extends FileTestSuite
         client = testFlight.getClient();
     }
 
+    /**
+     * Names of the files and folders that the scenarios and inherited tests create
+     * in the work folder. Only these are removed, because the work folder itself
+     * may hold other content.
+     */
+    private static boolean isTestArtifact(String name)
+    {
+        return name.startsWith("suite_") || name.endsWith("_test.csv") || "test_binary.bin".equals(name) || "test_folder".equals(name);
+    }
+
+    /** Deletes the test artifacts from the Dropbox work folder. Failures are only logged. */
+    private static void cleanUpWorkDir()
+    {
+        final String configured = TestConfig.get("file.dropbox.test_work_dir");
+        if (DROPBOX_ACCESS_TOKEN == null && DROPBOX_REFRESH_TOKEN == null || configured == null || configured.trim().isEmpty()) {
+            return;
+        }
+        final ConnectionProperties props = new ConnectionProperties();
+        if (DROPBOX_ACCESS_TOKEN != null) {
+            props.put("access_token", DROPBOX_ACCESS_TOKEN);
+        }
+        if (DROPBOX_REFRESH_TOKEN != null) {
+            props.put("refresh_token", DROPBOX_REFRESH_TOKEN);
+        }
+        if (DROPBOX_APP_KEY != null) {
+            props.put("app_key", DROPBOX_APP_KEY);
+        }
+        if (DROPBOX_APP_SECRET != null) {
+            props.put("app_secret", DROPBOX_APP_SECRET);
+        }
+        try (DropboxConnector connector = new DropboxConnector(props)) {
+            connector.connect();
+            final int deleted = connector.deleteChildren(configured.trim(), TestDropboxFlightProducer::isTestArtifact);
+            LOGGER.info("Removed {} test artifact(s) from Dropbox folder {}", deleted, configured.trim());
+        }
+        catch (Exception e) {
+            LOGGER.error("Failed to clean Dropbox work folder {}: {}", configured, e.getMessage(), e);
+        }
+    }
+
     @AfterClass
     public static void tearDownOnce()
     {
+        cleanUpWorkDir();
         try {
             testFlight.close();
         }
@@ -174,7 +245,7 @@ public class TestDropboxFlightProducer extends FileTestSuite
     protected String getContainerPath()
     {
         final String workDir = getWorkDir();
-        return workDir != null ? workDir : "/";
+        return workDir != null ? "/" + workDir : "/";
     }
 
     @Override
@@ -183,7 +254,7 @@ public class TestDropboxFlightProducer extends FileTestSuite
         final DiscoveredAssetInteractionProperties props = new DiscoveredAssetInteractionProperties();
         final String workDir = getWorkDir();
         if (workDir != null) {
-            props.put("file_name", workDir + "/suite_known_read.csv");
+            props.put("file_name", "/" + workDir + "/suite_known_read.csv");
         }
         return props;
     }
@@ -192,7 +263,7 @@ public class TestDropboxFlightProducer extends FileTestSuite
     protected String getKnownFilePath()
     {
         final String workDir = getWorkDir();
-        return workDir != null ? workDir + "/suite_known_read.csv" : null;
+        return workDir != null ? "/" + workDir + "/suite_known_read.csv" : null;
     }
 
     @Override
@@ -209,7 +280,7 @@ public class TestDropboxFlightProducer extends FileTestSuite
             return null;
         }
         final DiscoveredAssetInteractionProperties props = new DiscoveredAssetInteractionProperties();
-        props.put("file_name", workDir + "/suite_write_" + uniqueSuffix + ".csv");
+        props.put("file_name", "/" + workDir + "/suite_write_" + uniqueSuffix + ".csv");
         props.put("first_line_header", "true");
         return props;
     }
@@ -301,7 +372,7 @@ public class TestDropboxFlightProducer extends FileTestSuite
         request.setDatasourceTypeName(getDatasourceTypeName());
         request.setConnectionProperties(createConnectionProperties());
         final ConnectionActionConfiguration inputProps = new ConnectionActionConfiguration();
-        inputProps.put(DropboxConnector.ACTION_PATH_PROP, getWorkDir());
+        inputProps.put(DropboxConnector.ACTION_PATH_PROP, "/" + getWorkDir());
         request.setRequestProperties(inputProps);
 
         final Iterator<Result> iter = getClient().doAction(

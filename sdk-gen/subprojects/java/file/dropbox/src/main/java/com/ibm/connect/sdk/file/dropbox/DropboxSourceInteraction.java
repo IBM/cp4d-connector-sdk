@@ -45,6 +45,9 @@ public class DropboxSourceInteraction extends FileSourceInteraction
     private static final String CONTENT_FIELD_NAME = "content";
     private static final int DEFAULT_BATCH_SIZE = 1000;
 
+    /** Largest file read into memory in raw mode when no {@code byte_limit} is given. */
+    private static final long DEFAULT_RAW_BYTE_LIMIT = 100L * 1024 * 1024;
+
     private final DropboxConnector connector;
     private final String fileName;
     private final boolean rawMode;
@@ -104,6 +107,9 @@ public class DropboxSourceInteraction extends FileSourceInteraction
     @Override
     protected String getFilename()
     {
+        if (tempFilename != null) {
+            return tempFilename;
+        }
         try {
             final String fileFormat = getInteractionProperties().getProperty(PROP_FILE_FORMAT, FileUtils.FILE_FORMAT_DELIMITED); // NOSONAR
             final String baseName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
@@ -140,18 +146,15 @@ public class DropboxSourceInteraction extends FileSourceInteraction
         }
         rawRecordDelivered = true;
         try {
-            // Respect byte_limit before streaming.
+            // The whole file is held in memory, so always enforce a limit.
             final String byteLimitStr = getInteractionProperties().getProperty("byte_limit");
-            if (byteLimitStr != null) {
-                final long byteLimit = Utils.parseByteLimit(byteLimitStr);
-                final long fileSize = connector.getFileSize(fileName);
-                if (fileSize > byteLimit) {
-                    throw new IllegalArgumentException(
-                            "File size " + fileSize + " exceeds byte_limit " + byteLimit);
-                }
+            final long byteLimit = byteLimitStr != null ? Utils.parseByteLimit(byteLimitStr) : DEFAULT_RAW_BYTE_LIMIT;
+            final long fileSize = connector.getFileSize(fileName);
+            if (fileSize > byteLimit) {
+                throw new IllegalArgumentException("File size " + fileSize + " exceeds byte_limit " + byteLimit);
             }
             try (InputStream fileStream = connector.openFile(fileName)) {
-                final byte[] bytes = readAllBytes(fileStream);
+                final byte[] bytes = fileStream.readAllBytes();
                 final Record rec = new Record(1);
                 rec.appendValue(bytes);
                 return rec;
@@ -160,20 +163,6 @@ public class DropboxSourceInteraction extends FileSourceInteraction
         catch (Exception e) {
             throw new UnsupportedOperationException(e.getMessage(), e);
         }
-    }
-
-    /**
-     * Reads all bytes from {@code in} using a fixed-size buffer.
-     */
-    private static byte[] readAllBytes(InputStream in) throws java.io.IOException
-    {
-        final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        final byte[] buf = new byte[65536];
-        int n;
-        while ((n = in.read(buf)) != -1) {
-            out.write(buf, 0, n);
-        }
-        return out.toByteArray();
     }
 
     /**

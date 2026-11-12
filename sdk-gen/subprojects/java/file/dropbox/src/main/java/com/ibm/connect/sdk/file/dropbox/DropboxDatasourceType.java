@@ -8,7 +8,6 @@ package com.ibm.connect.sdk.file.dropbox;
 import java.util.Collections;
 
 import com.ibm.connect.sdk.file.FileConnector;
-
 import com.ibm.connect.sdk.file.FileLabels;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeAction;
 import com.ibm.wdp.connect.common.sdk.api.models.CustomDatasourceTypeActionProperties;

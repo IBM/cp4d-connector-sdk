@@ -29,7 +29,11 @@ dependencies {
     exclude group: 'com.google.j2objc'
     exclude group: 'org.checkerframework'
   }
-  implementation group: 'com.dropbox.core', name: 'dropbox-core-sdk', version: '7.0.0'
+  // Dropbox SDK 7.x (MIT, Java 8+). 8.x requires Java 21, but this project targets Java 11.
+  // jsr305 is only needed for annotations; excluded like the Guava one above.
+  implementation(group: 'com.dropbox.core', name: 'dropbox-core-sdk', version: '7.1.1') {
+    exclude group: 'com.google.code.findbugs'
+  }
 
   testImplementation project(':wdp-connect-sdk-gen-java-test')
 
@@ -48,18 +52,19 @@ test {
   systemProperties.remove("java.endorsed.dirs")
   systemProperties['buildDir'] = project.buildDir.absolutePath
   systemProperties['spark.driver.bindAddress'] = '127.0.0.1'
+  systemProperties['spark.driver.host'] = '127.0.0.1'
   testLogging {
     events "PASSED", "SKIPPED", "FAILED"
   }
 }
 
 task verifyTestWorkDir {
-  description = 'Provisions the Dropbox test work folder (remote folder lifecycle managed in @BeforeClass).'
+  description = 'Placeholder required by the file test framework. The Dropbox work folder is created on demand and test files are removed by TestDropboxFlightProducer (@Before / @AfterClass).'
   group = 'verification'
 }
 
 task cleanTestWorkDir {
-  description = 'Cleans the Dropbox test work folder (remote folder lifecycle managed in @AfterClass).'
+  description = 'Placeholder required by the file test framework. Cleanup of the Dropbox work folder is done by TestDropboxFlightProducer (@AfterClass).'
   group = 'verification'
 }
 

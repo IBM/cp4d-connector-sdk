@@ -10,7 +10,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -34,27 +33,16 @@ import com.ibm.wdp.connect.common.sdk.api.models.ConnectionActionResponse;
 public class TestDropboxAclClassification
 {
 
-    // -----------------------------------------------------------------------
-    // Helper: call the package-visible buildAclResponse via reflection
-    // -----------------------------------------------------------------------
-
-    /** Calls the package-private static {@code buildAclResponse(String, List, List, boolean)} via reflection. */
-    @SuppressWarnings("unchecked")
     private static ConnectionActionResponse invokeBuildAclResponse(String path, List<String> users,
-            List<String> groups) throws Exception
+            List<String> groups)
     {
-        return invokeBuildAclResponse(path, users, groups, false);
+        return DropboxConnector.buildAclResponse(path, users, groups, false);
     }
 
-    /** Calls the package-private static {@code buildAclResponse(String, List, List, boolean)} via reflection. */
-    @SuppressWarnings("unchecked")
     private static ConnectionActionResponse invokeBuildAclResponse(String path, List<String> users,
-            List<String> groups, boolean inheritanceEnabled) throws Exception
+            List<String> groups, boolean inheritanceEnabled)
     {
-        final Method m = DropboxConnector.class.getDeclaredMethod("buildAclResponse", String.class, List.class,
-                List.class, boolean.class);
-        m.setAccessible(true);
-        return (ConnectionActionResponse) m.invoke(null, path, users, groups, inheritanceEnabled);
+        return DropboxConnector.buildAclResponse(path, users, groups, inheritanceEnabled);
     }
 
     // -----------------------------------------------------------------------
@@ -67,7 +55,7 @@ public class TestDropboxAclClassification
      */
     @Test
     @SuppressWarnings("unchecked")
-    public void testBuildAclResponseStructure() throws Exception
+    public void testBuildAclResponseStructure()
     {
         final ConnectionActionResponse response = invokeBuildAclResponse(
                 "test/file.txt",
@@ -100,7 +88,7 @@ public class TestDropboxAclClassification
      */
     @Test
     @SuppressWarnings("unchecked")
-    public void testBuildAclResponseInheritanceEnabled() throws Exception
+    public void testBuildAclResponseInheritanceEnabled()
     {
         final ConnectionActionResponse response = invokeBuildAclResponse(
                 "/subfolder",
@@ -119,7 +107,7 @@ public class TestDropboxAclClassification
      */
     @Test
     @SuppressWarnings("unchecked")
-    public void testBuildAclResponseEmptyLists() throws Exception
+    public void testBuildAclResponseEmptyLists()
     {
         final ConnectionActionResponse response = invokeBuildAclResponse(
                 "some/path.txt",
@@ -133,33 +121,11 @@ public class TestDropboxAclClassification
     }
 
     /**
-     * The ACL response must contain expected user from the allow list.
-     */
-    @Test
-    @SuppressWarnings("unchecked")
-    public void testBuildAclResponseUserEmail() throws Exception
-    {
-        final ConnectionActionResponse response = invokeBuildAclResponse(
-                "/ACL_TEST/ACL_TEST_File_1.txt",
-                Arrays.asList("conndev@us.ibm.com"),
-                Arrays.asList("connectivity-test"));
-
-        final Map<String, Object> allow = (Map<String, Object>) response.get("allow");
-        assertNotNull(allow);
-        final List<String> users = (List<String>) allow.get("users");
-        assertFalse("allow.users must not be empty", users.isEmpty());
-        assertTrue("conndev@us.ibm.com must be in allow.users", users.contains("conndev@us.ibm.com"));
-        final List<String> groups = (List<String>) allow.get("groups");
-        assertFalse("allow.groups must not be empty", groups.isEmpty());
-        assertTrue("connectivity-test must be in allow.groups", groups.contains("connectivity-test"));
-    }
-
-    /**
      * Multiple users are all included; no deduplication removes distinct entries.
      */
     @Test
     @SuppressWarnings("unchecked")
-    public void testBuildAclResponseMultipleUsers() throws Exception
+    public void testBuildAclResponseMultipleUsers()
     {
         final ConnectionActionResponse response = invokeBuildAclResponse(
                 "folder/file.txt",

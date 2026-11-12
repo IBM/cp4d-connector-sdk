@@ -6,11 +6,15 @@
 package com.ibm.connect.sdk.file.dropbox;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Properties;
 
 import com.ibm.connect.sdk.api.Record;
+import com.ibm.connect.sdk.file.FileConnector;
 import com.ibm.connect.sdk.file.FileMsgs;
 import com.ibm.connect.sdk.file.FileTargetInteraction;
 import com.ibm.connect.sdk.file.FileUtils;
@@ -42,7 +46,6 @@ import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
 public class DropboxTargetInteraction extends FileTargetInteraction
 {
     private static final String CONTENT_FIELD_NAME = "content";
-    private static final String FILE_FORMAT_BINARY = "binary";
 
     private final DropboxConnector connector;
     private final String fileName;
@@ -70,7 +73,7 @@ public class DropboxTargetInteraction extends FileTargetInteraction
         }
 
         final String fileFormat = interactionProperties.getProperty("file_format");
-        rawMode = FILE_FORMAT_BINARY.equals(fileFormat)
+        rawMode = FileConnector.FILE_FORMAT_BINARY.equals(fileFormat)
                 || (fileFormat == null && isSingleVarbinarySchema(asset));
     }
 
@@ -96,14 +99,17 @@ public class DropboxTargetInteraction extends FileTargetInteraction
     @Override
     protected String getFilename()
     {
+        if (tempFilename != null) {
+            return tempFilename;
+        }
         final Properties interactionProperties = getInteractionProperties();
         final String fileFormat = interactionProperties.getProperty("file_format", FileUtils.FILE_FORMAT_DELIMITED);
         final String baseName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
         try {
-            tempFilename = java.nio.file.Files.createTempFile(baseName, FileUtils.getFilenameExtension(fileFormat)).toAbsolutePath().toString();
+            tempFilename = Files.createTempFile(baseName, FileUtils.getFilenameExtension(fileFormat)).toAbsolutePath().toString();
             return tempFilename;
         }
-        catch (java.io.IOException e) {
+        catch (IOException e) {
             throw new UnsupportedOperationException(e.getMessage(), e);
         }
     }
@@ -161,7 +167,7 @@ public class DropboxTargetInteraction extends FileTargetInteraction
     public CustomFlightAssetDescriptor putWrapup() throws Exception
     {
         if (!rawMode && tempFilename != null) {
-            try (InputStream in = java.nio.file.Files.newInputStream(java.nio.file.Paths.get(tempFilename))) {
+            try (InputStream in = Files.newInputStream(Paths.get(tempFilename))) {
                 connector.uploadFile(fileName, in);
             }
         }

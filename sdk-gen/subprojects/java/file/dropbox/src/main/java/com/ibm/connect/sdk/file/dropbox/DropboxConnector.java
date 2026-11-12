@@ -7,12 +7,18 @@ package com.ibm.connect.sdk.file.dropbox;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import org.apache.arrow.flight.Ticket;
 import org.slf4j.Logger;
@@ -21,12 +27,17 @@ import com.dropbox.core.DbxException;
 import com.dropbox.core.DbxRequestConfig;
 import com.dropbox.core.oauth.DbxCredential;
 import com.dropbox.core.v2.DbxClientV2;
+import com.dropbox.core.v2.files.CommitInfo;
 import com.dropbox.core.v2.files.FileMetadata;
 import com.dropbox.core.v2.files.FolderMetadata;
+import com.dropbox.core.v2.files.ListFolderErrorException;
 import com.dropbox.core.v2.files.ListFolderResult;
 import com.dropbox.core.v2.files.Metadata;
+import com.dropbox.core.v2.files.UploadSessionCursor;
+import com.dropbox.core.v2.files.WriteMode;
 import com.dropbox.core.v2.sharing.GroupMembershipInfo;
 import com.dropbox.core.v2.sharing.SharedFileMembers;
+import com.dropbox.core.v2.sharing.SharedFolderMembers;
 import com.dropbox.core.v2.sharing.UserMembershipInfo;
 import com.google.common.collect.ImmutableList;
 import com.ibm.connect.sdk.file.FileConnector;
@@ -64,6 +75,12 @@ public class DropboxConnector extends FileConnector
      */
     static final String ACTION_PATH_PROP = "path";
 
+    /**
+     * Chunk size for upload sessions. Dropbox requires every chunk except the last
+     * to be a multiple of 4 MiB.
+     */
+    private static final int UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
+
     private DbxClientV2 client;
 
     /**
@@ -90,7 +107,9 @@ public class DropboxConnector extends FileConnector
             final String appKey = connectionProperties.getProperty("app_key");
             final String appSecret = connectionProperties.getProperty("app_secret");
 
-            final DbxRequestConfig config = DbxRequestConfig.newBuilder("cp4d-dropbox-connector/1.0").build();
+            // Auto-retry transparently handles rate limiting (HTTP 429) and transient errors.
+            final DbxRequestConfig config = DbxRequestConfig.newBuilder("cp4d-dropbox-connector/1.0")
+                    .withAutoRetryEnabled().build();
             final DbxClientV2 newClient;
 
             if (refreshToken != null && !refreshToken.isEmpty()
@@ -114,7 +133,9 @@ public class DropboxConnector extends FileConnector
             // Dropbox SDK uses lazy authentication and only validates the token on the
             // first real API call — this ensures bad credentials surface immediately
             // during ACTION_TEST (connect()) rather than silently succeeding.
-            newClient.users().getCurrentAccount();
+            // Listing the root folder needs only the files.metadata.read scope that the
+            // connector requires anyway (users/get_current_account needs account_info.read).
+            newClient.files().listFolderBuilder("").withLimit(1L).start();
 
             // Only assign the field once validated, so a failed connect() does not leave
             // a non-null client that would make the next connect() skip validation.
@@ -173,23 +194,85 @@ public class DropboxConnector extends FileConnector
     void uploadFile(String filePath, InputStream content) throws Exception
     {
         final String normalized = normalizePath(filePath);
-        client.files().uploadBuilder(normalized)
-                .withMode(com.dropbox.core.v2.files.WriteMode.OVERWRITE)
-                .uploadAndFinish(content);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(FileMsgs.INVALID_PATH.format(filePath));
+        }
+        // A single upload request is limited to 150 MB, so content that does not fit in
+        // one chunk is sent through an upload session.
+        final byte[] firstChunk = content.readNBytes(UPLOAD_CHUNK_SIZE);
+        if (firstChunk.length < UPLOAD_CHUNK_SIZE) {
+            client.files().uploadBuilder(normalized)
+                    .withMode(WriteMode.OVERWRITE)
+                    .uploadAndFinish(new ByteArrayInputStream(firstChunk));
+        } else {
+            final String sessionId = client.files().uploadSessionStart()
+                    .uploadAndFinish(new ByteArrayInputStream(firstChunk)).getSessionId();
+            long offset = firstChunk.length;
+            byte[] chunk = content.readNBytes(UPLOAD_CHUNK_SIZE);
+            while (chunk.length == UPLOAD_CHUNK_SIZE) {
+                client.files().uploadSessionAppendV2(new UploadSessionCursor(sessionId, offset))
+                        .uploadAndFinish(new ByteArrayInputStream(chunk));
+                offset += chunk.length;
+                chunk = content.readNBytes(UPLOAD_CHUNK_SIZE);
+            }
+            final CommitInfo commitInfo = CommitInfo.newBuilder(normalized).withMode(WriteMode.OVERWRITE).build();
+            client.files().uploadSessionFinish(new UploadSessionCursor(sessionId, offset), commitInfo)
+                    .uploadAndFinish(new ByteArrayInputStream(chunk));
+        }
         LOGGER.info("Uploaded file to Dropbox: " + normalized);
     }
 
     /**
-     * Ensures the path starts with a leading slash, as required by the Dropbox API.
-     * An empty or null path is treated as the root and returned as an empty string
-     * (for listFolder calls).
+     * Deletes the files and (recursively) folders directly under {@code folderPath}
+     * whose names satisfy {@code nameFilter}. Used to clean up test data without
+     * touching other content of a shared folder. Does nothing if the folder does
+     * not exist.
+     *
+     * @param folderPath
+     *            Dropbox path of the parent folder
+     * @param nameFilter
+     *            selects the child names to delete
+     * @return the number of items deleted
+     */
+    int deleteChildren(String folderPath, Predicate<String> nameFilter) throws Exception
+    {
+        ListFolderResult result;
+        try {
+            result = client.files().listFolder(normalizePath(folderPath));
+        }
+        catch (ListFolderErrorException folderNotFound) {
+            return 0;
+        }
+        int deleted = 0;
+        while (true) {
+            for (final Metadata entry : result.getEntries()) {
+                if (nameFilter.test(entry.getName())) {
+                    client.files().deleteV2(entry.getPathLower());
+                    deleted++;
+                }
+            }
+            if (!result.getHasMore()) {
+                return deleted;
+            }
+            result = client.files().listFolderContinue(result.getCursor());
+        }
+    }
+
+    /**
+     * Ensures the path starts with a leading slash, as required by the Dropbox API,
+     * and strips trailing slashes. An empty or null path is treated as the root and
+     * returned as an empty string (for listFolder calls).
      */
     private static String normalizePath(String path)
     {
-        if (path == null || path.isEmpty() || "/".equals(path)) {
+        if (path == null) {
             return "";
         }
-        return path.startsWith("/") ? path : "/" + path;
+        final String trimmed = path.replaceAll("/+$", "");
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
     }
 
     /**
@@ -209,9 +292,31 @@ public class DropboxConnector extends FileConnector
         int totalSeen = 0;
         int added = 0;
 
-        ListFolderResult result = client.files().listFolder(folderPath);
+        ListFolderResult result;
+        try {
+            result = client.files().listFolder(folderPath);
+        }
+        catch (ListFolderErrorException folderError) {
+            // The path may identify a single file: describe it, including its detected
+            // format and schema, so the framework can complete the asset descriptor.
+            final Metadata metadata;
+            try {
+                metadata = client.files().getMetadata(folderPath);
+            }
+            catch (DbxException metadataError) {
+                throw folderError;
+            }
+            if (metadata instanceof FileMetadata) {
+                return Collections.singletonList(describeFile(path, (FileMetadata) metadata));
+            }
+            throw folderError;
+        }
         while (true) {
             for (final Metadata entry : result.getEntries()) {
+                // Skip entries that are neither files nor folders (e.g. deleted entries).
+                if (!(entry instanceof FolderMetadata) && !(entry instanceof FileMetadata)) {
+                    continue;
+                }
                 totalSeen++;
                 if (totalSeen <= offset) {
                     continue;
@@ -221,8 +326,7 @@ public class DropboxConnector extends FileConnector
                 }
                 final String itemName = entry.getName();
                 // Build canonical asset path.
-                final String basePath = (path == null || path.equals("/")) ? "" : (path.startsWith("/") ? path : "/" + path);
-                final String assetPath = basePath.isEmpty() ? "/" + itemName : basePath + "/" + itemName;
+                final String assetPath = folderPath + "/" + itemName;
 
                 if (entry instanceof FolderMetadata) {
                     descriptors.add(new CustomFlightAssetDescriptor()
@@ -250,6 +354,27 @@ public class DropboxConnector extends FileConnector
             result = client.files().listFolderContinue(result.getCursor());
         }
         return descriptors;
+    }
+
+    /**
+     * Builds a fully described file descriptor (size, MIME type, file format,
+     * delimited-file properties and fields) for a single file path.
+     */
+    private CustomFlightAssetDescriptor describeFile(String path, FileMetadata metadata) throws Exception
+    {
+        final String assetPath = normalizePath(path);
+        final DiscoveredAssetDetails details = new DiscoveredAssetDetails();
+        details.put("file_size", metadata.getSize());
+        final DiscoveredAssetInteractionProperties interactionProperties = new DiscoveredAssetInteractionProperties();
+        interactionProperties.put("file_name", assetPath);
+        final CustomFlightAssetDescriptor asset = new CustomFlightAssetDescriptor()
+                .name(metadata.getName())
+                .path(assetPath)
+                .assetType(fileAssetType())
+                .details(details)
+                .interactionProperties(interactionProperties);
+        addFileDetails(asset, assetPath);
+        return asset;
     }
 
     private DiscoveredAssetType folderAssetType()
@@ -318,121 +443,71 @@ public class DropboxConnector extends FileConnector
         final ConnectionActionResponse response = new ConnectionActionResponse();
         response.put("last_modified", fileMetadata.getServerModified().toInstant().toString());
         response.put("size", fileMetadata.getSize());
-        response.put("rev", fileMetadata.getRev());
-        response.put("id", fileMetadata.getId());
-        response.put("path", fileMetadata.getPathDisplay());
         return response;
     }
 
     /**
      * Executes the {@code get_acl} action for the given Dropbox path.
+     *
+     * <p>
+     * Failures are propagated: an empty ACL returned on error would be
+     * indistinguishable from "nobody has access" for ACL consumers.
      */
-    private ConnectionActionResponse performGetAcl(String path)
+    private ConnectionActionResponse performGetAcl(String path) throws Exception
     {
-        final List<String> allowUsers = new ArrayList<>();
-        final List<String> allowGroups = new ArrayList<>();
+        final Set<String> allowUsers = new LinkedHashSet<>();
+        final Set<String> allowGroups = new LinkedHashSet<>();
 
-        try {
-            final String normalized = normalizePath(path);
-            // Try to determine if path is a file by getting its metadata.
-            Metadata metadata = null;
-            try {
-                metadata = client.files().getMetadata(normalized);
-            }
-            catch (DbxException e) {
-                LOGGER.warn("Could not get metadata for path '{}': {}", path, e.getMessage());
-            }
+        final String normalized = normalizePath(path);
+        final Metadata metadata = client.files().getMetadata(normalized);
 
-            if (metadata instanceof FileMetadata) {
-                // Retrieve sharing members for the file, including inherited members from
-                // parent shared folders so that folder-level group memberships are reflected.
-                try {
-                    final SharedFileMembers members = client.sharing()
-                            .listFileMembersBuilder(normalized)
-                            .withIncludeInherited(Boolean.TRUE)
-                            .start();
-                    collectFileMembers(members, allowUsers, allowGroups);
-                }
-                catch (Exception e) {
-                    LOGGER.warn("Could not list file members for '{}': {}", path, e.getMessage());
-                }
-            } else if (metadata instanceof FolderMetadata) {
-                final FolderMetadata folderMetadata = (FolderMetadata) metadata;
-                // Retrieve sharing members for the folder.
-                try {
-                    final String folderId = folderMetadata.getId();
-                    final com.dropbox.core.v2.sharing.SharedFolderMembers members =
-                            client.sharing().listFolderMembers(folderId);
-                    collectFolderMembers(members, allowUsers, allowGroups);
-                }
-                catch (Exception e) {
-                    LOGGER.warn("Could not list folder members for '{}': {}", path, e.getMessage());
-                }
-                // Unshared subfolders inherit permissions from their parent.
-                final boolean isUnshared = folderMetadata.getSharedFolderId() == null
-                        || folderMetadata.getSharedFolderId().isEmpty();
-                return buildAclResponse(path, allowUsers, allowGroups, isUnshared);
-            }
+        if (metadata instanceof FileMetadata) {
+            // Include inherited members from parent shared folders so that folder-level
+            // group memberships are reflected.
+            final SharedFileMembers members = client.sharing()
+                    .listFileMembersBuilder(normalized)
+                    .withIncludeInherited(Boolean.TRUE)
+                    .start();
+            collectMembers(members.getUsers(), members.getGroups(), allowUsers, allowGroups);
+            return buildAclResponse(path, allowUsers, allowGroups, false);
         }
-        catch (Exception e) {
-            LOGGER.warn("Could not retrieve ACL for path '{}': {}", path, e.getMessage());
+        if (metadata instanceof FolderMetadata) {
+            final FolderMetadata folderMetadata = (FolderMetadata) metadata;
+            final String sharedFolderId = folderMetadata.getSharedFolderId();
+            final boolean isUnshared = sharedFolderId == null || sharedFolderId.isEmpty();
+            // Only shared folders have a member list; an unshared folder inherits its
+            // permissions from its parent.
+            if (!isUnshared) {
+                final SharedFolderMembers members = client.sharing().listFolderMembers(sharedFolderId);
+                collectMembers(members.getUsers(), members.getGroups(), allowUsers, allowGroups);
+            }
+            return buildAclResponse(path, allowUsers, allowGroups, isUnshared);
         }
-
-        return buildAclResponse(path, allowUsers, allowGroups, false);
+        throw new IllegalArgumentException(DropboxMsgs.FILE_NOT_FOUND.format(path));
     }
 
     /**
-     * Collects users and groups from a {@link SharedFileMembers} result.
+     * Collects distinct user identities (email, falling back to display name) and
+     * group names from the given membership lists.
      */
-    private static void collectFileMembers(SharedFileMembers members, List<String> users, List<String> groups)
+    private static void collectMembers(List<? extends UserMembershipInfo> userInfos, List<? extends GroupMembershipInfo> groupInfos,
+            Set<String> users, Set<String> groups)
     {
-        if (members.getUsers() != null) {
-            for (final UserMembershipInfo info : members.getUsers()) {
+        if (userInfos != null) {
+            for (final UserMembershipInfo info : userInfos) {
                 if (info.getUser() != null) {
                     final String email = info.getUser().getEmail();
                     final String identity = (email != null && !email.isEmpty()) ? email : info.getUser().getDisplayName();
-                    if (identity != null && !users.contains(identity)) {
+                    if (identity != null) {
                         users.add(identity);
                     }
                 }
             }
         }
-        if (members.getGroups() != null) {
-            for (final GroupMembershipInfo info : members.getGroups()) {
-                if (info.getGroup() != null) {
-                    final String groupName = info.getGroup().getGroupName();
-                    if (groupName != null && !groups.contains(groupName)) {
-                        groups.add(groupName);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Collects users and groups from a {@link com.dropbox.core.v2.sharing.SharedFolderMembers} result.
-     */
-    private static void collectFolderMembers(com.dropbox.core.v2.sharing.SharedFolderMembers members,
-            List<String> users, List<String> groups)
-    {
-        if (members.getUsers() != null) {
-            for (final UserMembershipInfo info : members.getUsers()) {
-                if (info.getUser() != null) {
-                    final String email = info.getUser().getEmail();
-                    final String identity = (email != null && !email.isEmpty()) ? email : info.getUser().getDisplayName();
-                    if (identity != null && !users.contains(identity)) {
-                        users.add(identity);
-                    }
-                }
-            }
-        }
-        if (members.getGroups() != null) {
-            for (final GroupMembershipInfo info : members.getGroups()) {
-                if (info.getGroup() != null) {
-                    final String groupName = info.getGroup().getGroupName();
-                    if (groupName != null && !groups.contains(groupName)) {
-                        groups.add(groupName);
-                    }
+        if (groupInfos != null) {
+            for (final GroupMembershipInfo info : groupInfos) {
+                if (info.getGroup() != null && info.getGroup().getGroupName() != null) {
+                    groups.add(info.getGroup().getGroupName());
                 }
             }
         }
@@ -445,8 +520,8 @@ public class DropboxConnector extends FileConnector
      *            {@code true} when the resource inherits permissions from its parent
      *            (e.g. an unshared subfolder)
      */
-    static ConnectionActionResponse buildAclResponse(String path, List<String> allowUsers, List<String> allowGroups,
-            boolean inheritanceEnabled)
+    static ConnectionActionResponse buildAclResponse(String path, Collection<String> allowUsers,
+            Collection<String> allowGroups, boolean inheritanceEnabled)
     {
         final ConnectionActionResponse response = new ConnectionActionResponse();
         response.put("path", path);
