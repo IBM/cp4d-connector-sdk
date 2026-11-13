@@ -96,15 +96,40 @@ public class JsonToArrowStream implements Closeable
      *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
      */
     public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
+            Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader)
+    {
+        this(url, dataPath, fieldDefs, authHeaders, paginationConfig, acceptHeader, null);
+    }
+
+    /**
+     * Creates a streaming instance with full configuration, an optional request body and default
+     * (safe) type parsing.
+     *
+     * @param url
+     *            the base URL to fetch
+     * @param dataPath
+     *            optional JSON path to the data array (may be null)
+     * @param fieldDefs
+     *            the field definitions
+     * @param authHeaders
+     *            optional authentication headers (may be null)
+     * @param paginationConfig
+     *            optional pagination configuration (may be null for non-paginated APIs)
+     * @param acceptHeader
+     *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
+     * @param requestBody
+     *            optional JSON request body; when non-null the request is sent as POST
+     */
+    public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
             Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader,
             String requestBody)
     {
-        this(url, dataPath, fieldDefs, authHeaders, paginationConfig, acceptHeader,
+        this(url, dataPath, fieldDefs, authHeaders, paginationConfig, acceptHeader, requestBody,
                 Boolean.getBoolean(STRICT_PARSING_PROPERTY));
     }
 
     /**
-     * Creates a streaming instance with full configuration and explicit strict mode.
+     * Creates a streaming instance with explicit strict mode and no request body.
      *
      * @param url
      *            the base URL to fetch
@@ -124,6 +149,34 @@ public class JsonToArrowStream implements Closeable
     public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
             Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader,
             boolean strict)
+    {
+        this(url, dataPath, fieldDefs, authHeaders, paginationConfig, acceptHeader, null, strict);
+    }
+
+    /**
+     * Creates a streaming instance with full configuration, an optional request body and explicit
+     * strict mode.
+     *
+     * @param url
+     *            the base URL to fetch
+     * @param dataPath
+     *            optional JSON path to the data array (may be null)
+     * @param fieldDefs
+     *            the field definitions
+     * @param authHeaders
+     *            optional authentication headers (may be null)
+     * @param paginationConfig
+     *            optional pagination configuration (may be null for non-paginated APIs)
+     * @param acceptHeader
+     *            value for the HTTP {@code Accept} header (e.g. {@code "application/json"})
+     * @param requestBody
+     *            optional JSON request body; when non-null the request is sent as POST
+     * @param strict
+     *            if {@code true}, parsing errors throw exceptions instead of logging warnings
+     */
+    public JsonToArrowStream(String url, String dataPath, List<RestFieldDefinition> fieldDefs,
+            Map<String, String> authHeaders, PaginationConfig paginationConfig, String acceptHeader,
+            String requestBody, boolean strict)
     {
         this.baseUrl = url;
         this.dataPath = dataPath;

@@ -25,6 +25,13 @@ public class RestTableDefinition
     private final List<RestFieldDefinition> fields;
 
     /**
+     * Creates a table definition without a request body (GET-based table).
+     */
+    public RestTableDefinition(String path, String dataPath, PaginationConfig paginationConfig,
+            List<PathKeyDef> pathKeys, List<RestFieldDefinition> fields)
+    { this(path, dataPath, null, paginationConfig, pathKeys, fields); }
+
+    /**
      * Creates a full table definition. Any of the optional parameters may be {@code null}.
      *
      * @param path
@@ -32,6 +39,9 @@ public class RestTableDefinition
      * @param dataPath
      *            optional dot-notation path to the data array inside the response; {@code null}
      *            if the response is a direct top-level array
+     * @param requestBody
+     *            optional JSON request body for POST-based APIs (e.g. GraphQL); {@code null}
+     *            for GET requests
      * @param paginationConfig
      *            optional pagination configuration; {@code null} for non-paginated tables
      * @param pathKeys
@@ -42,8 +52,9 @@ public class RestTableDefinition
      * @param fields
      *            the ordered list of field definitions for this table
      */
-    public RestTableDefinition(String path, String dataPath, PaginationConfig paginationConfig,
-            List<PathKeyDef> pathKeys, List<RestFieldDefinition> fields)
+    public RestTableDefinition(String path, String dataPath, String requestBody,
+            PaginationConfig paginationConfig, List<PathKeyDef> pathKeys,
+            List<RestFieldDefinition> fields)
     {
         this.path             = path;
         this.dataPath         = dataPath;
@@ -77,7 +88,7 @@ public class RestTableDefinition
     {
         return "RestTableDefinition{path='" + path + "', dataPath='" + dataPath
                 + "', paginationConfig=" + paginationConfig
-                + "', requestBody=" + (requestBody != null ? "'<body>'" : "null")
+                + ", requestBody=" + (requestBody != null ? "'<body>'" : "null")
                 + ", pathKeys=" + pathKeys
                 + ", fields=" + fields + "}";
     }
