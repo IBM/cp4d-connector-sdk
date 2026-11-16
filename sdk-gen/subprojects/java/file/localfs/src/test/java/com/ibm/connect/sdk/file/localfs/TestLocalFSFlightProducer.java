@@ -313,6 +313,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
                 "metadata_json.scenario",
                 "metadata_orc.scenario",
                 "metadata_parquet.scenario",
+                "metadata_avro.scenario",
                 "metadata_xml.scenario",
                 "negative_missing_file.scenario",
                 "discover_root.scenario",
@@ -325,6 +326,7 @@ public class TestLocalFSFlightProducer extends FileTestSuite
                 "read_json.scenario",
                 "read_orc.scenario",
                 "read_parquet.scenario",
+                "read_avro.scenario",
                 "read_xml.scenario");
     }
 

@@ -367,6 +367,12 @@ public class TestBoxFlightProducer extends FileTestSuite
                 "metadata_csv.scenario",
                 "read_csv.scenario",
                 "read_binary.scenario",
+                "metadata_orc.scenario",
+                "metadata_parquet.scenario",
+                "metadata_avro.scenario",
+                "read_orc.scenario",
+                "read_parquet.scenario",
+                "read_avro.scenario",
                 "readwrite_csv.scenario");
     }
 

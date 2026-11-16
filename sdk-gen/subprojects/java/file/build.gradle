@@ -34,6 +34,10 @@ dependencies {
     exclude group: 'org.apache.zookeeper'
     exclude group: 'org.slf4j'
   }
+  // Avro is an external Spark data source module (Apache-2.0); without it the "avro" file format fails.
+  implementation(group: 'org.apache.spark', name: 'spark-avro_2.13', version: project['spark.version']) {
+    exclude group: 'org.slf4j'
+  }
   implementation group: 'org.slf4j', name: 'slf4j-api', version: project['slf4j.version']
   implementation(group: 'com.fasterxml.jackson.module', name: 'jackson-module-scala_2.13', version: project['jackson.version']) {
     exclude group: 'org.scala-lang'

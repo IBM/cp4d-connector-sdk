@@ -1,0 +1,11 @@
+# ============================================================
+# GitHub — getFlightInfo for Avro file
+# ============================================================
+
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=connector/avro/src/test/resources/episodes.avro
+ExpectedInteractionProperty.file_format=avro
+ExpectedDetail.mime_type=application/octet-stream
+ExpectedSchemaFields=title|air_date|doctor

@@ -27,6 +27,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -162,7 +163,7 @@ public class TestDropboxFlightProducer extends FileTestSuite
     private static void cleanUpWorkDir()
     {
         final String configured = TestConfig.get("file.dropbox.test_work_dir");
-        if (DROPBOX_ACCESS_TOKEN == null && DROPBOX_REFRESH_TOKEN == null || configured == null || configured.trim().isEmpty()) {
+        if (DROPBOX_ACCESS_TOKEN == null && DROPBOX_REFRESH_TOKEN == null || StringUtils.isBlank(configured)) {
             return;
         }
         final ConnectionProperties props = new ConnectionProperties();
@@ -353,6 +354,12 @@ public class TestDropboxFlightProducer extends FileTestSuite
                 "metadata_csv.scenario",
                 "read_csv.scenario",
                 "read_binary.scenario",
+                "metadata_orc.scenario",
+                "metadata_parquet.scenario",
+                "metadata_avro.scenario",
+                "read_orc.scenario",
+                "read_parquet.scenario",
+                "read_avro.scenario",
                 "readwrite_csv.scenario");
     }
 
