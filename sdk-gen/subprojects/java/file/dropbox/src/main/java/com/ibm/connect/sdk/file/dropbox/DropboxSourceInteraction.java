@@ -1,0 +1,201 @@
+/* *************************************************** */
+/*                                                     */
+/* (C) Copyright IBM Corp. 2026                        */
+/*                                                     */
+/* *************************************************** */
+package com.ibm.connect.sdk.file.dropbox;
+
+import java.io.InputStream;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
+
+import org.apache.arrow.flight.Ticket;
+
+import com.ibm.connect.sdk.api.Record;
+import com.ibm.connect.sdk.api.TicketInfo;
+import com.ibm.connect.sdk.file.FileConnector;
+import com.ibm.connect.sdk.file.FileMsgs;
+import com.ibm.connect.sdk.file.FileSourceInteraction;
+import com.ibm.connect.sdk.file.FileUtils;
+import com.ibm.connect.sdk.util.ModelMapper;
+import com.ibm.connect.sdk.util.Utils;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetDescriptor;
+import com.ibm.wdp.connect.common.sdk.api.models.CustomFlightAssetField;
+
+/**
+ * An interaction with a Dropbox asset as a source.
+ *
+ * <p>
+ * Two read modes are supported:
+ * <ul>
+ * <li><strong>Structured</strong> ({@code file_format} is a recognised Spark
+ * format such as {@code csv}, {@code json}, {@code parquet}, etc.) — the file
+ * is streamed to a temporary local file and read by the Spark-based
+ * {@link FileSourceInteraction} superclass, producing typed rows.</li>
+ * <li><strong>Raw / unstructured</strong> ({@code file_format} is
+ * {@code binary} or omitted) — the raw bytes are streamed as a single Arrow
+ * record whose sole column is a {@code varbinary} field named
+ * {@code content}.</li>
+ * </ul>
+ */
+public class DropboxSourceInteraction extends FileSourceInteraction
+{
+    private static final String CONTENT_FIELD_NAME = "content";
+    private static final int DEFAULT_BATCH_SIZE = 1000;
+
+    /** Largest file read into memory in raw mode when no {@code byte_limit} is given. */
+    private static final long DEFAULT_RAW_BYTE_LIMIT = 100L * 1024 * 1024;
+
+    private final DropboxConnector connector;
+    private final String fileName;
+    private final boolean rawMode;
+
+    private final ModelMapper modelMapper = new ModelMapper();
+    private boolean rawRecordDelivered;
+    private String tempFilename;
+
+    /**
+     * Creates a Dropbox source interaction.
+     *
+     * @param connector
+     *            the connector managing the connection to Dropbox
+     * @param asset
+     *            the asset from which to read
+     * @param ticket
+     *            a Flight ticket to read a partition or null to get tickets
+     * @throws Exception
+     */
+    public DropboxSourceInteraction(DropboxConnector connector, CustomFlightAssetDescriptor asset, Ticket ticket)
+            throws Exception
+    {
+        super(connector, asset, ticket);
+        this.connector = connector;
+        final Properties interactionProperties = getInteractionProperties();
+        fileName = interactionProperties.getProperty("file_name");
+        if (fileName == null) {
+            throw new IllegalArgumentException(FileMsgs.MISSING_PROPERTY.format("file_name"));
+        }
+
+        // When file format is unknown or fields are missing (and the caller hasn't
+        // explicitly requested binary mode), stream a prefix of the file to detect
+        // MIME type, file format, CSV properties, and typed field definitions.
+        String fileFormat = interactionProperties.getProperty(PROP_FILE_FORMAT);
+        if (fileFormat == null || (asset.getFields() == null && !FileConnector.FILE_FORMAT_BINARY.equals(fileFormat))) {
+            connector.addFileDetails(asset, fileName);
+            fileFormat = getInteractionProperties().getProperty(PROP_FILE_FORMAT, FileConnector.FILE_FORMAT_BINARY);
+        }
+        rawMode = FileConnector.FILE_FORMAT_BINARY.equals(fileFormat);
+
+        // In raw mode inject a single varbinary field so the schema is well-defined.
+        if (rawMode && (asset.getFields() == null || asset.getFields().isEmpty())) {
+            asset.addFieldsItem(new CustomFlightAssetField().name(CONTENT_FIELD_NAME).type("varbinary").nullable(false));
+        }
+
+        if (asset.getBatchSize() == null) {
+            asset.setBatchSize(DEFAULT_BATCH_SIZE);
+        }
+    }
+
+    /**
+     * Streams the Dropbox file to a local temp file so Spark can read it
+     * (structured mode). In raw mode this method is never called.
+     *
+     * @return path to the local temp file
+     */
+    @Override
+    protected String getFilename()
+    {
+        if (tempFilename != null) {
+            return tempFilename;
+        }
+        try {
+            final String fileFormat = getInteractionProperties().getProperty(PROP_FILE_FORMAT, FileUtils.FILE_FORMAT_DELIMITED); // NOSONAR
+            final String baseName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
+            try (InputStream fileStream = connector.openFile(fileName)) {
+                tempFilename = FileUtils.createTempFile(fileStream, baseName, fileFormat);
+            }
+            return tempFilename;
+        }
+        catch (Exception e) {
+            if (tempFilename != null) {
+                FileUtils.deleteTempFile(tempFilename);
+                tempFilename = null;
+            }
+            throw new UnsupportedOperationException(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * In raw mode the entire Dropbox file is returned as a single record
+     * containing a {@code varbinary} value. In structured mode the superclass
+     * drives Spark.
+     */
+    @Override
+    public Record getRecord()
+    {
+        if (!rawMode) {
+            return super.getRecord();
+        }
+        if (rawRecordDelivered) {
+            return null;
+        }
+        rawRecordDelivered = true;
+        try {
+            // The whole file is held in memory, so always enforce a limit.
+            final String byteLimitStr = getInteractionProperties().getProperty("byte_limit");
+            final long byteLimit = byteLimitStr != null ? Utils.parseByteLimit(byteLimitStr) : DEFAULT_RAW_BYTE_LIMIT;
+            final long fileSize = connector.getFileSize(fileName);
+            if (fileSize > byteLimit) {
+                throw new IllegalArgumentException("File size " + fileSize + " exceeds byte_limit " + byteLimit);
+            }
+            try (InputStream fileStream = connector.openFile(fileName)) {
+                final byte[] bytes = fileStream.readAllBytes();
+                final Record rec = new Record(1);
+                rec.appendValue(bytes);
+                return rec;
+            }
+        }
+        catch (Exception e) {
+            throw new UnsupportedOperationException(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>In raw mode a single ticket is always returned (no partitioning).
+     */
+    @Override
+    public List<Ticket> getTickets() throws Exception
+    {
+        final String requestId = UUID.randomUUID().toString();
+        return Collections.singletonList(new Ticket(modelMapper.toBytes(new TicketInfo().requestId(requestId).partitionIndex(0))));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<CustomFlightAssetField> getFields()
+    {
+        return getAsset().getFields();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void close() throws Exception
+    {
+        super.close();
+        if (tempFilename != null) {
+            FileUtils.deleteTempFile(tempFilename);
+            tempFilename = null;
+        }
+    }
+}

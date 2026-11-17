@@ -97,6 +97,23 @@ file.github.repository_name=spark
 # file.box.test_work_dir=sdk-test-runs
 
 # =============================================================================
+# Dropbox file connector
+# =============================================================================
+
+# ── Connection ────────────────────────────────────────────────────────────────
+# Either an access token, or refresh_token + app_key + app_secret.
+# file.dropbox.access_token=
+# file.dropbox.refresh_token=
+# file.dropbox.app_key=
+# file.dropbox.app_secret=
+
+# ── Test work folder (isolated write/delete sandbox) ─────────────────────────
+# A Dropbox folder path, e.g. "sdk-test-runs". Created on demand by the tests.
+# When absent, write scenarios and write tests are skipped automatically.
+# file.dropbox.test_work_dir=sdk-test-runs
+
+
+# =============================================================================
 # LocalFS file connector (no credentials needed)
 # =============================================================================
 

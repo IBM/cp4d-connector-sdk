@@ -215,7 +215,7 @@ public class GitHubConnector extends FileConnector
     private List<CustomFlightAssetDescriptor> listBranches(CustomFlightAssetsCriteria criteria) throws Exception
     {
         final List<CustomFlightAssetDescriptor> descriptors = new ArrayList<>();
-        final String responseString = executeHttpGet(baseUrl + BRANCHES_ENDPOINT);
+        final String responseString = executeHttpGet(baseUrl + BRANCHES_ENDPOINT + "?per_page=100");
         final JsonArray response = new Gson().fromJson(responseString, JsonArray.class);
         final int offset = criteria.getOffset() == null || criteria.getOffset() < 0 ? 0 : criteria.getOffset();
         final int limit = criteria.getLimit() == null || criteria.getLimit() < 0 ? response.size() : criteria.getLimit();
