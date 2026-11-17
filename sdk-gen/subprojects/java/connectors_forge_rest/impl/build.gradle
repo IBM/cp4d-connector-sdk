@@ -142,7 +142,7 @@ def resolveToDir(String name, File baseDir) {
  * Pass one of:
  *   -Pinteg.configs=my-api.properties         (single connector, plain filename resolved to DSL resources dir)
  *   -Pinteg.configs=a.properties,b.properties (explicit list)
- *   (no flag) — picks up all *.properties in src/intTest/resources/
+ *   (no flag) — picks up all *.properties in the DSL resources dir
  */
 task integTestForge(type: Test) {
   outputs.upToDateWhen { false }
@@ -165,7 +165,7 @@ task integTestForge(type: Test) {
 
   // Forward integ.configs to the forked test JVM.
   // Plain filenames are resolved to the DSL resources directory.
-  // With no flag, all *.properties in src/intTest/resources/ are used.
+  // With no flag, all *.properties in the DSL resources directory are used.
   doFirst {
     if (project.hasProperty('integ.configs')) {
       final resolved = project.property('integ.configs')
@@ -175,7 +175,7 @@ task integTestForge(type: Test) {
           .join(',')
       systemProperty 'integ.configs', resolved
     } else {
-      final defaultDir = file('src/intTest/resources')
+      final defaultDir = dslResourcesDir()
       def filesString = ''
       if (defaultDir.isDirectory()) {
         final files = fileTree(dir: defaultDir, include: '*.properties').files.sort()

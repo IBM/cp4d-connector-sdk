@@ -37,7 +37,7 @@ public final class IntegTestConfig {
     private static final Set<String> KNOWN_KEYS = new HashSet<>(Arrays.asList(
             "connector.json", "host", "port",
             "auth.type", "api.key", "username", "password", "bearer.token",
-            "row.limit", "tables", "fail.on.empty.tables", "request.delay.ms"));
+            "row.limit", "tables", "fail.on.empty.tables", "fail.on.all.null.columns", "request.delay.ms"));
 
     private final String connectorJson;
     private final String host;
@@ -51,6 +51,7 @@ public final class IntegTestConfig {
     private final int requestDelayMs;
     private final List<String> tables;
     private final boolean failOnEmptyTables;
+    private final boolean failOnAllNullColumns;
     private final Map<String, String> extraProperties;
 
     private IntegTestConfig(
@@ -66,6 +67,7 @@ public final class IntegTestConfig {
             int requestDelayMs,
             List<String> tables,
             boolean failOnEmptyTables,
+            boolean failOnAllNullColumns,
             Map<String, String> extraProperties) {
         this.connectorJson = connectorJson;
         this.host = host;
@@ -79,6 +81,7 @@ public final class IntegTestConfig {
         this.requestDelayMs = requestDelayMs;
         this.tables = tables;
         this.failOnEmptyTables = failOnEmptyTables;
+        this.failOnAllNullColumns = failOnAllNullColumns;
         this.extraProperties = Collections.unmodifiableMap(extraProperties);
     }
 
@@ -141,10 +144,14 @@ public final class IntegTestConfig {
         final String failOnEmptyTablesStr = props.getProperty("fail.on.empty.tables");
         final boolean failOnEmptyTables = failOnEmptyTablesStr != null && "true".equalsIgnoreCase(failOnEmptyTablesStr.strip());
 
+        // When true (the default), testNoAllNullColumns fails (instead of warns) on all-null columns.
+        final String failOnAllNullStr = props.getProperty("fail.on.all.null.columns");
+        final boolean failOnAllNullColumns = failOnAllNullStr == null || !"false".equalsIgnoreCase(failOnAllNullStr.strip());
+
         return new IntegTestConfig(
                 connectorJson, hostVal, portVal,
                 authType, apiKey, username, password, bearerToken, rowLimit, requestDelayMs,
-                tables, failOnEmptyTables, collectExtraProperties(props));
+                tables, failOnEmptyTables, failOnAllNullColumns, collectExtraProperties(props));
     }
 
     /**
@@ -318,6 +325,13 @@ public final class IntegTestConfig {
      * Defaults to {@code false}.
      */
     public boolean failOnEmptyTables() { return failOnEmptyTables; }
+
+    /**
+     * When {@code true}, {@code testNoAllNullColumns} fails (not just warns) when a DSL column
+     * is null in every sampled row. Defaults to {@code true}; set {@code fail.on.all.null.columns=false}
+     * for APIs with legitimately sparse fields.
+     */
+    public boolean failOnAllNullColumns() { return failOnAllNullColumns; }
 
     /**
      * Extra properties from the {@code .properties} file that are not consumed by the framework.

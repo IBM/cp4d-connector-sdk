@@ -10,7 +10,8 @@
 #   ./gradlew :wdp-connect-sdk-gen-java-connectors_forge_rest-impl:integTestForge \
 #       -Pinteg.configs=openbrewery.properties,servicenow.properties
 #
-# Run all connectors in src/intTest/resources/ (default):
+# Run all connectors with a *.properties file in the DSL resources directory
+# (sdk-gen/subprojects/connectors_forge_rest/src/main/resources/) (default):
 #   ./gradlew :wdp-connect-sdk-gen-java-connectors_forge_rest-impl:integTestForge
 
 # ── connector.json (optional when co-located with DSL JSON) ─────────────────
@@ -59,6 +60,11 @@ connector.json=openbrewerydb.json
 #
 # fail.on.empty.tables=false
 # When true, testTableReturnsRows fails (not just warns) on empty tables.
+#
+# fail.on.all.null.columns=true
+# Default true. testNoAllNullColumns (R-10) fails when a DSL column is null in every sampled row
+# (tables with 0 rows are skipped). This usually means the DSL field name does not exist in the
+# API response. Set to false to only log a warning, e.g. for APIs with legitimately sparse fields.
 #
 # request.delay.ms=0
 # Milliseconds to sleep before each HTTP request in the table loop.
