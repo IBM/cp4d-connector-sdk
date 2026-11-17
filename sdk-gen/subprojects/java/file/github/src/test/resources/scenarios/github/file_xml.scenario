@@ -1,0 +1,23 @@
+# ============================================================
+# GitHub — read and metadata checks for cars.xml (3 rows, 4 columns)
+# ============================================================
+# Schema (alphabetical): comment, make, model, year
+
+# ── Read and verify content ──────────────────────────────────
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/xml-resources/cars.xml
+ExpectedColumns=comment|make|model|year
+ExpectedRowCount=3
+ExpectedRows.0=No comment|Tesla|S|2012
+ExpectedRows.2=No|Chevy|Volt|2015
+
+# ── Check returned interaction properties ───────────────────
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/xml-resources/cars.xml
+ExpectedInteractionProperty.file_format=xml
+ExpectedDetail.mime_type=application/xml
+ExpectedSchemaFields=comment|make|model|year

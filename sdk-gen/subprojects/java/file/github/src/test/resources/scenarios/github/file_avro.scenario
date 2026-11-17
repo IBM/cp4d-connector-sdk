@@ -1,0 +1,35 @@
+# ============================================================
+# GitHub — read and metadata checks for Avro
+# ============================================================
+
+[Step]
+# episodes.avro: title (string), air_date (string), doctor (int)
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=connector/avro/src/test/resources/episodes.avro
+ExpectedColumns=title|air_date|doctor
+ExpectedRowCount=8
+ExpectedCell.0.0=The Eleventh Hour
+ExpectedCell.0.1=3 April 2010
+ExpectedCell.0.2=11
+ExpectedCell.7.0=Castrolava
+ExpectedCell.7.1=4 January 1982
+ExpectedCell.7.2=5
+
+[Step]
+# row_limit must cap at 3
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=connector/avro/src/test/resources/episodes.avro
+Interaction.row_limit=3
+ExpectedRowCount=3
+ExpectedCell.0.0=The Eleventh Hour
+ExpectedCell.2.0=Horror of Fang Rock
+
+[Step]
+Type=Metadata
+Interaction.branch_name=master
+Interaction.file_name=connector/avro/src/test/resources/episodes.avro
+ExpectedInteractionProperty.file_format=avro
+ExpectedDetail.mime_type=application/octet-stream
+ExpectedSchemaFields=title|air_date|doctor
