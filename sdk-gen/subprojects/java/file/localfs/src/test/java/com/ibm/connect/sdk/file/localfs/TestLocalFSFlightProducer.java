@@ -324,9 +324,9 @@ public class TestLocalFSFlightProducer extends FileTestSuite
                 "read_csv_encoding.scenario",
                 "read_delimited_pipe.scenario",
                 "read_json.scenario",
-                "read_orc.scenario",
-                "read_parquet.scenario",
-                "read_avro.scenario",
+                "readwrite_orc.scenario",
+                "readwrite_parquet.scenario",
+                "readwrite_avro.scenario",
                 "read_xml.scenario");
     }
 

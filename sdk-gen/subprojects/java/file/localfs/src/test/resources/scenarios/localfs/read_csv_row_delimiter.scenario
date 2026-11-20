@@ -1,25 +1,29 @@
 # ============================================================
-# LocalFS — read CRLF-delimited CSV (row_delimiter_value)
+# LocalFS — write and read a CSV with a custom row delimiter
 # ============================================================
-# Verifies that the connector detects and reports CRLF line
-# endings in the returned interaction properties.
+# Writes a CSV using ';' as the row delimiter, then reads it back
+# with the same row_delimiter_value. Automatic detection only
+# recognises LF, CR and CRLF, so a custom delimiter must be given.
 # ${work_dir} is injected at runtime by FileTestSuite.scenario().
 
-# ── Write a normal CSV (connector always writes LF) ─────────
+# ── Write a CSV using ';' as the row delimiter ──────────────
 [Step]
 Type=Write
 Interaction.file_name=${work_dir}/csv_row_delim.csv
 Interaction.first_line_header=true
+Interaction.row_delimiter_value=;
 Schema=year|integer; make|varchar; model|varchar
 Row.0=2012|Tesla|S
 Row.1=1997|Ford|E350
 Row.2=2015|Chevy|Volt
 
-# ── Read back and verify row count and data ──────────────────
+# ── Read back with the same row delimiter ───────────────────
 [Step]
 Type=Read
 Interaction.file_name=${work_dir}/csv_row_delim.csv
+Interaction.row_delimiter_value=;
 ExpectedColumns=year|make|model
 ExpectedRowCount=3
 ExpectedRows.0=2012|Tesla|S
+ExpectedRows.1=1997|Ford|E350
 ExpectedRows.2=2015|Chevy|Volt
