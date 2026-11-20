@@ -68,6 +68,7 @@ public class RestApiMappingLoader
     private static final String PATH_PROPERTIES_KEY = "$path_properties";
     private static final String PATH_KEY = "$path";
     private static final String DATA_PATH_KEY = "$data_path";
+    private static final String BODY_KEY = "$body";
     private static final String PAGINATION_KEY = "$pagination";
     private static final String PATH_KEYS_KEY = "$path_keys";
     private static final String KEY_MODIFIER = "$key";
@@ -364,10 +365,11 @@ public class RestApiMappingLoader
         final PaginationConfig paginationConfig = parsePaginationConfig(tableNode);
         final List<PathKeyDef> pathKeys = parsePathKeys(tableName, tableNode);
         final List<RestFieldDefinition> fields = parseFields(tableNode, "");
+        final String requestBody = parseOptionalText(tableNode, BODY_KEY);
 
         logParsedTable(tableName, dataPath, paginationConfig, pathKeys, fields.size());
         return new RestTableEntry(tableName,
-                new RestTableDefinition(path, dataPath, paginationConfig, pathKeys, fields));
+                new RestTableDefinition(path, dataPath, requestBody, paginationConfig, pathKeys, fields));
     }
 
     private static String parseTablePath(String tableName, JsonNode tableNode)
