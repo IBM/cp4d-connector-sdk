@@ -1,5 +1,5 @@
 # ============================================================
-# GitHub — read and metadata checks for Avro
+# GitHub — read Avro file (8 rows, 3 columns)
 # ============================================================
 
 [Step]
@@ -25,11 +25,3 @@ Interaction.row_limit=3
 ExpectedRowCount=3
 ExpectedCell.0.0=The Eleventh Hour
 ExpectedCell.2.0=Horror of Fang Rock
-
-[Step]
-Type=Metadata
-Interaction.branch_name=master
-Interaction.file_name=connector/avro/src/test/resources/episodes.avro
-ExpectedInteractionProperty.file_format=avro
-ExpectedDetail.mime_type=application/octet-stream
-ExpectedSchemaFields=title|air_date|doctor

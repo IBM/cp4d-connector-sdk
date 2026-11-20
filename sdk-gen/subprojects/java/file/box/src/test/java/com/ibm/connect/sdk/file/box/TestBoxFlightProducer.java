@@ -364,13 +364,15 @@ public class TestBoxFlightProducer extends FileTestSuite
                 "discover_root.scenario",
                 "discover_folder.scenario",
                 "negative_missing_file.scenario",
-                "file_csv.scenario",
-                "file_json.scenario",
-                "file_xml.scenario",
+                "metadata_csv.scenario",
                 "read_binary.scenario",
-                "file_orc.scenario",
-                "file_parquet.scenario",
-                "file_avro.scenario");
+                "metadata_orc.scenario",
+                "metadata_parquet.scenario",
+                "metadata_avro.scenario",
+                "readwrite_orc.scenario",
+                "readwrite_parquet.scenario",
+                "readwrite_avro.scenario",
+                "readwrite_csv.scenario");
     }
 
     // -----------------------------------------------------------------------

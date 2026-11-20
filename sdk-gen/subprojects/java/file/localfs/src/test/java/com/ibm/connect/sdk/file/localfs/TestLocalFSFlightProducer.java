@@ -307,8 +307,14 @@ public class TestLocalFSFlightProducer extends FileTestSuite
     protected List<String> getScenarioPaths()
     {
         return scenarioPaths(
-                "file_csv.scenario",
+                "readwrite_csv.scenario",
                 "readwrite_limits.scenario",
+                "metadata_csv.scenario",
+                "metadata_json.scenario",
+                "metadata_orc.scenario",
+                "metadata_parquet.scenario",
+                "metadata_avro.scenario",
+                "metadata_xml.scenario",
                 "negative_missing_file.scenario",
                 "discover_root.scenario",
                 "read_csv_no_header.scenario",
@@ -317,11 +323,11 @@ public class TestLocalFSFlightProducer extends FileTestSuite
                 "read_csv_infer_schema.scenario",
                 "read_csv_encoding.scenario",
                 "read_delimited_pipe.scenario",
-                "file_json.scenario",
-                "file_orc.scenario",
-                "file_parquet.scenario",
-                "file_avro.scenario",
-                "file_xml.scenario");
+                "read_json.scenario",
+                "readwrite_orc.scenario",
+                "readwrite_parquet.scenario",
+                "readwrite_avro.scenario",
+                "read_xml.scenario");
     }
 
     @Override

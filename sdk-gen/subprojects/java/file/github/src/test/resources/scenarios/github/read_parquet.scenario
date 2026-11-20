@@ -1,5 +1,5 @@
 # ============================================================
-# GitHub — read and metadata checks for Parquet
+# GitHub — read Parquet files (decimal and snappy)
 # ============================================================
 
 [Step]
@@ -21,11 +21,3 @@ ExpectedCell.0.0=1001-01-01
 ExpectedCell.0.1=1001-01-01
 ExpectedCell.7.0=1001-01-01
 ExpectedCell.7.1=1001-01-08
-
-[Step]
-Type=Metadata
-Interaction.branch_name=master
-Interaction.file_name=sql/core/src/test/resources/test-data/dec-in-fixed-len.parquet
-ExpectedInteractionProperty.file_format=parquet
-ExpectedDetail.mime_type=application/x-parquet
-ExpectedSchemaFieldCount=1

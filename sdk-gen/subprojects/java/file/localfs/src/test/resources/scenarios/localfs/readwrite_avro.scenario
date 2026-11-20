@@ -1,15 +1,15 @@
 # ============================================================
-# box — write, read and metadata checks for Avro
+# LocalFS — write + read AVRO (3 rows, typed values)
 # ============================================================
-# Writes a typed Avro file (3 rows), reads it back verifying row
-# count, typed values and nulls, checks row_limit and byte_limit,
-# then verifies the detected file_format, mime_type and columns.
+# Writes a typed AVRO file and reads it back, verifying row
+# count and typed cell values; also checks row_limit and
+# byte_limit are honoured.
 # ${work_dir} is injected at runtime by FileTestSuite.scenario().
 
-# ── Write a Avro file ──────────────────────────────────────────
+# ── Write a AVRO file ──────────────────────────────────────
 [Step]
 Type=Write
-Interaction.file_name=/${work_dir}/readwrite.avro
+Interaction.file_name=${work_dir}/readwrite.avro
 Interaction.file_format=avro
 Schema=id|integer; label|varchar; flag|boolean
 Row.0=1|Alice|true
@@ -19,7 +19,7 @@ Row.2=3|<NULL>|true
 # ── Read back and verify content ─────────────────────────────
 [Step]
 Type=Read
-Interaction.file_name=/${work_dir}/readwrite.avro
+Interaction.file_name=${work_dir}/readwrite.avro
 ExpectedRowCount=3
 ExpectedCell.0.0=1
 ExpectedCell.0.1=Alice
@@ -31,7 +31,7 @@ ExpectedCell.2.1=<NULL>
 # ── row_limit must cap the result ────────────────────────────
 [Step]
 Type=Read
-Interaction.file_name=/${work_dir}/readwrite.avro
+Interaction.file_name=${work_dir}/readwrite.avro
 Interaction.row_limit=1
 ExpectedRowCount=1
 ExpectedCell.0.0=1
@@ -39,13 +39,5 @@ ExpectedCell.0.0=1
 # ── byte_limit must return fewer than 3 rows ─────────────────
 [Step]
 Type=Read
-Interaction.file_name=/${work_dir}/readwrite.avro
+Interaction.file_name=${work_dir}/readwrite.avro
 Interaction.byte_limit=1
-
-# ── Check returned interaction properties ───────────────────
-[Step]
-Type=Metadata
-Interaction.file_name=/${work_dir}/readwrite.avro
-ExpectedInteractionProperty.file_format=avro
-ExpectedDetail.mime_type=application/octet-stream
-ExpectedSchemaFields=id|label|flag

@@ -1,0 +1,13 @@
+# ============================================================
+# GitHub — read cars.xml (3 rows, 4 columns)
+# ============================================================
+# Schema (alphabetical): comment, make, model, year
+
+[Step]
+Type=Read
+Interaction.branch_name=master
+Interaction.file_name=sql/core/src/test/resources/test-data/xml-resources/cars.xml
+ExpectedColumns=comment|make|model|year
+ExpectedRowCount=3
+ExpectedRows.0=No comment|Tesla|S|2012
+ExpectedRows.2=No|Chevy|Volt|2015

@@ -1,5 +1,5 @@
 # ============================================================
-# GitHub — read and metadata checks for ORC
+# GitHub — read ORC file (32 768 rows, 1 column)
 # ============================================================
 
 [Step]
@@ -29,11 +29,3 @@ Interaction.byte_limit=1000
 ExpectedRowCount=100
 ExpectedCell.0.0=row 000000
 ExpectedCell.99.0=row 000099
-
-[Step]
-Type=Metadata
-Interaction.branch_name=master
-Interaction.file_name=sql/core/src/test/resources/test-data/TestStringDictionary.testRowIndex.orc
-ExpectedInteractionProperty.file_format=orc
-ExpectedDetail.mime_type=application/octet-stream
-ExpectedSchemaFieldCount=1

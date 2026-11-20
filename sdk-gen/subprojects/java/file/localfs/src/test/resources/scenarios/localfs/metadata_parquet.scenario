@@ -1,0 +1,22 @@
+# ============================================================
+# LocalFS — getFlightInfo metadata assertions for a Parquet file
+# ============================================================
+# Writes a known Parquet file, then verifies the returned descriptor
+# carries the correct file_format and mime_type.
+# ${work_dir} is injected at runtime by FileTestSuite.scenario().
+
+# ── Write a Parquet file ─────────────────────────────────────
+[Step]
+Type=Write
+Interaction.file_name=${work_dir}/meta_parquet.parquet
+Interaction.file_format=parquet
+Schema=id|integer; label|varchar
+Row.0=1|hello
+
+# ── Check returned interaction properties ───────────────────
+[Step]
+Type=Metadata
+Interaction.file_name=${work_dir}/meta_parquet.parquet
+ExpectedInteractionProperty.file_format=parquet
+ExpectedDetail.mime_type=application/x-parquet
+ExpectedSchemaFields=id|label
