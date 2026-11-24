@@ -2191,11 +2191,11 @@ Add an `env` section to the `roles/flightservice/templates/deployment.yaml.j2` f
 ...
         resources:
           limits:
-            cpu: {{ resources.cpu.limits }}
-            memory: {{ resources.memory.limits }}
+            cpu: {{ resources.cpu.limits | string | to_json }}
+            memory: {{ resources.memory.limits | string | to_json }}
           requests:
-            cpu: {{ resources.cpu.requests }}
-            memory: {{ resources.memory.requests }}
+            cpu: {{ resources.cpu.requests | string | to_json }}
+            memory: {{ resources.memory.requests | string | to_json }}
         env:
           MY_ENV_VARIABLE: "my env value"
 ```

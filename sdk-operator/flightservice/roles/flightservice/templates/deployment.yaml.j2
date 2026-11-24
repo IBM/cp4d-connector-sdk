@@ -6,7 +6,7 @@ metadata:
   labels:
     app: '{{ ansible_operator_meta.name }}-flightservice'
 spec:
-  replicas: {{ replicas }}
+  replicas: {{ replicas | int }}
   selector:
     matchLabels:
       app: '{{ ansible_operator_meta.name }}-flightservice'
@@ -17,14 +17,14 @@ spec:
     spec:
       containers:
       - name: '{{ ansible_operator_meta.name }}-flightservice'
-        image: "{{ docker_image }}"
+        image: {{ docker_image | to_json }}
         ports:
         - containerPort: 9443
           protocol: TCP
         resources:
           limits:
-            cpu: {{ resources.cpu.limits }}
-            memory: {{ resources.memory.limits }}
+            cpu: {{ resources.cpu.limits | string | to_json }}
+            memory: {{ resources.memory.limits | string | to_json }}
           requests:
-            cpu: {{ resources.cpu.requests }}
-            memory: {{ resources.memory.requests }}
+            cpu: {{ resources.cpu.requests | string | to_json }}
+            memory: {{ resources.memory.requests | string | to_json }}
