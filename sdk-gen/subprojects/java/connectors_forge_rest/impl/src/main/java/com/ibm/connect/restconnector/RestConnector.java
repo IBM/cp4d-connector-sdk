@@ -9,7 +9,6 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -48,10 +47,8 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
     private static final int HTTP_TIMEOUT_SECONDS = 30;
     private static final int HTTP_STATUS_2XX = 2;
 
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private static final RestHttpClient HTTP_CLIENT =
+            RestHttpClient.create(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS), RedirectPolicy.NORMAL);
 
     private final String datasourceTypeName;
     private final Map<String, Object> connectionProperties;

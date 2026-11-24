@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -68,7 +67,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private final PaginationConfig paginationConfig;
     private final ObjectMapper objectMapper;
 
-    private HttpClient httpClient;
+    private RestHttpClient httpClient;
     private InputStream responseStream;
     private JsonParser jsonParser;
     private HttpHeaders lastResponseHeaders;
@@ -205,9 +204,8 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final String currentUrl = buildCurrentPageUrl();
         
         LOGGER.info("Opening HTTP stream");
-        httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .build();
+        // The legacy stream never followed redirects; keep that unless CF_REDIRECT_POLICY says otherwise
+        httpClient = RestHttpClient.create(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS), RedirectPolicy.NEVER);
 
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(currentUrl))
