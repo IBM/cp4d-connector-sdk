@@ -23,7 +23,7 @@ param(
     # Default: no blocklist, nothing is blocked.
     [string]$Blocklist,
 
-    # How HTTP redirects from the REST API are handled. Default: the connector's built-in behavior.
+    # How HTTP redirects from the REST API are handled. Default: NORMAL.
     [ValidateSet("ALWAYS", "NEVER", "NORMAL")]
     [string]$RedirectPolicy
 )
@@ -449,7 +449,7 @@ function Main {
     Write-Host "Image:          $Image"
     Write-Host "Port:           $Port"
     $blocklistDisplay = if ($Blocklist) { $Blocklist } else { "none (nothing blocked)" }
-    $redirectDisplay = if ($RedirectPolicy) { $RedirectPolicy } else { "built-in default" }
+    $redirectDisplay = if ($RedirectPolicy) { $RedirectPolicy } else { "NORMAL (default)" }
     Write-Host "Blocklist:      $blocklistDisplay"
     Write-Host "Redirects:      $redirectDisplay"
     if ($Replace) {

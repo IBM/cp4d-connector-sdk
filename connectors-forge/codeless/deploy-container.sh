@@ -75,7 +75,7 @@ Optional Arguments:
                        connector must not call. Uploaded to /config/blocklist/blocked-ips.txt and read
                        at startup. Default: no blocklist, nothing is blocked.
   --redirect-policy P  How HTTP redirects from the REST API are handled: ALWAYS, NEVER or NORMAL.
-                       Default: the connector's built-in behavior.
+                       Default: NORMAL (follow redirects, except from https to http).
   -h, --help           Show this help message
 
 Note:
@@ -506,7 +506,7 @@ main() {
         echo "Replace Mode:   Enabled"
     fi
     echo "Blocklist:      ${BLOCKLIST_FILE:-none (nothing blocked)}"
-    echo "Redirects:      ${REDIRECT_POLICY:-built-in default}"
+    echo "Redirects:      ${REDIRECT_POLICY:-NORMAL (default)}"
     echo "=========================================="
     
     validate_inputs

@@ -26,7 +26,7 @@ RECREATE_CONFIGMAP=true
 
 # Optional: how the connector handles HTTP redirects returned by the REST API.
 # ALWAYS, NEVER or NORMAL (NORMAL = follow, except from https to http).
-# Leave empty to keep the connector's built-in behavior.
+# Leave empty for the default (NORMAL).
 REDIRECT_POLICY=
 
 # IP blocklist: the 'connectors-blocklist' ConfigMap (see blocklist-configmap.yaml) is created

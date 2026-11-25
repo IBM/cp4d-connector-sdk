@@ -194,7 +194,7 @@ OPTIONAL PROPERTIES:
     MIN_SCALE               Minimum instances (default: 0)
     MAX_SCALE               Maximum instances (default: 2)
     REDIRECT_POLICY         How HTTP redirects from the REST API are handled: ALWAYS, NEVER or NORMAL
-                            (default: empty = the connector's built-in behavior)
+                            (default: empty = NORMAL)
 
 IP blocklist:
   A ConfigMap 'connectors-blocklist' is created empty (nothing blocked) if it does not exist and is
@@ -1044,7 +1044,7 @@ function Show-DeploymentInfo {
     Write-Host "Region:            $REGION"
     Write-Host "ConfigMap:         $CONFIGMAP_NAME"
     Write-Host "IP blocklist:      $BLOCKLIST_CONFIGMAP_NAME (empty by default; edit it in the Code Engine UI, then redeploy to restart the app)"
-    $redirectDisplay = if ($REDIRECT_POLICY -ne "") { $REDIRECT_POLICY } else { "built-in default" }
+    $redirectDisplay = if ($REDIRECT_POLICY -ne "") { $REDIRECT_POLICY } else { "NORMAL (default)" }
     Write-Host "Redirect policy:   $redirectDisplay"
     Write-Host ""
     Write-Host "Resources:"

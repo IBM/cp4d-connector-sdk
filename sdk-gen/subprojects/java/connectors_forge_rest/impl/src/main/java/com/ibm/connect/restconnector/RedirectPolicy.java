@@ -21,8 +21,8 @@ import org.slf4j.Logger;
  *   <li>{@link #ALWAYS} - all redirects are followed.</li>
  * </ul>
  *
- * <p>When the variable is not set (or has an unknown value) every caller keeps its own default,
- * so the behaviour is unchanged unless an administrator opts in.
+ * <p>When the variable is not set (or has an unknown value) {@link #NORMAL} is used, which is
+ * the behaviour of the connector before the variable was introduced.
  */
 enum RedirectPolicy
 {
