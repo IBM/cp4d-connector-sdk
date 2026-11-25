@@ -301,8 +301,6 @@ function New-ConfigMap {
     }
     
     Write-Log "ConfigMap '$ConfigMapName' created successfully"
-
-    New-BlocklistConfigMap
 }
 
 # Creates the (empty by default) IP blocklist ConfigMap. An existing one is never touched, so
@@ -448,6 +446,7 @@ function Main {
     Connect-OpenShift
     Initialize-Project
     New-ConfigMap
+    New-BlocklistConfigMap
     Deploy-Connector
     New-Service
     Test-Deployment

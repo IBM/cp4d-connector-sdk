@@ -254,8 +254,6 @@ create_configmap() {
     fi
     
     log "ConfigMap '$CONFIGMAP_NAME' created successfully"
-
-    create_blocklist_configmap
 }
 
 # Creates the (empty by default) IP blocklist ConfigMap. An existing one is never touched, so
@@ -378,6 +376,7 @@ main() {
     login_to_openshift
     setup_project
     create_configmap
+    create_blocklist_configmap
     deploy_connector
     create_service
     verify_deployment
