@@ -23,8 +23,9 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- * Tests for {@link EgressBlocklist}. Only IP literals are used, so no DNS is involved.
+ * Tests for {@link EgressBlocklist}. Only IP literals are used, so no DNS is involved. The hard-coded IPs are test data.
  */
+@SuppressWarnings("PMD.AvoidUsingHardCodedIP")
 public class TestEgressBlocklist
 {
     @Rule

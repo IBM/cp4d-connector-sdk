@@ -58,7 +58,7 @@ enum RedirectPolicy
      */
     static RedirectPolicy parse(String value, RedirectPolicy fallback)
     {
-        if (value == null || value.trim().isEmpty()) {
+        if (value == null || value.isBlank()) {
             return fallback;
         }
         try {

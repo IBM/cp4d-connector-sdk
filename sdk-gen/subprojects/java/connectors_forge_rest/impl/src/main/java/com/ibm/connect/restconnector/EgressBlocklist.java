@@ -91,7 +91,7 @@ final class EgressBlocklist
     {
         if (shared == null) {
             final String dir = System.getenv(DIR_ENV_VARIABLE);
-            final String directory = dir == null || dir.trim().isEmpty() ? DEFAULT_DIR : dir.trim();
+            final String directory = dir == null || dir.isBlank() ? DEFAULT_DIR : dir.trim();
             shared = new EgressBlocklist(Paths.get(directory, FILE_NAME));
         }
         return shared;
@@ -240,7 +240,7 @@ final class EgressBlocklist
         Entry(String text, byte[] network, int prefix)
         {
             this.text = text;
-            this.network = network;
+            this.network = network.clone();
             this.prefix = prefix;
         }
 
