@@ -10,7 +10,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -126,18 +125,16 @@ public class TestEgressBlocklist
     @Test
     public void testWindowsLineEndingsAndSurroundingWhitespace() throws Exception
     {
-        final File file = folder.newFile();
-        Files.write(file.toPath(), "  10.0.0.0/8  \r\n\t192.168.0.1\r\n".getBytes(StandardCharsets.UTF_8));
-        assertEquals(2, new EgressBlocklist(file.toPath()).entryCount());
+        final Path file = BlocklistTestSupport.fileWith(folder, "  10.0.0.0/8  \r\n\t192.168.0.1\r\n");
+        assertEquals(2, new EgressBlocklist(file).entryCount());
     }
 
     @Test
     public void testFileIsReadOnlyOnce() throws Exception
     {
-        final File file = folder.newFile();
-        Files.write(file.toPath(), "10.0.0.0/8".getBytes(StandardCharsets.UTF_8));
-        final EgressBlocklist blocklist = new EgressBlocklist(file.toPath());
-        Files.write(file.toPath(), "".getBytes(StandardCharsets.UTF_8));
+        final Path file = BlocklistTestSupport.fileWith(folder, "10.0.0.0/8");
+        final EgressBlocklist blocklist = new EgressBlocklist(file);
+        Files.write(file, "".getBytes(StandardCharsets.UTF_8));
         assertEquals(1, blocklist.entryCount());
         assertBlocked(blocklist, "http://10.0.0.1/");
     }

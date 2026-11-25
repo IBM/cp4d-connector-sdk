@@ -9,7 +9,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -18,7 +17,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -91,16 +89,9 @@ public class TestRestHttpClient
         server.stop(0);
     }
 
-    private EgressBlocklist blocklistWith(String... lines) throws IOException
-    {
-        final File file = folder.newFile();
-        Files.write(file.toPath(), String.join("\n", lines).getBytes(StandardCharsets.UTF_8));
-        return new EgressBlocklist(file.toPath());
-    }
-
     private RestHttpClient client(RedirectPolicy policy, String... blocked) throws IOException
     {
-        return new RestHttpClient(TIMEOUT, policy, blocklistWith(blocked));
+        return new RestHttpClient(TIMEOUT, policy, BlocklistTestSupport.blocklistWith(folder, blocked));
     }
 
     private HttpRequest get(String path)
