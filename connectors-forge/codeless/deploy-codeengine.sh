@@ -684,7 +684,7 @@ create_or_update_configmap() {
 create_blocklist_configmap() {
     local api_url="https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects/${PROJECT_ID}/config_maps/${BLOCKLIST_CONFIGMAP_NAME}?version=${API_VERSION}"
 
-    local response=$(curl -k -s -w "\n%{http_code}" -X GET "$api_url" \
+    local response=$(curl -s -w "\n%{http_code}" -X GET "$api_url" \
         -H "Authorization: Bearer ${BEARER_TOKEN}")
     local http_code=$(echo "$response" | tail -n1)
 
@@ -695,7 +695,7 @@ create_blocklist_configmap() {
 
     log "Creating empty ConfigMap '$BLOCKLIST_CONFIGMAP_NAME'..."
     local payload="{\"name\":\"${BLOCKLIST_CONFIGMAP_NAME}\",\"data\":{\"blocked-ips.txt\":\"# One IP address or CIDR range per line (for example 169.254.169.254 or 10.0.0.0/8).\\n# The file is read at startup; restart the application after changing it.\\n\"}}"
-    response=$(curl -k -s -w "\n%{http_code}" -X POST \
+    response=$(curl -s -w "\n%{http_code}" -X POST \
         "https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects/${PROJECT_ID}/config_maps?version=${API_VERSION}" \
         -H "Authorization: Bearer ${BEARER_TOKEN}" \
         -H "Content-Type: application/json" \
