@@ -33,14 +33,21 @@ public class TestEgressBlocklist
 
     private EgressBlocklist blocklistWith(String... lines) throws IOException
     {
-        final File file = folder.newFile();
-        Files.write(file.toPath(), String.join("\n", lines).getBytes(StandardCharsets.UTF_8));
-        return new EgressBlocklist(file.toPath());
+        return BlocklistTestSupport.blocklistWith(folder, lines);
     }
 
     private static boolean matches(String entry, String address) throws Exception
     {
         return EgressBlocklist.parseEntry(entry).matches(InetAddress.getByName(address).getAddress());
+    }
+
+    private static void assertAllowed(EgressBlocklist blocklist, String url)
+    {
+        try {
+            blocklist.check(URI.create(url));
+        } catch (IOException e) {
+            throw new AssertionError("Expected " + url + " to be allowed", e);
+        }
     }
 
     private static void assertBlocked(EgressBlocklist blocklist, String url)
@@ -61,8 +68,8 @@ public class TestEgressBlocklist
     {
         final EgressBlocklist blocklist = new EgressBlocklist(folder.getRoot().toPath().resolve("does-not-exist.txt"));
         assertEquals(0, blocklist.entryCount());
-        blocklist.check(URI.create("http://127.0.0.1/"));
-        blocklist.check(URI.create("http://169.254.169.254/"));
+        assertAllowed(blocklist, "http://127.0.0.1/");
+        assertAllowed(blocklist, "http://169.254.169.254/");
     }
 
     @Test
@@ -77,8 +84,8 @@ public class TestEgressBlocklist
     {
         final EgressBlocklist blocklist = blocklistWith("", "   ", "# 127.0.0.0/8", "   # 10.0.0.0/8", "\t");
         assertEquals(0, blocklist.entryCount());
-        blocklist.check(URI.create("http://127.0.0.1/"));
-        blocklist.check(URI.create("http://10.1.2.3/"));
+        assertAllowed(blocklist, "http://127.0.0.1/");
+        assertAllowed(blocklist, "http://10.1.2.3/");
     }
 
     // ---- loading ----
@@ -92,7 +99,7 @@ public class TestEgressBlocklist
                 "#10.0.0.0/8");
         assertEquals(1, blocklist.entryCount());
         assertBlocked(blocklist, "http://169.254.169.254/latest");
-        blocklist.check(URI.create("http://10.1.2.3/"));
+        assertAllowed(blocklist, "http://10.1.2.3/");
     }
 
     @Test
@@ -113,7 +120,7 @@ public class TestEgressBlocklist
         assertEquals(2, blocklist.entryCount());
         assertBlocked(blocklist, "http://10.9.9.9/");
         assertBlocked(blocklist, "http://127.0.0.1/");
-        blocklist.check(URI.create("http://8.8.8.8/"));
+        assertAllowed(blocklist, "http://8.8.8.8/");
     }
 
     @Test
@@ -201,17 +208,17 @@ public class TestEgressBlocklist
         final EgressBlocklist blocklist = blocklistWith("10.0.0.0/8", "fd00::/8");
         assertBlocked(blocklist, "https://10.0.0.5:8443/a/b?c=d");
         assertBlocked(blocklist, "http://[fd00::1]:9000/");
-        blocklist.check(URI.create("https://93.184.216.34/"));
+        assertAllowed(blocklist, "https://93.184.216.34/");
     }
 
     @Test
     public void testUriWithoutHostIsNotChecked() throws Exception
     {
-        blocklistWith("10.0.0.0/8").check(URI.create("/relative"));
+        assertAllowed(blocklistWith("10.0.0.0/8"), "/relative");
     }
 
     @Test
-    public void testSharedUsesTheDefaultLocationWhenNothingIsConfigured()
+    public void testGetInstanceUsesTheDefaultLocationWhenNothingIsConfigured()
     {
         // /config/blocklist/blocked-ips.txt is not present in the build environment
         assertEquals(0, EgressBlocklist.getInstance().entryCount());
