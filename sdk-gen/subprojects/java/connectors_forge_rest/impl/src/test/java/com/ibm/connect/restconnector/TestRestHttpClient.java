@@ -6,6 +6,7 @@
 package com.ibm.connect.restconnector;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -44,6 +45,12 @@ public class TestRestHttpClient
 
     private HttpServer server;
     private String origin;
+    private HttpServer otherServer;
+    private String otherOrigin;
+    private final AtomicInteger otherHits = new AtomicInteger();
+    private final AtomicReference<String> otherAuthHeader = new AtomicReference<>();
+    private final AtomicReference<String> otherApiKeyHeader = new AtomicReference<>();
+    private final AtomicReference<String> otherAcceptHeader = new AtomicReference<>();
     private final AtomicInteger okHits = new AtomicInteger();
     private final AtomicInteger redirectHits = new AtomicInteger();
     private final AtomicReference<String> lastAuthHeader = new AtomicReference<>();
@@ -63,6 +70,7 @@ public class TestRestHttpClient
             exchange.close();
         });
         server.createContext("/to-ok", exchange -> redirect(exchange, 302, "/ok"));
+        server.createContext("/to-other-origin", exchange -> redirect(exchange, 302, otherOrigin + "/ok"));
         server.createContext("/to-ok-307", exchange -> redirect(exchange, 307, "/ok"));
         server.createContext("/loop", exchange -> redirect(exchange, 302, "/loop"));
         server.createContext("/to-metadata", exchange -> redirect(exchange, 302, "http://169.254.169.254/latest/meta-data/"));
@@ -73,6 +81,21 @@ public class TestRestHttpClient
             exchange.close();
         });
         server.start();
+
+        // A different port is a different origin: it plays the third-party host
+        otherServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        otherOrigin = "http://127.0.0.1:" + otherServer.getAddress().getPort();
+        otherServer.createContext("/ok", exchange -> {
+            otherHits.incrementAndGet();
+            otherAuthHeader.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            otherApiKeyHeader.set(exchange.getRequestHeaders().getFirst("X-Api-Key"));
+            otherAcceptHeader.set(exchange.getRequestHeaders().getFirst("Accept"));
+            final byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        otherServer.start();
     }
 
     private void redirect(com.sun.net.httpserver.HttpExchange exchange, int status, String location) throws IOException
@@ -87,6 +110,7 @@ public class TestRestHttpClient
     public void stopServer()
     {
         server.stop(0);
+        otherServer.stop(0);
     }
 
     private RestHttpClient client(RedirectPolicy policy, String... blocked) throws IOException
@@ -98,6 +122,8 @@ public class TestRestHttpClient
     {
         return HttpRequest.newBuilder(URI.create(origin + path))
                 .header("Authorization", "Bearer secret")
+                .header("X-Api-Key", "another-secret")
+                .header("Accept", "application/json")
                 .timeout(TIMEOUT)
                 .GET()
                 .build();
@@ -150,6 +176,33 @@ public class TestRestHttpClient
             assertEquals(path, 200, response.statusCode());
             assertEquals("Bearer secret", lastAuthHeader.get());
         }
+    }
+
+    @Test
+    public void testCredentialsAreNotForwardedToAnotherOrigin() throws Exception
+    {
+        for (final RedirectPolicy policy : new RedirectPolicy[] { RedirectPolicy.NORMAL, RedirectPolicy.ALWAYS }) {
+            otherHits.set(0);
+            otherAuthHeader.set(null);
+            otherApiKeyHeader.set(null);
+            otherAcceptHeader.set(null);
+            final HttpResponse<String> response =
+                    client(policy).send(get("/to-other-origin"), BodyHandlers.ofString());
+            assertEquals(policy.toString(), 200, response.statusCode());
+            assertEquals(policy.toString(), 1, otherHits.get());
+            assertNull("Authorization leaked (" + policy + ")", otherAuthHeader.get());
+            assertNull("custom credential header leaked (" + policy + ")", otherApiKeyHeader.get());
+            assertEquals("application/json", otherAcceptHeader.get());
+        }
+    }
+
+    @Test
+    public void testHeadersAreKeptOnTheSameOrigin() throws Exception
+    {
+        lastAuthHeader.set(null);
+        final HttpResponse<String> response = client(RedirectPolicy.NORMAL).send(get("/to-ok"), BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+        assertEquals("Bearer secret", lastAuthHeader.get());
     }
 
     @Test
