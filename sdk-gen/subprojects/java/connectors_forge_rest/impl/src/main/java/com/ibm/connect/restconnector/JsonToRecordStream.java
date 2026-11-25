@@ -59,6 +59,8 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private static final int HTTP_OK = 200;
     private static final int MAX_PAGES = 10000; // Safety limit to prevent infinite loops
 
+    private static final RestHttpClient HTTP_CLIENT = RestHttpClient.getInstance();
+
     private final String baseUrl;
     private final String dataPath;
     private final List<RestFieldDefinition> fieldDefs;
@@ -67,7 +69,6 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
     private final PaginationConfig paginationConfig;
     private final ObjectMapper objectMapper;
 
-    private RestHttpClient httpClient;
     private InputStream responseStream;
     private JsonParser jsonParser;
     private HttpHeaders lastResponseHeaders;
@@ -204,9 +205,6 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         final String currentUrl = buildCurrentPageUrl();
         
         LOGGER.info("Opening HTTP stream");
-        // The legacy stream never followed redirects; keep that unless CF_REDIRECT_POLICY says otherwise
-        httpClient = RestHttpClient.create(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS), RedirectPolicy.NEVER);
-
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(currentUrl))
                 .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
@@ -223,7 +221,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
 
         final HttpRequest request = requestBuilder.GET().build();
 
-        final HttpResponse<InputStream> response = httpClient.send(request, BodyHandlers.ofInputStream());
+        final HttpResponse<InputStream> response = HTTP_CLIENT.send(request, BodyHandlers.ofInputStream());
 
         if (response.statusCode() != HTTP_OK) {
             throw new IOException("HTTP request failed with status " + response.statusCode());
@@ -445,7 +443,7 @@ public class JsonToRecordStream implements Iterator<Record>, Closeable
         }
 
         final HttpRequest request = requestBuilder.build();
-        final HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        final HttpResponse<InputStream> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
         if (response.statusCode() != HTTP_OK) {
             throw new IOException("HTTP request failed with status code: " + response.statusCode());

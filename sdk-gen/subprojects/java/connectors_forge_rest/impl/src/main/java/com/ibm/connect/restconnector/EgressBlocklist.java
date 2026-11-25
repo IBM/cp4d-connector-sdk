@@ -67,7 +67,7 @@ final class EgressBlocklist
     private static final int BITS_PER_BYTE = 8;
     private static final int MAX_OCTET = 255;
 
-    private static EgressBlocklist shared;
+    private static final EgressBlocklist INSTANCE = fromEnvironment();
 
     private final List<Entry> entries;
 
@@ -87,14 +87,16 @@ final class EgressBlocklist
      *
      * @return the shared blocklist
      */
-    static synchronized EgressBlocklist shared()
+    static EgressBlocklist getInstance()
     {
-        if (shared == null) {
-            final String dir = System.getenv(DIR_ENV_VARIABLE);
-            final String directory = dir == null || dir.isBlank() ? DEFAULT_DIR : dir.trim();
-            shared = new EgressBlocklist(Paths.get(directory, FILE_NAME));
-        }
-        return shared;
+        return INSTANCE;
+    }
+
+    private static EgressBlocklist fromEnvironment()
+    {
+        final String dir = System.getenv(DIR_ENV_VARIABLE);
+        final String directory = dir == null || dir.isBlank() ? DEFAULT_DIR : dir.trim();
+        return new EgressBlocklist(Paths.get(directory, FILE_NAME));
     }
 
     /**

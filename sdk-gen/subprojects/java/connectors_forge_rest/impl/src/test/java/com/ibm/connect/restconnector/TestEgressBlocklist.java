@@ -214,6 +214,6 @@ public class TestEgressBlocklist
     public void testSharedUsesTheDefaultLocationWhenNothingIsConfigured()
     {
         // /config/blocklist/blocked-ips.txt is not present in the build environment
-        assertEquals(0, EgressBlocklist.shared().entryCount());
+        assertEquals(0, EgressBlocklist.getInstance().entryCount());
     }
 }

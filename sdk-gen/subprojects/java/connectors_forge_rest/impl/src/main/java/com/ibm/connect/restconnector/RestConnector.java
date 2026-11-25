@@ -44,11 +44,10 @@ public class RestConnector implements SdkConnector<RestInputInteraction, RestOut
 
     public static final String SKIP_PING_PROPERTY = "com.ibm.connect.restconnector.skipPing";
 
-    private static final int HTTP_TIMEOUT_SECONDS = 30;
+    private static final int HTTP_TIMEOUT_SECONDS = 60;
     private static final int HTTP_STATUS_2XX = 2;
 
-    private static final RestHttpClient HTTP_CLIENT =
-            RestHttpClient.create(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS), RedirectPolicy.NORMAL);
+    private static final RestHttpClient HTTP_CLIENT = RestHttpClient.getInstance();
 
     private final String datasourceTypeName;
     private final Map<String, Object> connectionProperties;

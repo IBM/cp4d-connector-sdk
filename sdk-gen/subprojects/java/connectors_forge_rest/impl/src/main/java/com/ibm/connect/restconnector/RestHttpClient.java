@@ -29,24 +29,25 @@ import java.util.Optional;
 final class RestHttpClient
 {
     private static final int MAX_REDIRECTS = 5;
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(60);
+
+    private static final RestHttpClient INSTANCE = new RestHttpClient(CONNECT_TIMEOUT,
+            RedirectPolicy.fromEnvironment(RedirectPolicy.NORMAL), EgressBlocklist.getInstance());
 
     private final HttpClient client;
     private final RedirectPolicy policy;
     private final EgressBlocklist blocklist;
 
     /**
-     * Creates a client for production use: the redirect policy comes from the environment
-     * ({@code CF_REDIRECT_POLICY}) and the blocklist from the mounted blocklist file.
+     * Returns the process-wide client used by the whole connector. The redirect policy comes from
+     * the environment ({@code CF_REDIRECT_POLICY}, default {@link RedirectPolicy#NORMAL}) and the
+     * blocklist from the mounted blocklist file.
      *
-     * @param connectTimeout
-     *            the connect timeout
-     * @param defaultPolicy
-     *            the redirect policy used when the environment does not select one
-     * @return the client
+     * @return the shared client
      */
-    static RestHttpClient create(Duration connectTimeout, RedirectPolicy defaultPolicy)
+    static RestHttpClient getInstance()
     {
-        return new RestHttpClient(connectTimeout, RedirectPolicy.fromEnvironment(defaultPolicy), EgressBlocklist.shared());
+        return INSTANCE;
     }
 
     RestHttpClient(Duration connectTimeout, RedirectPolicy policy, EgressBlocklist blocklist)

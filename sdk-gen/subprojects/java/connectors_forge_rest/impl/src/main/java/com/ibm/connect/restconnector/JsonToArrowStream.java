@@ -64,8 +64,7 @@ public class JsonToArrowStream implements Closeable
     private static final int MAX_PAGES = 10000;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private static final RestHttpClient HTTP_CLIENT =
-            RestHttpClient.create(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS), RedirectPolicy.NORMAL);
+    private static final RestHttpClient HTTP_CLIENT = RestHttpClient.getInstance();
 
     private final String baseUrl;
     private final String dataPath;
