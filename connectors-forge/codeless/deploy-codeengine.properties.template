@@ -33,3 +33,14 @@ MIN_SCALE=0
 
 # Maximum number of instances
 MAX_SCALE=2
+
+# Redirect policy (optional)
+# How the connector handles HTTP redirects returned by the REST API:
+# ALWAYS, NEVER or NORMAL (NORMAL = follow, except from https to http).
+# Leave empty to keep the connector's built-in behavior.
+REDIRECT_POLICY=
+
+# IP blocklist
+# The 'connectors-blocklist' ConfigMap is created empty (nothing is blocked) if it does not exist,
+# and is never overwritten by this script. To block addresses, add one IP address or CIDR range
+# per line to its 'blocked-ips.txt' key in the Code Engine UI, then restart the application.

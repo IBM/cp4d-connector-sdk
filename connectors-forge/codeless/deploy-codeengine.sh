@@ -23,11 +23,13 @@ APP_NAME=""
 CONFIG_FILES=()
 MIN_SCALE=""
 MAX_SCALE=""
+REDIRECT_POLICY=""
 
 # Runtime variables
 BEARER_TOKEN=""
 PROJECT_ID=""
 CONFIGMAP_NAME="connectors-config"
+BLOCKLIST_CONFIGMAP_NAME="connectors-blocklist"
 CONFIGMAP_ETAG=""
 IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.10.2"
 APP_EXISTS=false
@@ -87,6 +89,13 @@ OPTIONAL PROPERTIES:
     APP_NAME                Application name (default: cf-flight-connector)
     MIN_SCALE               Minimum instances (default: 0)
     MAX_SCALE               Maximum instances (default: 2)
+    REDIRECT_POLICY         How HTTP redirects from the REST API are handled: ALWAYS, NEVER or NORMAL
+                            (default: empty = the connector's built-in behavior)
+
+IP blocklist:
+  A ConfigMap 'connectors-blocklist' is created empty (nothing blocked) if it does not exist and is
+  never overwritten. Add IP addresses / CIDR ranges to its 'blocked-ips.txt' key in the Code Engine
+  UI, then restart the application (the list is read at startup).
 
 Prerequisites:
   - curl command must be available
@@ -222,6 +231,16 @@ load_properties() {
     if [ -z "$MAX_SCALE" ]; then
         MAX_SCALE="2"
     fi
+
+    # Optional redirect policy (empty = keep the connector's built-in behavior)
+    REDIRECT_POLICY=$(get_property "REDIRECT_POLICY" | tr '[:lower:]' '[:upper:]')
+    case "$REDIRECT_POLICY" in
+        ""|ALWAYS|NEVER|NORMAL) ;;
+        *)
+            log_error "REDIRECT_POLICY must be ALWAYS, NEVER or NORMAL (or empty), got: $REDIRECT_POLICY"
+            exit 1
+            ;;
+    esac
     
     log "Configuration loaded successfully"
 }
@@ -660,6 +679,37 @@ create_or_update_configmap() {
     fi
 }
 
+# Creates the (empty by default) IP blocklist ConfigMap. An existing one is never touched, so
+# addresses that an administrator added to it survive a redeployment.
+create_blocklist_configmap() {
+    local api_url="https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects/${PROJECT_ID}/config_maps/${BLOCKLIST_CONFIGMAP_NAME}?version=${API_VERSION}"
+
+    local response=$(curl -k -s -w "\n%{http_code}" -X GET "$api_url" \
+        -H "Authorization: Bearer ${BEARER_TOKEN}")
+    local http_code=$(echo "$response" | tail -n1)
+
+    if [ "$http_code" = "200" ]; then
+        log "ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' already exists, leaving it unchanged"
+        return 0
+    fi
+
+    log "Creating empty ConfigMap '$BLOCKLIST_CONFIGMAP_NAME'..."
+    local payload="{\"name\":\"${BLOCKLIST_CONFIGMAP_NAME}\",\"data\":{\"blocked-ips.txt\":\"# One IP address or CIDR range per line (for example 169.254.169.254 or 10.0.0.0/8).\\n# The file is read at startup; restart the application after changing it.\\n\"}}"
+    response=$(curl -k -s -w "\n%{http_code}" -X POST \
+        "https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects/${PROJECT_ID}/config_maps?version=${API_VERSION}" \
+        -H "Authorization: Bearer ${BEARER_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "$payload")
+    http_code=$(echo "$response" | tail -n1)
+
+    if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
+        log_error "Failed to create ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' (HTTP $http_code)"
+        log_error "Response: $(echo "$response" | sed '$d')"
+        exit 1
+    fi
+    log "ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' created (no addresses blocked)"
+}
+
 # ============================================
 # Application Management
 # ============================================
@@ -685,6 +735,16 @@ check_app_exists() {
 
 build_env_variables() {
     local timestamp=$(date +%s)
+    local redirect_entry=""
+    if [ -n "$REDIRECT_POLICY" ]; then
+        redirect_entry=",
+  {
+    \"key\": \"CF_REDIRECT_POLICY\",
+    \"name\": \"CF_REDIRECT_POLICY\",
+    \"type\": \"literal\",
+    \"value\": \"${REDIRECT_POLICY}\"
+  }"
+    fi
     cat <<EOF
 [
   {
@@ -698,6 +758,27 @@ build_env_variables() {
     "name": "LAST_UPDATED",
     "type": "literal",
     "value": "${timestamp}"
+  }${redirect_entry}
+]
+EOF
+}
+
+# Both ConfigMaps are mounted read-only. The list is always sent in full because Code Engine
+# replaces the whole array, which also adds the blocklist mount to applications created earlier.
+build_volume_mounts() {
+    cat <<EOF
+[
+  {
+    "type": "config_map",
+    "mount_path": "/config/mappings",
+    "reference": "${CONFIGMAP_NAME}",
+    "read_only": true
+  },
+  {
+    "type": "config_map",
+    "mount_path": "/config/blocklist",
+    "reference": "${BLOCKLIST_CONFIGMAP_NAME}",
+    "read_only": true
   }
 ]
 EOF
@@ -708,12 +789,14 @@ update_app_with_timestamp() {
     
     local api_url="https://api.${REGION}.codeengine.cloud.ibm.com/v2/projects/${PROJECT_ID}/apps/${APP_NAME}?version=${API_VERSION}"
     local env_variables=$(build_env_variables)
+    local volume_mounts=$(build_volume_mounts)
     
-    # Build payload with image reference and environment variables
+    # Build payload with image reference, environment variables and volume mounts
     local payload=$(cat <<EOF
 {
   "image_reference": "${IMAGE}",
-  "run_env_variables": ${env_variables}
+  "run_env_variables": ${env_variables},
+  "run_volume_mounts": ${volume_mounts}
 }
 EOF
 )
@@ -749,6 +832,7 @@ deploy_application() {
     log "Creating application '$APP_NAME'..."
     
     local env_variables=$(build_env_variables)
+    local volume_mounts=$(build_volume_mounts)
     
     # Build application payload
     local payload=$(cat <<EOF
@@ -760,14 +844,7 @@ deploy_application() {
   "scale_min_instances": ${MIN_SCALE},
   "scale_max_instances": ${MAX_SCALE},
   "run_env_variables": ${env_variables},
-  "run_volume_mounts": [
-    {
-      "type": "config_map",
-      "mount_path": "/config/mappings",
-      "reference": "${CONFIGMAP_NAME}",
-      "read_only": true
-    }
-  ]
+  "run_volume_mounts": ${volume_mounts}
 }
 EOF
 )
@@ -868,6 +945,8 @@ display_info() {
     echo "Project:           $CODE_ENGINE_PROJECT"
     echo "Region:            $REGION"
     echo "ConfigMap:         $CONFIGMAP_NAME"
+    echo "IP blocklist:      $BLOCKLIST_CONFIGMAP_NAME (empty by default; edit it in the Code Engine UI, then redeploy to restart the app)"
+    echo "Redirect policy:   ${REDIRECT_POLICY:-built-in default}"
     echo ""
     echo "Resources:"
     echo "  Min Scale:       $MIN_SCALE"
@@ -899,6 +978,7 @@ main() {
     get_iam_token
     get_project_id
     create_or_update_configmap
+    create_blocklist_configmap
     check_app_exists
     deploy_application
     verify_application

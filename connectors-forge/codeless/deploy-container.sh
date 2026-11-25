@@ -17,6 +17,8 @@ SSH_PORT="22"
 CONFIG_FILES=()
 PORT=""
 REPLACE_MODE=false
+BLOCKLIST_FILE=""
+REDIRECT_POLICY=""
 CONTAINER_RUNTIME="docker"
 IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.10.2"
 CONTAINER_ID=""
@@ -69,6 +71,11 @@ Optional Arguments:
   --ssh-port PORT      SSH port (default: 22)
   --runtime RUNTIME    Container runtime: docker or podman (default: docker)
   --replace            Stop and remove existing container with same name or using the same port
+  --blocklist FILE     Text file with IP addresses / CIDR ranges (one per line, '#' comments) that the
+                       connector must not call. Uploaded to /config/blocklist/blocked-ips.txt and read
+                       at startup. Default: no blocklist, nothing is blocked.
+  --redirect-policy P  How HTTP redirects from the REST API are handled: ALWAYS, NEVER or NORMAL.
+                       Default: the connector's built-in behavior.
   -h, --help           Show this help message
 
 Note:
@@ -173,6 +180,21 @@ parse_arguments() {
                 REPLACE_MODE=true
                 shift
                 ;;
+            --blocklist)
+                BLOCKLIST_FILE="$2"
+                shift 2
+                ;;
+            --redirect-policy)
+                REDIRECT_POLICY=$(echo "$2" | tr '[:lower:]' '[:upper:]')
+                case "$REDIRECT_POLICY" in
+                    ALWAYS|NEVER|NORMAL) ;;
+                    *)
+                        log_error "Invalid redirect policy '$2'. Must be ALWAYS, NEVER or NORMAL."
+                        usage
+                        ;;
+                esac
+                shift 2
+                ;;
             -h|--help)
                 usage
                 ;;
@@ -245,6 +267,14 @@ validate_inputs() {
         file_count=$((file_count + 1))
     done
     log "All $file_count file(s) validated"
+
+    # Validate the optional blocklist file
+    if [ -n "$BLOCKLIST_FILE" ]; then
+        if [ ! -f "$BLOCKLIST_FILE" ]; then
+            error_exit "Blocklist file not found: $BLOCKLIST_FILE"
+        fi
+        log "Blocklist file: $BLOCKLIST_FILE"
+    fi
 
     # Validate port number
     if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
@@ -349,9 +379,15 @@ handle_existing_container() {
 create_container() {
     log_step "3/7" "Creating container..."
     
+    # Optional redirect policy (the value was validated against a fixed set of names)
+    local env_args=""
+    if [ -n "$REDIRECT_POLICY" ]; then
+        env_args="-e CF_REDIRECT_POLICY=${REDIRECT_POLICY}"
+    fi
+
     # Create container with port mapping (runtime will pull image if needed)
     log "Creating container from image: $IMAGE"
-    local create_output=$(ssh_exec "$CONTAINER_RUNTIME create --name $CONTAINER_NAME -p ${PORT}:9443 $IMAGE")
+    local create_output=$(ssh_exec "$CONTAINER_RUNTIME create --name $CONTAINER_NAME -p ${PORT}:9443 $env_args $IMAGE")
     
     # Extract only the container ID (last non-empty line of output)
     CONTAINER_ID=$(echo "$create_output" | grep -v '^$' | tail -n 1)
@@ -379,6 +415,14 @@ upload_config_files() {
     for file in "${CONFIG_FILES[@]}"; do
         cp "$file" "$TEMP_DIR/mappings/"
     done
+
+    # The blocklist travels in the same archive, as /config/blocklist/blocked-ips.txt
+    local tar_dirs=(mappings)
+    if [ -n "$BLOCKLIST_FILE" ]; then
+        mkdir -p "$TEMP_DIR/blocklist"
+        cp "$BLOCKLIST_FILE" "$TEMP_DIR/blocklist/blocked-ips.txt"
+        tar_dirs+=(blocklist)
+    fi
     
     # Stream tar directly to container runtime cp via SSH
     # The tar is created on-the-fly and piped, no archive file is created
@@ -388,10 +432,10 @@ upload_config_files() {
         # Stream tar without extended attributes (critical for macOS -> Linux)
         if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS: Try modern flags first, fallback to COPYFILE_DISABLE for older versions
-            tar --no-mac-metadata --no-xattrs -cf - mappings 2>/dev/null || \
-            COPYFILE_DISABLE=1 tar -cf - mappings
+            tar --no-mac-metadata --no-xattrs -cf - "${tar_dirs[@]}" 2>/dev/null || \
+            COPYFILE_DISABLE=1 tar -cf - "${tar_dirs[@]}"
         else
-            tar -cf - mappings
+            tar -cf - "${tar_dirs[@]}"
         fi
     ) | ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no \
         -o ConnectTimeout=10 -o BatchMode=yes \
@@ -399,6 +443,9 @@ upload_config_files() {
     
     if [ $? -eq 0 ]; then
         log "Files uploaded to /config/mappings/"
+        if [ -n "$BLOCKLIST_FILE" ]; then
+            log "Blocklist uploaded to /config/blocklist/blocked-ips.txt"
+        fi
     else
         error_exit "Failed to upload files. The /config directory may not exist in the container."
     fi
@@ -458,6 +505,8 @@ main() {
     if [ "$REPLACE_MODE" = true ]; then
         echo "Replace Mode:   Enabled"
     fi
+    echo "Blocklist:      ${BLOCKLIST_FILE:-none (nothing blocked)}"
+    echo "Redirects:      ${REDIRECT_POLICY:-built-in default}"
     echo "=========================================="
     
     validate_inputs

@@ -16,7 +16,16 @@ param(
     [switch]$Replace,
 
     [ValidateSet("docker", "podman")]
-    [string]$ContainerRuntime = "docker"
+    [string]$ContainerRuntime = "docker",
+
+    # Text file with IP addresses / CIDR ranges (one per line, '#' comments) that the connector must
+    # not call. Uploaded to /config/blocklist/blocked-ips.txt and read at startup.
+    # Default: no blocklist, nothing is blocked.
+    [string]$Blocklist,
+
+    # How HTTP redirects from the REST API are handled. Default: the connector's built-in behavior.
+    [ValidateSet("ALWAYS", "NEVER", "NORMAL")]
+    [string]$RedirectPolicy
 )
 
 # ============================================
@@ -161,6 +170,14 @@ function Test-Inputs {
     }
     Write-Log "All $fileCount file(s) validated"
     
+    # Validate the optional blocklist file
+    if ($Blocklist) {
+        if (-not (Test-Path -PathType Leaf $Blocklist)) {
+            Exit-WithError "Blocklist file not found: $Blocklist"
+        }
+        Write-Log "Blocklist file: $Blocklist"
+    }
+    
     # Validate port number
     if ($Port -lt 1 -or $Port -gt 65535) {
         Exit-WithError "Invalid port number: $Port (must be 1-65535)"
@@ -292,8 +309,13 @@ function New-Container {
     
     # Create container with port mapping (runtime will pull image if needed)
     Write-Log "Creating container from image: $Image"
+    # Optional redirect policy (restricted to a fixed set of names by ValidateSet)
+    $envArgs = ""
+    if ($RedirectPolicy) {
+        $envArgs = "-e CF_REDIRECT_POLICY=$RedirectPolicy "
+    }
     try {
-        $output = Invoke-SshCommand "$ContainerRuntime create --name $ContainerName -p ${Port}:9443 $Image"
+        $output = Invoke-SshCommand "$ContainerRuntime create --name $ContainerName -p ${Port}:9443 $envArgs$Image"
         # Take only the last non-empty line — that is the container ID
         $script:ContainerId = ($output -split "`n" | Where-Object { $_.Trim() -ne "" } | Select-Object -Last 1).Trim()
     } catch {
@@ -325,6 +347,14 @@ function Send-ConfigFiles {
         Copy-Item $file -Destination "$TempDir\mappings\"
     }
     
+    # The blocklist travels in the same archive, as /config/blocklist/blocked-ips.txt
+    $tarDirs = @("mappings")
+    if ($Blocklist) {
+        New-Item -ItemType Directory -Path "$TempDir\blocklist" | Out-Null
+        Copy-Item $Blocklist -Destination "$TempDir\blocklist\blocked-ips.txt"
+        $tarDirs += "blocklist"
+    }
+    
     # Create tar archive and stream it via SSH to container runtime cp
     try {
         # Create tar archive
@@ -333,7 +363,7 @@ function Send-ConfigFiles {
         # Use tar command (available in Windows 10+ and PowerShell 7+)
         Push-Location $TempDir
         try {
-            & tar -cf config.tar mappings 2>&1 | Out-Null
+            & tar -cf config.tar @tarDirs 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to create tar archive"
             }
@@ -355,6 +385,9 @@ function Send-ConfigFiles {
         }
         
         Write-Log "Files uploaded to /config/mappings/"
+        if ($Blocklist) {
+            Write-Log "Blocklist uploaded to /config/blocklist/blocked-ips.txt"
+        }
     } catch {
         Exit-WithError "Failed to upload files. The /config directory may not exist in the container. Error: $_"
     }
@@ -415,6 +448,10 @@ function Main {
     }
     Write-Host "Image:          $Image"
     Write-Host "Port:           $Port"
+    $blocklistDisplay = if ($Blocklist) { $Blocklist } else { "none (nothing blocked)" }
+    $redirectDisplay = if ($RedirectPolicy) { $RedirectPolicy } else { "built-in default" }
+    Write-Host "Blocklist:      $blocklistDisplay"
+    Write-Host "Redirects:      $redirectDisplay"
     if ($Replace) {
         Write-Host "Replace Mode:   Enabled"
     }

@@ -26,11 +26,13 @@ $script:APP_NAME = ""
 $script:CONFIG_FILES = @()
 $script:MIN_SCALE = ""
 $script:MAX_SCALE = ""
+$script:REDIRECT_POLICY = ""
 
 # Runtime variables
 $script:BEARER_TOKEN = ""
 $script:PROJECT_ID = ""
 $script:CONFIGMAP_NAME = "connectors-config"
+$script:BLOCKLIST_CONFIGMAP_NAME = "connectors-blocklist"
 $script:CONFIGMAP_ETAG = ""
 $script:IMAGE = "ghcr.io/marek-zuwala/connectors-forge:1.0.10.2"
 $script:APP_EXISTS = $false
@@ -191,6 +193,13 @@ OPTIONAL PROPERTIES:
     APP_NAME                Application name (default: cf-flight-connector)
     MIN_SCALE               Minimum instances (default: 0)
     MAX_SCALE               Maximum instances (default: 2)
+    REDIRECT_POLICY         How HTTP redirects from the REST API are handled: ALWAYS, NEVER or NORMAL
+                            (default: empty = the connector's built-in behavior)
+
+IP blocklist:
+  A ConfigMap 'connectors-blocklist' is created empty (nothing blocked) if it does not exist and is
+  never overwritten. Add IP addresses / CIDR ranges to its 'blocked-ips.txt' key in the Code Engine
+  UI, then restart the application (the list is read at startup).
 
 Prerequisites:
   - IBM Cloud API key with Code Engine permissions
@@ -309,6 +318,13 @@ function Load-Properties {
     $script:MAX_SCALE = Get-Property "MAX_SCALE"
     if ([string]::IsNullOrWhiteSpace($MAX_SCALE)) {
         $script:MAX_SCALE = "2"
+    }
+
+    # Optional redirect policy (empty = keep the connector's built-in behavior)
+    $script:REDIRECT_POLICY = (Get-Property "REDIRECT_POLICY").ToUpper()
+    if ($REDIRECT_POLICY -ne "" -and $REDIRECT_POLICY -notin @("ALWAYS", "NEVER", "NORMAL")) {
+        Write-LogError "REDIRECT_POLICY must be ALWAYS, NEVER or NORMAL (or empty), got: $REDIRECT_POLICY"
+        exit 1
     }
     
     Write-Log "Configuration loaded successfully"
@@ -751,6 +767,39 @@ function New-OrUpdateConfigMap {
     }
 }
 
+# Creates the (empty by default) IP blocklist ConfigMap. An existing one is never touched, so
+# addresses that an administrator added to it survive a redeployment.
+function New-BlocklistConfigMap {
+    $headers = @{
+        Authorization = "Bearer $BEARER_TOKEN"
+    }
+    $apiUrl = "https://api.$REGION.codeengine.cloud.ibm.com/v2/projects/$PROJECT_ID/config_maps/${BLOCKLIST_CONFIGMAP_NAME}?version=$API_VERSION"
+
+    $response = Invoke-HttpRequest -Method "GET" -Uri $apiUrl -Headers $headers
+    if ($response.StatusCode -eq 200) {
+        Write-Log "ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' already exists, leaving it unchanged"
+        return
+    }
+
+    Write-Log "Creating empty ConfigMap '$BLOCKLIST_CONFIGMAP_NAME'..."
+    $payload = @{
+        name = $BLOCKLIST_CONFIGMAP_NAME
+        data = @{
+            "blocked-ips.txt" = "# One IP address or CIDR range per line (for example 169.254.169.254 or 10.0.0.0/8).`n# The file is read at startup; restart the application after changing it.`n"
+        }
+    } | ConvertTo-Json -Compress -Depth 10
+
+    $apiUrl = "https://api.$REGION.codeengine.cloud.ibm.com/v2/projects/$PROJECT_ID/config_maps?version=$API_VERSION"
+    $response = Invoke-HttpRequest -Method "POST" -Uri $apiUrl -Headers $headers -Body $payload
+
+    if ($response.StatusCode -notin @(200, 201)) {
+        Write-LogError "Failed to create ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' (HTTP $($response.StatusCode))"
+        Write-LogError "Response: $($response.Content)"
+        exit 1
+    }
+    Write-Log "ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' created (no addresses blocked)"
+}
+
 # ============================================
 # Application Management
 # ============================================
@@ -782,7 +831,7 @@ function Test-AppExists {
 function Get-EnvVariables {
     $timestamp = [int][double]::Parse((Get-Date -UFormat %s))
     
-    return @(
+    $envVariables = @(
         @{
             key = "ENABLE_SSL"
             name = "ENABLE_SSL"
@@ -796,6 +845,36 @@ function Get-EnvVariables {
             value = $timestamp.ToString()
         }
     )
+
+    if ($REDIRECT_POLICY -ne "") {
+        $envVariables += @{
+            key = "CF_REDIRECT_POLICY"
+            name = "CF_REDIRECT_POLICY"
+            type = "literal"
+            value = $REDIRECT_POLICY
+        }
+    }
+
+    return $envVariables
+}
+
+# Both ConfigMaps are mounted read-only. The list is always sent in full because Code Engine
+# replaces the whole array, which also adds the blocklist mount to applications created earlier.
+function Get-VolumeMounts {
+    return @(
+        @{
+            type = "config_map"
+            mount_path = "/config/mappings"
+            reference = $CONFIGMAP_NAME
+            read_only = $true
+        },
+        @{
+            type = "config_map"
+            mount_path = "/config/blocklist"
+            reference = $BLOCKLIST_CONFIGMAP_NAME
+            read_only = $true
+        }
+    )
 }
 
 function Update-AppWithTimestamp {
@@ -804,10 +883,11 @@ function Update-AppWithTimestamp {
     $apiUrl = "https://api.$REGION.codeengine.cloud.ibm.com/v2/projects/$PROJECT_ID/apps/${APP_NAME}?version=$API_VERSION"
     $envVariables = Get-EnvVariables
     
-    # Build payload with image reference and environment variables
+    # Build payload with image reference, environment variables and volume mounts
     $payload = @{
         image_reference   = $IMAGE
         run_env_variables = $envVariables
+        run_volume_mounts = @(Get-VolumeMounts)
     } | ConvertTo-Json -Compress -Depth 10
     
     $headers = @{
@@ -853,14 +933,7 @@ function Deploy-Application {
         scale_min_instances = [int]$MIN_SCALE
         scale_max_instances = [int]$MAX_SCALE
         run_env_variables = $envVariables
-        run_volume_mounts = @(
-            @{
-                type = "config_map"
-                mount_path = "/config/mappings"
-                reference = $CONFIGMAP_NAME
-                read_only = $true
-            }
-        )
+        run_volume_mounts = @(Get-VolumeMounts)
     } | ConvertTo-Json -Compress -Depth 10
     
     $apiUrl = "https://api.$REGION.codeengine.cloud.ibm.com/v2/projects/$PROJECT_ID/apps?version=$API_VERSION"
@@ -970,6 +1043,9 @@ function Show-DeploymentInfo {
     Write-Host "Project:           $CODE_ENGINE_PROJECT"
     Write-Host "Region:            $REGION"
     Write-Host "ConfigMap:         $CONFIGMAP_NAME"
+    Write-Host "IP blocklist:      $BLOCKLIST_CONFIGMAP_NAME (empty by default; edit it in the Code Engine UI, then redeploy to restart the app)"
+    $redirectDisplay = if ($REDIRECT_POLICY -ne "") { $REDIRECT_POLICY } else { "built-in default" }
+    Write-Host "Redirect policy:   $redirectDisplay"
     Write-Host ""
     Write-Host "Resources:"
     Write-Host "  Min Scale:       $MIN_SCALE"
@@ -1001,6 +1077,7 @@ function Main {
     Get-IamToken
     Get-ProjectId
     New-OrUpdateConfigMap
+    New-BlocklistConfigMap
     Test-AppExists
     Deploy-Application
     Test-ApplicationReady

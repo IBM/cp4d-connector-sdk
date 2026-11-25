@@ -40,8 +40,15 @@ spec:
         - name: config-volume
           mountPath: /config/mappings
           readOnly: true
+        - name: blocklist-volume
+          mountPath: /config/blocklist
+          readOnly: true
 
       volumes:
       - name: config-volume
         configMap:
           name: connectors-config
+      - name: blocklist-volume
+        configMap:
+          name: connectors-blocklist
+          optional: true

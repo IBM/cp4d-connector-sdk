@@ -18,7 +18,10 @@ DOCKER_IMAGE="ghcr.io/marek-zuwala/connectors-forge:1.0.10.2"
 CONFIG_FILES_PATH="sdk-gen/subprojects/connectors_forge_rest/src/main/resources"
 DEPLOYMENT_YAML="${SCRIPT_DIR}/deployment.yaml"
 SERVICE_YAML="${SCRIPT_DIR}/service.yaml"
+BLOCKLIST_YAML="${SCRIPT_DIR}/blocklist-configmap.yaml"
 CONFIGMAP_NAME="connectors-config"
+BLOCKLIST_CONFIGMAP_NAME="connectors-blocklist"
+DEPLOYMENT_NAME="cf-flight-connector"
 
 # Variables from properties file
 OPENSHIFT_CLUSTER_URL=""
@@ -28,6 +31,7 @@ OPENSHIFT_TOKEN=""
 OPENSHIFT_PROJECT=""
 CREATE_PROJECT_IF_NOT_EXISTS="true"
 RECREATE_CONFIGMAP="true"
+REDIRECT_POLICY=""
 
 # ============================================
 # Helper Functions
@@ -109,8 +113,21 @@ load_properties() {
             OPENSHIFT_PROJECT) OPENSHIFT_PROJECT="$value" ;;
             CREATE_PROJECT_IF_NOT_EXISTS) CREATE_PROJECT_IF_NOT_EXISTS="$value" ;;
             RECREATE_CONFIGMAP) RECREATE_CONFIGMAP="$value" ;;
+            REDIRECT_POLICY) REDIRECT_POLICY="$value" ;;
         esac
     done < "$PROPERTIES_FILE"
+
+    # Validate optional redirect policy
+    if [ -n "$REDIRECT_POLICY" ]; then
+        REDIRECT_POLICY=$(echo "$REDIRECT_POLICY" | tr '[:lower:]' '[:upper:]')
+        case "$REDIRECT_POLICY" in
+            ALWAYS|NEVER|NORMAL) ;;
+            *)
+                log_error "REDIRECT_POLICY must be ALWAYS, NEVER or NORMAL (or empty), got: $REDIRECT_POLICY"
+                exit 1
+                ;;
+        esac
+    fi
     
     # Validate required properties
     if [ -z "$OPENSHIFT_CLUSTER_URL" ]; then
@@ -237,6 +254,29 @@ create_configmap() {
     fi
     
     log "ConfigMap '$CONFIGMAP_NAME' created successfully"
+
+    create_blocklist_configmap
+}
+
+# Creates the (empty by default) IP blocklist ConfigMap. An existing one is never touched, so
+# addresses that an administrator added to it survive a redeployment.
+create_blocklist_configmap() {
+    if oc get configmap "$BLOCKLIST_CONFIGMAP_NAME" &> /dev/null; then
+        log "ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' already exists, leaving it unchanged"
+        return
+    fi
+
+    if [ ! -f "$BLOCKLIST_YAML" ]; then
+        log_error "Blocklist configuration not found: $BLOCKLIST_YAML"
+        exit 1
+    fi
+
+    log "Creating empty ConfigMap '$BLOCKLIST_CONFIGMAP_NAME'..."
+    if ! oc create -f "$BLOCKLIST_YAML" 2>&1; then
+        log_error "Failed to create blocklist ConfigMap"
+        exit 1
+    fi
+    log "ConfigMap '$BLOCKLIST_CONFIGMAP_NAME' created (no addresses blocked)"
 }
 
 # ============================================
@@ -260,6 +300,17 @@ deploy_connector() {
     fi
     
     log "Deployment configuration applied successfully"
+
+    # Redirect policy: set when configured, removed when not, so the cluster matches the properties file
+    if [ -n "$REDIRECT_POLICY" ]; then
+        log "Setting CF_REDIRECT_POLICY=$REDIRECT_POLICY"
+        if ! oc set env "deployment/$DEPLOYMENT_NAME" "CF_REDIRECT_POLICY=$REDIRECT_POLICY" 2>&1; then
+            log_error "Failed to set CF_REDIRECT_POLICY"
+            exit 1
+        fi
+    else
+        oc set env "deployment/$DEPLOYMENT_NAME" CF_REDIRECT_POLICY- > /dev/null 2>&1 || true
+    fi
 }
 
 # ============================================
@@ -344,6 +395,7 @@ main() {
     echo "  - Deployment: cf-flight-connector"
     echo "  - Service: cf-flight-connector-service"
     echo "  - Port: 9443 (gRPC)"
+    echo "  - IP blocklist: ConfigMap '${BLOCKLIST_CONFIGMAP_NAME}' (edit it, then: oc rollout restart deployment/${DEPLOYMENT_NAME})"
     echo ""
     echo "The connector is accessible within the cluster at:"
     echo "  cf-flight-connector-service.${OPENSHIFT_PROJECT}.svc.cluster.local:9443"
