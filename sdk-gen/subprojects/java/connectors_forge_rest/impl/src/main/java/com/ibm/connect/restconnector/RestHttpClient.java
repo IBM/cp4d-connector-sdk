@@ -5,6 +5,8 @@
 /* *************************************************** */
 package com.ibm.connect.restconnector;
 
+import static org.slf4j.LoggerFactory.getLogger;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -14,6 +16,8 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandler;
 import java.time.Duration;
 import java.util.Optional;
+
+import org.slf4j.Logger;
 
 /**
  * The HTTP client of the REST connector.
@@ -28,6 +32,8 @@ import java.util.Optional;
  */
 final class RestHttpClient
 {
+    private static final Logger LOGGER = getLogger(RestHttpClient.class);
+
     private static final int MAX_REDIRECTS = 5;
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(60);
 
@@ -139,7 +145,8 @@ final class RestHttpClient
             try {
                 ((InputStream) response.body()).close();
             } catch (IOException e) {
-                // nothing to do: the redirect response body is discarded
+                // The redirect response body is discarded, so this is not fatal. The URI is not logged: it may carry credentials.
+                LOGGER.debug("Failed to close the body of a redirect response (status {})", response.statusCode(), e);
             }
         }
     }
