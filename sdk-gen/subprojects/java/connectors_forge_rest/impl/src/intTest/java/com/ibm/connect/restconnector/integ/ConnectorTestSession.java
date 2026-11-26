@@ -12,6 +12,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.ibm.connect.restconnector.AuthConfig.HeaderDef;
 import com.ibm.connect.restconnector.PathPropertyDef;
 import com.ibm.connect.restconnector.RestApiMapping;
 import com.ibm.connect.restconnector.RestTableDefinition;
@@ -105,40 +106,26 @@ final class ConnectorTestSession {
         props.put("host", host);
         props.put("port", port);
 
-        switch (cfg.authType()) {
-            case API_KEY: props.put("api_key",      cfg.apiKey());      break;
-            case BASIC:   props.put("username",     cfg.username());
-                          props.put("password",     cfg.password());    break;
-            case OAUTH2:  props.put("bearer_token", cfg.bearerToken()); break;
-            default:      break;
-        }
+        // Every non-framework key from the .properties file goes into the connection
+        // properties as-is
+        props.putAll(cfg.extraProperties());
 
-        // ── path properties ──────────────────────────────────────────────────
-        // Cross-reference the DSL's $path_properties against the extra properties
-        // read from the .properties file. Fail fast with a clear message if any
-        // required path variable is missing.
+        for (final HeaderDef hd : map.getAuthConfig().getHeaders()) {
+            requireNonBlank(cfg, hd.getName(), hd.getLabel(), "auth");
+        }
         for (final PathPropertyDef pd : map.getPathProperties()) {
-            final String value = cfg.extraProperties().get(pd.getName());
-            if (value == null || value.isBlank()) {
-                throw new IllegalStateException(
-                        "Missing required path property '" + pd.getName() + "' ("
-                        + pd.getLabel() + ") — add '" + pd.getName() + "=<value>' "
-                        + "to your .properties file");
-            }
-            props.put(pd.getName(), value);
-        }
-
-        // Put any remaining extras (not known framework keys, not path properties) through as-is
-        // so connectors with non-standard connection properties still work.
-        final Set<String> pathPropNames = map.getPathProperties().stream()
-                .map(PathPropertyDef::getName)
-                .collect(Collectors.toSet());
-        for (final Entry<String, String> e : cfg.extraProperties().entrySet()) {
-            if (!pathPropNames.contains(e.getKey())) {
-                props.put(e.getKey(), e.getValue());
-            }
+            requireNonBlank(cfg, pd.getName(), pd.getLabel(), "path");
         }
 
         return props;
+    }
+
+    private static void requireNonBlank(IntegTestConfig cfg, String name, String label, String kind) {
+        final String value = cfg.extraProperties().get(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(
+                    "Missing required " + kind + " property '" + name + "' (" + label
+                    + ") — add '" + name + "=<value>' to your .properties file");
+        }
     }
 }

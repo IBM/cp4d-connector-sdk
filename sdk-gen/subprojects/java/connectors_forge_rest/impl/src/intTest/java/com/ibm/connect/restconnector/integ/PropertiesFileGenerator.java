@@ -163,31 +163,19 @@ final class PropertiesFileGenerator {
         sb.append('\n');
     }
 
+    /**
+     * Writes {@code auth.type} followed by one entry per credential field declared in the DSL's
+     * {@code $authentication.headers}, so the keys always match what the DSL templates reference
+     * (e.g. {@code service_account_username}, {@code revision}).
+     */
     private static void appendAuthEntries(StringBuilder sb, AuthenticationType authType,
             RestApiMapping mapping) {
-        switch (authType) {
-            case NONE:
-                sb.append("auth.type=none\n");
-                break;
-            case API_KEY:
-                sb.append("auth.type=api_key\n");
-                sb.append("api.key=<api key>\n");
-                break;
-            case BASIC:
-                sb.append("auth.type=basic\n");
-                sb.append("username=<username>\n");
-                sb.append("password=<password>\n");
-                break;
-            case OAUTH2:
-                sb.append("auth.type=oauth2\n");
-                sb.append("bearer.token=<OAuth 2.0 access token>\n");
-                break;
-            default:
-                sb.append("auth.type=").append(authType.getValue()).append('\n');
-                for (final HeaderDef h : mapping.getAuthConfig().getHeaders()) {
-                    sb.append(h.getName()).append("=<").append(h.getLabel()).append(">\n");
-                }
-                break;
+        sb.append("auth.type=").append(authType.getValue()).append('\n');
+        for (final HeaderDef h : mapping.getAuthConfig().getHeaders()) {
+            if (h.getDescription() != null && !h.getDescription().isBlank()) {
+                sb.append("# ").append(h.getLabel()).append(": ").append(h.getDescription()).append('\n');
+            }
+            sb.append(h.getName()).append("=<").append(h.getLabel()).append(">\n");
         }
     }
 }

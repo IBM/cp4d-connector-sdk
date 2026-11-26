@@ -33,20 +33,23 @@ public final class IntegTestConfig {
 
     private static final int DEFAULT_ROW_LIMIT = 50;
 
-    /** Keys consumed by the framework — everything else is treated as an extra (path) property. */
+    /**
+     * Keys consumed by the framework — everything else is treated as an extra property:
+     * path properties and the credential fields named in the DSL's {@code $authentication.headers}.
+     */
     private static final Set<String> KNOWN_KEYS = new HashSet<>(Arrays.asList(
-            "connector.json", "host", "port",
-            "auth.type", "api.key", "username", "password", "bearer.token",
+            "connector.json", "host", "port", "auth.type",
             "row.limit", "tables", "fail.on.empty.tables", "fail.on.all.null.columns", "request.delay.ms"));
+
+    /** Legacy properties keys mapped to the conventional DSL credential field names. */
+    private static final Map<String, String> LEGACY_CREDENTIAL_KEYS = Map.of(
+            "api.key", "api_key",
+            "bearer.token", "bearer_token");
 
     private final String connectorJson;
     private final String host;
     private final Integer port;
     private final AuthenticationType authType;
-    private final String apiKey;
-    private final String username;
-    private final String password;
-    private final String bearerToken;
     private final int rowLimit;
     private final int requestDelayMs;
     private final List<String> tables;
@@ -59,10 +62,6 @@ public final class IntegTestConfig {
             String host,
             Integer port,
             AuthenticationType authType,
-            String apiKey,
-            String username,
-            String password,
-            String bearerToken,
             int rowLimit,
             int requestDelayMs,
             List<String> tables,
@@ -73,10 +72,6 @@ public final class IntegTestConfig {
         this.host = host;
         this.port = port;
         this.authType = authType;
-        this.apiKey = apiKey;
-        this.username = username;
-        this.password = password;
-        this.bearerToken = bearerToken;
         this.rowLimit = rowLimit;
         this.requestDelayMs = requestDelayMs;
         this.tables = tables;
@@ -117,12 +112,6 @@ public final class IntegTestConfig {
 
         final AuthenticationType authType = parseAuthType(props.getProperty("auth.type"), path);
 
-        final String apiKey      = props.getProperty("api.key");
-        final String username    = props.getProperty("username");
-        final String password    = props.getProperty("password");
-        final String bearerToken = props.getProperty("bearer.token");
-        validateCredentials(authType, apiKey, username, password, bearerToken, path);
-
         final String rowLimitStr = props.getProperty("row.limit");
         final int rowLimit = isBlank(rowLimitStr)
                 ? DEFAULT_ROW_LIMIT
@@ -150,7 +139,7 @@ public final class IntegTestConfig {
 
         return new IntegTestConfig(
                 connectorJson, hostVal, portVal,
-                authType, apiKey, username, password, bearerToken, rowLimit, requestDelayMs,
+                authType, rowLimit, requestDelayMs,
                 tables, failOnEmptyTables, failOnAllNullColumns, collectExtraProperties(props));
     }
 
@@ -204,31 +193,6 @@ public final class IntegTestConfig {
         }
     }
 
-    private static void validateCredentials(AuthenticationType authType, String apiKey,
-            String username, String password, String bearerToken, String path) {
-        switch (authType) {
-            case API_KEY:
-                requireNonBlank("api.key", apiKey, "api_key", path);
-                break;
-            case BASIC:
-                requireNonBlank("username", username, "basic", path);
-                requireNonBlank("password", password, "basic", path);
-                break;
-            case OAUTH2:
-                requireNonBlank("bearer.token", bearerToken, "oauth2", path);
-                break;
-            default:
-                break;
-        }
-    }
-
-    private static void requireNonBlank(String key, String value, String authType, String path) {
-        if (isBlank(value)) {
-            throw new IllegalStateException(
-                    "'" + key + "' is required when auth.type=" + authType + " in: " + path);
-        }
-    }
-
     private static int parseInt(String key, String value, String path) {
         try {
             return Integer.parseInt(value.strip());
@@ -239,18 +203,23 @@ public final class IntegTestConfig {
     }
 
     /**
-     * Collects all keys not in {@link #KNOWN_KEYS} (path variables and anything else) from the
-     * properties file. They are passed through as-is into ConnectionProperties so that
-     * {@code $path_properties} variables declared in the DSL are automatically available.
+     * Collects all keys not in {@link #KNOWN_KEYS} from the properties file. They are passed
+     * through as-is into ConnectionProperties so that {@code $path_properties} variables and the
+     * credential fields declared in {@code $authentication.headers} of the DSL are automatically
+     * available. The legacy {@code api.key} / {@code bearer.token} keys are mapped to
+     * {@code api_key} / {@code bearer_token}.
      */
     private static Map<String, String> collectExtraProperties(Properties props) {
         final Map<String, String> extraProperties = new HashMap<>();
         for (final String key : props.stringPropertyNames()) {
-            if (!KNOWN_KEYS.contains(key)) {
-                final String val = props.getProperty(key);
-                if (val != null) {
-                    extraProperties.put(key, val);
-                }
+            final String val = props.getProperty(key);
+            if (val == null) {
+                continue;
+            }
+            if (LEGACY_CREDENTIAL_KEYS.containsKey(key)) {
+                extraProperties.putIfAbsent(LEGACY_CREDENTIAL_KEYS.get(key), val);
+            } else if (!KNOWN_KEYS.contains(key)) {
+                extraProperties.put(key, val);
             }
         }
         return extraProperties;
@@ -296,18 +265,6 @@ public final class IntegTestConfig {
     /** Authentication type. Never {@code null}; defaults to {@link AuthenticationType#NONE}. */
     public AuthenticationType authType() { return authType; }
 
-    /** API key (valid when {@link #authType()} is {@code API_KEY}). */
-    public String apiKey()            { return apiKey; }
-
-    /** Username (valid when {@link #authType()} is {@code BASIC}). */
-    public String username()          { return username; }
-
-    /** Password (valid when {@link #authType()} is {@code BASIC}). */
-    public String password()          { return password; }
-
-    /** Bearer token (valid when {@link #authType()} is {@code OAUTH2}). */
-    public String bearerToken()       { return bearerToken; }
-
     /** Maximum rows to sample per table. */
     public int rowLimit()             { return rowLimit; }
 
@@ -335,8 +292,9 @@ public final class IntegTestConfig {
 
     /**
      * Extra properties from the {@code .properties} file that are not consumed by the framework.
-     * These typically correspond to {@code $path_properties} variables declared in the DSL JSON
-     * and are passed through into {@code ConnectionProperties} by {@link ConnectorTestSession}.
+     * These correspond to {@code $path_properties} variables and to the credential fields of
+     * {@code $authentication.headers} declared in the DSL JSON, and are passed through into
+     * {@code ConnectionProperties} by {@link ConnectorTestSession}.
      */
     public Map<String, String> extraProperties() { return extraProperties; }
 }
