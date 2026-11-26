@@ -209,6 +209,23 @@ public class TestEgressBlocklist
     }
 
     @Test
+    public void testHostnameResolvingToABlockedAddressIsBlocked() throws Exception
+    {
+        // "localhost" is resolved by the JDK (hosts file) to 127.0.0.1 and/or ::1 without needing DNS
+        assertBlocked(blocklistWith("127.0.0.0/8"), "http://localhost/");
+        assertBlocked(blocklistWith("127.0.0.0/8"), "https://localhost:8443/a/b");
+        assertBlocked(blocklistWith("127.0.0.0/8"), "http://LOCALHOST/");
+    }
+
+    @Test
+    public void testHostnameResolvingToAnUnlistedAddressIsAllowed() throws Exception
+    {
+        final EgressBlocklist blocklist = blocklistWith("10.0.0.0/8", "169.254.0.0/16", "fd00::/8");
+        assertAllowed(blocklist, "http://localhost/");
+        assertAllowed(blocklist, "https://localhost:8443/a/b");
+    }
+
+    @Test
     public void testUriWithoutHostIsNotChecked() throws Exception
     {
         assertAllowed(blocklistWith("10.0.0.0/8"), "/relative");
