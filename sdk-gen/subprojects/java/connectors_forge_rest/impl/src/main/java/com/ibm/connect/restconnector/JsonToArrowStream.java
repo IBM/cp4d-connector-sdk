@@ -204,12 +204,14 @@ public class JsonToArrowStream implements Closeable
                 JsonNode dataNode = rootNode;
                 if (dataPath != null && !dataPath.isEmpty()) {
                     dataNode = extractJsonPath(rootNode, dataPath);
-                    if (dataNode == null) {
-                        throw new IOException("Data path '" + dataPath + "' not found in JSON response");
-                    }
                 }
 
-                recordsInPage = streamNodeToWriter(dataNode, writer);
+                if (dataNode == null || dataNode.isNull()) {
+                    LOGGER.warn("Data path '{}' not found in JSON response; returning 0 rows", dataPath);
+                    recordsInPage = 0;
+                } else {
+                    recordsInPage = streamNodeToWriter(dataNode, writer);
+                }
 
             } else {
                 // Streaming parse for offset/page/link_header/no-pagination
@@ -299,12 +301,13 @@ public class JsonToArrowStream implements Closeable
         // Navigate to the data array if a data path is given
         if (dataPath != null && !dataPath.isEmpty()) {
             root = extractJsonPath(root, dataPath);
-            if (root == null) {
-                throw new IOException("source_data_path '" + dataPath + "' not found in lookup response from: " + url);
-            }
         }
 
         final List<String> values = new ArrayList<>();
+        if (root == null || root.isNull()) {
+            LOGGER.warn("source_data_path '{}' not found in lookup response; returning no values", dataPath);
+            return values;
+        }
         if (root.isArray()) {
             for (final JsonNode item : root) {
                 if (item.isObject()) {
@@ -370,8 +373,9 @@ public class JsonToArrowStream implements Closeable
             }
             final JsonNode rootNode = OBJECT_MAPPER.readTree(jsonParser);
             final JsonNode dataNode = extractJsonPath(rootNode, dataPath);
-            if (dataNode == null) {
-                throw new IOException("Data path '" + dataPath + "' not found in JSON response");
+            if (dataNode == null || dataNode.isNull()) {
+                LOGGER.warn("Data path '{}' not found in JSON response; returning 0 rows", dataPath);
+                return 0;
             }
             return streamNodeToWriter(dataNode, writer);
         }
