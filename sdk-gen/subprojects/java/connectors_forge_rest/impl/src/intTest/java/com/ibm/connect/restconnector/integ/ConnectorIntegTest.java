@@ -47,6 +47,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ibm.connect.restconnector.AuthConfig.HeaderDef;
 import com.ibm.connect.restconnector.AuthenticationType;
 import com.ibm.connect.restconnector.PaginationConfig;
 import com.ibm.connect.restconnector.RestApiMapping;
@@ -858,19 +859,16 @@ public class ConnectorIntegTest {
         badProps.put("host",     session.connectionProps().get("host"));
         badProps.put("port",     session.connectionProps().get("port"));
 
-        switch (session.config().authType()) {
-            case BASIC:
-                badProps.put("username", "__invalid_user__");
-                badProps.put("password", "__invalid_pass__");
-                break;
-            case API_KEY:
-                badProps.put("api_key", "__invalid_api_key__");
-                break;
-            case OAUTH2:
-                badProps.put("bearer_token", "__invalid_bearer_token__");
-                break;
-            default:
-                break;
+        // Credential fields come from the DSL. Invalidate the masked (secret) ones and keep the
+        // rest (e.g. an API "revision" header) intact; if nothing is masked, invalidate them all.
+        final List<HeaderDef> authFields = session.mapping().getAuthConfig().getHeaders();
+        final boolean anyMasked = authFields.stream().anyMatch(HeaderDef::isMasked);
+        for (final HeaderDef hd : authFields) {
+            if (!anyMasked || hd.isMasked()) {
+                badProps.put(hd.getName(), "__invalid_" + hd.getName() + "__");
+            } else {
+                badProps.put(hd.getName(), session.connectionProps().get(hd.getName()));
+            }
         }
 
         final Entry<String, RestTableDefinition> first = tablesToTest().iterator().next();

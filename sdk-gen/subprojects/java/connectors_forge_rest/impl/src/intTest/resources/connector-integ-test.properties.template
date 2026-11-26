@@ -32,15 +32,13 @@ connector.json=openbrewerydb.json
 # port=443
 
 # ── Authentication ───────────────────────────────────────────────────────────
-# auth.type defaults to none; uncomment the block that matches $authentication in the JSON
+# auth.type defaults to none; set it to the "type" of $authentication in the JSON.
+# Then add one key=value line per entry in $authentication.headers, using the entry's
+# "name" as the key (the same name the DSL uses as $name in its header templates), e.g.:
+#   auth.type=basic         -> username=..., password=...
+#   auth.type=api_key       -> api_key=...
+#   auth.type=oauth2        -> bearer_token=...
 # auth.type=none
-# auth.type=api_key
-# api.key=<your-api-key>
-# auth.type=basic
-# username=<username>
-# password=<password>
-# auth.type=oauth2
-# bearer.token=<token>
 
 # ── Path properties (only needed when the DSL uses $path_properties) ─────────
 # Connectors that embed user-supplied values in URL paths declare those
