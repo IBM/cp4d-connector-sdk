@@ -1,0 +1,25 @@
+# IP addresses and CIDR ranges the connector must not call.
+#
+# The list is EMPTY by default: nothing is blocked. Add one entry per line to
+# data."blocked-ips.txt" below, then restart the connector pods - the file is read
+# once at startup, it is not watched for changes.
+#
+#   oc rollout restart deployment/cf-flight-connector      (OpenShift / Kubernetes)
+#
+# Entry format: an IPv4 or IPv6 address, or a CIDR range. '#' starts a comment.
+# Lines that are not valid are logged as errors and skipped.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: connectors-blocklist
+  labels:
+    app: cf-flight-connector
+data:
+  blocked-ips.txt: |
+    # One IP address or CIDR range per line. Examples (inactive while commented out):
+    # 169.254.169.254
+    # 127.0.0.0/8
+    # 10.0.0.0/8
+    # fd00::/8
+
+# Made with Bob

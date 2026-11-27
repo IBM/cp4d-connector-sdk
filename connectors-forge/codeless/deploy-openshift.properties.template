@@ -23,3 +23,12 @@ CREATE_PROJECT_IF_NOT_EXISTS=true
 
 # Set to 'true' to delete and recreate ConfigMap if it already exists
 RECREATE_CONFIGMAP=true
+
+# Optional: how the connector handles HTTP redirects returned by the REST API.
+# ALWAYS, NEVER or NORMAL (NORMAL = follow, except from https to http).
+# Leave empty for the default (NORMAL).
+REDIRECT_POLICY=
+
+# IP blocklist: the 'connectors-blocklist' ConfigMap (see blocklist-configmap.yaml) is created
+# empty if it does not exist and is never overwritten afterwards. To block addresses, edit it
+# and restart the pods: oc rollout restart deployment/cf-flight-connector

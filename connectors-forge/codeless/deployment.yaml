@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: cf-flight-connector
-        image: ghcr.io/marek-zuwala/connectors-forge:1.0.10.2
+        image: ghcr.io/marek-zuwala/connectors-forge:1.0.11.1
         imagePullPolicy: IfNotPresent
 
         ports:
@@ -40,8 +40,15 @@ spec:
         - name: config-volume
           mountPath: /config/mappings
           readOnly: true
+        - name: blocklist-volume
+          mountPath: /config/blocklist
+          readOnly: true
 
       volumes:
       - name: config-volume
         configMap:
           name: connectors-config
+      - name: blocklist-volume
+        configMap:
+          name: connectors-blocklist
+          optional: true

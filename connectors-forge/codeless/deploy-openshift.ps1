@@ -14,11 +14,14 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PropertiesFile = Join-Path $ScriptDir "deploy-openshift.properties"
 
 # Hardcoded configuration
-$DockerImage = "ghcr.io/marek-zuwala/connectors-forge:1.0.10.2"
+$DockerImage = "ghcr.io/marek-zuwala/connectors-forge:1.0.11.1"
 $ConfigFilesPath = "sdk-gen/subprojects/connectors_forge_rest/src/main/resources"
 $DeploymentYaml = Join-Path $ScriptDir "deployment.yaml"
 $ServiceYaml = Join-Path $ScriptDir "service.yaml"
+$BlocklistYaml = Join-Path $ScriptDir "blocklist-configmap.yaml"
 $ConfigMapName = "connectors-config"
+$BlocklistConfigMapName = "connectors-blocklist"
+$DeploymentName = "cf-flight-connector"
 
 # Variables from properties file
 $OpenShiftClusterUrl = ""
@@ -28,6 +31,7 @@ $OpenShiftToken = ""
 $OpenShiftProject = ""
 $CreateProjectIfNotExists = "true"
 $RecreateConfigMap = "true"
+$RedirectPolicy = ""
 
 # ============================================
 # Helper Functions
@@ -116,7 +120,17 @@ function Load-Properties {
                 'OPENSHIFT_PROJECT' { $script:OpenShiftProject = $value }
                 'CREATE_PROJECT_IF_NOT_EXISTS' { $script:CreateProjectIfNotExists = $value }
                 'RECREATE_CONFIGMAP' { $script:RecreateConfigMap = $value }
+                'REDIRECT_POLICY' { $script:RedirectPolicy = $value }
             }
+        }
+    }
+
+    # Validate optional redirect policy
+    if (-not [string]::IsNullOrWhiteSpace($RedirectPolicy)) {
+        $script:RedirectPolicy = $RedirectPolicy.Trim().ToUpper()
+        if ($RedirectPolicy -notin @("ALWAYS", "NEVER", "NORMAL")) {
+            Write-LogError "REDIRECT_POLICY must be ALWAYS, NEVER or NORMAL (or empty), got: $RedirectPolicy"
+            exit 1
         }
     }
     
@@ -289,6 +303,36 @@ function New-ConfigMap {
     Write-Log "ConfigMap '$ConfigMapName' created successfully"
 }
 
+# Creates the (empty by default) IP blocklist ConfigMap. An existing one is never touched, so
+# addresses that an administrator added to it survive a redeployment.
+function New-BlocklistConfigMap {
+    $ErrorActionPreference = "SilentlyContinue"
+    $exists = $false
+    $null = oc get configmap $BlocklistConfigMapName 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $exists = $true
+    }
+    $ErrorActionPreference = "Stop"
+
+    if ($exists) {
+        Write-Log "ConfigMap '$BlocklistConfigMapName' already exists, leaving it unchanged"
+        return
+    }
+
+    if (-not (Test-Path $BlocklistYaml)) {
+        Write-LogError "Blocklist configuration not found: $BlocklistYaml"
+        exit 1
+    }
+
+    Write-Log "Creating empty ConfigMap '$BlocklistConfigMapName'..."
+    $output = oc create -f $BlocklistYaml 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-LogError "Failed to create blocklist ConfigMap: $output"
+        exit 1
+    }
+    Write-Log "ConfigMap '$BlocklistConfigMapName' created (no addresses blocked)"
+}
+
 # ============================================
 # Deployment
 # ============================================
@@ -311,6 +355,20 @@ function Deploy-Connector {
         }
         
         Write-Log "Deployment configuration applied successfully"
+
+        # Redirect policy: set when configured, removed when not, so the cluster matches the properties file
+        if (-not [string]::IsNullOrWhiteSpace($RedirectPolicy)) {
+            Write-Log "Setting CF_REDIRECT_POLICY=$RedirectPolicy"
+            $output = oc set env "deployment/$DeploymentName" "CF_REDIRECT_POLICY=$RedirectPolicy" 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to set CF_REDIRECT_POLICY"
+            }
+        }
+        else {
+            $ErrorActionPreference = "SilentlyContinue"
+            $null = oc set env "deployment/$DeploymentName" "CF_REDIRECT_POLICY-" 2>&1
+            $ErrorActionPreference = "Stop"
+        }
     }
     catch {
         Write-LogError "Failed to deploy connector: $_"
@@ -388,6 +446,7 @@ function Main {
     Connect-OpenShift
     Initialize-Project
     New-ConfigMap
+    New-BlocklistConfigMap
     Deploy-Connector
     New-Service
     Test-Deployment
@@ -405,6 +464,7 @@ function Main {
     Write-Host "  - Deployment: cf-flight-connector"
     Write-Host "  - Service: cf-flight-connector-service"
     Write-Host "  - Port: 9443 (gRPC)"
+    Write-Host "  - IP blocklist: ConfigMap '$BlocklistConfigMapName' (edit it, then: oc rollout restart deployment/$DeploymentName)"
     Write-Host ""
     Write-Host "The connector is accessible within the cluster at:"
     Write-Host "  cf-flight-connector-service.$OpenShiftProject.svc.cluster.local:9443"

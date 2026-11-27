@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -65,10 +64,7 @@ public class JsonToArrowStream implements Closeable
     private static final int MAX_PAGES = 10000;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private static final RestHttpClient HTTP_CLIENT = RestHttpClient.getInstance();
 
     private final String baseUrl;
     private final String dataPath;
